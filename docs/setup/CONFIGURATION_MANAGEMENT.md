@@ -111,7 +111,7 @@ metadata:
 
 # Core Claude Settings
 claude:
-  model: "claude-3-sonnet-20240229"
+  model: "claude-sonnet-4-6"
   max_tokens: 4096
   temperature: 0.7
   stream: true
@@ -230,7 +230,7 @@ metadata:
 
 # Production-optimized settings
 claude:
-  model: "claude-3-sonnet-20240229"
+  model: "claude-sonnet-4-6"
   max_tokens: 4096
   temperature: 0.7
 
@@ -1139,7 +1139,7 @@ metadata:
 
 # Core Claude overrides
 claude:
-  model: "claude-3-sonnet-20240229"  # Adjust per environment needs
+  model: "claude-sonnet-4-6"  # Adjust per environment needs
   max_tokens: 4096
   temperature: 0.7
   stream: true

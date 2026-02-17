@@ -12,7 +12,7 @@ The Agent Specification API defines the interface and capabilities for Claude Co
 ---
 name: "agent-name"
 category: "development|infrastructure|architecture|design|quality|security|analysis|operations"
-model: "claude-sonnet-4-5-20250929|claude-haiku-4-5-20251001|claude-opus-4-6"
+model: "claude-sonnet-4-6|claude-haiku-4-5-20251001|claude-opus-4-6"
 capabilities:
   - "Primary capability"
   - "Secondary capability"
@@ -38,7 +38,7 @@ performance_tier: "Standard|Premium|Critical"
 |-------|------|-------------|---------|
 | `name` | string | Unique agent identifier | "backend-engineer" |
 | `category` | string | Functional domain | "development" |
-| `model` | string | Claude model version | "claude-sonnet-4-5-20250929" |
+| `model` | string | Claude model version | "claude-sonnet-4-6" |
 | `capabilities` | array | Core competencies | ["API development", "Database design"] |
 | `tools` | array | Allowed tool access | ["Read", "Write", "Bash"] |
 | `description` | string | Agent purpose and context | "Server-side development specialist" |
@@ -283,10 +283,10 @@ agents:
 cost: "High - use for strategic decisions"
 ```
 
-### Claude Sonnet 4.5 (Standard Implementation)
+### Claude Sonnet 4.6 (Standard Implementation)
 
 ```yaml
-model: "claude-sonnet-4-5-20250929"
+model: "claude-sonnet-4-6"
 use_cases:
   - Standard development tasks
   - Code review and analysis
