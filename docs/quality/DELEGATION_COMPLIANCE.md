@@ -12,7 +12,7 @@ This document defines the aggressive delegation model introduced with Opus 4.6 u
 | Model | Count | Agents | Use Case |
 |-------|-------|--------|----------|
 | Opus 4.6 | 4 | principal-architect, project-orchestrator, result-arbitrator, career-strategist | Maximum reasoning depth |
-| Sonnet 4.5 | 33 | All others | Standard development with enhanced reasoning |
+| Sonnet 4.6 | 33 | All others | Standard development with enhanced reasoning |
 
 ### Extended Thinking Distribution
 

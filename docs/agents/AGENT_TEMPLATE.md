@@ -4,12 +4,12 @@
 # This template matches the pattern used by 15 production agents
 # Target length: 30-50 lines (not 180+)
 #
-# Model selection (Claude Sonnet 4.5 / Opus 4.6 - February 2026):
-# - sonnet: Claude Sonnet 4.5 - Standard development, enhanced reasoning (DEFAULT)
+# Model selection (Claude Sonnet 4.6 / Opus 4.6 - February 2026):
+# - sonnet: Claude Sonnet 4.6 - Standard development, enhanced reasoning (DEFAULT)
 #   * 2x improvement in complex problem-solving
 #   * Native extended thinking support
 #   * Faster response times for better parallelization
-#   * Most agents use Sonnet 4.5
+#   * Most agents use Sonnet 4.6
 # - opus: Complex architecture requiring maximum reasoning depth
 #   * principal-architect, project-orchestrator, result-arbitrator, career-strategist
 #   * feature-agent (orchestration requiring deep reasoning)
@@ -19,7 +19,7 @@
 # - codex (external): Codex CLI for cost-effective coding execution
 #   * codex-delegate (orchestrates Codex CLI, agent itself uses sonnet)
 #
-# Thinking level selection (optional - Sonnet 4.5/Opus 4.6 native support):
+# Thinking level selection (optional - Sonnet 4.6/Opus 4.6 native support):
 # - ultrathink (31,999 tokens): System-wide architecture, complex forensics, enterprise planning
 #   * Used by: principal-architect, project-orchestrator, result-arbitrator, feature-agent
 # - megathink (10,000 tokens): Domain expertise, multi-system coordination, complex optimization

@@ -62,7 +62,7 @@ touch ~/.claude/config.json
 # Set default model and preferences
 cat > ~/.claude/config.json << EOF
 {
-  "default_model": "claude-3-sonnet-20240229",
+  "default_model": "claude-sonnet-4-6",
   "max_tokens": 4096,
   "temperature": 0.7,
   "stream": true

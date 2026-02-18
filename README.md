@@ -120,9 +120,9 @@ claude-code
 
 ## 🛠️ Core Features
 
-### 🤖 Claude Sonnet 4.5 Powered
+### 🤖 Claude Sonnet 4.6 Powered
 
-- **Latest Model**: Built for Claude Sonnet 4.5 (released September 2025)
+- **Latest Model**: Built for Claude Sonnet 4.6 (released February 2026)
 - **Enhanced Reasoning**: Enhanced capabilities for complex problem-solving
 - **Extended Thinking**: Native support for megathink/ultrathink reasoning modes
 - **Faster Performance**: Improved response times enable more aggressive parallelization

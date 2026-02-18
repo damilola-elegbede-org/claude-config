@@ -81,13 +81,13 @@ test_statusline_exists() {
 # Test basic statusline output format
 test_basic_output_format() {
     local statusline_path="../../system-configs/.claude/statusline.sh"
-    local test_input='{"model":{"display_name":"Claude 3.5 Sonnet"},"version":"1.2.3","workspace":{"current_dir":"/Users/test/project"},"output_style":{"name":"default"}}'
+    local test_input='{"model":{"display_name":"Claude Sonnet 4.6"},"version":"1.2.3","workspace":{"current_dir":"/Users/test/project"},"output_style":{"name":"default"}}'
 
     # Set test environment
     HOME="$TEST_HOME" output=$(echo "$test_input" | bash "$statusline_path" --test 2>/dev/null)
 
     # Check if output contains expected elements
-    if [[ "$output" != *"Claude 3.5 Sonnet"* ]]; then
+    if [[ "$output" != *"Claude Sonnet 4.6"* ]]; then
         echo "Output missing model name: $output"
         return 1
     fi
