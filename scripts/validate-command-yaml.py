@@ -157,7 +157,7 @@ def validate_command_yaml(file_path: Path) -> Dict[str, Any]:
         model = frontmatter['model']
         if model and isinstance(model, str):
             # Should be a valid Claude model identifier
-            if not re.match(r'^claude-3|^claude-sonnet|^claude-haiku|^claude-opus', model):
+            if not re.match(r'^claude-sonnet|^claude-haiku|^claude-opus', model):
                 warnings.append('Model should specify a valid Claude model identifier')
         elif model is not None:
             warnings.append('Model should be a string')
