@@ -16,7 +16,7 @@ file.
 ## Scope — `.tmp/` JSON State Files
 
 | File | Written by | Read by |
-|------|-----------|---------|
+| --- | --- | --- |
 | `.tmp/review-local.json` | `review/SKILL.md` | `resolve-comments/SKILL.md` |
 | `.tmp/review-coderabbit.json` | `review/SKILL.md` | `resolve-comments/SKILL.md` |
 | `.tmp/review-code.json` | `review/SKILL.md` | `review/SKILL.md` (merge step) |
@@ -32,7 +32,7 @@ All of these files **must** include `schema_version` at the top level.
 
 ### Current versions (all at `"1.0"`)
 
-```
+```text
 review-local.json          → schema_version: "1.0"
 review-coderabbit.json     → schema_version: "1.0"
 review-code.json           → schema_version: "1.0"
@@ -55,7 +55,7 @@ coderabbit-ignored.json    → schema_version: "1.0"
 Every skill that reads a `.tmp/` JSON state file **must** apply the following
 validation logic immediately after reading:
 
-```
+```text
 READ: .tmp/<file>.json
 IF: file exists
   VALIDATE: schema_version field exists in JSON
@@ -88,12 +88,12 @@ IF: file exists
 ### When MAJOR version changes are needed
 
 1. Update the writer (the skill that writes the file) to emit the new version.
-2. Update the reader (the skill that reads the file) to bump `CURRENT_SCHEMA_VERSION`.
-3. Both changes **must land in the same PR**. Split PRs are not allowed — a
+1. Update the reader (the skill that reads the file) to bump `CURRENT_SCHEMA_VERSION`.
+1. Both changes **must land in the same PR**. Split PRs are not allowed — a
    reader without a matching writer would immediately create mismatches in
    existing environments.
-4. Add a changelog entry to this document (see below).
-5. No data migration scripts are needed — the backup-and-reinit pattern handles
+1. Add a changelog entry to this document (see below).
+1. No data migration scripts are needed — the backup-and-reinit pattern handles
    stale files gracefully.
 
 ### Why not migrate data forward?
@@ -117,7 +117,7 @@ The following files carry `schema_version: "1.0"` in their write schemas but
 have **no validation** when consumed by readers:
 
 | File | Read location | Gap |
-|------|--------------|-----|
+| --- | --- | --- |
 | `.tmp/review-local.json` | `resolve-comments/SKILL.md` STEP 3 | No version check |
 | `.tmp/review-coderabbit.json` | `resolve-comments/SKILL.md` STEP 2 | No version check |
 | `.tmp/review-code.json` | `review/SKILL.md` merge step (line ~236) | No version check |
@@ -149,10 +149,14 @@ These gaps should be addressed in a follow-up PR (see Recommendations below).
 
 ### Short-term (within next sprint)
 
-4. Add a CI check (`scripts/validate-schema-versions.sh`) that:
+1. Add a CI check (`scripts/validate-schema-versions.sh`) that:
    - Asserts every `.tmp/` file definition in a SKILL.md includes `schema_version`
    - Asserts every READ of a `.tmp/` file in a SKILL.md has a corresponding
      `VALIDATE: schema_version` step
+   - Includes **test discovery**: the script should auto-discover all `.tmp/` file
+     references in SKILL.md files without a hardcoded list
+   - Includes **test creation** guidance: new `.tmp/` file writers must include a
+     corresponding test assertion in the CI check
    This prevents future regressions without requiring manual review of all skill files.
 
 ---
@@ -171,10 +175,10 @@ correct safe behaviour — it prevents silent corruption.
 
 ## Changelog
 
-| Date | Version | Change | PR |
-|------|---------|--------|----|
-| 2026-03-05 | `1.0` | Initial schema for all `.tmp/` state files | #175 |
-| 2026-03-07 | `1.0` | This document written; gaps identified | follow-up |
+| Date       | Version | Change                                     | PR        |
+| ---------- | ------- | ------------------------------------------ | --------- |
+| 2026-03-05 | `1.0`   | Initial schema for all `.tmp/` state files | #175      |
+| 2026-03-07 | `1.0`   | This document written; gaps identified     | follow-up |
 
 ---
 
