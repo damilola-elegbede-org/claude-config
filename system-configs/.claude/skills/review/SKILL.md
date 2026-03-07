@@ -235,6 +235,16 @@ Wait for all reviewers to complete. Then merge results:
 ```text
 READ: .tmp/review-code.json, .tmp/review-security.json, .tmp/review-accessibility.json
 
+FOR EACH file in [review-code.json, review-security.json, review-accessibility.json]:
+  VALIDATE: schema_version field exists in JSON
+  SET: CURRENT_SCHEMA_VERSION = "1.0"
+  IF: schema_version is missing OR schema_version != CURRENT_SCHEMA_VERSION
+    SET: backup_path = .tmp/{file}.backup-{timestamp}.json
+    COPY: .tmp/{file} TO backup_path
+    DELETE: .tmp/{file}
+    OUTPUT: "⚠️ Schema version mismatch in {file} (found: {schema_version}, expected: {CURRENT_SCHEMA_VERSION}). Backed up to {backup_path} — skipping this reviewer's output."
+    SKIP: this file's issues in merge (do not abort entire merge)
+
 MERGE: Combine all issues into .tmp/review-local.json
   - Concatenate all issues from all reviewers
   - If same file+line appears with substantially similar description across reviewers, keep highest severity and merge

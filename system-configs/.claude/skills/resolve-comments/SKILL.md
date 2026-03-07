@@ -385,6 +385,14 @@ STEP 1: Load issues from files
       OUTPUT: "Warning: No CodeRabbit issues file found (.tmp/review-coderabbit.json)"
       CONTINUE: (do not END - check other sources)
     ELSE:
+      VALIDATE: schema_version field exists in JSON
+      SET: CURRENT_SCHEMA_VERSION = "1.0"
+      IF: schema_version is missing OR schema_version != CURRENT_SCHEMA_VERSION
+        SET: backup_path = .tmp/review-coderabbit.backup-{timestamp}.json
+        COPY: .tmp/review-coderabbit.json TO backup_path
+        DELETE: .tmp/review-coderabbit.json
+        OUTPUT: "⚠️ Schema version mismatch in review-coderabbit.json (found: {schema_version}, expected: {CURRENT_SCHEMA_VERSION}). Backed up to {backup_path}. Re-run /review --code-rabbit to regenerate."
+        CONTINUE: (skip this source, do not END)
       APPEND: issues from file with source="coderabbit"
       OUTPUT: "Loaded {count} CodeRabbit issues"
 
@@ -394,6 +402,14 @@ STEP 1: Load issues from files
       OUTPUT: "Warning: No AI reviewer issues file found (.tmp/review-local.json)"
       CONTINUE: (do not END - check other sources)
     ELSE:
+      VALIDATE: schema_version field exists in JSON
+      SET: CURRENT_SCHEMA_VERSION = "1.0"
+      IF: schema_version is missing OR schema_version != CURRENT_SCHEMA_VERSION
+        SET: backup_path = .tmp/review-local.backup-{timestamp}.json
+        COPY: .tmp/review-local.json TO backup_path
+        DELETE: .tmp/review-local.json
+        OUTPUT: "⚠️ Schema version mismatch in review-local.json (found: {schema_version}, expected: {CURRENT_SCHEMA_VERSION}). Backed up to {backup_path}. Re-run /review to regenerate."
+        CONTINUE: (skip this source, do not END)
       APPEND: issues from file with source="code-reviewer"
       OUTPUT: "Loaded {count} AI reviewer issues"
 
