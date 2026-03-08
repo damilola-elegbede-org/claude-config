@@ -235,14 +235,14 @@ Wait for all reviewers to complete. Then merge results:
 ```text
 READ: .tmp/review-code.json, .tmp/review-security.json, .tmp/review-accessibility.json
 
-FOR EACH file in [review-code.json, review-security.json, review-accessibility.json]:
-  VALIDATE: schema_version field exists in JSON
+FOR EACH stem in [review-code, review-security, review-accessibility]:
+  VALIDATE: schema_version field exists in .tmp/{stem}.json
   SET: CURRENT_SCHEMA_VERSION = "1.0"
   IF: schema_version is missing OR schema_version != CURRENT_SCHEMA_VERSION
-    SET: backup_path = .tmp/{file}.backup-{timestamp}.json
-    COPY: .tmp/{file} TO backup_path
-    DELETE: .tmp/{file}
-    OUTPUT: "⚠️ Schema version mismatch in {file} (found: {schema_version}, expected: {CURRENT_SCHEMA_VERSION}). Backed up to {backup_path} — skipping this reviewer's output."
+    SET: backup_path = .tmp/{stem}.backup-{timestamp}.json
+    COPY: .tmp/{stem}.json TO backup_path
+    DELETE: .tmp/{stem}.json
+    OUTPUT: "⚠️ Schema version mismatch in {stem}.json (found: {schema_version}, expected: {CURRENT_SCHEMA_VERSION}). Backed up to {backup_path} — skipping this reviewer's output."
     SKIP: this file's issues in merge (do not abort entire merge)
 
 MERGE: Combine all issues into .tmp/review-local.json

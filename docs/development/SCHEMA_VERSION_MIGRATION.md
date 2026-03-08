@@ -43,10 +43,9 @@ coderabbit-ignored.json    → schema_version: "1.0"
 
 ### Versioning Rules
 
-- Versions follow semantic versioning: `"MAJOR.MINOR"` (e.g. `"1.0"`, `"1.1"`, `"2.0"`).
-- **MINOR** bump: additive-only changes (new optional fields). Readers **must** tolerate unknown fields.
-- **MAJOR** bump: breaking change (renamed/removed fields, changed types). Readers **must** trigger the mismatch path.
-- MAJOR bumps require a corresponding update to the reader's `CURRENT_SCHEMA_VERSION` constant **in the same PR**.
+- Versions use `"MAJOR.MINOR"` format (e.g. `"1.0"`, `"2.0"`).
+- Any version change (major or minor) requires updating all readers in the same PR.
+- Readers **must** use exact string equality (`schema_version != CURRENT_SCHEMA_VERSION`) — no semver parsing.
 
 ---
 
@@ -60,7 +59,7 @@ READ: .tmp/<file>.json
 IF: file exists
   VALIDATE: schema_version field exists in JSON
   SET: CURRENT_SCHEMA_VERSION = "<expected version>"
-  IF: schema_version is missing OR major(schema_version) != major(CURRENT_SCHEMA_VERSION)
+  IF: schema_version is missing OR schema_version != CURRENT_SCHEMA_VERSION
     SET: backup_path = .tmp/<file>.backup-{timestamp}.json
     COPY: .tmp/<file>.json TO backup_path
     DELETE: .tmp/<file>.json
@@ -68,17 +67,13 @@ IF: file exists
              (found: {schema_version}, expected: {CURRENT_SCHEMA_VERSION}).
              Backed up to {backup_path} — starting fresh."
     TREAT AS: file missing (proceed as if no prior state)
-  ELSE IF: minor(schema_version) > minor(CURRENT_SCHEMA_VERSION)
-    OUTPUT: "ℹ️ <file>.json was written by a newer minor version ({schema_version}).
-             Unknown fields will be ignored."
-    CONTINUE: with existing data (tolerate extra fields)
 ```
 
 **Key properties:**
 
-- `schema_version` missing → treated as mismatch (same as MAJOR bump).
-- Minor version ahead → tolerated; unknown fields ignored.
-- MAJOR mismatch → backup-and-skip; no data loss, no silent corruption.
+- `schema_version` missing → treated as mismatch.
+- Version mismatch uses exact string equality — no semver parsing.
+- Mismatch → backup-and-skip; no data loss, no silent corruption.
 - Backup files are never deleted automatically; humans clean them up.
 
 ---
@@ -111,37 +106,36 @@ low. Data migration would add complexity with no meaningful benefit.
 - `coderabbit-ignored.json` — validation added to `pr/SKILL.md` (STEP 4,
   post-review acknowledgment path).
 
-### ❌ Gaps — not yet validated on read
+### ✅ Covered by PR #176
 
-The following files carry `schema_version: "1.0"` in their write schemas but
-have **no validation** when consumed by readers:
+The following files now have `schema_version` validation on read, added in PR #176:
 
-| File | Read location | Gap |
+| File | Read location | Validation |
 | --- | --- | --- |
-| `.tmp/review-local.json` | `resolve-comments/SKILL.md` STEP 3 | No version check |
-| `.tmp/review-coderabbit.json` | `resolve-comments/SKILL.md` STEP 2 | No version check |
-| `.tmp/review-code.json` | `review/SKILL.md` merge step (line ~236) | No version check |
-| `.tmp/review-security.json` | `review/SKILL.md` merge step | No version check |
-| `.tmp/review-accessibility.json` | `review/SKILL.md` merge step | No version check |
+| `.tmp/review-local.json` | `resolve-comments/SKILL.md` STEP 3 | Exact match check |
+| `.tmp/review-coderabbit.json` | `resolve-comments/SKILL.md` STEP 2 | Exact match check |
+| `.tmp/review-code.json` | `review/SKILL.md` merge step | Exact match check |
+| `.tmp/review-security.json` | `review/SKILL.md` merge step | Exact match check |
+| `.tmp/review-accessibility.json` | `review/SKILL.md` merge step | Exact match check |
 
-These gaps should be addressed in a follow-up PR (see Recommendations below).
+All `.tmp/` JSON state files now have read-time `schema_version` validation.
 
 ---
 
 ## Recommendations
 
-### Immediate (same PR as #175 or follow-up)
+### Immediate — ✅ Done in PR #176
 
-1. **Add validation to `resolve-comments/SKILL.md`** when reading:
+1. **✅ Validation added to `resolve-comments/SKILL.md`** when reading:
    - `.tmp/review-local.json` (STEP 3 / STEP 2 fetch path)
    - `.tmp/review-coderabbit.json` (STEP 2 fetch path)
 
-2. **Add validation to `review/SKILL.md`** when merging:
+2. **✅ Validation added to `review/SKILL.md`** when merging:
    - `.tmp/review-code.json`
    - `.tmp/review-security.json`
    - `.tmp/review-accessibility.json`
-   Apply the same backup-and-skip pattern. On mismatch, skip the sub-file and
-   warn; do not abort the entire review.
+   Uses backup-and-skip pattern. On mismatch, the sub-file is skipped and
+   a warning is emitted; the entire review is not aborted.
 
 3. **No changes to `openclaw.json`** — that file is operator-owned and managed
    by the Cortex/OpenClaw boundary established in PR #147 (cortex repo). Schema
@@ -178,7 +172,7 @@ correct safe behaviour — it prevents silent corruption.
 | Date       | Version | Change                                     | PR        |
 | ---------- | ------- | ------------------------------------------ | --------- |
 | 2026-03-05 | `1.0`   | Initial schema for all `.tmp/` state files | #175      |
-| 2026-03-07 | `1.0`   | This document written; gaps identified     | follow-up |
+| 2026-03-07 | `1.0`   | Document added; per-file schema_version validations implemented for all .tmp/ reads | #176 |
 
 ---
 
