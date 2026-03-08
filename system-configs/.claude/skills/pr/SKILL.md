@@ -184,11 +184,13 @@ STEP 4: Post review acknowledgments
   IF: file exists AND has ignored_issues
     VALIDATE: schema_version field exists in JSON
     SET: CURRENT_SCHEMA_VERSION = "1.0"
+    SET: found_version = schema_version (or "missing" if field absent)
+    SET: timestamp = $(date +%Y%m%d-%H%M%S)
     IF: schema_version is missing OR schema_version != CURRENT_SCHEMA_VERSION
       SET: backup_path = .tmp/coderabbit-ignored.backup-{timestamp}.json
       COPY: .tmp/coderabbit-ignored.json TO backup_path
       DELETE: .tmp/coderabbit-ignored.json
-      OUTPUT: "⚠️ Schema version mismatch in coderabbit-ignored.json (found: {schema_version}, expected: {CURRENT_SCHEMA_VERSION}). Backed up to {backup_path} and skipping acknowledgments."
+      OUTPUT: "⚠️ Schema version mismatch in coderabbit-ignored.json (found: {found_version}, expected: {CURRENT_SCHEMA_VERSION}). Backed up to {backup_path} and skipping acknowledgments."
       SKIP: to STEP 5
     RUN: git branch --show-current
     SET: current_branch = output
