@@ -207,6 +207,7 @@ STEP 4: Apply fixes
 STEP 5: Finalize
   IF: skipped_issues not empty
     WRITE: .tmp/coderabbit-ignored.json
+    ENSURE: written JSON includes schema_version: "1.0" at the top level
     OUTPUT: "Saved {count} skipped issues for /ship-it acknowledgment"
 
   IF: fixes applied
@@ -442,6 +443,7 @@ STEP 4: Finalize
 
   IF: skipped_issues not empty
     WRITE: .tmp/coderabbit-ignored.json
+    ENSURE: written JSON includes schema_version: "1.0" at the top level
     OUTPUT: "Saved {count} skipped issues (will be posted to PR via /ship-it)"
 
   OUTPUT: "Fixed {fix_count} issues, skipped {skip_count}"
@@ -606,6 +608,9 @@ IF: user selected "Review each issue individually"
 ```
 
 ## Ignored Issues Schema
+
+<!-- SCHEMA VERSION: "1.0" — Any breaking schema changes MUST increment schema_version. -->
+<!-- Readers (e.g. pr/SKILL.md) validate this field on load and reject stale files. -->
 
 Output format (`.tmp/coderabbit-ignored.json`):
 
