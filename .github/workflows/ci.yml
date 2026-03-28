@@ -251,7 +251,7 @@ jobs:
       timeout-minutes: 8
 
     - name: Lint markdown files
-      uses: DavidAnson/markdownlint-cli2-action@v22
+      uses: DavidAnson/markdownlint-cli2-action@v23
       continue-on-error: true
       with:
         config: '.markdownlint-cli2.jsonc'
