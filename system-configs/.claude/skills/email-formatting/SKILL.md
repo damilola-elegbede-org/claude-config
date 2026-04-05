@@ -1,6 +1,7 @@
 ---
 name: email-formatting
 description: Format outbound emails for D, Ana, and other stakeholders with clear subject lines, BLUF-first structure, clickable links, explicit recipient/CC checks, and polished HTML when useful. Use when drafting or sending email via gog/Gmail, especially for travel options, recommendations, status updates, summaries, follow-ups, or any message that should feel executive-ready instead of raw plain text.
+user-invocable: false
 ---
 
 # Email Formatting
@@ -12,7 +13,8 @@ Format outbound email so it is easy to scan, hard to mis-send, and ready for act
 1. **Verify recipients before writing**
    - Confirm `to`, `cc`, and `bcc` from the current request.
    - Do not add `cc` recipients by default.
-   - Only CC someone when D explicitly instructs it, or when replying within an already-established thread where keeping the same recipients is clearly intended.
+   - Only CC someone when D explicitly instructs it, or when replying within an
+     already-established thread where keeping the same recipients is clearly intended.
 
 2. **Choose the body format intentionally**
    - **Do not send plain-text emails.**

@@ -1,6 +1,7 @@
 ---
 name: clara-briefing
 description: Clara Nova's daily briefing compiler. Modeled after the President's Daily Brief — concise, actionable intelligence for D.
+user-invocable: false
 ---
 
 # Clara Briefing — President's Daily Brief Format
@@ -15,7 +16,9 @@ description: Clara Nova's daily briefing compiler. Modeled after the President's
 
 ## Golden Reference
 
-**Wednesday March 18, 2026** is the canonical golden EDB. Every morning brief must match that email's visual design exactly: Gmail message ID `19d010d1515b718d`. When in doubt, reproduce that structure.
+**Wednesday March 18, 2026** is the canonical golden EDB. Every morning brief must match
+that email's visual design exactly: Gmail message ID `19d010d1515b718d`. When in doubt,
+reproduce that structure.
 
 ---
 
@@ -62,6 +65,7 @@ gog gmail search "in:inbox is:unread" --account damilola.elegbede@gmail.com --pl
 ```
 
 Also read:
+
 - `~/.openclaw-clara/workspace-cadence/state/gtd_pulse_edb.json` — Cadence's Notion GTD data. **Never query Notion directly.**
 - `memory/job-search-latest.md`
 - `memory/recruiter-log.md`
@@ -69,7 +73,9 @@ Also read:
 
 ### Step 2 — Write the HTML to `/tmp/edb-morning.html`
 
-Use the **exact HTML structure below**. Colors, fonts, and layout are fixed. Only the content inside each section changes. This structure exactly matches the Wednesday March 18 golden reference.
+Use the **exact HTML structure below**. Colors, fonts, and layout are fixed. Only the
+content inside each section changes. This structure exactly matches the Wednesday March 18
+golden reference.
 
 ```html
 <div style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;max-width:680px;margin:0 auto;color:#2d2d2d;line-height:1.6">
@@ -300,7 +306,7 @@ gog gmail send \
 
 After the email is confirmed sent:
 
-```
+```text
 [weather emoji] EDB — [Day], [Date] · [Hi]°/[Lo]°F · 💧[Humidity]% · 🌧[Precip]%
 
 ⚡ [Top line — one sentence]
@@ -320,7 +326,7 @@ Keep under 100 words. Send via Telegram (Clara bot).
 
 ## Midday Check (12pm) — Telegram Only
 
-```
+```text
 🕛 MIDDAY — [Date]
 
 ⚡ [Top line if anything urgent, or "All clear"]
@@ -342,7 +348,7 @@ Keep under 100 words. Send via Telegram (Clara bot).
 
 ## EOD Wrap (8pm) — Telegram Only
 
-```
+```text
 🌆 EOD — [Date]
 
 ✅ TODAY
@@ -373,7 +379,9 @@ Keep under 100 words. Send via Telegram (Clara bot).
 
 - **Email:** Always FROM `clara.nova.cos@gmail.com` TO `damilola.elegbede@gmail.com`
 - **Telegram:** Send via Clara bot to D (Clara bot)
-- **Hyperlinks:** Everywhere actionable — Gmail links (`https://mail.google.com/mail/u/0/#inbox/[id]`), Google Calendar event links, job URLs, Notion page links, article URLs
+- **Hyperlinks:** Everywhere actionable — Gmail links
+  (`https://mail.google.com/mail/u/0/#inbox/[id]`), Google Calendar event links,
+  job URLs, Notion page links, article URLs
 
 ---
 

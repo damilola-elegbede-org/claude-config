@@ -1,6 +1,7 @@
 ---
 name: slack-ops
 description: Post messages, thread replies, and react in Slack via slack-post.sh. Use this skill for ALL Slack outbound communication — new posts, thread replies, reactions, and @mention dispatch. Never use the native message tool for Slack; it bypasses agent dispatch and threading. Triggers on any intent to post, reply, or send to Slack.
+user-invocable: false
 ---
 
 # slack-ops
@@ -9,7 +10,7 @@ All Slack communication routes through `slack-post.sh`. The native `message` too
 
 ## Script
 
-```
+```text
 ~/.openclaw-dara/workspace/scripts/slack-post.sh
 ```
 
@@ -42,7 +43,10 @@ The `thread_ts` is provided in the dispatch message when `slack-mention-router.s
 
 ## @Mention Dispatch
 
-When Dara posts via `slack-post.sh post` or `thread`, `auto_dispatch_mentions` fires automatically in the background. It detects `<@SLACK_ID>` patterns and calls `slack-mention-router.sh`, which sends each mentioned specialist a `sessions_send` with the message and the correct reply instruction (thread or post).
+When Dara posts via `slack-post.sh post` or `thread`, `auto_dispatch_mentions` fires
+automatically in the background. It detects `<@SLACK_ID>` patterns and calls
+`slack-mention-router.sh`, which sends each mentioned specialist a `sessions_send` with
+the message and the correct reply instruction (thread or post).
 
 No manual dispatch needed — just include `<@ID>` mentions in the message text and `slack-post.sh` handles the rest.
 

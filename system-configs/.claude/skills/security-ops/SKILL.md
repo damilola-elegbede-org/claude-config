@@ -3,6 +3,7 @@ name: security-ops
 description: Operational security audit procedures — weekly repo audits, secret scanning, dependency vulnerability checks, file permission verification. Use when running security audits, scanning for secrets, or checking dependency vulnerabilities.
 argument-hint: "[--weekly|--secrets|--deps|--permissions]"
 category: operations
+user-invocable: false
 ---
 
 # Security Ops
@@ -96,6 +97,7 @@ rg -n 'xoxb-|xapp-|sk-|ghp_|AKIA|BEGIN.*PRIVATE KEY' \
 ## Coverage Gap Handling
 
 If a repo is missing from `~/dev/` and cloning fails:
+
 1. Log as `COVERAGE_GAP` with repo name and reason
 2. Do NOT skip silently — always report it
 
@@ -112,6 +114,7 @@ If a repo is missing from `~/dev/` and cloning fails:
 ## Reporting
 
 Post the full report to Slack #alerts:
+
 ```bash
 /Users/daelegbe/.openclaw-dara/workspace/scripts/slack-post.sh post alerts "<report>" dara
 ```
@@ -119,6 +122,7 @@ Post the full report to Slack #alerts:
 For HIGH+ findings, also tag D in the alert.
 
 Write heartbeat:
+
 ```bash
 echo '{"task":"security-ops","agent":"dara","lastRun":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","status":"ok"}' > ~/.cortex/heartbeats/dara-security-ops.json
 ```

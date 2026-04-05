@@ -1,6 +1,7 @@
 ---
 name: recruiter-inbox
 description: Score and log recruiter outreach emails. Detect recruiter messages, score fit against D's job search criteria, log to recruiter-log.md, and route alerts based on score.
+user-invocable: false
 ---
 
 # Recruiter Inbox
@@ -14,6 +15,7 @@ description: Score and log recruiter outreach emails. Detect recruiter messages,
 ## Job Search Context
 
 Load current parameters from `MEMORY.md` — key fields:
+
 - **Target roles:** EM, Senior EM, Director of Engineering
 - **NO IC roles** (no VP, no Head of Eng, no CTO/CIO)
 - **Base salary floor:** $230K | **Total comp floor:** $350K
@@ -84,13 +86,14 @@ Append every scored recruiter email to `memory/recruiter-log.md` in this format:
 ### Deduplication
 
 Before scoring, check `memory/recruiter-log.md` for:
+
 - Same sender + same role → skip (already scored)
 - Same sender, different role → score as new
 - Same company, different recruiter → score as new
 
 ## Telegram Format (Score 5+)
 
-```
+```text
 📨 Recruiter: [Sender Name] ([Company]) — Score: [N]/10
 Role: [Title]
 Location: [Location or Remote]

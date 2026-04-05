@@ -2,6 +2,7 @@
 name: calendar-management
 description: Monitor Google Calendar, create/modify events, detect conflicts, and
   generate meeting prep notes. Always check with D before accepting/declining.
+user-invocable: false
 ---
 
 # Calendar Management
@@ -45,7 +46,7 @@ description: Monitor Google Calendar, create/modify events, detect conflicts, an
 
 ### For Morning Brief:
 
-```
+```text
 📅 TODAY'S CALENDAR
 
 **9:00-10:00 AM** — [Meeting Title]
@@ -64,7 +65,7 @@ description: Monitor Google Calendar, create/modify events, detect conflicts, an
 
 ### For Conflict Alert (Signal):
 
-```
+```text
 🚨 CALENDAR CONFLICT
 
 [Time]: [Event A] conflicts with [Event B]
@@ -79,7 +80,7 @@ Which should I do?
 
 ### For Invite Requiring Response:
 
-```
+```text
 📅 CALENDAR INVITE
 
 [Event Title]

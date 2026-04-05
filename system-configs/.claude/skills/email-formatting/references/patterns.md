@@ -1,6 +1,7 @@
 # Email Patterns
 
-**Rule:** Do not send plain-text emails. Use HTML by default. Use Markdown only if the exact send path is known to render it correctly; otherwise convert it to HTML first.
+**Rule:** Do not send plain-text emails. Use HTML by default. Use Markdown only if the
+exact send path is known to render it correctly; otherwise convert it to HTML first.
 
 ### Markdown note
 

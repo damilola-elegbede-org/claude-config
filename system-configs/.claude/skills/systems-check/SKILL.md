@@ -3,6 +3,7 @@ name: systems-check
 description: Fleet-wide health check of Claude agent infrastructure — scheduled tasks, MCP servers, Slack connectivity, and critical services. Produces GREEN/YELLOW/RED report. Use when D asks for a 'systems check', 'status check', 'health check', or 'how is everything running'.
 argument-hint: "[--brief]"
 category: operations
+user-invocable: false
 ---
 
 # Systems Check — Claude Fleet
@@ -20,7 +21,7 @@ Run a comprehensive health check across the Claude agent fleet infrastructure.
 
 Always produce these sections, even if empty:
 
-```
+```text
 ## Shared Infrastructure     ← Node, Git, disk, gog, Slack connectivity
 ## MCP Servers               ← All registered MCP servers responding
 ## Scheduled Tasks           ← Heartbeat freshness check
@@ -146,11 +147,13 @@ Keep it punchy, technical, and actionable. This is the "what D actually needs to
 ## Delivery
 
 Post the full report to Slack #status:
+
 ```bash
 /Users/daelegbe/.openclaw-dara/workspace/scripts/slack-post.sh post status "<report>" dara
 ```
 
 Write heartbeat:
+
 ```bash
 echo '{"task":"systems-check","agent":"dara","lastRun":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","status":"ok"}' > ~/.cortex/heartbeats/dara-systems-check.json
 ```
