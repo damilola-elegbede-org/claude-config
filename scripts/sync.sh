@@ -226,6 +226,15 @@ sync_files() {
         return 1
     fi
 
+    # Flatten leads/ subdirectory — Claude Code requires agents at top level
+    if [ -d "$TARGET_DIR/agents/leads" ]; then
+        for f in "$TARGET_DIR/agents/leads"/*.md; do
+            [ -f "$f" ] && mv "$f" "$TARGET_DIR/agents/"
+        done
+        rmdir "$TARGET_DIR/agents/leads" 2>/dev/null || true
+        print_success "Flattened leads/ agents to ~/.claude/agents/"
+    fi
+
     # Sync skills
     rsync_output=""
     if rsync_output=$(rsync -a --delete --exclude="README.md" --exclude="*TEMPLATE*" "$SOURCE_DIR/skills/" "$TARGET_DIR/skills/" 2>&1); then

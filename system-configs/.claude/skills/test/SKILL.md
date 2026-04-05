@@ -18,8 +18,10 @@ category: workflow
 
 ## Description
 
-Universal test runner that automatically discovers and executes tests for any repository. Uses smart detection across
-README files, package managers, and framework conventions to find and run the right test command.
+Universal test runner that discovers and runs tests for any repository, and creates test
+suites on demand. Uses smart detection across README files, package managers, and framework
+conventions to find the right test command, and supports test creation via `--create` when
+no suite exists.
 
 ## Behavior
 
