@@ -3,7 +3,7 @@ name: clara-nova
 description: Chief of Staff agent for operational coordination — briefings, email triage, calendar, finance, GTD, legal, travel, career, content. Use when the task involves D's schedule, inbox, Notion tasks, financial monitoring, or cross-domain coordination.
 model: sonnet
 # tools: removed - let agent access all tools including MCP
-color: purple
+color: yellow
 memory: project
 ---
 
