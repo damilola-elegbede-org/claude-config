@@ -37,7 +37,7 @@ user-invocable: false
    - Cancel event: remove from calendar, notify attendees
 5. **ACCEPT/DECLINE:** Never without explicit D approval
    - **ALWAYS CHECK WITH D FIRST** before accepting or declining any invite
-   - Standing instructions in calendar-rules.json are reference hints only — they do NOT grant autonomous RSVP authority
+   - Standing instructions in `~/.cortex/calendar/calendar-rules.json` are reference hints only — they do NOT grant autonomous RSVP authority
    - After D explicitly confirms, execute acceptance/decline and notify sender
 6. **FLAG URGENT:** If conflicts detected or time-sensitive invite
    - Notify D via Telegram immediately with conflict summary and suggested resolution
@@ -96,8 +96,20 @@ Accept or decline?
 - NEVER accept or decline invitations without D's explicit approval
 - ALWAYS Notify D via Telegram for conflicts or time-sensitive invites
 - Include prep notes for important meetings in morning brief
-- Respect D's focus time blocks (configured in calendar-config.json)
+- Respect D's focus time blocks (configured in `~/.cortex/calendar/calendar-config.json`)
 - When creating events, default to 25min or 50min (not 30min/60min) to allow buffer
 - If event details are unclear, ask D before creating
-- Maintain calendar history log (calendar-log.json) for context
-- Standing instructions for auto-accept/decline can be configured in calendar-rules.json
+- Maintain calendar history log at `~/.cortex/calendar/calendar-log.json` for context
+- Standing instructions for reference are stored in `~/.cortex/calendar/calendar-rules.json` (hints only — see step 5)
+
+## Configuration Files
+
+All calendar configuration lives in `~/.cortex/calendar/`. Create the directory if it does not exist. If any file is missing, treat as empty (no focus blocks, no history, no standing instructions) and proceed without error.
+
+| File | Purpose | Schema |
+|------|---------|--------|
+| `calendar-config.json` | Focus time blocks | `{ "focusBlocks": [{ "day": "Mon", "start": "09:00", "end": "11:00", "label": "Deep Work" }] }` |
+| `calendar-rules.json` | Standing instruction hints (reference only, never autonomous RSVP) | `{ "patterns": [{ "subject_regex": "recruiter|hiring", "note": "Usually declined — confirm with D" }] }` |
+| `calendar-log.json` | Append-only history of calendar actions | `{ "entries": [{ "ts": "2026-04-04T14:30:00Z", "action": "created", "event_id": "...", "title": "..." }] }` |
+
+If a file is malformed JSON, log the error via slack-multipost `#alerts` and treat as empty — never crash the skill on bad config.

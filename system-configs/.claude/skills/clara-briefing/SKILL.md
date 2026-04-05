@@ -258,7 +258,7 @@ golden reference.
        provocative. Not a newsletter. Not motivation. Actionable wisdom.
     
     5. NO-REPEAT RULE (370-DAY LOCKOUT — NON-NEGOTIABLE):
-       Before composing, READ `memory/edb-insights-log.md` for ALL prior topics.
+       Before composing, READ `~/.cortex/memory/edb-insights-log.md` (absolute path) for ALL prior topics.
        - No topic/angle may repeat within 370 days.
        - No same author cited more than 2x in any 30-day window.
        - No same publication more than 2x in any 5-day window.
@@ -267,8 +267,9 @@ golden reference.
          Executive Presence, Culture, Innovation, Power/Influence.
        If in doubt about overlap, pick a different topic.
     
-    6. AFTER SENDING: Log the insight to `memory/edb-insights-log.md` with date, topic, 
-       category, author, publication, and URL. This feeds the Weekly Coaching Digest (Sunday 6pm).
+    6. AFTER SENDING: Log the insight to `~/.cortex/memory/edb-insights-log.md` (absolute path)
+       with date, topic, category, author, publication, and URL. Create the file and parent
+       directory if they do not exist. This feeds the Weekly Coaching Digest (Sunday 6pm).
   -->
   <p style="font-size:15px;line-height:1.7;margin:0 0 12px 0">
     <strong>[Insight Title — Bold, Specific, Provocative]</strong>
