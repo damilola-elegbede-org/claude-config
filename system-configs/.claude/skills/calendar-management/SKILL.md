@@ -35,10 +35,10 @@ user-invocable: false
    - Create event: verify no conflicts, add to calendar, confirm
    - Move event: check new slot for conflicts, update, notify attendees if needed
    - Cancel event: remove from calendar, notify attendees
-5. **ACCEPT/DECLINE:** When instructed by D
-   - **ALWAYS CHECK WITH D FIRST** before accepting or declining
-   - Exception: if standing instructions exist for event type (e.g., "auto-decline recruiting calls")
-   - After D confirms, execute acceptance/decline and notify sender
+5. **ACCEPT/DECLINE:** Never without explicit D approval
+   - **ALWAYS CHECK WITH D FIRST** before accepting or declining any invite
+   - Standing instructions in calendar-rules.json are reference hints only — they do NOT grant autonomous RSVP authority
+   - After D explicitly confirms, execute acceptance/decline and notify sender
 6. **FLAG URGENT:** If conflicts detected or time-sensitive invite
    - Notify D via Telegram immediately with conflict summary and suggested resolution
 

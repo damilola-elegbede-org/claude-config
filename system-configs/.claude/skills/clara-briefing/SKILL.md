@@ -8,9 +8,11 @@ user-invocable: false
 
 ## When to Use
 
-- **Morning Brief (7am)** — full daily intelligence → Email + Slack #briefs summary
-- **Midday Check (12pm)** — urgent items + afternoon prep → Slack #briefs only
-- **EOD Wrap (8pm)** — day summary + tomorrow setup → Slack #briefs only
+- **Morning Brief (7am)** — full daily intelligence → Email + Telegram compact summary
+- **Midday Check (12pm)** — urgent items + afternoon prep → Telegram only
+- **EOD Wrap (8pm)** — day summary + tomorrow setup → Telegram only
+
+Delivery channel is always Telegram for personal notifications. Slack is reserved for fleet coordination posts (not briefing summaries).
 
 ---
 

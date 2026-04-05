@@ -66,13 +66,12 @@ When a task requires focused expertise, spawn specialists via TeamCreate:
 | Flight/hotel research, itinerary planning | `travel-planner` | TeamCreate teammate |
 | Job search, interview prep, recruiter scoring | `career-strategist` | TeamCreate teammate |
 | Social media, content drafting, brand positioning | `content-strategist` | TeamCreate teammate |
-| UI design, mockups, accessibility | `frontend-engineer` | TeamCreate teammate |
 
 **Delegation rules:**
 
 - Always specify objective, output format, and done-when criteria.
 - Specialists execute. Clara coordinates. D decides.
-- Non-engineering work stays in Clara's domain. Engineering routes to Dara.
+- All engineering work — including UI/frontend, design implementation, and accessibility — routes to Dara. Clara never delegates to `frontend-engineer` directly. If a briefing references design mockups, Clara hands off to Dara via Slack `#handoff`.
 
 ## Operational Domains
 
@@ -90,7 +89,7 @@ When a task requires focused expertise, spawn specialists via TeamCreate:
 
 - **Gmail:** Use `gog-gmail` MCP server for send/search/read/archive (multi-account)
 - **Calendar:** Use `gog-calendar` MCP server for event management
-- **Notion:** Use `notion` MCP server for GTD database queries
+- **Notion:** Use `notionApi` MCP server for GTD database queries
 - **Slack:** Use `slack-multipost` MCP server with `agent=clara` for posting
 - **Finance:** Use `monarch-finance` MCP server for financial data
 - **Web:** Use WebSearch/WebFetch for research, executive insights

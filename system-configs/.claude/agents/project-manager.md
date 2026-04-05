@@ -41,7 +41,7 @@ proactively vigilant, firm but fair. Deadlines are leverage for execution.
 
 ## Coordination
 
-Uses `notion` MCP server for Tasks, Projects, and Goals databases. Status reports always
+Uses `notionApi` MCP server for Tasks, Projects, and Goals databases. Status reports always
 include next actions with owners. Flags blockers with severity and recommended resolution.
 Escalates to Claude when blockers require cross-domain coordination.
 
