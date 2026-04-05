@@ -2,7 +2,7 @@
 name: systems-check
 description: Fleet-wide health check of Claude agent infrastructure — scheduled tasks, MCP servers, Slack connectivity, and critical services. Produces GREEN/YELLOW/RED report. Use when D asks for a 'systems check', 'status check', 'health check', or 'how is everything running'.
 argument-hint: "[--brief]"
-category: operations
+category: workflow
 user-invocable: false
 ---
 

@@ -2,7 +2,7 @@
 name: security-ops
 description: Operational security audit procedures — weekly repo audits, secret scanning, dependency vulnerability checks, file permission verification. Use when running security audits, scanning for secrets, or checking dependency vulnerabilities.
 argument-hint: "[--weekly|--secrets|--deps|--permissions]"
-category: operations
+category: workflow
 user-invocable: false
 ---
 

@@ -26,10 +26,14 @@ SKILLS_DIR = PROJECT_ROOT / "system-configs" / ".claude" / "skills"
 # Expected counts after optimization
 # Updated: feature-agent, ml-engineer, mobile-engineer added as new agents
 # Updated: codex-delegate added as new agent
+# Updated: Cortex fleet migration added 6 personal specialists (career-strategist,
+#   content-strategist, financial-analyst, legal-counsel, project-manager, travel-planner)
+#   and 8 fleet skills (calendar-management, clara-briefing, email-formatting,
+#   email-triage, recruiter-inbox, security-ops, slack-ops, systems-check)
 # Commands migrated to skills system - commands directory no longer exists
 # Note: sync and skills-import are project-local (.claude/skills/), not in system-configs
-EXPECTED_AGENT_COUNT = 16
-EXPECTED_SKILL_COUNT = 35
+EXPECTED_AGENT_COUNT = 22
+EXPECTED_SKILL_COUNT = 43
 
 # Non-agent/command documentation files to skip
 NON_AGENT_FILES = [
@@ -249,10 +253,11 @@ def test_consolidated_agents_exist():
     """Verify consolidated agents were created correctly."""
     agents = get_all_agents()
 
-    # Removed agents should not exist (including career-assistant which was removed with skills)
+    # Removed agents should not exist. Note: career-strategist was reinstated
+    # by the Cortex fleet migration as a personal specialist for Clara Nova.
     removed_agents = [
         "ats-auditor", "resume-parser", "content-writer",
-        "career-strategist", "application-tracker", "company-researcher",
+        "application-tracker", "company-researcher",
         "mobile-ui", "career-assistant"
     ]
     for removed in removed_agents:
