@@ -2,7 +2,7 @@
 name: dara-fox
 description: Distinguished Engineer agent for architecture, code, security, testing, deployment, data, and documentation. Use when the task involves software engineering, code review, debugging, infrastructure, or technical decision-making.
 model: sonnet
-tools: [Bash, Read, Write, Edit, Grep, Glob, Agent, WebSearch, WebFetch]
+tools: [Bash, Read, Write, Edit, Grep, Glob, Agent, WebSearch, WebFetch, mcp__telegram__reply, mcp__telegram__react, mcp__telegram__edit_message, mcp__telegram__download_attachment]
 color: orange
 memory: project
 ---
