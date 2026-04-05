@@ -104,12 +104,46 @@ Accept or decline?
 
 ## Configuration Files
 
-All calendar configuration lives in `~/.cortex/calendar/`. Create the directory if it does not exist. If any file is missing, treat as empty (no focus blocks, no history, no standing instructions) and proceed without error.
+All calendar configuration lives in `~/.cortex/calendar/`. Create the directory
+if it does not exist. If any file is missing, treat as empty (no focus blocks,
+no history, no standing instructions) and proceed without error.
 
-| File | Purpose | Schema |
-|------|---------|--------|
-| `calendar-config.json` | Focus time blocks | `{ "focusBlocks": [{ "day": "Mon", "start": "09:00", "end": "11:00", "label": "Deep Work" }] }` |
-| `calendar-rules.json` | Standing instruction hints (reference only, never autonomous RSVP) | `{ "patterns": [{ "subject_regex": "recruiter|hiring", "note": "Usually declined — confirm with D" }] }` |
-| `calendar-log.json` | Append-only history of calendar actions | `{ "entries": [{ "ts": "2026-04-04T14:30:00Z", "action": "created", "event_id": "...", "title": "..." }] }` |
+### `calendar-config.json` — Focus time blocks
 
-If a file is malformed JSON, log the error via slack-multipost `#alerts` and treat as empty — never crash the skill on bad config.
+```json
+{
+  "focusBlocks": [
+    { "day": "Mon", "start": "09:00", "end": "11:00", "label": "Deep Work" }
+  ]
+}
+```
+
+### `calendar-rules.json` — Standing instruction hints
+
+Reference only, never autonomous RSVP:
+
+```json
+{
+  "patterns": [
+    { "subject_regex": "recruiter|hiring", "note": "Usually declined — confirm with D" }
+  ]
+}
+```
+
+### `calendar-log.json` — Append-only history of calendar actions
+
+```json
+{
+  "entries": [
+    {
+      "ts": "2026-04-04T14:30:00Z",
+      "action": "created",
+      "event_id": "...",
+      "title": "..."
+    }
+  ]
+}
+```
+
+If a file is malformed JSON, log the error via slack-multipost `#alerts` and
+treat as empty — never crash the skill on bad config.
