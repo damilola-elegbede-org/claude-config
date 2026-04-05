@@ -4,6 +4,124 @@ I'm a technology executive who values efficiency, quality, and pragmatic solutio
 I work across diverse projects and prefer Claude to adapt to each context while
 maintaining consistent standards.
 
+## Machine & Agent System
+
+This is a Mac Mini M4 (`damilola-mbm`) running a personal AI agent fleet powered by
+Claude Code + Claude Desktop.
+
+### Architecture
+
+```
+D (interactive CLI or Telegram)  ←→  Claude Code main session
+                                        ├── clara-nova (Chief of Staff)
+                                        ├── dara-fox (Distinguished Engineer)
+                                        └── tars (Ana's Personal Assistant)
+
+Telegram Bots (tmux sessions)
+├── @ClaraNovaBot → claude --agent clara-nova --channels telegram
+├── @DaraFoxBot   → claude --agent dara-fox --channels telegram
+└── @TARSBot      → claude --agent tars --channels telegram (pending)
+
+Desktop Tasks (Claude Desktop, 15 scheduled)
+├── Clara: Email Check, Morning Brief, EOD Wrap, GTD Pulse, Financial Suite, etc.
+└── Dara: Engineering Standup, PR Review, Security Sweep, Dead Man Switch, etc.
+
+Cortex (monitoring dashboard only — port 3000)
+└── Reads heartbeat files from ~/.cortex/heartbeats/
+```
+
+### Lead Agents
+
+| Agent | Role | Chat Surface | Specialists |
+|-------|------|-------------|-------------|
+| Clara Nova | Chief of Staff | Telegram + Slack | financial-analyst, project-manager, legal-counsel, travel-planner, career-strategist, content-strategist |
+| Dara Fox | Distinguished Engineer | Telegram + Slack | backend-engineer, frontend-engineer, feature-agent, devops, test-engineer, code-reviewer, security-auditor, data-engineer, tech-writer |
+| TARS | Ana's Personal Assistant | Telegram | None (solo) |
+
+Specialists are generic role-based agents (not named personas). Leads spawn them via TeamCreate.
+
+### Key Paths
+
+| Path | Purpose |
+|------|---------|
+| `~/.claude/agents/` | 25 agent definitions (3 leads + 22 generics) |
+| `~/.claude/skills/` | 43 skills (35 generic + 8 fleet-specific) |
+| `~/.claude/mcp-servers/` | 7 custom MCP server scripts |
+| `~/.claude/settings.json` | MCP registration, hooks, env vars |
+| `~/.claude/channels/telegram-{clara,dara,tars}/` | Per-bot Telegram state + access control |
+| `~/.claude/task-specs/` | 30 scheduled task prompt specifications |
+| `~/.cortex/heartbeats/` | Task execution heartbeat files (JSON) |
+| `~/.cortex/credentials/` | Age-encrypted secrets + Telegram bot tokens |
+| `~/Documents/Projects/cortex/` | Cortex source repo (dashboard + bridge) |
+| `~/Documents/Projects/claude-config/` | Agent/skill/MCP config repo (source of truth) |
+
+### MCP Servers (7 registered)
+
+| Server | Purpose |
+|--------|---------|
+| `slack-multipost` | Post to Slack as Clara or Dara bot identity |
+| `gog-gmail` | Multi-account Gmail (send, search, read, archive) |
+| `gog-calendar` | Google Calendar events (all calendars) |
+| `notion` | Notion API (Tasks, Projects, Goals DBs) |
+| `monarch-finance` | Financial data via Vesper's Python scripts |
+| `damilola-tech` | DK API for job scoring + activity publishing |
+| `github-multiagent` | Per-agent Git identity + GitHub App tokens |
+
+### Telegram Bots
+
+Run as persistent tmux sessions:
+```bash
+# Start bots
+tmux new-session -d -s telegram-clara \
+  "TELEGRAM_STATE_DIR=~/.claude/channels/telegram-clara claude --agent clara-nova \
+   --channels plugin:telegram@claude-plugins-official \
+   --dangerously-skip-permissions --permission-mode bypassPermissions \
+   --settings /tmp/telegram-clara-settings.json"
+
+tmux new-session -d -s telegram-dara \
+  "TELEGRAM_STATE_DIR=~/.claude/channels/telegram-dara claude --agent dara-fox \
+   --channels plugin:telegram@claude-plugins-official \
+   --dangerously-skip-permissions --permission-mode bypassPermissions \
+   --settings /tmp/telegram-dara-settings.json"
+
+# Check status
+tmux list-sessions
+
+# View a bot's session
+tmux attach -t telegram-clara
+```
+
+### Scheduled Tasks
+
+15 Desktop Tasks managed via Claude Desktop. Heartbeats written to `~/.cortex/heartbeats/`.
+
+| Task | Schedule | Agent |
+|------|----------|-------|
+| Email Check | 7am/1pm/5pm | Clara |
+| Morning Brief (EDB) | 6:57am | Clara |
+| EOD Wrap | 8:03pm | Clara |
+| GTD Pulse | 12:27pm MWF | Clara |
+| Financial Anomaly Scan | 8:03am | Clara |
+| Weekly Financial Digest | 4:03am Sun | Clara |
+| Job Search | 6:42am Sun | Clara |
+| Executive Coaching | 6:03pm Sun | Clara |
+| Nexus Slack Audit | 12:27pm Sun | Clara |
+| Engineering Standup | 4:57am M-F | Dara |
+| PR Review Poll | */15 8am-8pm | Dara |
+| Security Sweep | 3:27am M-Sat | Dara |
+| Dead Man Switch | :07 hourly | Dara |
+| Fleet Health Check | 8:03am | Dara |
+| API Health Monitor | */30 | Dara |
+
+### Remote Access
+
+SSH into Mac Mini via Tailscale from any device:
+```bash
+ssh daelegbe@damilola-mbm.tail873377.ts.net
+claude  # interactive session, subscription-covered
+claude --agent clara-nova  # start as Clara
+```
+
 ## Communication Preferences
 
 - Be concise and direct - I scan output quickly
@@ -41,9 +159,6 @@ cases, empty states, and "nothing to do" scenarios.
 
 If a command has skip conditions, those conditions are evaluated BY the command during
 execution, not by you before execution.
-
-Wrong: "Skipping /docs because config files don't need documentation"
-Right: Execute /docs, let its analysis phase determine if documentation is needed
 
 ## File Organization
 
@@ -88,14 +203,6 @@ each agent a real tmux pane where you can watch them work live.
 
 - Single agent delegation (use `Task` directly)
 - Sequential workflows where agents run one after another
-
-### Known Limitation
-
-TeamCreate only spawns `general-purpose` agents ([#24316][tc]). Mitigate by passing
-`model: "sonnet"` and embedding the custom agent's Identity/Core Capabilities in spawn
-prompts. Enforce read-only via prompt constraints (not `mode: "plan"` — it blocks file writes).
-
-[tc]: https://github.com/anthropics/claude-code/issues/24316
 
 ### Patterns
 
@@ -144,16 +251,8 @@ Skills provide focused operations for common workflows:
 **Development:** `/debug`, `/fix-ci`, `/implement`, `/resolve-comments`
 **Planning:** `/plan`, `/prime`, `/prompt`, `/verify`, `/deps`
 **Orchestration:** `/ship-it`, `/feature-lifecycle` (combines multiple skills)
-
-## Task System
-
-Use tasks for multi-phase operations requiring progress visibility.
-
-### Best Practices
-
-- Use for 3+ phases with dependencies or progress visibility needs
-- Mark task `in_progress` BEFORE starting work
-- Mark `completed` only when fully done — never if errors/blockers exist
+**Fleet Operations:** `/clara-briefing`, `/email-triage`, `/systems-check`, `/security-ops`, `/slack-ops`
+**Formats:** `/pdf`, `/docx`, `/pptx`, `/xlsx`
 
 ## Agent Routing
 
@@ -176,6 +275,13 @@ Use tasks for multi-phase operations requiring progress visibility.
 | ml, machine learning, model training | `ml-engineer` |
 | implement feature, build feature | `feature-agent` |
 | codex, delegate coding, execute implementation | `codex-delegate` |
+| email, inbox, triage, briefing, schedule, calendar | `clara-nova` |
+| finance, budget, spending, net worth, tax | `financial-analyst` |
+| notion, tasks, projects, GTD, overdue | `project-manager` |
+| legal, contract, compliance, IP | `legal-counsel` |
+| travel, flight, hotel, itinerary | `travel-planner` |
+| career, job search, recruiter, interview | `career-strategist` |
+| content, social media, LinkedIn, brand | `content-strategist` |
 
 ## Model Tier Policy
 
@@ -191,6 +297,19 @@ Use tasks for multi-phase operations requiring progress visibility.
 - Use Codex for implementation/tests/refactoring/fixes with clear requirements
 - Keep planning, review, debugging, research, and cross-file reasoning on Claude
 
+## Billing Rule
+
+**Everything must be subscription-covered.** No API key billing, no Agent SDK direct calls,
+no GitHub Actions with ANTHROPIC_API_KEY. All agent interactions go through Claude Code CLI
+or Claude Desktop — both subscription-covered.
+
+## Operational Memory
+
+Session-level notes and cross-conversation context are in the auto-memory system at
+`~/.claude/projects/-Users-daelegbe/memory/`. On launch, read `MEMORY.md` there to pick up
+where previous sessions left off. At the end of each session (or when significant work is done),
+write a session note capturing decisions, changes, and open items.
+
 ## Background Execution
 
 **Rule: 2+ parallel agents or subagents → TeamCreate. Always.**
@@ -198,3 +317,16 @@ Use tasks for multi-phase operations requiring progress visibility.
 `run_in_background: true` is only for single-agent background tasks (no terminal,
 invisible API call, output file only). For 2+ parallel agents, TeamCreate is mandatory
 — it provides live tmux panes, shared coordination, and graceful shutdown.
+
+## Configuration Source of Truth
+
+The `claude-config` repo at `~/Documents/Projects/claude-config/` is the source of truth
+for all agent definitions, skills, and MCP server configs. Deploy changes via:
+
+```bash
+cd ~/Documents/Projects/claude-config && ./scripts/sync.sh
+```
+
+The sync script copies from `system-configs/.claude/` to `~/.claude/`, flattening
+`agents/leads/` to top-level. Never edit `~/.claude/agents/` or `~/.claude/skills/`
+directly — edit the repo and sync.
