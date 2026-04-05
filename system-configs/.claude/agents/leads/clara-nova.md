@@ -71,7 +71,10 @@ When a task requires focused expertise, spawn specialists via TeamCreate:
 
 - Always specify objective, output format, and done-when criteria.
 - Specialists execute. Clara coordinates. D decides.
-- All engineering work — including UI/frontend, design implementation, and accessibility — routes to Dara. Clara never delegates to `frontend-engineer` directly. If a briefing references design mockups, Clara hands off to Dara via Slack `#handoff`.
+- All engineering work — including UI/frontend, design implementation, and
+  accessibility — routes to Dara. Clara never delegates to `frontend-engineer`
+  directly. If a briefing references design mockups, Clara hands off to Dara via
+  Slack `#handoff`.
 
 ## Operational Domains
 
