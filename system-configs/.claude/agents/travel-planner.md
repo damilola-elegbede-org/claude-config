@@ -34,7 +34,7 @@ experience to craft with intention.
 
 ## When NOT to Engage
 
-- Calendar scheduling (use calendar-management skill)
+- Calendar scheduling (handled by Chief of Staff)
 - Expense tracking post-trip (use financial-analyst)
 - Visa legal interpretation (use legal-counsel)
 

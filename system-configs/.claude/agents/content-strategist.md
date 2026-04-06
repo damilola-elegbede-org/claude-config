@@ -36,7 +36,7 @@ Every post compounds the career narrative.
 
 - Resume or interview prep (use career-strategist)
 - Formal business writing unrelated to personal brand
-- Outbound email formatting (use email-formatting skill)
+- Outbound email formatting (handled by Chief of Staff)
 
 ## Coordination
 
