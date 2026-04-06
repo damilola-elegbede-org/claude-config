@@ -138,8 +138,8 @@ All `.tmp/` JSON state files now have read-time `schema_version` validation.
    a warning is emitted; the entire review is not aborted.
 
 3. **No changes to `openclaw.json`** — that file is operator-owned and managed
-   by the Cortex/OpenClaw boundary established in PR #147 (cortex repo). Schema
-   versioning for `openclaw.json` is out of scope for this issue.
+   by established operational boundaries. Schema versioning for `openclaw.json`
+   is out of scope for this issue.
 
 ### Short-term (within next sprint)
 

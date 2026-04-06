@@ -19,7 +19,7 @@ configured here to work with Claude Desktop.
 
 **Source File**: `/.mcp.json` (in repository root)
 
-This file serves as the source of truth for MCP server configurations and is merged into
+This file serves as the reference for MCP server configurations and is merged into
 Claude Desktop's configuration during deployment.
 
 ## Configuration Structure
@@ -254,7 +254,7 @@ npx -y @modelcontextprotocol/server-github --help
 ## Benefits of Current Architecture
 
 1. **Accurate Location**: Uses the actual Claude Desktop configuration file
-2. **Centralized Management**: Repository serves as source of truth
+2. **Centralized Management**: Repository serves as single reference
 3. **Safe Deployment**: Automatic backups prevent configuration loss
 4. **Merge Strategy**: Preserves existing Claude Desktop settings
 5. **Version Control**: Track MCP changes in repository
