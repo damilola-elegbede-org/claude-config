@@ -1,4 +1,9 @@
-# About Me
+# About This Config
+
+Portable Claude Code configuration. We run Claude Desktop for Chat, Cowork, and Claude
+Code. This config feeds Claude Code on any machine it's installed on.
+
+## About Me
 
 Technology executive. I value efficiency, quality, and pragmatic solutions.
 
@@ -12,17 +17,6 @@ technical language appropriate to the task. When uncertain, ask rather than assu
 Never bypass git hooks (`--no-verify`). Run tests before calling work complete. Code
 review is expected for non-trivial changes. Security-sensitive code gets extra scrutiny.
 Quality over speed — don't skip steps to save time.
-
-## Machine & Fleet
-
-Mac Mini M4 (`damilola-mbm`) running a personal AI fleet on Claude Code + Claude Desktop.
-
-- **Leads:** Clara Nova (Chief of Staff, Telegram+Slack), Dara Fox (Distinguished Engineer,
-  Telegram+Slack), TARS (Ana's PA, Telegram)
-- **Telegram bots:** `@ClaraNovaBot`, `@DaraFoxBot`, `@TARSBot` run as tmux sessions
-- **Scheduled tasks:** 15 via Claude Desktop, heartbeats in `~/.cortex/heartbeats/`
-- **Cortex:** monitoring dashboard only (port 3000), reads heartbeats
-- **Source of truth:** `~/Documents/Projects/claude-config/`, deploy via `./scripts/sync.sh`
 
 ## Working Style
 
@@ -53,6 +47,35 @@ Temporary files go in `.tmp/`: `.tmp/plans/`, `.tmp/reports/`, `.tmp/analysis/`,
 | 3 | Agents | Complex specialists, deep analysis (`debugger`, `architect`) |
 | 4 | Agent Teams | 2+ parallel agents in same workflow (`/fix-ci`, `/implement`) |
 
+## Agent Teams (TeamCreate)
+
+**TeamCreate is the standard approach for multi-agent work.** Any task requiring 2+
+parallel agents MUST use TeamCreate — it provides live tmux panes, shared task lists,
+and graceful shutdown. `run_in_background` is only for single background tasks.
+
+**When to use TeamCreate:**
+
+- Any time you would spawn 2+ agents in the same workflow (mandatory)
+- User needs to see parallel agent progress in real-time
+- Agents need shared task list coordination
+- Workflow requires graceful shutdown of all agents
+
+**Best practices:**
+
+- Give enough context in spawn prompts (embed agent identity + skill content)
+- Size 5-6 tasks per teammate
+- Assign explicit file ownership to prevent conflicts between teammates
+- Always shutdown teammates and TeamDelete when done, even on failure
+- Wait for all teammates to complete before synthesizing results
+
+| Pattern | Teammates | Use Case |
+|---------|-----------|----------|
+| Full-Stack | backend + frontend + test | End-to-end feature |
+| Deep Review | code-reviewer + security + a11y | Comprehensive audit |
+| Research Sprint | researcher + architect | Technology evaluation |
+| Debug Swarm | 3-5 debuggers, different hypotheses | Hard-to-reproduce bug |
+| CI Fix | diagnoser + fixer-{domain} | Parallel CI resolution |
+
 ## Available Skills
 
 - **Git:** `/branch`, `/commit`, `/push`, `/pr`, `/rebase`, `/merge`
@@ -60,9 +83,17 @@ Temporary files go in `.tmp/`: `.tmp/plans/`, `.tmp/reports/`, `.tmp/analysis/`,
 - **Development:** `/debug`, `/fix-ci`, `/implement`, `/resolve-comments`
 - **Planning:** `/plan`, `/prime`, `/prompt`, `/verify`, `/deps`
 - **Orchestration:** `/ship-it`, `/feature-lifecycle`
-- **Fleet Ops:** `/clara-briefing`, `/email-triage`, `/systems-check`, `/security-ops`,
-  `/slack-ops`
 - **Formats:** `/pdf`, `/docx`, `/pptx`, `/xlsx`
+
+## Lead Agents
+
+| Agent | Role | Persona | Specialists |
+|-------|------|---------|-------------|
+| `chief-of-staff` | Chief of Staff | Clara Nova 💫 | financial-analyst, project-manager, legal-counsel, travel-planner, career-strategist, content-strategist |
+| `principal-architect` | Principal Architect | Dara Fox 🦊 | backend-engineer, frontend-engineer, feature-agent, devops, test-engineer, code-reviewer, security-auditor, data-engineer, tech-writer |
+| `personal-assistant` | Personal Assistant | TARS 🤖 | None (solo) |
+
+Specialists are generic role-based agents. Leads spawn them via TeamCreate.
 
 ## Agent Routing
 
@@ -84,31 +115,15 @@ Temporary files go in `.tmp/`: `.tmp/plans/`, `.tmp/reports/`, `.tmp/analysis/`,
 | ml, machine learning, model training | `ml-engineer` |
 | implement feature, build feature | `feature-agent` |
 | codex, delegate coding, execute implementation | `codex-delegate` |
-| chief of staff, briefing, exec support | `clara-nova` |
-| distinguished engineer, fleet lead, eng ops | `dara-fox` |
-| ana, personal assistant | `tars` |
+| coordination, exec support, GTD, finance, legal, travel, career, content | `chief-of-staff` |
+| engineering lead, technical design | `principal-architect` |
+| ana, personal, family, ECE | `personal-assistant` |
 | finance, budget, spending, net worth, tax | `financial-analyst` |
 | notion, tasks, projects, GTD, overdue | `project-manager` |
 | legal, contract, compliance, IP | `legal-counsel` |
 | travel, flight, hotel, itinerary | `travel-planner` |
 | career, job search, recruiter, interview | `career-strategist` |
 | content, social media, LinkedIn, brand | `content-strategist` |
-
-## Agent Teams (TeamCreate)
-
-**Any task that requires 2+ parallel agents MUST use TeamCreate** — provides live tmux
-panes, shared task list, and graceful shutdown. `run_in_background` is only for single
-background tasks. Give enough context in spawn prompts, size 5-6 tasks per teammate,
-assign explicit file ownership to prevent conflicts, always shutdown and TeamDelete
-when done (even on failure).
-
-| Pattern | Teammates | Use Case |
-|---------|-----------|----------|
-| Full-Stack | backend + frontend + test | End-to-end feature |
-| Deep Review | code-reviewer + security + a11y | Comprehensive audit |
-| Research Sprint | researcher + architect | Technology evaluation |
-| Debug Swarm | 3-5 debuggers, different hypotheses | Hard-to-reproduce bug |
-| CI Fix | diagnoser + fixer-{domain} | Parallel CI resolution |
 
 ## Model Tier Policy
 

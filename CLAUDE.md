@@ -1,7 +1,7 @@
 This is a Claude Code CLI Configuration Repository - a clean, organized system for managing Claude
 configurations, specialized agents, and custom skills with the Claude Code CLI.
 
-The core Claude configurations live in the system-configs directory, which serves as the source of truth for all
+The core Claude configurations live in the system-configs directory, which contains all
 system settings. This directory contains the main CLAUDE.md configuration file, the .claude subdirectory with agents
 and skills definitions, and a settings.json file for audio notification preferences. All agent definitions are
 stored as Markdown files with YAML front-matter in system-configs/.claude/agents/, while skills reside in

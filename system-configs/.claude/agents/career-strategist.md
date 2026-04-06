@@ -36,7 +36,7 @@ research-obsessed, patient, confident in value. Career moves are won before the 
 
 - Non-career personal tasks (travel, finance, legal)
 - Content creation beyond resume/positioning (use content-strategist)
-- Active recruiter message triage (use recruiter-inbox skill)
+- Active recruiter message triage (handled by Chief of Staff)
 
 ## Coordination
 

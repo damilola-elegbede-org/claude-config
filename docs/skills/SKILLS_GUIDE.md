@@ -296,7 +296,7 @@ If a command file is found with the same name as a skill, validation fails. This
 
 - No duplicate entries in search/autocomplete
 - Clear routing for each operation
-- Single source of truth for each workflow
+- Single canonical implementation for each workflow
 
 ## Best Practices
 
