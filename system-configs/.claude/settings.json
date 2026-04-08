@@ -25,9 +25,9 @@
         "hooks": [
           {
             "type": "prompt",
-            "prompt": "Analyze this bash command. Is it a destructive git operation (reset --hard, push --force, clean -f, branch -D, checkout . on modified files)? If destructive, explain why it should be blocked. If safe, say it is safe to proceed.",
-            "model": "haiku",
-            "timeout": 10
+            "prompt": "Evaluate this bash command. Does it perform a destructive git operation? Destructive operations include: git reset --hard, git push --force or --force-with-lease, git clean -f or -fd, git branch -D, git checkout . or git checkout -- . when there are modified files.",
+            "model": "sonnet",
+            "timeout": 15
           }
         ]
       },
@@ -46,8 +46,8 @@
         "hooks": [
           {
             "type": "prompt",
-            "prompt": "Check if the file being edited is a source file (not a test, config, type definition, documentation, markdown, JSON, YAML, CSS, or lock file). If it is a source file (e.g., .ts, .tsx, .js, .jsx, .py, .go, .rs, .rb), check whether a corresponding test file exists in common test locations (__tests__/, *.test.*, *.spec.*, tests/, *_test.*). If no test file exists for this source file, block the edit — tests must be written first (TDD). Otherwise allow it.",
-            "model": "haiku",
+            "prompt": "Evaluate this file edit. Is the target file a source file (e.g., .ts, .tsx, .js, .jsx, .py, .go, .rs, .rb) that is NOT a test file, config file, type definition, documentation, markdown, JSON, YAML, CSS, or lock file? If it is a source file, does a corresponding test file exist in common locations such as __tests__/, *.test.*, *.spec.*, tests/, or *_test.*?",
+            "model": "sonnet",
             "timeout": 15
           }
         ]
@@ -90,10 +90,8 @@
         "matcher": "*",
         "hooks": [
           {
-            "type": "prompt",
-            "prompt": "Context is about to be compacted. Summarize the current session: what the user is working on, progress made, key decisions, open items, and next steps. This summary will be preserved through compaction.",
-            "model": "haiku",
-            "timeout": 30
+            "type": "command",
+            "command": "echo '{\"systemMessage\": \"Context compaction in progress. Important: preserve current task context, decisions made, and next steps in your working memory.\"}'"
           }
         ]
       }
@@ -108,8 +106,8 @@
           },
           {
             "type": "prompt",
-            "prompt": "Review this conversation. Compare what the user originally requested with what was actually implemented. Were all requirements addressed? Were any unrequested changes made? Report any gaps or confirm completion.",
-            "model": "haiku",
+            "prompt": "Evaluate whether the most recent Claude response fully completed the user's original request. Were all stated requirements addressed? Were any changes made that the user did not ask for?",
+            "model": "sonnet",
             "timeout": 30
           }
         ]
