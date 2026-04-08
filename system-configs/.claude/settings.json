@@ -15,19 +15,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -q -- '--no-verify\\|--no-gpg-sign'; then echo '--no-verify is blocked by policy' >&2; exit 2; fi",
+            "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -qE '(--no-verify|--no-gpg-sign|git\\s+reset\\s+--hard|git\\s+push\\s+--force|git\\s+push\\s+-f\\b|git\\s+clean\\s+-f|git\\s+branch\\s+-D|git\\s+checkout\\s+\\.)'; then echo 'BLOCKED: Destructive or policy-violating git operation detected' >&2; exit 2; fi",
             "timeout": 5
-          }
-        ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "prompt",
-            "prompt": "Analyze this bash command. Is it a destructive git operation (reset --hard, push --force, clean -f, branch -D, checkout . on modified files)? Respond {\"ok\": false, \"reason\": \"...\"} to block, or {\"ok\": true} to allow.",
-            "model": "haiku",
-            "timeout": 10
           }
         ]
       },
@@ -45,10 +34,9 @@
         "matcher": "Write|Edit",
         "hooks": [
           {
-            "type": "prompt",
-            "prompt": "Check if the file being edited is a source file (not a test, config, type definition, documentation, markdown, JSON, YAML, CSS, or lock file). If it IS a source file (e.g., .ts, .tsx, .js, .jsx, .py, .go, .rs, .rb), check whether a corresponding test file exists in common test locations (__tests__/, *.test.*, *.spec.*, tests/, *_test.*). If no test file exists for this source file, respond with {\"decision\": \"block\", \"reason\": \"No test file found for this source file. Write tests first (TDD).\"}. If a test file exists, or if the file is not a source file, respond with {\"decision\": \"allow\"}.",
-            "model": "haiku",
-            "timeout": 15
+            "type": "command",
+            "command": "FILE=\"$CLAUDE_FILE_PATHS\"; if [[ -z \"$FILE\" ]]; then exit 0; fi; if [[ \"$FILE\" =~ \\.(test|spec)\\. ]] || [[ \"$FILE\" =~ __tests__/ ]] || [[ \"$FILE\" =~ /tests?/ ]] || [[ \"$FILE\" =~ \\.env ]] || [[ \"$FILE\" =~ \\.(md|json|yaml|yml|css|scss|html|txt|svg|lock|toml|cfg|ini|conf)$ ]] || [[ \"$FILE\" =~ \\.(d\\.ts)$ ]] || [[ \"$FILE\" =~ Makefile ]] || [[ \"$FILE\" =~ Dockerfile ]]; then exit 0; fi; if [[ ! \"$FILE\" =~ \\.(ts|tsx|js|jsx|py|go|rs|rb)$ ]]; then exit 0; fi; DIR=$(dirname \"$FILE\"); BASE=$(basename \"$FILE\" | sed 's/\\.[^.]*$//'); FOUND=0; for EXT in test.ts test.tsx test.js test.jsx spec.ts spec.tsx spec.js spec.jsx; do if [[ -f \"${DIR}/${BASE}.${EXT}\" ]] || [[ -f \"${DIR}/__tests__/${BASE}.${EXT}\" ]]; then FOUND=1; break; fi; done; if [[ \"$FILE\" =~ \\.py$ ]]; then if [[ -f \"${DIR}/test_${BASE}.py\" ]] || [[ -f \"${DIR}/${BASE}_test.py\" ]] || [[ -f \"${DIR}/tests/test_${BASE}.py\" ]]; then FOUND=1; fi; fi; if [[ \"$FILE\" =~ \\.go$ ]]; then if [[ -f \"${DIR}/${BASE}_test.go\" ]]; then FOUND=1; fi; fi; if [[ $FOUND -eq 0 ]]; then echo \"BLOCKED: No test file found for ${FILE}. Write tests first (TDD).\" >&2; exit 2; fi",
+            "timeout": 5
           }
         ]
       }
@@ -87,37 +75,26 @@
     ],
     "PreCompact": [
       {
-        "matcher": "*",
         "hooks": [
           {
-            "type": "prompt",
-            "prompt": "Context is about to be compacted. Before it happens, write a session summary to the operational memory directory. Create a file at ~/.claude/projects/-Users-daelegbe/memory/ named session_note_YYYYMMDD_HHMMSS.md (using the current timestamp). Capture: (1) the goal/task being worked on, (2) progress made so far, (3) key decisions made and why, (4) current blockers or open questions, (5) next steps. Use the Write tool to save it. Format with YAML frontmatter containing name, description, and type: project fields. Keep it concise but complete enough to resume work in a new session.",
-            "model": "haiku",
-            "timeout": 30
+            "type": "command",
+            "command": "echo '{\"systemMessage\": \"Context compaction in progress. Important: preserve current task context, decisions made, and next steps in your working memory.\"}'"
           }
         ]
       }
     ],
     "Stop": [
       {
-        "matcher": "*",
         "hooks": [
           {
             "type": "command",
             "command": "afplay -v 1.0 '/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Modern/Chord.m4r' 2>/dev/null &"
-          },
-          {
-            "type": "prompt",
-            "prompt": "Review this conversation. Compare what the user originally requested with what was actually implemented. Check: (1) Were all requirements addressed? (2) Were any unrequested changes made? (3) Do the changes work correctly based on test output or verification? If there are gaps or deviations, report them clearly so the user knows what remains. If everything aligns, confirm with a brief summary of what was accomplished.",
-            "model": "haiku",
-            "timeout": 30
           }
         ]
       }
     ],
     "Notification": [
       {
-        "matcher": "*",
         "hooks": [
           {
             "type": "command",
@@ -128,7 +105,6 @@
     ],
     "SessionEnd": [
       {
-        "matcher": "*",
         "hooks": [
           {
             "type": "command",
@@ -139,7 +115,6 @@
     ],
     "PermissionRequest": [
       {
-        "matcher": "*",
         "hooks": [
           {
             "type": "command",
