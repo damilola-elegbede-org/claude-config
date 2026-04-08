@@ -77,7 +77,7 @@ fi
 
 # Test 4: Markdownlint CLI availability
 echo -n "Testing markdownlint-cli2 availability... "
-if npx markdownlint-cli2 --help >/dev/null 2>&1; then
+if command -v npx >/dev/null 2>&1 && npx markdownlint-cli2 --help 2>&1 | grep -q "markdownlint-cli2"; then
     echo -e "${GREEN}PASS${NC}"
     SCRIPT_TEST_PASS=true
 else

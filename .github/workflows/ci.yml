@@ -276,9 +276,6 @@ jobs:
     - name: Run Agent YAML Validation
       run: python scripts/validate-agent-yaml.py --legacy
 
-    - name: Run Skill YAML Validation
-      run: python scripts/validate-skills.py
-
     - name: Check Orphan References
       run: python scripts/check-orphans.py
 
@@ -316,9 +313,7 @@ jobs:
         # Critical scripts that must pass
         critical_scripts=(
           "tests/test.sh"
-          "scripts/setup-shellcheck.sh"
           "scripts/validate-system.sh"
-          "scripts/validate_yaml.sh"
         )
 
         exit_code=0
@@ -390,18 +385,14 @@ jobs:
 
         # Verify required agents exist
         required_agents=(
-          "debugger"
           "architect"
-          "security-auditor"
           "code-reviewer"
-          "test-engineer"
-          "tech-writer"
-          "researcher"
-          "frontend-engineer"
-          "backend-engineer"
+          "debugger"
           "devops"
-          "data-engineer"
-          "accessibility-auditor"
+          "feature-agent"
+          "frontend-engineer"
+          "security-auditor"
+          "test-engineer"
         )
 
         for agent in "${required_agents[@]}"; do

@@ -4,7 +4,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VALIDATION_SCRIPT="$SCRIPT_DIR/../scripts/validate_yaml.sh"
+VALIDATION_SCRIPT="$SCRIPT_DIR/validate_yaml.sh"
 TEST_DIR="$SCRIPT_DIR/test_yaml_files"
 PASSED=0
 FAILED=0
@@ -66,6 +66,7 @@ run_test "valid_yaml" "---
 name: test-agent
 description: A test agent for validation
 color: blue
+category: development
 tools:
   - Read
   - Write
@@ -124,6 +125,7 @@ description: |
   description that should
   be valid
 color: purple
+category: development
 tools:
   - Read
   - Write
@@ -136,6 +138,7 @@ run_test "long_description" "---
 name: test-agent
 description: $(printf 'x%.0s' {1..300})
 color: orange
+category: development
 tools:
   - Read
 ---
@@ -147,6 +150,7 @@ run_test "complex_valid" "---
 name: complex-agent
 description: An agent with complex YAML structure
 color: purple
+category: development
 tools:
   - Read
   - Write

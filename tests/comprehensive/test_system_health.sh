@@ -119,13 +119,16 @@ fi
 # Test 5: Agent system integrity
 echo "Checking agent system integrity..."
 
-# Check for critical agent categories (12 consolidated agents)
+# Check for critical agent categories (8 core agents after cleanup)
 CRITICAL_AGENTS=(
-    "backend-engineer"
-    "frontend-engineer"
-    "test-engineer"
-    "security-auditor"
+    "architect"
     "code-reviewer"
+    "debugger"
+    "devops"
+    "feature-agent"
+    "frontend-engineer"
+    "security-auditor"
+    "test-engineer"
 )
 
 AGENTS_DIR="$ORIGINAL_DIR/system-configs/.claude/agents"
@@ -210,8 +213,8 @@ fi
 # Test 8: System metrics
 echo ""
 echo "System Health Metrics:"
-echo "  Total agents: $(find "$AGENTS_DIR" -name "*.md" -not -name "*TEMPLATE*" -not -name "README.md" | wc -l | tr -d ' ') (expected ~15)"
-echo "  Total skills: $(find "$SKILLS_DIR" -mindepth 1 -maxdepth 1 -type d ! -name '.*' 2>/dev/null | wc -l | tr -d ' ') (expected ~34)"
+echo "  Total agents: $(find "$AGENTS_DIR" -name "*.md" -not -name "*TEMPLATE*" -not -name "README.md" | wc -l | tr -d ' ') (expected ~8)"
+echo "  Total skills: $(find "$SKILLS_DIR" -mindepth 1 -maxdepth 1 -type d ! -name '.*' 2>/dev/null | wc -l | tr -d ' ')"
 echo "  Total scripts: $(find "$ORIGINAL_DIR/scripts" -name "*.sh" -o -name "*.py" | wc -l | tr -d ' ')"
 echo "  Total tests: $(find "$ORIGINAL_DIR/tests" -name "*.sh" | wc -l | tr -d ' ')"
 echo "  Documentation files: $(find "$ORIGINAL_DIR/docs" -name "*.md" | wc -l | tr -d ' ')"
