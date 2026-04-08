@@ -79,7 +79,7 @@ echo "Testing critical validation scripts..."
 VALIDATE_AGENT_SCRIPT="$SCRIPTS_DIR/validate-agent-yaml.py"
 if [ -f "$VALIDATE_AGENT_SCRIPT" ]; then
     # Test with a valid agent file
-    TEST_AGENT="$ORIGINAL_DIR/system-configs/.claude/agents/backend-engineer.md"
+    TEST_AGENT="$ORIGINAL_DIR/system-configs/.claude/agents/debugger.md"
     if [ -f "$TEST_AGENT" ]; then
         if python3 "$VALIDATE_AGENT_SCRIPT" "$TEST_AGENT" > /dev/null 2>&1; then
             echo -e "${GREEN}✓${NC} validate-agent-yaml.py works correctly"
