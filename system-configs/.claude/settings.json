@@ -15,19 +15,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -q -- '--no-verify\\|--no-gpg-sign'; then echo '--no-verify is blocked by policy' >&2; exit 2; fi",
+            "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -qE '(--no-verify|--no-gpg-sign|git\\s+reset\\s+--hard|git\\s+push\\s+--force|git\\s+push\\s+-f\\b|git\\s+clean\\s+-f|git\\s+branch\\s+-D|git\\s+checkout\\s+\\.)'; then echo 'BLOCKED: Destructive or policy-violating git operation detected' >&2; exit 2; fi",
             "timeout": 5
-          }
-        ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "prompt",
-            "prompt": "Evaluate this bash command. Does it perform a destructive git operation? Destructive operations include: git reset --hard, git push --force or --force-with-lease, git clean -f or -fd, git branch -D, git checkout . or git checkout -- . when there are modified files.",
-            "model": "sonnet",
-            "timeout": 15
           }
         ]
       },
@@ -45,10 +34,9 @@
         "matcher": "Write|Edit",
         "hooks": [
           {
-            "type": "prompt",
-            "prompt": "Evaluate this file edit. Is the target file a source file (e.g., .ts, .tsx, .js, .jsx, .py, .go, .rs, .rb) that is NOT a test file, config file, type definition, documentation, markdown, JSON, YAML, CSS, or lock file? If it is a source file, does a corresponding test file exist in common locations such as __tests__/, *.test.*, *.spec.*, tests/, or *_test.*?",
-            "model": "sonnet",
-            "timeout": 15
+            "type": "command",
+            "command": "FILE=\"$CLAUDE_FILE_PATHS\"; if [[ -z \"$FILE\" ]]; then exit 0; fi; if [[ \"$FILE\" =~ \\.(test|spec)\\. ]] || [[ \"$FILE\" =~ __tests__/ ]] || [[ \"$FILE\" =~ /tests?/ ]] || [[ \"$FILE\" =~ \\.env ]] || [[ \"$FILE\" =~ \\.(md|json|yaml|yml|css|scss|html|txt|svg|lock|toml|cfg|ini|conf)$ ]] || [[ \"$FILE\" =~ \\.(d\\.ts)$ ]] || [[ \"$FILE\" =~ Makefile ]] || [[ \"$FILE\" =~ Dockerfile ]]; then exit 0; fi; if [[ ! \"$FILE\" =~ \\.(ts|tsx|js|jsx|py|go|rs|rb)$ ]]; then exit 0; fi; DIR=$(dirname \"$FILE\"); BASE=$(basename \"$FILE\" | sed 's/\\.[^.]*$//'); FOUND=0; for EXT in test.ts test.tsx test.js test.jsx spec.ts spec.tsx spec.js spec.jsx; do if [[ -f \"${DIR}/${BASE}.${EXT}\" ]] || [[ -f \"${DIR}/__tests__/${BASE}.${EXT}\" ]]; then FOUND=1; break; fi; done; if [[ \"$FILE\" =~ \\.py$ ]]; then if [[ -f \"${DIR}/test_${BASE}.py\" ]] || [[ -f \"${DIR}/${BASE}_test.py\" ]] || [[ -f \"${DIR}/tests/test_${BASE}.py\" ]]; then FOUND=1; fi; fi; if [[ \"$FILE\" =~ \\.go$ ]]; then if [[ -f \"${DIR}/${BASE}_test.go\" ]]; then FOUND=1; fi; fi; if [[ $FOUND -eq 0 ]]; then echo \"BLOCKED: No test file found for ${FILE}. Write tests first (TDD).\" >&2; exit 2; fi",
+            "timeout": 5
           }
         ]
       }
@@ -87,7 +75,6 @@
     ],
     "PreCompact": [
       {
-        "matcher": "*",
         "hooks": [
           {
             "type": "command",
@@ -98,7 +85,6 @@
     ],
     "Stop": [
       {
-        "matcher": "*",
         "hooks": [
           {
             "type": "command",
@@ -106,16 +92,14 @@
           },
           {
             "type": "prompt",
-            "prompt": "Evaluate whether the most recent Claude response fully completed the user's original request. Were all stated requirements addressed? Were any changes made that the user did not ask for?",
             "model": "sonnet",
-            "timeout": 30
+            "prompt": "Evaluate if Claude should stop - has it completed everything it was asked to do? Read the transcript of the conversation and use any other context available to you."
           }
         ]
       }
     ],
     "Notification": [
       {
-        "matcher": "*",
         "hooks": [
           {
             "type": "command",
@@ -126,7 +110,6 @@
     ],
     "SessionEnd": [
       {
-        "matcher": "*",
         "hooks": [
           {
             "type": "command",
@@ -137,7 +120,6 @@
     ],
     "PermissionRequest": [
       {
-        "matcher": "*",
         "hooks": [
           {
             "type": "command",
