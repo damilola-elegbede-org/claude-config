@@ -91,7 +91,7 @@
         "hooks": [
           {
             "type": "prompt",
-            "prompt": "Context is about to be compacted. Before it happens, write a session summary to the operational memory directory. Create a file at ~/.claude/projects/-Users-daelegbe/memory/ named session_note_YYYYMMDD_HHMMSS.md (using the current timestamp). Capture: (1) the goal/task being worked on, (2) progress made so far, (3) key decisions made and why, (4) current blockers or open questions, (5) next steps. Use the Write tool to save it. Format with YAML frontmatter containing name, description, and type: project fields. Keep it concise but complete enough to resume work in a new session.",
+            "prompt": "Context is about to be compacted. Summarize the current session state so it can be preserved. Respond with JSON only: {\"decision\": \"allow\", \"reason\": \"SESSION SUMMARY: [Goal: what the user is working on] [Progress: what has been done so far] [Decisions: key choices made and why] [Open: blockers or pending items] [Next: what to do next]\"}. Be concise but include enough detail to resume work after compaction.",
             "model": "haiku",
             "timeout": 30
           }
@@ -108,7 +108,7 @@
           },
           {
             "type": "prompt",
-            "prompt": "Review this conversation. Compare what the user originally requested with what was actually implemented. Check: (1) Were all requirements addressed? (2) Were any unrequested changes made? (3) Do the changes work correctly based on test output or verification? If there are gaps or deviations, report them clearly so the user knows what remains. If everything aligns, confirm with a brief summary of what was accomplished.",
+            "prompt": "Review this conversation. Compare what the user originally requested with what was actually implemented. Check: (1) Were all requirements addressed? (2) Were any unrequested changes made? (3) Do the changes work correctly based on test output or verification? Respond with JSON only. If everything aligns: {\"decision\": \"allow\", \"reason\": \"All requirements addressed: <brief summary>\"}. If there are gaps: {\"decision\": \"block\", \"reason\": \"Incomplete: <what remains>\"}.",
             "model": "haiku",
             "timeout": 30
           }
