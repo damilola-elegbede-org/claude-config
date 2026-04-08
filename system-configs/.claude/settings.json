@@ -105,6 +105,12 @@
           {
             "type": "command",
             "command": "afplay -v 1.0 '/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Modern/Chord.m4r' 2>/dev/null &"
+          },
+          {
+            "type": "prompt",
+            "prompt": "You must respond with exactly one line of valid JSON and nothing else. No markdown, no code blocks, no explanation. Review what the user requested vs what was implemented. Output: {\"decision\":\"allow\",\"reason\":\"<summary>\"} if complete, or {\"decision\":\"block\",\"reason\":\"<what is missing>\"} if incomplete.",
+            "model": "sonnet",
+            "timeout": 30
           }
         ]
       }
