@@ -25,8 +25,8 @@
         "hooks": [
           {
             "type": "prompt",
-            "prompt": "You must respond with exactly one line of valid JSON and nothing else. No markdown, no code blocks, no explanation. Analyze this bash command. Is it a destructive git operation (reset --hard, push --force, clean -f, branch -D, checkout . on modified files)? Output {\"decision\":\"block\",\"reason\":\"destructive git operation\"} to block, or {\"decision\":\"allow\"} to allow.",
-            "model": "sonnet",
+            "prompt": "Analyze this bash command. Is it a destructive git operation (reset --hard, push --force, clean -f, branch -D, checkout . on modified files)? If destructive, explain why it should be blocked. If safe, say it is safe to proceed.",
+            "model": "haiku",
             "timeout": 10
           }
         ]
@@ -46,8 +46,8 @@
         "hooks": [
           {
             "type": "prompt",
-            "prompt": "You must respond with exactly one line of valid JSON and nothing else. No markdown, no code blocks, no explanation. Check if the file being edited is a source file (not a test, config, type definition, documentation, markdown, JSON, YAML, CSS, or lock file). If it IS a source file (e.g., .ts, .tsx, .js, .jsx, .py, .go, .rs, .rb), check whether a corresponding test file exists in common test locations (__tests__/, *.test.*, *.spec.*, tests/, *_test.*). If no test file exists, output {\"decision\":\"block\",\"reason\":\"No test file found. Write tests first (TDD).\"}. If a test file exists or if the file is not a source file, output {\"decision\":\"allow\"}.",
-            "model": "sonnet",
+            "prompt": "Check if the file being edited is a source file (not a test, config, type definition, documentation, markdown, JSON, YAML, CSS, or lock file). If it is a source file (e.g., .ts, .tsx, .js, .jsx, .py, .go, .rs, .rb), check whether a corresponding test file exists in common test locations (__tests__/, *.test.*, *.spec.*, tests/, *_test.*). If no test file exists for this source file, block the edit — tests must be written first (TDD). Otherwise allow it.",
+            "model": "haiku",
             "timeout": 15
           }
         ]
@@ -91,8 +91,8 @@
         "hooks": [
           {
             "type": "prompt",
-            "prompt": "You must respond with exactly one line of valid JSON and nothing else. No markdown, no code blocks, no explanation. Summarize the current session state so it can be preserved after context compaction. Output: {\"decision\":\"allow\",\"reason\":\"SESSION SUMMARY: Goal: [what user is working on]. Progress: [what has been done]. Decisions: [key choices]. Open: [blockers or pending]. Next: [what to do next].\"}",
-            "model": "sonnet",
+            "prompt": "Context is about to be compacted. Summarize the current session: what the user is working on, progress made, key decisions, open items, and next steps. This summary will be preserved through compaction.",
+            "model": "haiku",
             "timeout": 30
           }
         ]
@@ -108,8 +108,8 @@
           },
           {
             "type": "prompt",
-            "prompt": "You must respond with exactly one line of valid JSON and nothing else. No markdown, no code blocks, no explanation. Review what the user requested vs what was implemented. Output: {\"decision\":\"allow\",\"reason\":\"<summary>\"} if complete, or {\"decision\":\"block\",\"reason\":\"<what is missing>\"} if incomplete.",
-            "model": "sonnet",
+            "prompt": "Review this conversation. Compare what the user originally requested with what was actually implemented. Were all requirements addressed? Were any unrequested changes made? Report any gaps or confirm completion.",
+            "model": "haiku",
             "timeout": 30
           }
         ]
