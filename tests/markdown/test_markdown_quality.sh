@@ -75,19 +75,13 @@ if [[ $CRITICAL_TEST_PASS == true ]]; then
     echo -e "${GREEN}PASS${NC}"
 fi
 
-# Test 4: Quality gate script functionality
-echo -n "Testing quality gate script... "
-if [[ -x "$BASE_DIR/scripts/validate-markdown-quality.sh" ]]; then
-    # Test script can run without errors
-    if "$BASE_DIR/scripts/validate-markdown-quality.sh" report >/dev/null 2>&1; then
-        echo -e "${GREEN}PASS${NC}"
-        SCRIPT_TEST_PASS=true
-    else
-        echo -e "${RED}FAIL${NC} (script execution failed)"
-        SCRIPT_TEST_PASS=false
-    fi
+# Test 4: Markdownlint CLI availability
+echo -n "Testing markdownlint-cli2 availability... "
+if npx markdownlint-cli2 --help >/dev/null 2>&1; then
+    echo -e "${GREEN}PASS${NC}"
+    SCRIPT_TEST_PASS=true
 else
-    echo -e "${RED}FAIL${NC} (script not executable)"
+    echo -e "${RED}FAIL${NC} (markdownlint-cli2 not available)"
     SCRIPT_TEST_PASS=false
 fi
 
@@ -131,8 +125,7 @@ else
     echo -e "\n${RED}Some markdown quality tests failed!${NC}"
     echo
     echo "To fix violations:"
-    echo "1. Run: ./scripts/validate-markdown-quality.sh fix"
-    echo "2. Review: ./scripts/validate-markdown-quality.sh validate"
-    echo "3. Manual fixes for remaining violations"
+    echo "1. Run: npx markdownlint-cli2 '**/*.md' --config .markdownlint-cli2.jsonc"
+    echo "2. Fix reported issues manually or with markdownlint-cli2 --fix"
     exit 1
 fi
