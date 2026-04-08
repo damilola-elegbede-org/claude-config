@@ -24,13 +24,13 @@ COMMANDS_DIR = PROJECT_ROOT / "system-configs" / ".claude" / "commands"
 SKILLS_DIR = PROJECT_ROOT / "system-configs" / ".claude" / "skills"
 
 # Expected counts
-# 22 agents: 16 generic dev agents + 6 personal specialists (career-strategist,
-#   content-strategist, financial-analyst, legal-counsel, project-manager, travel-planner)
-# 35 skills: generic dev/format skills (fleet-specific skills removed)
-# Note: lead agents live in agents/leads/ and are not counted here
+# 8 agents: architect, code-reviewer, debugger, devops, feature-agent,
+#   frontend-engineer, security-auditor, test-engineer
+# 33 skills: git, orchestration, quality, planning, formats, specialized, agent-context,
+#   plus office-common (shared toolkit for xlsx/pptx/docx)
 # Note: sync and skills-import are project-local (.claude/skills/), not in system-configs
-EXPECTED_AGENT_COUNT = 22
-EXPECTED_SKILL_COUNT = 35
+EXPECTED_AGENT_COUNT = 8
+EXPECTED_SKILL_COUNT = 33
 
 # Non-agent/command documentation files to skip
 NON_AGENT_FILES = [

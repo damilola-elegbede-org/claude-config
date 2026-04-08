@@ -30,15 +30,47 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "FILE=\"$CLAUDE_FILE_PATHS\"; if [[ -z \"$FILE\" ]]; then exit 0; fi; if [[ \"$FILE\" =~ \\.(test|spec)\\. ]] || [[ \"$FILE\" =~ __tests__/ ]] || [[ \"$FILE\" =~ /tests?/ ]] || [[ \"$FILE\" =~ \\.env\\.example$ ]] || [[ \"$FILE\" =~ \\.(md|json|yaml|yml|css|scss|html|txt|svg|lock)$ ]] || [[ \"$FILE\" =~ \\.(d\\.ts)$ ]]; then exit 0; fi; CONTENT=\"$CLAUDE_TOOL_INPUT\"; PATTERNS='AKIA[0-9A-Z]{16}|sk-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36}|xoxb-[0-9]{10,}|xoxp-[0-9]{10,}|glpat-[a-zA-Z0-9_-]{20}'; if echo \"$CONTENT\" | grep -qE \"$PATTERNS\"; then echo 'BLOCKED: Suspected credential/secret detected in file content' >&2; exit 2; fi",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "Check if the file being edited is a source file (not a test, config, type definition, documentation, markdown, JSON, YAML, CSS, or lock file). If it IS a source file (e.g., .ts, .tsx, .js, .jsx, .py, .go, .rs, .rb), check whether a corresponding test file exists in common test locations (__tests__/, *.test.*, *.spec.*, tests/, *_test.*). If no test file exists for this source file, respond with {\"decision\": \"block\", \"reason\": \"No test file found for this source file. Write tests first (TDD).\"}. If a test file exists, or if the file is not a source file, respond with {\"decision\": \"allow\"}.",
+            "model": "haiku",
+            "timeout": 15
+          }
+        ]
       }
     ],
     "PostToolUse": [
       {
-        "matcher": "*",
+        "matcher": "Write|Edit",
         "hooks": [
           {
             "type": "command",
-            "command": "afplay -v 1.0 '/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Classic/Swish.m4r' 2>/dev/null &"
+            "command": "if [[ \"$CLAUDE_FILE_PATHS\" =~ \\.(js|jsx|ts|tsx|json|css|scss|html|md|yaml|yml)$ ]]; then npx --no-install prettier --write \"$CLAUDE_FILE_PATHS\" 2>/dev/null || true; fi",
+            "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "if [[ \"$CLAUDE_FILE_PATHS\" =~ \\.(js|jsx|ts|tsx)$ ]]; then npx --no-install eslint --fix \"$CLAUDE_FILE_PATHS\" 2>/dev/null; if ! npx --no-install eslint \"$CLAUDE_FILE_PATHS\" 2>&1; then echo 'ESLint errors remain after auto-fix' >&2; exit 2; fi; fi",
+            "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "if [[ \"$CLAUDE_FILE_PATHS\" =~ \\.(ts|tsx)$ ]]; then npx --no-install tsc --noEmit 2>&1 || { echo 'TypeScript type errors detected' >&2; exit 2; }; fi",
+            "timeout": 30
           }
         ]
       },
@@ -47,44 +79,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if [[ \"$CLAUDE_FILE_PATHS\" =~ \\.(js|jsx|ts|tsx|json|css|scss|html|md)$ ]]; then prettier --write \"$CLAUDE_FILE_PATHS\" 2>/dev/null || true; fi"
-          },
-          {
-            "type": "command",
-            "command": "if [[ \"$CLAUDE_FILE_PATHS\" =~ \\.(js|jsx|ts|tsx)$ ]]; then eslint --fix \"$CLAUDE_FILE_PATHS\" 2>/dev/null || true; fi"
-          }
-        ]
-      }
-    ],
-    "SessionStart": [
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "afplay -v 1.0 '/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Modern/Presto.m4r' 2>/dev/null &"
-          }
-        ]
-      }
-    ],
-    "SubagentStart": [
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "afplay -v 1.0 '/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Classic/Swish.m4r' 2>/dev/null &"
-          }
-        ]
-      }
-    ],
-    "SubagentStop": [
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "afplay -v 1.0 '/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Modern/Chord.m4r' 2>/dev/null &"
+            "command": "FILE=\"$CLAUDE_FILE_PATHS\"; if [[ -z \"$FILE\" ]] || [[ \"$FILE\" =~ \\.(test|spec)\\. ]] || [[ \"$FILE\" =~ __tests__/ ]] || [[ ! \"$FILE\" =~ \\.(js|jsx|ts|tsx|py|go|rs|rb)$ ]]; then exit 0; fi; DIR=$(dirname \"$FILE\"); BASE=$(basename \"$FILE\" | sed 's/\\.[^.]*$//'); if [[ -f \"${DIR}/${BASE}.test.ts\" ]] || [[ -f \"${DIR}/${BASE}.test.tsx\" ]] || [[ -f \"${DIR}/${BASE}.test.js\" ]] || [[ -f \"${DIR}/${BASE}.spec.ts\" ]] || [[ -f \"${DIR}/${BASE}.spec.tsx\" ]] || [[ -f \"${DIR}/${BASE}.spec.js\" ]] || [[ -f \"${DIR}/__tests__/${BASE}.test.ts\" ]] || [[ -f \"${DIR}/__tests__/${BASE}.test.tsx\" ]] || [[ -f \"${DIR}/__tests__/${BASE}.test.js\" ]]; then TESTFILE=$(ls \"${DIR}/${BASE}\".{test,spec}.{ts,tsx,js} \"${DIR}/__tests__/${BASE}\".test.{ts,tsx,js} 2>/dev/null | head -1); if [[ -n \"$TESTFILE\" ]]; then if [[ -f package.json ]] || [[ -f ../package.json ]]; then npx --no-install jest --passWithNoTests \"$TESTFILE\" 2>/dev/null || npx --no-install vitest run \"$TESTFILE\" 2>/dev/null || true; elif [[ \"$FILE\" =~ \\.py$ ]]; then python -m pytest \"$TESTFILE\" 2>/dev/null || true; elif [[ \"$FILE\" =~ \\.go$ ]]; then go test \"$TESTFILE\" 2>/dev/null || true; fi; fi; fi",
+            "timeout": 60
           }
         ]
       }
@@ -94,8 +90,10 @@
         "matcher": "*",
         "hooks": [
           {
-            "type": "command",
-            "command": "afplay -v 1.0 '/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Modern/Aurora.m4r' 2>/dev/null &"
+            "type": "prompt",
+            "prompt": "Context is about to be compacted. Before it happens, write a session summary to the operational memory directory. Create a file at ~/.claude/projects/-Users-daelegbe/memory/ named session_note_YYYYMMDD_HHMMSS.md (using the current timestamp). Capture: (1) the goal/task being worked on, (2) progress made so far, (3) key decisions made and why, (4) current blockers or open questions, (5) next steps. Use the Write tool to save it. Format with YAML frontmatter containing name, description, and type: project fields. Keep it concise but complete enough to resume work in a new session.",
+            "model": "haiku",
+            "timeout": 30
           }
         ]
       }
@@ -107,6 +105,12 @@
           {
             "type": "command",
             "command": "afplay -v 1.0 '/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Modern/Chord.m4r' 2>/dev/null &"
+          },
+          {
+            "type": "prompt",
+            "prompt": "Review this conversation. Compare what the user originally requested with what was actually implemented. Check: (1) Were all requirements addressed? (2) Were any unrequested changes made? (3) Do the changes work correctly based on test output or verification? If there are gaps or deviations, report them clearly so the user knows what remains. If everything aligns, confirm with a brief summary of what was accomplished.",
+            "model": "haiku",
+            "timeout": 30
           }
         ]
       }
@@ -126,10 +130,6 @@
       {
         "matcher": "*",
         "hooks": [
-          {
-            "type": "command",
-            "command": "afplay -v 1.0 '/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Classic/Choo Choo.m4r' 2>/dev/null &"
-          },
           {
             "type": "command",
             "command": "${HOME}/.claude/exit_hook.sh"

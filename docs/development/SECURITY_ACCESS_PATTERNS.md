@@ -2,59 +2,40 @@
 
 ## Agent Tool Access Security Framework
 
-This document defines the security access patterns and rationale for all Claude Code agents,
+This document defines the security access patterns for the current 8-agent ecosystem,
 ensuring appropriate tool restrictions while maintaining functional capabilities.
+
+## Current Agents (8)
+
+| Agent | Model | Access Level |
+|-------|-------|-------------|
+| architect | opus | Full |
+| code-reviewer | sonnet | Read + Analysis |
+| debugger | sonnet | Read + Analysis |
+| devops | sonnet | Full |
+| feature-agent | opus | Full |
+| frontend-engineer | sonnet | Full |
+| security-auditor | sonnet | Read + Analysis |
+| test-engineer | sonnet | Full |
 
 ## Access Categories
 
-### 1. Full Access (Staff-Level Implementation Agents)
+### 1. Full Access (Implementation Agents)
 
-**Agents**: backend-engineer, frontend-architect, fullstack-lead, test-engineer, devops
-**Tools Allowed**: [Bash, Read, Write, Edit, MultiEdit, Glob, Grep, LS, WebFetch,
-WebSearch, TodoWrite, NotebookRead, NotebookEdit]
-**Tools Forbidden**: []
-**Security Rationale**: These agents implement production code and require comprehensive
-tool access to fulfill their responsibilities. They operate under the principle of
-"trusted implementation" with full capability to modify systems.
+**Agents**: architect, devops, feature-agent, frontend-engineer, test-engineer
+**Tools**: Read, Write, Edit, Grep, Glob, Bash, TodoWrite (plus tool-specific additions)
+**Security Rationale**: Implementation agents require full tool access to write code,
+run tests, and manage infrastructure. They operate under "trusted implementation" with
+complete system modification capability.
 
-### 2. Read-Only Plus Analysis
+### 2. Read-Only Plus Analysis (Review/Audit Agents)
 
-**Agents**: security-auditor, debugger, code-reviewer, codebase-analyst,
-performance-engineer, execution-evaluator
-**Tools Allowed**: [Glob, Grep, LS, Read, NotebookRead, WebFetch, WebSearch,
-Bash(read-only), TodoWrite]
-**Tools Forbidden**: [Edit, MultiEdit, Write, NotebookEdit]
-**Security Rationale**: Analysis agents focus on assessment and reporting without
-modifying production systems. This separation ensures analysis integrity and prevents
-accidental system modifications during security reviews.
-
-### 3. Design Specification Access
-
-**Agents**: ui-designer
-**Tools Allowed**: [Read, Write, Edit, MultiEdit, Glob, Grep, LS, WebFetch,
-WebSearch, TodoWrite, Bash(read-only)]
-**Tools Forbidden**: [NotebookRead, NotebookEdit]
-**Security Rationale**: Design agents create specifications and documentation but don't
-need system execution capabilities or data analysis tools.
-
-### 4. Documentation Access
-
-**Agents**: tech-writer, api-architect
-**Tools Allowed**: [Read, Write, Edit, MultiEdit, Glob, Grep, LS, WebFetch,
-WebSearch, TodoWrite, Bash(read-only)]
-**Tools Forbidden**: [NotebookRead, NotebookEdit]
-**Security Rationale**: Documentation agents need file modification capabilities for
-specifications but limited system access.
-
-### 5. Strategic Planning Access
-
-**Agents**: principal-architect
-**Tools Allowed**: [Read, Write, Edit, MultiEdit, Glob, Grep, LS, WebFetch,
-WebSearch, TodoWrite, Bash(read-only)]
-**Tools Forbidden**: [NotebookRead, NotebookEdit]
-**Security Rationale**: Architects coordinate strategy and planning through the
-general-purpose agent, focusing on creating implementation plans without needing
-data analysis capabilities.
+**Agents**: code-reviewer, debugger, security-auditor
+**Tools**: Read, Grep, Glob, Bash (read-only), TodoWrite
+**Forbidden**: Write, Edit
+**Security Rationale**: Analysis agents assess and report without modifying production
+systems. This separation ensures analysis integrity and prevents accidental modifications
+during security reviews or debugging sessions.
 
 ## Security Boundaries
 
@@ -73,108 +54,57 @@ data analysis capabilities.
 
 ### Risk Mitigation Strategies
 
-#### High-Risk Mitigations
+- **Analysis Agents** (code-reviewer, debugger, security-auditor): Forbidden from
+  Write/Edit operations to prevent accidental production modifications
 
-- **Analysis Agents**: Forbidden from Write/Edit operations to prevent accidental
-  production modifications
-
-- **Security Auditor**: Read-only access ensures security reviews don't alter the
+- **security-auditor**: Read-only access ensures security reviews don't alter the
   systems being audited
 
-- **Design Agents**: Limited to specification tools, preventing system-level
-  access
-
-#### Medium-Risk Mitigations
-
-- **Documentation Agents**: Controlled file access prevents system configuration
-  changes
-
-- **Coordination Agents**: Orchestrate through the general-purpose agent with
-  limited system execution
+- **architect**: Full access but uses `plan` permission mode to show changes before
+  executing (recommended)
 
 ## Agent-Specific Security Rationale
 
 ### Implementation Agents (Full Access)
 
-- **backend-engineer**: Implements complex distributed systems requiring database
-  and infrastructure access
+- **architect**: Designs systems and creates implementation plans; full access needed
+  for comprehensive analysis and spec writing
 
-- **frontend-architect**: Manages build processes and deployment configurations
-  requiring full system access
+- **devops**: Manages infrastructure automation, CI/CD, and deployment scripts;
+  requires full system access
 
-- **fullstack-lead**: Implements features within defined scope, needs complete
-  toolset for effectiveness
+- **feature-agent**: Orchestrates end-to-end feature delivery across multiple files;
+  requires full access for coordination
 
-- **test-engineer**: Creates test infrastructure and automation requiring full
-  implementation capabilities
+- **frontend-engineer**: Implements UI components, tests, and build configuration;
+  requires full implementation toolset
 
-- **devops**: Manages infrastructure automation requiring comprehensive system
-  access
+- **test-engineer**: Creates test infrastructure, automation, and CI integration;
+  requires full implementation capabilities
 
 ### Analysis Agents (Read-Only Plus Analysis)
 
-- **security-auditor**: Performs vulnerability assessment without modifying audit
-  targets
+- **code-reviewer**: Reviews code quality and patterns without implementing changes
 
-- **debugger**: Investigates issues through analysis without changing production
-  systems
+- **debugger**: Investigates root causes through analysis; read-only prevents
+  accidental production modifications during investigation
 
-- **code-reviewer**: Reviews code quality without implementing changes
-- **codebase-analyst**: Analyzes system architecture for reporting purposes
-  only
-
-- **performance-engineer**: Analyzes and tests performance without modifying
-  implementations
-
-- **execution-evaluator**: Verifies command execution results and validates
-  outcomes without modifying systems
-
-### Design Agents (Specification Access)
-
-- **ui-designer**: Creates design specifications and documentation for
-  web/desktop platforms
-
-### Documentation Agents (Documentation Access)
-
-- **tech-writer**: Creates technical documentation and API specifications
-- **api-architect**: Designs API contracts and specifications without
-  implementation
-
-### Strategic Agents (Planning Access)
-
-- **principal-architect**: Coordinates strategy and creates plans for the
-  general-purpose agent to execute
+- **security-auditor**: Performs vulnerability assessment without modifying the
+  systems being audited; read-only is a hard requirement for audit integrity
 
 ## Compliance and Monitoring
 
 ### Security Monitoring
 
-- All tool restrictions are explicitly defined in agent configurations
+- All tool restrictions are explicitly defined in agent YAML frontmatter
 - Access patterns are documented with clear business justification
-- Regular security audits validate access appropriateness
+- Run `/audit --scope agents` to validate all agents comply with access patterns
 
 ### Compliance Standards
 
-- Follows principle of least privilege (ISO 27001)
+- Follows principle of least privilege
 - Implements separation of duties for security-critical functions
 - Maintains audit trails for all access decisions
-- Documents security rationale for regulatory compliance
-
-## Emergency Procedures
-
-### Security Incident Response
-
-1. **Immediate**: Review affected agent access patterns
-2. **Assessment**: Determine if tool restrictions prevented or limited damage
-3. **Response**: Temporarily restrict agent access if needed
-4. **Recovery**: Implement additional restrictions based on incident learnings
-
-### Access Review Process
-
-- Monthly review of agent tool access patterns
-- Quarterly security assessment of access appropriateness
-- Annual comprehensive security audit of all agent configurations
-- Immediate review after any security incidents
 
 ## Change Management
 
@@ -182,12 +112,11 @@ data analysis capabilities.
 
 1. **Risk Assessment**: Evaluate required tools against security principles
 2. **Access Design**: Implement minimum necessary tool access
-3. **Documentation**: Document security rationale for all access decisions
-4. **Review**: Security team approval for all new agent access patterns
+3. **Documentation**: Document security rationale in the agent file
+4. **Validation**: Run `./scripts/validate-agent-yaml.py` before syncing
 
 ### Modifying Existing Access
 
 1. **Justification**: Business case for access changes
-2. **Security Review**: Assessment of additional risks
-3. **Testing**: Validation of new access patterns in non-production
-4. **Approval**: Security team approval for production deployment
+2. **Testing**: Validate new access patterns before deploying
+3. **Sync**: Deploy via `/sync` after validation

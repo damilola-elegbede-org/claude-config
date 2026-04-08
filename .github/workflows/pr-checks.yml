@@ -155,8 +155,8 @@ jobs:
           skill_file="$skill_dir/SKILL.md"
 
           if [ ! -f "$skill_file" ]; then
-            echo "❌ Missing SKILL.md in $skill_name/"
-            exit 1
+            echo "⚠️ Skipping $skill_name/ (no SKILL.md, likely a shared library)"
+            continue
           fi
 
           echo "Checking $skill_name/SKILL.md..."

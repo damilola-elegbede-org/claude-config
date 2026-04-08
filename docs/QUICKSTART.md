@@ -22,7 +22,7 @@ claude-code
 /sync
 ```
 
-**Done!** You now have 28 specialized agents and 20 essential commands available.
+**Done!** You now have 8 specialized agents and the full skill library available.
 
 ## 🧪 Test the Setup (30 seconds)
 
@@ -40,24 +40,25 @@ claude-code
 /review
 ```
 
-## 🎯 Core Commands You'll Use Daily
+## Core Skills You'll Use Daily
 
-| Command | Purpose | Example |
-|---------|---------|---------|
+| Skill | Purpose | Example |
+|-------|---------|---------|
 | `/sync` | Deploy configurations from repo | `/sync` |
 | `/test` | Auto-discover and run tests | `/test` |
 | `/prime` | Analyze repository structure | `/prime --lite` |
-| `/review` | Multi-agent code review | `/review src/` |
+| `/review` | Comprehensive code review | `/review` |
 | `/commit` | Smart git commits with quality gates | `/commit` |
 | `/debug` | Systematic bug investigation | `/debug "login fails"` |
 
-## 🎭 Key Agent Categories (28 Total)
+## Agents (8 Total)
 
-- **Development**: backend-engineer, frontend-engineer, mobile-engineer, ml-engineer
-- **Infrastructure**: devops, platform-engineer, kubernetes-admin, database-admin
-- **Quality**: test-engineer, code-reviewer, performance-engineer
-- **Security**: security-auditor, security-tester
-- **Analysis**: codebase-analyst, tech-writer, researcher
+- **Architecture**: architect
+- **Development**: frontend-engineer, debugger
+- **Quality**: code-reviewer, test-engineer
+- **Security**: security-auditor
+- **Infrastructure**: devops
+- **Orchestration**: feature-agent
 
 ## 🔄 Keep Your Setup Current
 
@@ -94,9 +95,10 @@ git pull origin main
 ### Repository-Specific Commands
 
 ```bash
-# Use /agent-audit and /command-audit for system health
-/agent-audit    # Validate all 28 agents
-/command-audit  # Validate all 20 commands
+# Validate agent/skill ecosystem health
+/audit --scope agents   # Validate all agents
+/audit --scope skills   # Validate all skills
+/audit --scope all      # Full ecosystem check
 ```
 
 ---

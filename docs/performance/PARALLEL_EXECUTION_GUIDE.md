@@ -1,347 +1,182 @@
-# Parallel Execution Optimization Guide - Consolidated System
+# Parallel Execution Optimization Guide
 
 ## Overview
 
-This guide provides comprehensive strategies for maximizing parallel agent execution using the comprehensive 42-agent
-system. The expanded agent ecosystem improves coordination efficiency while optimizing development velocity and maintaining
-quality standards.
+This guide covers strategies for maximizing parallel agent execution with the current
+8-agent ecosystem. The principle is parallel-first: independent tasks run concurrently,
+quality gates run alongside implementation, and wave-based workflows minimize wait time.
 
-##### Consolidation Benefits for Parallel Execution:
+## Core Agents (8)
 
-- **Reduced coordination overhead**: Fewer agents mean simpler parallel patterns
-- **Clearer boundaries**: Less overlap between parallel agents
-- **Better resource utilization**: Consolidated agents handle broader scopes efficiently
+| Agent | Model | Domain |
+|-------|-------|--------|
+| architect | opus | System design, technical roadmaps |
+| code-reviewer | sonnet | Code quality, security review |
+| debugger | sonnet | Bug investigation, performance |
+| devops | sonnet | CI/CD, infrastructure, deployment |
+| feature-agent | opus | End-to-end feature orchestration |
+| frontend-engineer | sonnet | UI, React, CSS, accessibility |
+| security-auditor | sonnet | Security audits, OWASP compliance |
+| test-engineer | sonnet | Testing strategy, coverage, automation |
 
 ## Parallel Execution Patterns
 
-### 1. Development Workflow Patterns
-
-#### **Feature Development (Multi-Agent - Consolidated)**
+### 1. Feature Development
 
 ```yaml
-Parallel Group: Implementation
-  - frontend-architect: UI/UX implementation with performance optimization
-  - backend-engineer: API development with database optimization
-  - devops: CI/CD pipeline setup and infrastructure preparation
+Wave 1 - Design (if complex):
+  - architect: System design and API contracts
 
-Sequential Handoff:
-  Implementation → Quality Assurance → Documentation
+Wave 2 - Parallel Implementation:
+  - frontend-engineer: UI implementation
+  - devops: CI/CD pipeline preparation
 
-Consolidation Benefit:
-  Clear architect/engineer naming indicates scope and complexity
-```yaml
+Wave 3 - Parallel Quality Gates:
+  - code-reviewer: Code quality review
+  - security-auditor: Security assessment
+  - test-engineer: Test coverage validation
+```
 
-#### **Quality Assurance (Concurrent Validation - Consolidated)**
+### 2. Code Review
 
-```yaml
-Parallel Group: Quality Gates
-  - code-reviewer: Style, best practices, overall code quality
-  - security-auditor: Vulnerability assessment, compliance review
-  - test-engineer: Comprehensive testing, QA processes, coverage analysis (absorbed qa-engineer)
-
-Coordination Point:
-  All agents provide findings to code-reviewer for final approval
-
-Consolidation Benefit:
-  Single test-engineer handles all testing aspects, reducing handoffs
-```yaml
-
-#### **Architecture & Design (Collaborative Planning)**
+All quality agents can run fully in parallel — no dependencies between them:
 
 ```yaml
-Parallel Group: Strategic Planning
-  - principal-architect: System architecture, technical decisions
-  - ui-designer: Design system, user experience specifications
+Parallel Group: Quality Assessment
+  - code-reviewer: Style, patterns, best practices
+  - security-auditor: Vulnerability assessment, OWASP
+  - test-engineer: Coverage analysis, missing test scenarios
+```
 
-Synchronization:
-  Design specifications → Implementation agents
-  Architecture decisions → All implementation agents
-```yaml
-
-### 2. Analysis & Research Patterns
-
-#### **Codebase Analysis (Comprehensive Review)**
+### 3. Bug Investigation
 
 ```yaml
-Parallel Group: Deep Analysis
-  - codebase-analyst: Internal code analysis, architecture assessment, technical debt
-  - security-auditor: Security vulnerability comprehensive scan
-  - debugger: Performance bottleneck identification
+Wave 1 - Parallel Investigation:
+  - debugger: Root cause analysis
+  - security-auditor: Security implications (if relevant)
 
-Coordination:
-  - All analysis agents share findings for comprehensive executive summary
-```yaml
+Wave 2 - Fix & Validate:
+  - frontend-engineer OR devops: Implement fix
+  - test-engineer: Write regression test
+```
 
-#### **Problem Investigation (Multi-Perspective)**
-
-```yaml
-Parallel Group: Investigation
-  - debugger: Technical root cause analysis
-  - security-auditor: Security implications assessment
-  - codebase-analyst: System impact evaluation
-  - devops: Infrastructure and deployment considerations
-
-Convergence:
-  Integrated problem analysis with recommended solutions
-```yaml
-
-### 3. Specialized Coordination Patterns
-
-#### **Cross-Platform Development**
+### 4. Security Audit
 
 ```yaml
-Platform Teams:
-  Web Team:
-    - frontend-architect: React/Vue implementation
-    - ui-designer: Web-specific design optimization
+Wave 1 - Assessment:
+  - security-auditor: Vulnerability scan and OWASP analysis
+  - code-reviewer: Code quality and pattern review
 
-  Mobile Team:
-    - mobile-engineer: React Native/Flutter implementation
+Wave 2 - Remediation:
+  - frontend-engineer / devops: Fix vulnerabilities
+  - test-engineer: Add security tests
 
-  Backend Team:
-    - backend-engineer: API and data layer implementation
-    - devops: Infrastructure and deployment
+Wave 3 - Validation:
+  - security-auditor: Verify remediation
+```
 
-Coordination Agent: project-orchestrator
-```yaml
-
-#### **Infrastructure Modernization**
+### 5. CI/CD Issue
 
 ```yaml
-Infrastructure Team:
-  - devops: CI/CD pipeline modernization, deployment automation
-  - platform-engineer: Production monitoring, SRE practices, observability setup
-  - security-auditor: Infrastructure security assessment
-  - principal-architect: Architecture modernization strategy
+Wave 1 - Parallel Diagnosis:
+  - debugger: Root cause investigation
+  - devops: Infrastructure and pipeline analysis
 
-Coordination:
-  - devops builds infrastructure → platform-engineer monitors and maintains
-  - tech-writer creates parallel documentation
-```yaml
+Wave 2 - Fix:
+  - devops: Apply fix
+  - test-engineer: Validate fix in CI
+```
 
 ## Agent Compatibility Matrix
 
-### Highly Compatible (Can Work Simultaneously)
+### Highly Compatible (Parallel)
 
-| Primary Agent | Compatible Parallel Agents | Workflow Benefit |
+| Primary Agent | Compatible Parallel Agents | Benefit |
 |---|---|---|
-| **frontend-architect** | backend-engineer, ui-designer, test-engineer | Full-stack development with design integration |
-| **backend-engineer** | frontend-architect, devops, platform-engineer, api-architect | Infrastructure-aware backend development |
-| **code-reviewer** | security-auditor, test-engineer, tech-writer | Comprehensive quality assurance |
-| **principal-architect** | tech-writer | Strategic planning with documentation |
-| **debugger** | security-auditor, codebase-analyst, performance-engineer | Multi-angle problem analysis |
-| **devops** | platform-engineer, backend-engineer, security-auditor | Infrastructure deployment with monitoring |
+| frontend-engineer | test-engineer, code-reviewer | Parallel implementation + quality |
+| devops | security-auditor, test-engineer | Infrastructure with security + validation |
+| code-reviewer | security-auditor, test-engineer | Full quality gate in parallel |
+| debugger | security-auditor | Multi-angle problem analysis |
 
 ### Sequential Dependencies (Require Handoffs)
 
-| Sequence | Dependency Reason | Coordination Method |
-|---|---|---|
-| ui-designer → frontend-architect | Design specs needed for implementation | Design handoff via specifications |
-| api-architect → backend-engineer | API specifications needed for implementation | OpenAPI specs and contract delivery |
-| codebase-analyst → implementation agents | Analysis insights guide implementation | Executive summary with action items |
-| implementation agents → test-engineer | Code needed for test development | Feature implementation completion |
-| devops → platform-engineer | Infrastructure deployed before monitoring | Deployment completion handoff |
-| fullstack-lead → staff agents | Complexity escalation when scope exceeds senior level | Auto-escalation based on complexity triggers |
+| Sequence | Dependency Reason |
+|---|---|
+| architect → implementation agents | Design specs needed before coding |
+| implementation agents → test-engineer | Code needed for meaningful tests |
+| devops (build) → test-engineer (e2e) | Deployment needed for integration tests |
 
 ## Optimization Strategies
 
-### 1. Parallel Task Decomposition
-
-#### **Large Feature Development**
+### Decompose Large Features
 
 ```yaml
-Phase 1 - Parallel Planning:
-  - principal-architect: System design
-  - ui-designer: Design system updates
-  Duration: 1-2 days
+# Large Feature: User Authentication
 
-Phase 2 - Parallel Implementation:
-  - frontend-architect: UI implementation
-  - backend-engineer: API implementation
-  - devops: Infrastructure preparation
-  Duration: 3-5 days
+Wave 1 (1-2h):
+  architect: Design auth flow, API contracts
 
-Phase 3 - Parallel Quality Assurance:
-  - code-reviewer: Code quality review
-  - security-auditor: Security assessment
-  Duration: 1-2 days
-```yaml
+Wave 2 (parallel, 4-8h):
+  frontend-engineer: Login/signup UI
+  devops: Auth service infrastructure
 
-#### **System Analysis & Improvement**
+Wave 3 (parallel, 2-4h):
+  code-reviewer: Code quality review
+  security-auditor: Auth security audit
+  test-engineer: Auth test suite
+```
 
-```yaml
-Parallel Analysis (Day 1):
-  - codebase-analyst: Architecture and technical debt
-  - security-auditor: Vulnerability assessment
-  - debugger: Performance analysis
+### Continuous Quality Integration
 
-Parallel Implementation (Days 2-4):
-  - Based on analysis findings, deploy appropriate implementation agents
-  - Each agent addresses domain-specific improvements
-
-Parallel Validation (Day 5):
-  - code-reviewer: Implementation quality
-  - security-auditor: Security improvement validation
-```yaml
-
-### 2. Resource Allocation Optimization
-
-#### **High-Priority Development**
+Run quality agents early and in parallel — not after implementation is complete:
 
 ```yaml
-Maximum Parallel Utilization:
-  Core Development:
-    - frontend-architect (UI/UX critical path)
-    - backend-engineer (API critical path)
-    - devops (deployment critical path)
+# Good: Quality runs alongside implementation
+Wave 1: frontend-engineer + test-engineer (parallel)
+Wave 2: code-reviewer + security-auditor (parallel review)
 
-  Quality Assurance:
-    - code-reviewer (continuous integration)
-    - security-auditor (security requirements)
-
-  Documentation & Strategy:
-    - tech-writer (parallel documentation)
-    - project-orchestrator (coordination)
-```yaml
-
-#### **Research & Analysis Phase**
-
-```yaml
-Comprehensive Analysis:
-  Technical Assessment:
-    - codebase-analyst (architecture)
-    - debugger (performance)
-    - security-auditor (security)
-
-  Strategic Assessment:
-    - principal-architect (technical strategy)
-
-  Documentation:
-    - tech-writer (findings compilation)
-```yaml
-
-### 3. Communication & Synchronization
-
-#### **Daily Standups Integration**
-
-```yaml
-Agent Status Updates:
-  Implementation Agents:
-    - Progress on feature development
-    - Blockers requiring cross-agent coordination
-    - Dependencies on other agents
-
-  Quality Agents:
-    - Findings from ongoing reviews
-    - Required changes for implementation agents
-    - Timeline for quality gate completion
-
-  Strategic Agents:
-    - Architectural decisions affecting multiple agents
-    - Priority changes impacting parallel work
-    - Resource allocation adjustments
-```yaml
-
-#### **Handoff Protocols**
-
-```yaml
-Design → Implementation:
-  - ui-designer provides design specifications
-  - frontend-architect confirms design feasibility
-  - Implementation begins with clear requirements
-
-Analysis → Action:
-  - Analysis agents provide consolidated findings
-  - project-orchestrator prioritizes action items
-  - Implementation agents receive clear directives
-
-Quality → Release:
-  - All quality agents provide approval status
-  - code-reviewer consolidates final approval
-  - devops proceeds with deployment
-```yaml
+# Bad: Sequential quality bottleneck
+Step 1: frontend-engineer (complete)
+Step 2: test-engineer (complete)
+Step 3: code-reviewer (complete)
+Step 4: security-auditor (complete)
+```
 
 ## Performance Metrics
 
-### Parallel Execution KPIs
-
-| Metric | Target | Measurement |
-|---|---|---|
-| **Parallel Utilization** | 80%+ | Percentage of agents working simultaneously |
-| **Handoff Efficiency** | < 4 hours | Time between agent completion and next agent start |
-| **Coordination Overhead** | < 10% | Time spent on inter-agent communication |
-| **Quality Gate Speed** | < 24 hours | Time for complete quality assurance cycle |
-| **Feature Velocity** | 50%+ improvement | Compared to sequential development |
-
-### Optimization Indicators
-
-```yaml
-High Performance:
-  - Multiple agents working on different aspects simultaneously
-  - Clear handoff protocols followed consistently
-  - Minimal blocking dependencies between agents
-  - Quality issues caught early in parallel reviews
-
-Optimization Needed:
-  - Agents waiting for sequential handoffs frequently
-  - Quality issues discovered late requiring rework
-  - Communication overhead exceeding 10% of development time
-  - Parallel agents stepping on each other's work
-```yaml
+| Metric | Target |
+|---|---|
+| Parallel utilization | 80%+ agents working simultaneously |
+| Quality gate cycle | < 24 hours for complete review |
+| Feature velocity improvement | 50%+ vs sequential |
 
 ## Best Practices
 
-### 1. Parallel Planning
+1. **Parallel-first**: Default to parallel execution for independent tasks
+2. **Wave-based**: Organize by dependencies, not by domain
+3. **Quality early**: Include code-reviewer and test-engineer from Wave 1 when possible
+4. **Security always**: Add security-auditor to any feature touching auth, data, or APIs
+5. **Clear handoffs**: Use explicit artifacts (specs, PRs, reports) between waves
 
-- **Always start with architect + product strategy alignment**
-- **Define clear interfaces between parallel workstreams**
-- **Establish communication checkpoints every 24 hours**
-- **Plan for integration points and testing coordination**
+## Anti-Patterns
 
-### 2. Quality Integration
+### Sequential when Parallel is Possible
 
-- **Run quality agents in parallel, not sequentially**
-- **Share findings between security and code review agents**
-- **Integrate test development with feature development**
-- **Document decisions and findings for future reference**
+```text
+Wrong: code-reviewer → wait → security-auditor → wait → test-engineer
+Right: [code-reviewer + security-auditor + test-engineer] (parallel)
+```
 
-### 3. Risk Mitigation
+### Missing Quality Gates
 
-- **Monitor for conflicting changes between parallel agents**
-- **Establish clear priority hierarchy for decision conflicts**
-- **Plan rollback procedures for parallel development branches**
-- **Maintain communication channels for rapid coordination**
+```text
+Wrong: frontend-engineer only
+Right: frontend-engineer + test-engineer + code-reviewer
+```
 
-### 4. Continuous Improvement
+### Over-coordination Overhead
 
-- **Track parallel execution metrics weekly**
-- **Retrospectives on coordination effectiveness**
-- **Refine handoff protocols based on experience**
-- **Optimize agent combinations based on project outcomes**
-
-## Common Anti-Patterns to Avoid
-
-### ❌ **Sequential Thinking**
-
-- Running quality agents one after another instead of in parallel
-- Waiting for complete analysis before starting any implementation
-- Designing first, then implementing, then testing (instead of parallel design/implementation)
-
-### ❌ **Poor Coordination**
-
-- Parallel agents working on conflicting requirements
-- No clear communication protocol between parallel workstreams
-- Quality agents duplicating each other's work
-- Missing handoff protocols causing delays
-
-### ❌ **Over-Parallelization**
-
-- Running too many agents simultaneously without clear coordination
-- Parallel work on tightly coupled components causing conflicts
-- Insufficient communication bandwidth for coordination overhead
-
-### ❌ **Under-Utilization**
-
-- Using only one agent when multiple could work in parallel
-- Missing opportunities for parallel quality assurance
-- Sequential analysis when parallel investigation would be faster
+```text
+Wrong: architect reviews every PR (bottleneck)
+Right: architect designs upfront, code-reviewer handles PRs
+```

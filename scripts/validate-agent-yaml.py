@@ -13,7 +13,6 @@ Maintains full backward compatibility with original interface.
 Use --legacy flag for original sequential processing if needed.
 """
 
-import asyncio
 import os
 import re
 import sys
@@ -47,24 +46,16 @@ NON_AGENT_FILES = [
 
 # Complex/consolidated agents that may exceed standard file length limits
 # These agents combine functionality from multiple merged agents
-# Total agents: 12 (consolidated from 31)
+# Total agents: 8
 COMPLEX_AGENTS = [
-    'accessibility-auditor',  # WCAG compliance, assistive technology, comprehensive audit patterns
-    'architect',           # Consolidated from: principal-architect, api-architect, cloud-architect, frontend-architect
-    'backend-engineer',    # Server-side architecture and microservices
-    'code-reviewer',       # Includes accessibility auditing
-    'data-engineer',       # Consolidated from: data-engineer, database-admin
-    'debugger',            # Consolidated from: debugger, performance-engineer
-    'devops',              # Consolidated from: devops, platform-engineer
+    'architect',           # System design, API architecture, cloud infrastructure
+    'code-reviewer',       # Pre-commit review, security vulnerability detection
+    'debugger',            # Bug investigation, performance optimization
+    'devops',              # CI/CD, Kubernetes, Infrastructure as Code
     'feature-agent',       # Autonomous feature lifecycle orchestration
-    'frontend-engineer',   # Consolidated from: frontend-engineer, ui-designer
-    'ml-engineer',         # ML training, inference, and pipeline development
-    'mobile-engineer',     # iOS, Android, and cross-platform mobile development
-    'researcher',          # Consolidated from: researcher, codebase-analyst, ux-researcher, business-analyst, product-strategist
-    'security-auditor',    # Comprehensive security patterns and checklists
-    'tech-writer',         # Documentation patterns and templates
-    'test-engineer',       # Testing strategies and patterns
-    'codex-delegate',      # Codex CLI orchestration and coding execution
+    'frontend-engineer',   # UI/React, design systems, client-side performance
+    'security-auditor',    # Vulnerability detection, threat modeling, compliance
+    'test-engineer',       # Test strategy, automation, coverage analysis
 ]
 
 def extract_yaml_section(file_path):
@@ -329,17 +320,8 @@ def main():
         print("Running in legacy compatibility mode...")
         return legacy_main()
 
-    # Use high-performance async version
-    print("Using high-performance concurrent validation...")
-
-    # Import and run optimized validator
-    sys.path.append(str(Path(__file__).parent / 'performance'))
-    try:
-        from stdlib_async_validator import main as async_main
-        return asyncio.run(async_main())
-    except ImportError:
-        print("Performance modules not available, falling back to legacy mode...")
-        return legacy_main()
+    # Run validation
+    return legacy_main()
 
 if __name__ == '__main__':
     sys.exit(main())

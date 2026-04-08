@@ -63,10 +63,9 @@ for agent_file in "$AGENTS_DIR"/*.md; do
     fi
 done
 
-# Test 3: Verify agent count is reasonable (expanded for fleet migration:
-# ~16 engineering specialists + 6 personal specialists = 22)
-if [ $AGENT_COUNT -lt 10 ]; then
-    echo -e "${RED}✗${NC} Too few agents found: $AGENT_COUNT (expected at least 10)"
+# Test 3: Verify agent count is reasonable (8 core agents after cleanup)
+if [ $AGENT_COUNT -lt 6 ]; then
+    echo -e "${RED}✗${NC} Too few agents found: $AGENT_COUNT (expected at least 6)"
     exit 1
 elif [ $AGENT_COUNT -gt 30 ]; then
     echo -e "${RED}✗${NC} Too many agents found: $AGENT_COUNT (expected less than 30)"

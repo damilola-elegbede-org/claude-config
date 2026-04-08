@@ -18,11 +18,11 @@ execution through intelligent agent instance pooling and concurrent processing.
 
 | Command | Sequential Baseline | Parallel Execution | Speedup | Instance Count |
 |---------|-------------------|-------------------|---------|----------------|
-| `/agent-audit` | 3-5 minutes | 30-45 seconds | **5-6x** | 8 code-reviewer instances |
+| `/audit --scope agents` | 3-5 minutes | 30-45 seconds | **5-6x** | parallel validation instances |
 | `/test` | 2-3 minutes | 30-40 seconds | **4-5x** | 3-5 test-engineer instances |
-| `/docs` | 5-7 minutes | 1-2 minutes | **3-4x** | 4-6 tech-writer instances |
+| `/docs` | 5-7 minutes | 1-2 minutes | **3-4x** | parallel document instances |
 | `/deps audit` | 2 minutes | 20-30 seconds | **4-6x** | 1 per package manager |
-| `/prime focused` | 1-2 minutes | 15-20 seconds | **4-6x** | 3-5 codebase-analyst instances |
+| `/prime focused` | 1-2 minutes | 15-20 seconds | **4-6x** | parallel analysis instances |
 | `/review` | 3-4 minutes | 45-60 seconds | **3-4x** | 3-5 code-reviewer instances |
 | `/fix-ci` | 2-3 minutes | 30-45 seconds | **4x** | 2-3 devops instances |
 | `/resolve-comments` | 5-10 minutes | 1-2 minutes | **5x** | Up to 10 parallel instances |
@@ -110,7 +110,7 @@ Used in `/deps` for scanning dependencies:
 calculation: min(max_instances, ceil(work_items / items_per_instance))
 
 Examples:
-  - 28 agents, 8 max instances → 8 instances (3-4 agents each)
+  - 8 agents, 8 max instances → 8 instances (1 agent each)
   - 15 files, 5 max instances → 3 instances (5 files each)
   - 3 tests, 5 max instances → 1 instance (below threshold)
 ```

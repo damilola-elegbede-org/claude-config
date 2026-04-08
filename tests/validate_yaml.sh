@@ -92,6 +92,15 @@ validate_yaml_frontmatter() {
     return 0
 }
 
+# If a specific file is passed as argument, validate just that file
+if [ $# -gt 0 ]; then
+    if validate_yaml_frontmatter "$1"; then
+        exit 0
+    else
+        exit 1
+    fi
+fi
+
 # Counter for validation results
 valid_count=0
 invalid_count=0

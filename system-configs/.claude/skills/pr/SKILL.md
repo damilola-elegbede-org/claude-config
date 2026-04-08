@@ -67,10 +67,6 @@ Optional_Agents:
   code-reviewer:
     role: Quick analysis of change type and scope
     usage: Only if changes are complex (>10 files)
-
-  tech-writer:
-    role: Generate clear PR title and description
-    usage: Only if commit messages are unclear
 ```
 
 ### Title Generation

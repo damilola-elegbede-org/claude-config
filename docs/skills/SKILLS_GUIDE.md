@@ -27,7 +27,7 @@ Level 2: Skills
 Level 3: Agents
 ├─ Complex specialists with deep context
 ├─ Multi-step orchestration
-└─ Example: backend-engineer, architect, debugger
+└─ Example: architect, debugger, frontend-engineer
 
 Level 4: Agent Teams
 ├─ Multiple Claude instances coordinated
@@ -59,8 +59,8 @@ Skills that route to specialized agents for domain-specific work.
 |-------|-------------|--------------|-------|
 | `/debug` | Root cause analysis | debugger | `--performance`, `--issue` |
 | `/plan` | PRD and task file generation | architect | `--no-execute`, `--simple` |
-| `/prime` | Repository understanding | researcher | `--lite`, `--full` |
-| `/docs` | Documentation generation | tech-writer | `--audit`, `--audit-and-fix`, `--clean` |
+| `/prime` | Repository understanding | Claude directly | `--lite`, `--full` |
+| `/docs` | Documentation generation | Claude directly | `--audit`, `--audit-and-fix`, `--clean` |
 
 ### Git Workflow Skills (6)
 
@@ -94,8 +94,8 @@ These are not user-invocable (`user-invocable: false`).
 | `git-conventions` | code-reviewer, devops | Git best practices, commit conventions, branching strategies |
 | `security-checklist` | code-reviewer, security-auditor | OWASP checks, vulnerability patterns, secure coding |
 | `testing-patterns` | test-engineer | TDD/BDD patterns, test organization, coverage strategies |
-| `api-design-patterns` | architect, backend-engineer | REST/GraphQL patterns, OpenAPI, versioning |
-| `markdown-linting` | tech-writer | Markdownlint rules, documentation formatting |
+| `api-design-patterns` | architect | REST/GraphQL patterns, OpenAPI, versioning |
+| `markdown-linting` | (reference only — tech-writer removed) | Markdownlint rules, documentation formatting |
 
 ### Imported Anthropic Skills (8)
 
@@ -331,8 +331,8 @@ git-conventions - Reference: branching, commits, PR patterns
 **Bad:** Too broad, overlaps with agents
 
 ```text
-# "Backend Development" skill
-# → This should be the backend-engineer agent
+# "Frontend Development" skill
+# → This should be the frontend-engineer agent
 ```
 
 ## Troubleshooting
