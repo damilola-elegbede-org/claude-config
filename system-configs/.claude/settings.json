@@ -89,11 +89,6 @@
           {
             "type": "command",
             "command": "afplay -v 1.0 '/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Modern/Chord.m4r' 2>/dev/null &"
-          },
-          {
-            "type": "prompt",
-            "model": "sonnet",
-            "prompt": "Evaluate if Claude should stop - has it completed everything it was asked to do? Read the transcript of the conversation and use any other context available to you."
           }
         ]
       }

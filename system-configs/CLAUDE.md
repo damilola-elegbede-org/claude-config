@@ -18,6 +18,9 @@ Never bypass git hooks (`--no-verify`). Run tests before calling work complete. 
 review is expected for non-trivial changes. Security-sensitive code gets extra scrutiny.
 Quality over speed — don't skip steps to save time.
 
+Before finishing any task, self-verify: were all requirements addressed? Were any
+unrequested changes made? If gaps exist, fix them before responding.
+
 ## Working Style
 
 - Plan Mode often — iterate on the plan before executing
