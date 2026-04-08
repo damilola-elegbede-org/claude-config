@@ -105,12 +105,6 @@
           {
             "type": "command",
             "command": "afplay -v 1.0 '/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Modern/Chord.m4r' 2>/dev/null &"
-          },
-          {
-            "type": "prompt",
-            "prompt": "Review this conversation. Compare what the user originally requested with what was actually implemented. Check: (1) Were all requirements addressed? (2) Were any unrequested changes made? (3) Do the changes work correctly based on test output or verification? Respond with JSON only. If everything aligns: {\"decision\": \"allow\", \"reason\": \"All requirements addressed: <brief summary>\"}. If there are gaps: {\"decision\": \"block\", \"reason\": \"Incomplete: <what remains>\"}.",
-            "model": "haiku",
-            "timeout": 30
           }
         ]
       }
