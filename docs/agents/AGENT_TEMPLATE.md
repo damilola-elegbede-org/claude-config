@@ -6,25 +6,17 @@
 #
 # Model selection (Claude Sonnet 4.6 / Opus 4.6 - February 2026):
 # - sonnet: Claude Sonnet 4.6 - Standard development, enhanced reasoning (DEFAULT)
-#   * 2x improvement in complex problem-solving
-#   * Native extended thinking support
-#   * Faster response times for better parallelization
 #   * Most agents use Sonnet 4.6
-# - opus: Complex architecture requiring maximum reasoning depth
-#   * principal-architect, project-orchestrator, result-arbitrator, career-strategist
-#   * feature-agent (orchestration requiring deep reasoning)
+# - opus: Complex architecture or orchestration requiring maximum reasoning depth
+#   * architect (system-wide design), feature-agent (deep orchestration)
 # - haiku: Checklist-driven tasks, structured output, template-following
-#   * accessibility-auditor (WCAG checklists, automated tools, structured YAML reports)
-#   * tech-writer (markdown linting checklists, structured output, preloaded skill rules)
-# - codex (external): Codex CLI for cost-effective coding execution
-#   * codex-delegate (orchestrates Codex CLI, agent itself uses sonnet)
+#   * (rare — reserved for simple rule-based validation)
 #
 # Thinking level selection (optional - Sonnet 4.6/Opus 4.6 native support):
 # - ultrathink (31,999 tokens): System-wide architecture, complex forensics, enterprise planning
-#   * Used by: principal-architect, project-orchestrator, result-arbitrator, feature-agent
+#   * Used by: architect, feature-agent
 # - megathink (10,000 tokens): Domain expertise, multi-system coordination, complex optimization
-#   * Recommended for: API design, cloud architecture, debugging, performance, security
-#   * Used by: backend-engineer, cloud-architect, api-architect, ml-engineer
+#   * Recommended for: API design, debugging, performance, security
 # - think harder (8,000 tokens): Focused analysis, moderate complexity, specific optimizations
 #   * Used by: devops, code-reviewer
 # - think (4,000 tokens): Basic enhanced reasoning (rarely needed - most agents work without)
@@ -97,7 +89,7 @@ This agent cannot invoke other agents or create Task calls. Only Claude has orch
 
 | Field | Description | Example |
 |-------|-------------|---------|
-| `name` | Lowercase-hyphenated identifier | `backend-engineer` |
+| `name` | Lowercase-hyphenated identifier | `code-reviewer` |
 | `description` | Trigger description with keywords | `MUST BE USED for...` |
 | `tools` | Comma-separated tool list | `Read, Write, Edit, Grep, Glob, Bash` |
 | `model` | Model tier | `sonnet`, `opus`, `haiku` |
@@ -137,12 +129,10 @@ skills: git-conventions, security-checklist
 | Agent | Preloaded Skills |
 |-------|-----------------|
 | architect | `api-design-patterns` |
-| backend-engineer | `api-design-patterns` |
 | code-reviewer | `git-conventions`, `security-checklist` |
 | devops | `git-conventions` |
 | security-auditor | `security-checklist` |
 | test-engineer | `testing-patterns` |
-| tech-writer | `markdown-linting` |
 
 **Available reference skills** (all have `user-invocable: false`):
 
@@ -159,23 +149,15 @@ skills: git-conventions, security-checklist
 - Reference skills should have `user-invocable: false` in their frontmatter
 - User-invocable skills can also be listed but will add to context size
 
-## Production Agents (16)
+## Production Agents (8)
 
 | Agent | Model | Category | Skills |
 |-------|-------|----------|--------|
-| accessibility-auditor | haiku | quality | - |
 | architect | opus | architecture | `api-design-patterns` |
-| backend-engineer | sonnet | development | `api-design-patterns` |
 | code-reviewer | sonnet | quality | `git-conventions`, `security-checklist` |
-| data-engineer | sonnet | development | - |
 | debugger | sonnet | development | - |
 | devops | sonnet | infrastructure | `git-conventions` |
 | feature-agent | opus | orchestration | `feature-lifecycle` |
 | frontend-engineer | sonnet | development | - |
-| ml-engineer | sonnet | development | - |
-| mobile-engineer | sonnet | development | - |
-| researcher | sonnet | analysis | - |
 | security-auditor | sonnet | security | `security-checklist` |
-| tech-writer | haiku | quality | `markdown-linting` |
 | test-engineer | sonnet | quality | `testing-patterns` |
-| codex-delegate | sonnet | development | - |

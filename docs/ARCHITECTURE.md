@@ -11,24 +11,24 @@ execution, intelligent task delegation, and enterprise-grade performance optimiz
 ```mermaid
 graph TB
     A[Claude Code CLI] --> B[Smart Orchestration Framework]
-    B --> C[28 Specialized Agents]
-    B --> D[21 Essential Commands]
+    B --> C[8 Specialized Agents]
+    B --> D[Skill Library]
     B --> E[Configuration Management System]
 
-    C --> F[Multi-Instance Parallelization]
+    C --> F[Parallel Execution via TeamCreate]
     C --> G[Agent Categories]
     C --> H[Security Boundaries]
 
-    D --> I[Command Execution Engine]
-    D --> J[Performance Optimization]
+    D --> I[Skill Execution Engine]
+    D --> J[Agent Routing]
     D --> K[Quality Gates]
 
     E --> L[Sync System]
     E --> M[YAML Validation]
     E --> N[Backup Management]
 
-    F --> O[4-6x Performance Improvement]
-    G --> P[8 Functional Domains]
+    F --> O[Parallel Task Execution]
+    G --> P[Functional Domains]
     H --> Q[SYSTEM BOUNDARY Protection]
 ```
 
@@ -78,50 +78,46 @@ Performance Metrics:
 
 ### 2. Agent Ecosystem Architecture
 
-A comprehensive system of 28 specialized agents organized across 8 functional domains.
+A focused set of 8 specialized agents covering the core software development lifecycle.
 
-#### Functional Domain Structure
+#### Agent Roster
 
 ```yaml
-Domain Organization:
-  Development (8 agents):
-    - Core implementation specialists
-    - Full-stack development capabilities
-    - Testing and quality assurance
+Agents (8):
+  architect (opus):
+    - System-wide architecture design
+    - Technical roadmaps and planning
+    - API and infrastructure design
 
-  Infrastructure (7 agents):
-    - System operations and deployment
-    - Platform engineering and reliability
-    - Database and storage management
+  code-reviewer (sonnet):
+    - Code quality, patterns, best practices
+    - Security vulnerability scanning
+    - Pre-commit and PR review
 
-  Architecture (5 agents):
-    - System design and planning
-    - API architecture and governance
-    - Cloud and enterprise architecture
+  debugger (sonnet):
+    - Root cause analysis
+    - Bug investigation and performance issues
 
-  Design (2 agents):
-    - User experience research
-    - Interface design and systems
+  devops (sonnet):
+    - CI/CD pipelines
+    - Infrastructure as code
+    - Deployment automation
 
-  Quality (5 agents):
-    - Code review and validation
-    - Performance optimization
-    - Accessibility and compliance
+  feature-agent (opus):
+    - End-to-end feature orchestration
+    - Multi-agent workflow coordination
 
-  Security (3 agents):
-    - Security auditing and compliance
-    - Regulatory requirements
+  frontend-engineer (sonnet):
+    - UI components, React, CSS
+    - Accessibility and design systems
+
+  security-auditor (sonnet):
+    - Security audits, OWASP compliance
     - Vulnerability assessment
 
-  Analysis (8 agents):
-    - Codebase analysis and metrics
-    - Documentation and knowledge transfer
-    - Logging and monitoring analysis
-
-  Operations (4 agents):
-    - Debugging and troubleshooting
-    - Incident response and coordination
-    - Project orchestration
+  test-engineer (sonnet):
+    - Test strategy and automation
+    - Coverage analysis and quality gates
 ```
 
 #### Agent Definition Schema
@@ -234,14 +230,14 @@ Sync Process Flow:
 Directory Structure:
   Source: system-configs/
     ├── CLAUDE.md (Core configuration)
-    ├── .claude/agents/ (28 agent definitions)
-    ├── .claude/commands/ (21 command definitions)
+    ├── .claude/agents/ (8 agent definitions)
+    ├── .claude/skills/ (skill definitions)
     └── settings.json (Audio and preferences)
 
   Target: ~/.claude/
     ├── CLAUDE.md (Deployed configuration)
     ├── agents/ (Active agent definitions)
-    ├── commands/ (Available commands)
+    ├── skills/ (Available skills)
     └── settings.json (User preferences)
 ```
 

@@ -61,18 +61,16 @@ Before writing any instructions, clearly define:
 
 ### Step 3: Select Appropriate Category
 
-Choose from the eight official categories defined in `AGENT_CATEGORIES.md`:
+Choose a category that best reflects the agent's primary domain:
 
-| Category | Color | Purpose |
-|----------|-------|---------|
-| development | blue | Core programming and implementation |
-| infrastructure | orange | Systems, operations, and deployment |
-| architecture | purple | System design and technical planning |
-| design | pink | User experience and interface design |
-| quality | green | Testing, review, and validation |
-| security | red | Security assessment and compliance |
-| analysis | yellow | Research, documentation, and analysis |
-| operations | teal | Support, coordination, and strategic planning |
+| Category | Color | Purpose | Current Agents |
+|----------|-------|---------|----------------|
+| architecture | purple | System design and technical planning | architect |
+| development | blue | Core programming and implementation | frontend-engineer, debugger |
+| infrastructure | orange | Systems, operations, and deployment | devops |
+| orchestration | cyan | Multi-agent workflow coordination | feature-agent |
+| quality | green | Testing, review, and validation | code-reviewer, test-engineer |
+| security | red | Security assessment and compliance | security-auditor |
 
 ### Step 4: Write Agent Instructions
 
@@ -83,22 +81,22 @@ Create comprehensive instructions following the structure demonstrated in existi
 ### Naming Rules
 
 1. **Format**: Use lowercase with hyphens (kebab-case)
-   - ✅ `backend-engineer`
-   - ✅ `api-documenter`
-   - ❌ `BackendEngineer`
-   - ❌ `backend_engineer`
+   - ✅ `code-reviewer`
+   - ✅ `security-auditor`
+   - ❌ `CodeReviewer`
+   - ❌ `code_reviewer`
 
 2. **Clarity**: Name should immediately convey the agent's purpose
    - ✅ `security-auditor` (clear security focus)
-   - ✅ `database-admin` (obvious database expertise)
+   - ✅ `code-reviewer` (obvious review expertise)
    - ❌ `helper` (too generic)
    - ❌ `tech-agent` (unclear specialization)
 
 3. **Consistency**: Follow existing naming patterns
-   - Engineers: `backend-engineer`, `data-platform-engineer`, `ml-engineer`
-   - Architects: `frontend-architect`, `cloud-network-architect`, `api-architect`
-   - Specialists: `performance-engineer`, `monitoring-specialist`, `supply-chain-security-engineer`
-   - Administrators: `database-admin`, `kubernetes-admin`
+   - Engineers: `frontend-engineer`, `test-engineer`
+   - Architects: `architect` (single general architect)
+   - Auditors: `security-auditor`, `code-reviewer`
+   - Infrastructure: `devops`, `debugger`
 
 4. **Length**: Keep names concise but descriptive
    - ✅ `test-engineer` (concise and clear)
@@ -119,11 +117,10 @@ Each agent requires:
 .claude/
 └── agents/
     ├── AGENT_TEMPLATE.md          # Template for new agents
-    ├── AGENT_CATEGORIES.md        # Category definitions
-    ├── backend-engineer.md        # Example agent
-    ├── frontend-architect.md      # Example agent
+    ├── architect.md               # Example agent
+    ├── code-reviewer.md           # Example agent
     └── {your-new-agent}.md       # Your new agent
-```yaml
+```
 
 ## Tool Selection Guidelines
 
@@ -213,8 +210,8 @@ tools: Read, Write
 
 # ❌ Wrong: Invalid color for category
 ---
-name: backend-engineer
-description: Backend development
+name: my-engineer
+description: Development work
 tools: Read, Write
 color: red  # Should be blue for development
 category: development
@@ -231,9 +228,10 @@ category: quality
 
 # ✅ Correct: All fields valid
 ---
-name: api-architect
-description: API design and governance
-tools: Read, Write, Edit, Grep, Glob, LS, TodoWrite
+name: architect
+description: MUST BE USED for system design. Triggers on "architecture", "system design".
+tools: Read, Write, Edit, Grep, Glob, Bash
+model: opus
 color: purple
 category: architecture
 ---
@@ -364,8 +362,8 @@ category: architecture
    ```python
    # Orchestration test
    orchestration_test = """
-   Using backend-engineer and test-engineer in parallel:
-   1. Create API endpoint
+   Using frontend-engineer and test-engineer in parallel:
+   1. Create UI component
    2. Write comprehensive tests
    """
 ```text
@@ -501,7 +499,7 @@ Error: Color 'blue' doesn't match category 'security'
 
 **Solution**:
 
-1. Refer to AGENT_CATEGORIES.md
+1. Refer to the category table in `docs/guides/agent-development-guide.md`
 2. Update color to match category
 3. Or reconsider agent categorization
 
@@ -598,9 +596,9 @@ Final Output
 
    ```text
    Orchestrator launches simultaneously:
-   - Backend-engineer (API development)
-   - Frontend-architect (UI development)
-   - Test-engineer (Test creation)
+   - frontend-engineer (UI development)
+   - test-engineer (test creation)
+   - security-auditor (security review)
 ```text
 
 3. **Iterative Refinement**
@@ -643,10 +641,10 @@ Final Output
 3. **Complementary Skills**: Design agents to complement each other
 
    ```text
-   API-Architect: Designs the API specification
-   Backend-Engineer: Implements the specification
-   Test-Engineer: Validates the implementation
-   Tech-Writer: Creates user documentation
+   architect: Designs the API specification
+   frontend-engineer: Implements UI components
+   test-engineer: Validates the implementation
+   security-auditor: Reviews for vulnerabilities
 ```yaml
 
 ### Example: Multi-Agent Project
@@ -655,18 +653,17 @@ Creating a new microservice with multiple agents:
 
 ```markdown
 ## Phase 1: Design (Parallel)
-- api-architect: Design API specification
-- database-admin: Design data schema
-- security-auditor: Security requirements
+- architect: Design system and API specification
+- security-auditor: Security requirements review
 
 ## Phase 2: Implementation (Parallel)
-- backend-engineer: Implement service
+- frontend-engineer: Implement UI components
 - test-engineer: Create test suite
 - devops: Setup CI/CD pipeline
 
-## Phase 3: Documentation (Sequential)
-- tech-writer: Create API docs
-- tech-writer: Create user guide
+## Phase 3: Review (Parallel)
+- code-reviewer: Code quality review
+- security-auditor: Security validation
 ```yaml
 
 ## Conclusion
@@ -686,6 +683,6 @@ orchestrator—they think and analyze while the orchestrator executes and coordi
 For additional resources:
 
 - Review existing agents in `.claude/agents/`
-- Consult `AGENT_CATEGORIES.md` for categorization
-- Use `agent-auditor` for validation
+- Use `AGENT_TEMPLATE.md` for the canonical template
+- Run `/audit --scope agents` for validation
 - Test thoroughly before deployment

@@ -13,7 +13,7 @@ performance issues.
 /sync
 
 # Validate all agent configurations
-/agent-audit
+/audit --scope agents
 
 # Run comprehensive system tests
 /test
@@ -66,7 +66,7 @@ rm -rf ~/.claude/
 /sync
 
 # Verify new configurations
-/agent-audit
+/audit --scope agents
 ```
 
 ### Permission Issues
@@ -121,14 +121,14 @@ Error: SYSTEM BOUNDARY violation - agent attempted unauthorized invocation
 #### Issue: "Agent not found: [agent-name]"
 
 ```bash
-Error: Agent 'backend-engineer' not found in ~/.claude/agents/
+Error: Agent 'code-reviewer' not found in ~/.claude/agents/
 ```
 
 **Diagnosis Steps**:
 
 ```bash
 # 1. Check if agent files exist
-ls ~/.claude/agents/ | grep backend-engineer
+ls ~/.claude/agents/ | grep code-reviewer
 
 # 2. Validate agent YAML format
 ./scripts/validate-agent-yaml.py
@@ -137,7 +137,7 @@ ls ~/.claude/agents/ | grep backend-engineer
 /sync
 
 # 4. Verify with audit
-/agent-audit
+/audit --scope agents
 ```
 
 **Common Causes & Solutions**:
@@ -155,7 +155,7 @@ ls ~/.claude/agents/ | grep backend-engineer
    # Validate and fix YAML issues
    ./scripts/validate-agent-yaml.py
    # Check specific agent
-   cat ~/.claude/agents/backend-engineer.md
+   cat ~/.claude/agents/code-reviewer.md
    ```
 
 3. **Corrupted Configuration**:
@@ -245,7 +245,7 @@ which pytest npm go test
 #### Issue: Commands running slower than expected
 
 ```bash
-/agent-audit taking 5+ minutes (expected: 30-45 seconds)
+/audit --scope agents taking 5+ minutes (expected: 30-45 seconds)
 ```
 
 **Performance Diagnostics**:
@@ -287,7 +287,7 @@ ping -c 3 github.com
 
    ```bash
    # Verify parallel execution is working
-   /agent-audit --debug
+   /audit --scope agents --debug
    # Look for "Creating X parallel instances"
    ```
 
@@ -533,7 +533,7 @@ echo "Test Status:"
 
 # 5. Performance Check
 echo "Performance Check:"
-time /agent-audit --dry-run 2>&1 | grep "parallel instances"
+time /audit --scope agents --dry-run 2>&1 | grep "parallel instances"
 
 # 6. System Resources
 echo "System Resources:"
@@ -550,7 +550,7 @@ Most commands support debug mode for detailed troubleshooting:
 export CLAUDE_DEBUG=1
 
 # Run commands with verbose output
-/agent-audit --debug
+/audit --scope agents --debug
 /test --verbose
 /sync --debug
 ```
@@ -587,7 +587,7 @@ cat ~/.claude/settings.json | jq '.'
 # Include full command output and error messages
 
 # Performance Metrics
-time /agent-audit --dry-run
+time /audit --scope agents --dry-run
 ```
 
 ### Support Channels
@@ -606,7 +606,7 @@ time /agent-audit --dry-run
 ```bash
 # Weekly maintenance routine
 /sync                    # Sync latest configurations
-/agent-audit            # Validate agent ecosystem
+/audit --scope agents            # Validate agent ecosystem
 /test                   # Run comprehensive tests
 git pull                # Update repository
 ```
@@ -615,7 +615,7 @@ git pull                # Update repository
 
 ```bash
 # Monitor command performance
-time /agent-audit       # Should be ~30-45 seconds
+time /audit --scope agents       # Should be ~30-45 seconds
 time /test             # Should be ~30-40 seconds
 time /docs             # Should be ~1-2 minutes
 ```

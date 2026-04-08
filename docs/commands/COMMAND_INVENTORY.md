@@ -38,8 +38,8 @@ Skills that delegate execution to specialized agents.
 |-------|-------------|--------------|-------|
 | `/debug` | Root cause analysis | debugger | `--performance`, `--issue` |
 | `/plan` | PRD and task file generation | architect | `--no-execute`, `--simple` |
-| `/prime` | Repository understanding | researcher | `--lite`, `--full` |
-| `/docs` | Documentation generation | tech-writer | `--audit`, `--audit-and-fix`, `--clean` |
+| `/prime` | Repository understanding | Claude directly | `--lite`, `--full` |
+| `/docs` | Documentation generation | Claude directly | `--audit`, `--audit-and-fix`, `--clean` |
 
 ## Git Workflow Skills (6)
 
@@ -72,8 +72,8 @@ Reference material injected into agent contexts. Not user-invocable (`user-invoc
 | `git-conventions` | code-reviewer, devops | Git best practices, commit conventions |
 | `security-checklist` | code-reviewer, security-auditor | OWASP checks, secure coding patterns |
 | `testing-patterns` | test-engineer | TDD/BDD patterns, test organization |
-| `api-design-patterns` | architect, backend-engineer | REST/GraphQL patterns, OpenAPI |
-| `markdown-linting` | tech-writer | Markdownlint rules, documentation formatting |
+| `api-design-patterns` | architect | REST/GraphQL patterns, OpenAPI |
+| `markdown-linting` | (reference only — tech-writer removed) | Markdownlint rules, documentation formatting |
 
 ## Imported Anthropic Skills (8)
 

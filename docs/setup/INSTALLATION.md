@@ -16,10 +16,10 @@ claude-code
 /sync
 
 # 4. Verify installation
-/agent-audit
+/audit --scope agents
 ```
 
-**You're done!** You now have access to 28 specialized agents and 20 essential commands.
+**You're done!** You now have access to 8 specialized agents and the full skill library.
 
 ## Detailed Installation Options
 
@@ -117,7 +117,7 @@ claude-code
 /sync
 
 # Verify everything is working
-/agent-audit
+/audit --scope agents
 /prime --lite    # Quick repository analysis
 /test --quick   # Quick test validation
 ```
@@ -125,7 +125,7 @@ claude-code
 ##### Advantages:
 
 - Complete setup in under 2 minutes
-- All 28 agents and 20 commands available immediately
+- All 8 agents and skill library available immediately
 - Includes audio notifications and quality gates
 - Automatic backup of existing configurations
 
@@ -155,7 +155,7 @@ cp system-configs/.claude/settings.json ~/.claude/settings.json
 
 # Verify installation
 claude-code
-/agent-audit
+/audit --scope agents
 ```
 
 #### Method 3: Development Installation
@@ -182,8 +182,8 @@ pip install -r requirements.txt  # If Python dependencies exist
 /sync
 
 # Run comprehensive validation
-/agent-audit
-/command-audit
+/audit --scope agents
+/audit --scope skills
 ```
 
 ### Configuration Structure
@@ -193,34 +193,30 @@ After installation, your configuration structure will be:
 ```text
 ~/.claude/
 ├── CLAUDE.md                    # Core Claude configuration
-├── agents/                      # 28 specialized agents
-│   ├── api-architect.md
-│   ├── backend-engineer.md
+├── agents/                      # 8 specialized agents
+│   ├── architect.md
 │   ├── code-reviewer.md
-│   ├── codebase-analyst.md
 │   ├── debugger.md
 │   ├── devops.md
-│   ├── performance-engineer.md
-│   ├── principal-architect.md
+│   ├── feature-agent.md
+│   ├── frontend-engineer.md
 │   ├── security-auditor.md
-│   ├── tech-writer.md
-│   ├── test-engineer.md
-│   └── ... (17 more agents)
-├── commands/                    # 20 essential commands
-│   ├── agent-audit.md
-│   ├── commit.md
-│   ├── debug.md
-│   ├── deps.md
-│   ├── docs.md
-│   ├── fix-ci.md
-│   ├── plan.md
-│   ├── prime.md
-│   ├── push.md
-│   ├── resolve-comments.md
-│   ├── review.md
-│   ├── sync.md
-│   ├── test.md
-│   └── ... (7 more commands)
+│   └── test-engineer.md
+├── skills/                      # Skill library (slash commands)
+│   ├── commit/
+│   ├── debug/
+│   ├── deps/
+│   ├── docs/
+│   ├── fix-ci/
+│   ├── plan/
+│   ├── prime/
+│   ├── push/
+│   ├── resolve-comments/
+│   ├── review/
+│   ├── ship-it/
+│   ├── sync/
+│   ├── test/
+│   └── ... (more skills)
 └── settings.json               # Audio notifications and preferences
 ```
 
@@ -236,7 +232,7 @@ claude-code
 /prime --lite
 
 # 2. Verify agent ecosystem
-/agent-audit
+/audit --scope agents
 
 # 3. Test command execution
 /test --quick
@@ -266,7 +262,7 @@ For comprehensive system validation:
 ./tests/test.sh integration
 
 # Performance benchmarking
-time /agent-audit
+time /audit --scope agents
 time /test
 time /prime
 ```
@@ -277,7 +273,7 @@ After successful installation, you should see these performance improvements:
 
 | Command | Expected Time | Performance Gain |
 |---------|---------------|------------------|
-| `/agent-audit` | 30-45 seconds | 5-6x faster |
+| `/audit --scope agents` | 30-45 seconds | 5-6x faster |
 | `/test` | 30-40 seconds | 4-5x faster |
 | `/docs` | 1-2 minutes | 3-4x faster |
 | `/prime focused` | 15-20 seconds | 4-6x faster |
@@ -320,7 +316,7 @@ claude-code
 /sync
 
 # Verify installation
-/agent-audit
+/audit --scope agents
 ```
 
 ### Windows Setup
@@ -342,7 +338,7 @@ claude-code
 /sync
 
 # Verify installation
-/agent-audit
+/audit --scope agents
 ```
 
 ## Configuration Options
@@ -410,7 +406,7 @@ The system includes comprehensive quality gates that prevent bad commits:
 
 # Instead, fix the issues:
 ./scripts/validate-markdown-quality.sh fix
-/agent-audit
+/audit --scope agents
 /test
 ```
 
@@ -433,7 +429,7 @@ echo 'export ELEVENLABS_API_KEY="your-api-key"' >> ~/.zshrc
 
 # Test integration
 claude-code
-# ElevenLabs functionality now available in tech-writer and other agents
+# ElevenLabs functionality available via MCP integration
 ```
 
 #### Context7 Integration (Optional)
@@ -483,7 +479,7 @@ git pull origin main
 /sync
 
 # Validate updates
-/agent-audit
+/audit --scope agents
 /test
 ```
 
@@ -510,12 +506,12 @@ Regular health checks ensure optimal performance:
 ```bash
 # Weekly health check routine
 /sync                    # Update configurations
-/agent-audit            # Validate agent ecosystem
+/audit --scope agents            # Validate agent ecosystem
 /test                   # Run comprehensive tests
 git pull                # Update repository
 
 # Monthly performance monitoring
-time /agent-audit       # Should be ~30-45 seconds
+time /audit --scope agents       # Should be ~30-45 seconds
 time /test             # Should be ~30-40 seconds
 time /docs             # Should be ~1-2 minutes
 ```
@@ -567,7 +563,7 @@ chmod 755 ~/.claude
 /sync
 
 # Validate agents
-/agent-audit
+/audit --scope agents
 
 # Check specific agent
 ls ~/.claude/agents/ | grep agent-name
@@ -592,7 +588,7 @@ free -h  # Linux
 vm_stat  # macOS
 
 # Run performance diagnostics
-time /agent-audit --debug
+time /audit --scope agents --debug
 time /test --verbose
 ```
 
@@ -626,7 +622,7 @@ code ~/.claude/agents/custom-agent.md
 ./scripts/validate-agent-yaml.py
 
 # Test agent
-/agent-audit
+/audit --scope agents
 ```
 
 ### Command Customization
@@ -644,7 +640,7 @@ code ~/.claude/commands/custom-command.md
 /custom-command
 
 # Validate all commands
-/command-audit
+/audit --scope skills
 ```
 
 ### Integration Testing
@@ -706,4 +702,4 @@ After successful installation:
 5. **Best Practices**: [Development Guidelines](../development/AGENT_SELECTION_GUIDE.md)
 
 Welcome to the Claude Configuration Repository ecosystem! You now have access to a production-ready
-Smart Agent Orchestration Framework with 28 specialized agents and 20 essential commands.
+Smart Agent Orchestration Framework with 8 specialized agents and full skill library.

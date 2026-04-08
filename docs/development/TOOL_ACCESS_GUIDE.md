@@ -2,144 +2,94 @@
 
 ## Overview
 
-This guide explains the rationale behind tool access restrictions for each agent type,
-ensuring appropriate capabilities while maintaining security and role boundaries.
+This guide explains the rationale behind tool access restrictions for each of the
+8 current agents, ensuring appropriate capabilities while maintaining security and
+role boundaries.
+
+## Current Agent Tool Access
+
+| Agent | Access Level | Key Tools | Forbidden |
+|-------|-------------|-----------|-----------|
+| architect | Full | Read, Write, Edit, Grep, Glob, Bash, TodoWrite | - |
+| code-reviewer | Read + Analysis | Read, Grep, Glob, Bash (read-only) | Write, Edit |
+| debugger | Read + Analysis | Read, Grep, Glob, Bash (read-only) | Write, Edit |
+| devops | Full | Read, Write, Edit, Grep, Glob, Bash, TodoWrite | - |
+| feature-agent | Full | Read, Write, Edit, Grep, Glob, Bash, TodoWrite | - |
+| frontend-engineer | Full | Read, Write, Edit, Grep, Glob, Bash, TodoWrite | - |
+| security-auditor | Read + Analysis | Read, Grep, Glob, Bash (read-only) | Write, Edit |
+| test-engineer | Full | Read, Write, Edit, Grep, Glob, Bash, TodoWrite | - |
 
 ## Tool Access Categories
 
 ### Full Access Agents
 
-**Tools**: All tools including Bash, Read, Write, Edit, MultiEdit, Glob, Grep, LS,
-WebFetch, WebSearch, TodoWrite, NotebookRead, NotebookEdit
+**Agents**: architect, devops, feature-agent, frontend-engineer, test-engineer
 
-#### Implementation Agents
+**Justification**: These agents build, configure, and deploy. They must modify code,
+manage infrastructure, and create artifacts to deliver working solutions. Full tool
+access is required to fulfill their core responsibilities.
 
-- **backend-engineer**: Needs full access for complex server-side implementation,
-  database modifications, and system configuration
+**Agent-specific rationale**:
 
-- **frontend-architect**: Requires all tools for UI implementation, build system
-  configuration, and performance optimization
+- **architect**: Full access needed to create comprehensive implementation plans, write
+  specs, and guide technical decisions across files
 
-- **fullstack-lead**: Standard implementation agent needing complete toolset for
-  feature development and bug fixes
+- **devops**: Manages CI/CD pipelines, infrastructure code, and deployment scripts;
+  requires system execution and file modification
 
-- **devops**: Essential for infrastructure automation, CI/CD configuration, and
-  deployment scripts
+- **feature-agent**: Orchestrates end-to-end feature delivery; requires full access to
+  coordinate implementation across the codebase
 
-- **platform-engineer**: Needs full access for monitoring setup, infrastructure
-  management, and SRE automation
+- **frontend-engineer**: Implements UI components, configures build systems, and writes
+  tests; requires complete implementation toolset
 
-**Justification**: Implementation agents must modify code, configure systems, and
-manage infrastructure to deliver working solutions.
+- **test-engineer**: Creates test infrastructure, automation scripts, and CI integration;
+  requires full implementation capabilities
 
-### Read + Analysis Access
+### Read + Analysis Access Agents
 
-**Tools**: Glob, Grep, LS, Read, NotebookRead, WebFetch, WebSearch,
-Bash(read-only), TodoWrite
-**Forbidden**: Edit, MultiEdit, Write, NotebookEdit(modification)
+**Agents**: code-reviewer, debugger, security-auditor
 
-#### Analysis Agents
-
-- **codebase-analyst**: Focuses on understanding and reporting, not modification.
-  Read-only access prevents accidental changes while allowing comprehensive analysis
-
-- **security-auditor**: Analyzes for vulnerabilities without modifying code.
-  Separation of analysis and implementation ensures objective security assessment
-
-- **debugger**: Investigates issues without changing code during analysis phase.
-  Modifications happen after investigation is complete
-
-- **performance-engineer**: Analyzes performance characteristics before
-  recommending changes. Separation ensures objective measurement
+**Tools**: Read, Grep, Glob, Bash (read-only commands), TodoWrite
+**Forbidden**: Write, Edit
 
 **Justification**: Analysis agents must remain objective and focused on assessment
 rather than implementation. Read-only access ensures thorough analysis without
-bias toward immediate fixes.
+bias toward immediate fixes, and prevents accidental modifications during review.
 
-### Orchestration Access
+**Agent-specific rationale**:
 
-**Tools**: Full access + project management capabilities
+- **code-reviewer**: Reviews code quality and patterns; read-only access ensures
+  review findings are independent of implementation decisions
 
-#### Coordination Agents
+- **debugger**: Investigates root causes through analysis; read-only prevents
+  accidental production modifications during investigation. Fixes happen separately.
 
-- **principal-architect**: Needs full access for architectural decisions, system
-  design, and technical leadership across all domains
-
-- **project-orchestrator**: Requires complete toolset to coordinate multiple
-  agents and manage complex project workflows
-
-**Justification**: Leadership roles require full capabilities to support and
-coordinate other agents effectively.
-
-### Documentation Access
-
-**Tools**: Bash, Read, Write, Edit, MultiEdit, Glob, Grep, LS, WebFetch,
-WebSearch, TodoWrite
-**Forbidden**: NotebookRead, NotebookEdit
-
-#### Documentation Agents
-
-- **tech-writer**: Focuses on technical documentation and knowledge transfer.
-  Notebook tools not needed for standard documentation workflows
-
-- **api-architect**: Creates API specifications and documentation. Primary focus
-  on OpenAPI specs and contract documentation
-
-**Justification**: Documentation agents need to read existing code and write
-specifications but don't typically work with data analysis notebooks.
-
-### Design Access
-
-**Tools**: Read, Write, Edit, MultiEdit, Glob, Grep, LS, WebFetch, WebSearch,
-TodoWrite
-**Forbidden**: Bash, NotebookRead, NotebookEdit
-
-#### Design Agents
-
-- **ui-designer**: Creates design specifications and visual guidelines. No need
-  for system execution or data analysis
-
-**Justification**: Design agents create specifications that implementation agents
-execute. Direct system access could blur the design/implementation boundary.
-
-### Quality Assurance Access
-
-**Tools**: Varies by agent role and responsibilities
-
-#### QA Agents
-
-- **test-engineer**: Full access needed for test implementation, framework
-  configuration, and quality automation
-
-- **code-reviewer**: Read + analysis access for objective code quality
-  assessment without implementation bias
-
-**Justification**: Testing requires implementation capabilities while code review
-benefits from objective, read-only analysis.
+- **security-auditor**: Performs vulnerability assessment; read-only is a hard
+  requirement for audit integrity — auditors cannot modify the systems they assess
 
 ## Security Principles
 
 ### Principle of Least Privilege
 
-Each agent receives minimum access required for their core responsibilities:
-
-- Analysis agents can't accidentally modify code during investigation
-- Design agents focus on specifications rather than implementation
-- Implementation agents have full access only when building solutions
+Each agent receives the minimum access required for their core responsibilities.
+Analysis agents cannot accidentally modify code. Implementation agents have full
+access only when building solutions.
 
 ### Role Separation
 
 Clear boundaries between analysis and implementation:
 
-- **Analysis Phase**: Read-only agents investigate and report
-- **Implementation Phase**: Full-access agents build solutions
-- **Quality Phase**: Appropriate access level for validation
+- **Analysis Phase**: Read-only agents (code-reviewer, debugger, security-auditor)
+  investigate and report
+- **Implementation Phase**: Full-access agents build solutions based on findings
+- **Quality Phase**: test-engineer (full) validates; code-reviewer (read-only) reviews
 
 ### Audit Trail
 
 Tool restrictions enable clear audit trails:
 
-- Read-only agents produce analysis reports
+- Read-only agents produce analysis reports only
 - Write-access agents create implementation artifacts
 - Clear responsibility attribution for all changes
 
@@ -147,74 +97,29 @@ Tool restrictions enable clear audit trails:
 
 ### Bash Access
 
-- **Full Access**: Implementation and orchestration agents need system execution
-- **Read-Only**: Analysis agents can run non-destructive commands for
-  investigation
+- **Full (devops, frontend-engineer, test-engineer)**: System execution needed for
+  builds, tests, deployments, and infrastructure
+- **Read-Only (code-reviewer, debugger, security-auditor)**: Can run non-destructive
+  commands (grep, ls, cat) but cannot modify systems
 
-- **Forbidden**: Design agents don't need system access for specification
-  creation
+### File Modification (Edit, Write)
 
-### File Modification Tools (Edit, Write, MultiEdit)
-
-- **Allowed**: Implementation, orchestration, and documentation agents
-- **Forbidden**: Analysis and design agents to maintain objectivity and role
-  separation
-
-### WebFetch/WebSearch Access
-
-- **Universal**: All agents can access external information for research and
-  context
-
-- **Justification**: External information gathering doesn't pose security risks
-  and enhances agent capabilities
-
-### Notebook Tools
-
-- **Limited Use**: Only data-focused implementation agents need notebook
-  capabilities
-
-- **Justification**: Most agents work with code and documentation rather than
-  data analysis notebooks
-
-## Access Control Benefits
-
-### Enhanced Security
-
-- Reduced risk of accidental modifications during analysis
-- Clear audit trail of who can make what changes
-- Separation of concerns between analysis and implementation
-
-### Improved Quality
-
-- Objective analysis without implementation bias
-- Clear handoff protocols between analysis and implementation
-- Focused agent capabilities aligned with responsibilities
-
-### Better Coordination
-
-- Clear understanding of what each agent can and cannot do
-- Appropriate escalation paths when agents need capabilities they don't have
-- Streamlined workflows based on access patterns
+- **Allowed**: architect, devops, feature-agent, frontend-engineer, test-engineer
+- **Forbidden**: code-reviewer, debugger, security-auditor — to maintain objectivity
+  and role separation
 
 ## Escalation Patterns
 
 ### When Analysis Agents Need Modifications
 
-1. Complete analysis and provide recommendations
-2. Hand off to appropriate implementation agent
-3. Implementation agent executes changes
-4. Return to analysis agent for validation if needed
-
-### When Design Agents Need Implementation
-
-1. Create comprehensive design specifications
-2. Hand off to frontend-architect or fullstack-lead
-3. Implementation agent builds according to specs
-4. Design agent reviews for fidelity
+1. analysis agent completes review and documents findings
+2. Findings handed to appropriate implementation agent
+3. Implementation agent applies changes
+4. Analysis agent re-reviews if needed
 
 ### When Implementation Agents Need Analysis
 
-1. Pause implementation work
-2. Engage appropriate analysis agent
-3. Receive analysis results and recommendations
-4. Resume implementation with new insights
+1. Pause implementation
+2. Engage code-reviewer or security-auditor
+3. Receive analysis results
+4. Resume implementation with new context
