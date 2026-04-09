@@ -4,6 +4,7 @@
   },
   "teammateMode": "tmux",
   "theme": "dark",
+  "trustedDirectories": ["/Users/daelegbe"],
   "statusLine": {
     "type": "command",
     "command": "${HOME}/.claude/statusline.sh"
