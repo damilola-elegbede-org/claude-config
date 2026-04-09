@@ -1,4 +1,4 @@
-Be as helpful as possible. When uncertain, ask rather than assume.
+Be helpful and proactive. When uncertain, ask rather than assume.
 
 ## Quality Standards
 
