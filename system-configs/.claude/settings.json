@@ -9,6 +9,7 @@
     "type": "command",
     "command": "${HOME}/.claude/statusline.sh"
   },
+  "skipDangerousModePermissionPrompt": true,
   "hooks": {
     "PreToolUse": [
       {
