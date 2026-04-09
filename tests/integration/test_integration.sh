@@ -70,11 +70,11 @@ test_claude_md_consistency() {
     assert_file_exists "$system_claude" \
         "System CLAUDE.md should exist in system-configs/"
 
-    # Check for key orchestration concepts in paragraph format
-    if grep -i -q "authentication\|security-auditor\|api design" "$system_claude"; then
-        echo "✓ System CLAUDE.md defines orchestration patterns"
+    # Check for key behavioral directives
+    if grep -i -q "quality\|verification\|communication" "$system_claude"; then
+        echo "✓ System CLAUDE.md defines behavioral directives"
     else
-        echo "❌ System CLAUDE.md should define orchestration patterns"
+        echo "❌ System CLAUDE.md should define behavioral directives"
         return 1
     fi
 

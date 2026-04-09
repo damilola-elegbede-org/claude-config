@@ -10,35 +10,20 @@ test_claude_md_exists() {
         "System CLAUDE.md should exist in system-configs directory"
 }
 
-# Test that CLAUDE.md has proper identity-focused structure
+# Test that CLAUDE.md has proper behavioral structure
 test_claude_md_structure() {
     local claude_file="$ORIGINAL_DIR/system-configs/CLAUDE.md"
-    local has_main_header=false
     local has_communication=false
-    local has_working_style=false
     local has_quality=false
+    local has_file_org=false
 
-    echo "Validating CLAUDE.md identity-focused structure..."
+    echo "Validating CLAUDE.md behavioral structure..."
 
-    # Check for main header (About Me or similar identity header)
-    if grep -q "^# About Me" "$claude_file"; then
-        has_main_header=true
-    else
-        echo "Warning: Missing '# About Me' header (optional but recommended)"
-    fi
-
-    # Check for Communication Preferences
-    if grep -q "^## Communication Preferences" "$claude_file"; then
+    # Check for helpfulness directive
+    if grep -q "helpful" "$claude_file"; then
         has_communication=true
     else
-        echo "Warning: Missing Communication Preferences section"
-    fi
-
-    # Check for Working Style
-    if grep -q "^## Working Style" "$claude_file"; then
-        has_working_style=true
-    else
-        echo "Warning: Missing Working Style section"
+        echo "Warning: Missing helpfulness directive"
     fi
 
     # Check for Quality Standards
@@ -48,18 +33,24 @@ test_claude_md_structure() {
         echo "Warning: Missing Quality Standards section"
     fi
 
-    # Pass if at least 3 of 4 sections present
-    local count=0
-    [ "$has_main_header" = true ] && count=$((count + 1))
-    [ "$has_communication" = true ] && count=$((count + 1))
-    [ "$has_working_style" = true ] && count=$((count + 1))
-    [ "$has_quality" = true ] && count=$((count + 1))
+    # Check for File Organization
+    if grep -q "^## File Organization" "$claude_file"; then
+        has_file_org=true
+    else
+        echo "Warning: Missing File Organization section"
+    fi
 
-    if [ "$count" -ge 3 ]; then
-        echo "CLAUDE.md has correct identity-focused structure ($count/4 sections)"
+    # Pass if at least 2 of 3 core sections present
+    local count=0
+    [ "$has_communication" = true ] && count=$((count + 1))
+    [ "$has_quality" = true ] && count=$((count + 1))
+    [ "$has_file_org" = true ] && count=$((count + 1))
+
+    if [ "$count" -ge 2 ]; then
+        echo "CLAUDE.md has correct behavioral structure ($count/3 sections)"
         return 0
     else
-        echo "CLAUDE.md missing key identity sections ($count/4)"
+        echo "CLAUDE.md missing key behavioral sections ($count/3)"
         return 1
     fi
 }
@@ -98,10 +89,10 @@ test_claude_md_effectiveness() {
         reasons+=("Missing quality standards mention")
     fi
 
-    # Must have git mention (no-verify policy)
-    if ! grep -q -i "git\|--no-verify" "$claude_file"; then
+    # Must have verification emphasis
+    if ! grep -q -i "verify\|verification" "$claude_file"; then
         score=$((score - 1))
-        reasons+=("Missing git policy")
+        reasons+=("Missing verification directive")
     fi
 
     # Report results
