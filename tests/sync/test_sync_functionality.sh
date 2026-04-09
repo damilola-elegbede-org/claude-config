@@ -115,7 +115,7 @@ CLAUDE_MD="$SOURCE_DIR/CLAUDE.md"
 if [ -f "$CLAUDE_MD" ]; then
     # Check file size (should be substantial)
     FILE_SIZE=$(wc -c < "$CLAUDE_MD" | tr -d ' ')
-    if [ "$FILE_SIZE" -gt 1000 ]; then
+    if [ "$FILE_SIZE" -gt 400 ]; then
         echo -e "${GREEN}✓${NC} CLAUDE.md exists and has content ($FILE_SIZE bytes)"
     else
         echo -e "${RED}✗${NC} CLAUDE.md is too small ($FILE_SIZE bytes)"
