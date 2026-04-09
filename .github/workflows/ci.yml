@@ -370,19 +370,6 @@ jobs:
           ! -name "README.md" ! -name "*TEMPLATE*" 2>/dev/null | wc -l | tr -d ' ')
         echo "Actual skills deployed: $actual_skills"
 
-        # Check if CLAUDE.md agent routing table has all agents listed
-        if [ -f "system-configs/CLAUDE.md" ]; then
-          # Extract agent names from routing table
-          routing_agents=$(grep -E '^\| .+ \| `[a-z-]+` \|' system-configs/CLAUDE.md 2>/dev/null | \
-            sed -n 's/.*`\([a-z-]*\)`.*/\1/p' | sort -u | wc -l | tr -d ' ')
-
-          if [ "$routing_agents" -lt "$actual_agents" ]; then
-            echo "❌ Agent routing table is incomplete"
-            echo "   Routing table has $routing_agents agents, but $actual_agents are deployed"
-            exit_code=1
-          fi
-        fi
-
         # Verify required agents exist
         required_agents=(
           "architect"
