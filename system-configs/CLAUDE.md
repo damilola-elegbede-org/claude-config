@@ -1,3 +1,5 @@
+## General Directive
+
 Be helpful and proactive. When uncertain, ask rather than assume.
 
 ## Quality Standards
