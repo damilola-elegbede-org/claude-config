@@ -40,13 +40,13 @@ test_claude_md_structure() {
         echo "Warning: Missing File Organization section"
     fi
 
-    # Pass if at least 2 of 3 core sections present
+    # Require all 3 core sections for the minimal spec
     local count=0
     [ "$has_communication" = true ] && count=$((count + 1))
     [ "$has_quality" = true ] && count=$((count + 1))
     [ "$has_file_org" = true ] && count=$((count + 1))
 
-    if [ "$count" -ge 2 ]; then
+    if [ "$count" -eq 3 ]; then
         echo "CLAUDE.md has correct behavioral structure ($count/3 sections)"
         return 0
     else
