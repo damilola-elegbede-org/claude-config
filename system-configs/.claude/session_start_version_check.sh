@@ -96,6 +96,87 @@ semver_cmp() {
     }'
 }
 
+# --- Best-effort CHANGELOG cache refresh -------------------------------
+# Called unconditionally on every real session start (not only upgrades)
+# so that `/changelog <version>` works from first install and in
+# steady-state NOOP sessions, not just right after an upgrade. Respects
+# a 24h TTL so a warm cache is a pure no-op (no network). Returns 0 if
+# the cache is populated (fresh or stale-but-present), 1 if the cache
+# is absent and the fetch attempt also failed. NEVER calls `exit` —
+# callers decide whether cache absence is fatal for their path.
+refresh_changelog_cache() {
+    local need_fetch=1
+    local cache_mtime="" now age tmp_fetch fetch_size
+
+    if [[ -f "$CACHE_FILE" ]]; then
+        if stat -f %m "$CACHE_FILE" >/dev/null 2>&1; then
+            cache_mtime=$(stat -f %m "$CACHE_FILE" 2>/dev/null)   # BSD/macOS
+        elif stat -c %Y "$CACHE_FILE" >/dev/null 2>&1; then
+            cache_mtime=$(stat -c %Y "$CACHE_FILE" 2>/dev/null)   # GNU/Linux
+        fi
+        if [[ -n "$cache_mtime" ]]; then
+            now=$(date +%s)
+            age=$((now - cache_mtime))
+            if (( age < 86400 )); then
+                need_fetch=0
+            fi
+        fi
+    fi
+
+    if [[ "$need_fetch" -eq 0 ]]; then
+        return 0
+    fi
+
+    if ! command -v curl >/dev/null 2>&1; then
+        log "NO_CURL curl not available"
+        [[ -f "$CACHE_FILE" ]] && return 0 || return 1
+    fi
+
+    tmp_fetch=$(mktemp "$CACHE_DIR/.changelog.XXXXXX" 2>/dev/null)
+    if [[ -z "$tmp_fetch" ]]; then
+        log "FETCH_FAIL could not create tmp file in $CACHE_DIR"
+        [[ -f "$CACHE_FILE" ]] && return 0 || return 1
+    fi
+
+    # TLS hardening: force HTTPS, require TLS 1.2+. The fetched body is
+    # later rendered into the model context via /changelog, so this is a
+    # trusted input channel and any weakening here is a prompt-injection
+    # surface via DNS/MITM against raw.githubusercontent.com.
+    if ! curl --proto '=https' --tlsv1.2 \
+         --max-time 3 --fail --silent \
+         "$CHANGELOG_URL" -o "$tmp_fetch" 2>/dev/null; then
+        rm -f "$tmp_fetch" 2>/dev/null
+        log "FETCH_FAIL curl could not download CHANGELOG"
+        [[ -f "$CACHE_FILE" ]] && return 0 || return 1
+    fi
+
+    # Content sanity checks before promoting into the cache:
+    #   1. non-empty and <=2MB (CHANGELOG.md is tens of KB)
+    #   2. contains at least one `## <semver>` heading line
+    # On rejection, keep the previous cache (if any) untouched.
+    fetch_size=$(wc -c < "$tmp_fetch" 2>/dev/null | tr -d ' ')
+    if [[ -z "$fetch_size" ]] || [[ "$fetch_size" -eq 0 ]] || [[ "$fetch_size" -gt 2097152 ]]; then
+        log "FETCH_REJECT size=${fetch_size:-unknown} outside (0, 2MB]"
+        rm -f "$tmp_fetch" 2>/dev/null
+        [[ -f "$CACHE_FILE" ]] && return 0 || return 1
+    fi
+
+    if ! grep -qE '^##[[:space:]].*[0-9]+\.[0-9]+\.[0-9]+' "$tmp_fetch" 2>/dev/null; then
+        log "FETCH_REJECT no semver heading lines found in response body"
+        rm -f "$tmp_fetch" 2>/dev/null
+        [[ -f "$CACHE_FILE" ]] && return 0 || return 1
+    fi
+
+    if mv -f "$tmp_fetch" "$CACHE_FILE" 2>/dev/null; then
+        log "FETCH ok (cache refreshed, ${fetch_size} bytes)"
+        return 0
+    fi
+
+    rm -f "$tmp_fetch" 2>/dev/null
+    log "FETCH_FAIL could not move tmp into cache path"
+    [[ -f "$CACHE_FILE" ]] && return 0 || return 1
+}
+
 # --- Read stdin (SessionStart payload) ----------------------------------
 # Real mode: Claude Code pipes the JSON payload on stdin and closes it.
 # Test mode: only read stdin if it's a pipe/file, never if it's a TTY
@@ -159,6 +240,16 @@ if [[ -z "$current_version" ]]; then
     exit 0
 fi
 
+# --- Warm the CHANGELOG cache unconditionally --------------------------
+# Done BEFORE the state-file / NOOP / DOWNGRADE branches so that first
+# installs and steady-state sessions keep the cache populated for the
+# `/changelog <version>` skill. The helper respects a 24h TTL, so this
+# is a no-op when the cache is already warm. The return code is tracked
+# but not fatal here — callers that need the cache (upgrade slicing)
+# re-check `[[ -f "$CACHE_FILE" ]]` at their own branch.
+refresh_changelog_cache
+cache_refresh_status=$?
+
 # --- Read or seed stored version ---------------------------------------
 # First run: seed state with the currently-resolved version and exit
 # without producing a slice. The first REAL upgrade after init is what
@@ -201,67 +292,13 @@ if [[ "$cmp" == "-1" ]]; then
     exit 0
 fi
 
-# --- Fetch CHANGELOG (with 24h cache) -----------------------------------
-need_fetch=1
-if [[ -f "$CACHE_FILE" ]]; then
-    cache_mtime=""
-    if stat -f %m "$CACHE_FILE" >/dev/null 2>&1; then
-        cache_mtime=$(stat -f %m "$CACHE_FILE" 2>/dev/null)   # BSD/macOS
-    elif stat -c %Y "$CACHE_FILE" >/dev/null 2>&1; then
-        cache_mtime=$(stat -c %Y "$CACHE_FILE" 2>/dev/null)   # GNU/Linux
-    fi
-    if [[ -n "$cache_mtime" ]]; then
-        now=$(date +%s)
-        age=$((now - cache_mtime))
-        if (( age < 86400 )); then
-            need_fetch=0
-        fi
-    fi
-fi
-
-if [[ "$need_fetch" -eq 1 ]]; then
-    if command -v curl >/dev/null 2>&1; then
-        tmp_fetch=$(mktemp "$CACHE_DIR/.changelog.XXXXXX" 2>/dev/null)
-        # TLS hardening: force HTTPS, require TLS 1.2+. The fetched body is
-        # later rendered into the model context via /changelog, so this is a
-        # trusted input channel and any weakening here is a prompt-injection
-        # surface via DNS/MITM against raw.githubusercontent.com.
-        if [[ -n "$tmp_fetch" ]] && curl --proto '=https' --tlsv1.2 \
-             --max-time 3 --fail --silent \
-             "$CHANGELOG_URL" -o "$tmp_fetch" 2>/dev/null; then
-            # Content sanity checks before promoting into the cache:
-            #   1. non-empty and <=2MB (CHANGELOG.md is tens of KB)
-            #   2. contains at least one `## <semver>` heading line
-            # On rejection, keep the previous cache (if any) untouched.
-            fetch_size=$(wc -c < "$tmp_fetch" 2>/dev/null | tr -d ' ')
-            if [[ -z "$fetch_size" ]] || [[ "$fetch_size" -eq 0 ]] || [[ "$fetch_size" -gt 2097152 ]]; then
-                log "FETCH_REJECT size=${fetch_size:-unknown} outside (0, 2MB]"
-                rm -f "$tmp_fetch" 2>/dev/null
-                [[ -f "$CACHE_FILE" ]] || exit 0
-            elif ! grep -qE '^##[[:space:]].*[0-9]+\.[0-9]+\.[0-9]+' "$tmp_fetch" 2>/dev/null; then
-                log "FETCH_REJECT no semver heading lines found in response body"
-                rm -f "$tmp_fetch" 2>/dev/null
-                [[ -f "$CACHE_FILE" ]] || exit 0
-            else
-                if mv -f "$tmp_fetch" "$CACHE_FILE" 2>/dev/null; then
-                    log "FETCH ok (cache refreshed, ${fetch_size} bytes)"
-                else
-                    rm -f "$tmp_fetch" 2>/dev/null
-                    log "FETCH_FAIL could not move tmp into cache path"
-                    [[ -f "$CACHE_FILE" ]] || exit 0
-                fi
-            fi
-        else
-            rm -f "$tmp_fetch" 2>/dev/null
-            log "FETCH_FAIL curl could not download CHANGELOG"
-            if [[ ! -f "$CACHE_FILE" ]]; then
-                exit 0
-            fi
-        fi
-    else
-        log "NO_CURL curl not available"
-        [[ -f "$CACHE_FILE" ]] || exit 0
-    fi
+# --- Upgrade path: slice changelog --------------------------------------
+# refresh_changelog_cache already ran above. If it failed to produce any
+# cache at all, we cannot slice — bail without advancing stored_version
+# so the next session retries the fetch.
+if [[ "$cache_refresh_status" -ne 0 ]] || [[ ! -f "$CACHE_FILE" ]]; then
+    log "SKIP upgrade slice: CHANGELOG cache unavailable (stored=$stored_version current=$current_version)"
+    exit 0
 fi
 
 # --- Slice changelog: print sections where stored < version <= current --
@@ -299,10 +336,17 @@ BEGIN { printing = 0 }
 printing { print }
 ' "$CACHE_FILE" 2>/dev/null)
 
-# Empty slice: format mismatch or no versions in range
+# Empty slice: either the cache is stale (upstream CHANGELOG lags the
+# installed CLI), the live CHANGELOG skipped this version, or there's a
+# format mismatch. Do NOT advance stored_version here — if we did, we'd
+# permanently suppress /changelog for this upgrade even though the next
+# session's cache refresh could reveal the entries. Next session will
+# retry; if the cache eventually catches up, the slice will populate and
+# state will advance normally. Cost of retry is zero (just re-awk on the
+# existing cache) when the cache is still fresh, so the log-noise
+# trade-off is worth it to never lose an upgrade slice.
 if [[ -z "$(printf '%s' "$slice" | tr -d '[:space:]')" ]]; then
-    log "EMPTY_SLICE stored=$stored_version current=$current_version"
-    write_state "$current_version"
+    log "EMPTY_SLICE stored=$stored_version current=$current_version (state NOT advanced, will retry next session)"
     exit 0
 fi
 

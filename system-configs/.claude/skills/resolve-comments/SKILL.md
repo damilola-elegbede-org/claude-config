@@ -227,7 +227,7 @@ STEP 5: Finalize
       - "Local only" → skip commit/push/comment and end after finalize
       - Any "Other" freeform response → treat as "Local only" unless it clearly authorizes the commit+push flow
 
-    IF: user selected "Yes"
+    IF: user selected "Commit, push, post"
       VALIDATE: fix_count is numeric integer > 0
         IF: fix_count == 0
           OUTPUT: "No fixes to commit. Skipping git operations."
@@ -465,7 +465,7 @@ STEP 4: Finalize
       - "Keep uncommitted" → skip commit, preserve changes
       - Any "Other" freeform response → default to keep uncommitted
 
-    IF: user selected "Yes"
+    IF: user selected "Commit fixes"
       RECONCILE: modified_files list against git diff --name-only
       RUN: git add {modified_files} (never use git add -A)
       RUN: git commit -m "fix: resolve review feedback ({fix_count} issues)"
