@@ -443,7 +443,7 @@ The sync process deploys the complete framework configuration:
 
 🔄 Synchronizing files:
   ✅ Agents: 12 files → ~/.claude/agents/
-  ✅ Commands: 20 files → ~/.claude/commands/
+  ✅ Skills: 34 skills → ~/.claude/skills/
   ✅ Output styles: 8 files → ~/.claude/output-styles/
   ✅ Settings: settings.json, statusline.sh, exit_hook.sh, session_start_version_check.sh
 

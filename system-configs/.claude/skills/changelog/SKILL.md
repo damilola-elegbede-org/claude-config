@@ -65,11 +65,13 @@ user wants to see every bullet.
 
 1. Skip `last_upgrade.md` entirely.
 2. Read the cached full changelog at `$HOME/.claude/cache/claude-code-changelog.md`
-   (also maintained by the hook, 24h TTL).
-3. If the cache is missing or older than 24 hours, refetch from
-   `https://raw.githubusercontent.com/anthropics/claude-code/main/CHANGELOG.md`
-   using `curl --max-time 3 --fail --silent`. On fetch failure, fall back to
-   whatever is cached; if nothing is cached, report the network error plainly.
+   (maintained by the hook, 24h TTL).
+3. **Do not fetch.** This skill is read-only with respect to the cache —
+   the hook owns network I/O so TLS hardening, sanity checks, and error
+   handling live in one place. If the cache is missing or older than 24
+   hours, tell the user: *"The cached CHANGELOG is missing or stale. Start
+   a new Claude Code session to refresh it (the SessionStart hook will
+   refetch), then re-run `/changelog <version>`."* Do not run `curl`.
 4. Extract the `## <version>` section (everything from `## 2.1.99` up to the
    next `##` heading) and summarize it with the same Features/Improvements/Fixes
    structure as the default mode.
@@ -80,11 +82,14 @@ user wants to see every bullet.
 
 - Use the **Read** tool for `~/.claude/cache/last_upgrade.md` and
   `~/.claude/cache/claude-code-changelog.md`. Both are plain text.
-- Use **Bash** only when a fetch is actually needed (specific-version mode
-  with stale/missing cache). Never fetch on the default path — the hook
-  already maintains the cache.
-- Never write to `~/.claude/cache/last_upgrade.md`. This skill is read-only
-  with respect to hook state. The hook owns that file.
+- **Never run `curl` or any other network fetch from this skill.** The
+  SessionStart version-check hook owns the cache and all network I/O —
+  TLS hardening, timeouts, content sanity checks, and error logging all
+  live there. Duplicating fetch logic here would drift from the hook's
+  hardening and split the attack surface across two places.
+- Never write to `~/.claude/cache/last_upgrade.md` or
+  `~/.claude/cache/claude-code-changelog.md`. This skill is strictly
+  read-only with respect to hook state. The hook owns those files.
 - When summarizing, group bullets by theme and cap at 8 bullets. If the slice
   contains many fixes, collapse similar ones into a single bullet
   (e.g. "Several `/resume` picker fixes" rather than listing each).

@@ -13,16 +13,17 @@
 # Slice file : $HOME/.claude/cache/last_upgrade.md           (for /changelog)
 # Log file   : $HOME/.claude/logs/session_start_version_check.log
 #
-# Baseline: on first run (state file missing), seed with BASELINE_VERSION.
+# Init: on first run (state file missing), the hook seeds the state file
+# with the currently-resolved version and exits without producing a slice.
+# The first real upgrade AFTER init is what triggers the first slice.
 #
 # Failure policy: every error path exits 0 with no stdout. Session start
-# MUST NEVER be blocked or delayed by this hook.
+# MUST NEVER be blocked or delayed by this hook. errexit is off by default
+# in bash — we rely on explicit per-operation guards rather than `set -e`.
 #
 # TEST MODE:
 #   Pass --test as the first arg to use an isolated base directory. The
 #   base dir is $CLAUDE_TEST_DIR if set, else .tmp/session_start_check/.
-
-set +e  # never abort on errors
 
 # --- Argument parsing ---------------------------------------------------
 TEST_MODE=0
@@ -44,14 +45,18 @@ CACHE_FILE="$CACHE_DIR/claude-code-changelog.md"
 LOG_DIR="$BASE_DIR/logs"
 LOG_FILE="$LOG_DIR/session_start_version_check.log"
 
-# Baseline seeded on first run. Chosen to match the user's stated current
-# version at the time this hook was installed, so the first real session
-# after deploy demonstrates the feature.
-BASELINE_VERSION="2.1.100"
-
 CHANGELOG_URL="https://raw.githubusercontent.com/anthropics/claude-code/main/CHANGELOG.md"
 
-mkdir -p -m 700 "$BASE_DIR" "$CACHE_DIR" "$LOG_DIR" 2>/dev/null || true
+# In test mode the parent (.tmp/) is shared with other tooling that expects
+# normal permissions; apply 700 only to the hook's own dirs. In real mode
+# BASE_DIR is $HOME/.claude and 700 is correct for the whole tree.
+if [[ "$TEST_MODE" -eq 1 ]]; then
+    mkdir -p "$(dirname "$BASE_DIR")" 2>/dev/null || true
+    mkdir -p "$BASE_DIR" "$CACHE_DIR" "$LOG_DIR" 2>/dev/null || true
+    chmod 700 "$BASE_DIR" "$CACHE_DIR" "$LOG_DIR" 2>/dev/null || true
+else
+    mkdir -p -m 700 "$BASE_DIR" "$CACHE_DIR" "$LOG_DIR" 2>/dev/null || true
+fi
 
 # --- Logging ------------------------------------------------------------
 log() {
@@ -72,7 +77,14 @@ write_state() {
 }
 
 # --- Read stdin (SessionStart payload) ----------------------------------
-input=$(cat 2>/dev/null || echo "")
+# In TEST_MODE we're invoked from a terminal where stdin is a TTY — an
+# unconditional `cat` blocks forever waiting for EOF. Skip the read entirely
+# in test mode and default to source=startup. In real mode, Claude Code
+# pipes a JSON payload on stdin that closes promptly.
+input=""
+if [[ "$TEST_MODE" -eq 0 ]]; then
+    input=$(cat 2>/dev/null || echo "")
+fi
 
 # Filter on source == "startup" so resume/clear/compact don't re-greet
 source_val="startup"
@@ -108,17 +120,29 @@ if [[ -z "$current_version" ]]; then
 fi
 
 # --- Read or seed stored version ---------------------------------------
-if [[ -f "$STATE_FILE" ]]; then
-    stored_version=$(tr -d '[:space:]' < "$STATE_FILE" 2>/dev/null)
-else
-    stored_version="$BASELINE_VERSION"
-    write_state "$stored_version"
-    log "INIT seeded state file with baseline $BASELINE_VERSION (current=$current_version)"
+# First run: seed state with the currently-resolved version and exit
+# without producing a slice. The first REAL upgrade after init is what
+# triggers the first slice — this avoids fabricating a fat
+# "upgrade from arbitrary-baseline → now" the first time the hook runs.
+if [[ ! -f "$STATE_FILE" ]]; then
+    if ! write_state "$current_version"; then
+        log "INIT_FAIL cannot write state file at $STATE_FILE (check perms on $BASE_DIR)"
+        exit 0
+    fi
+    log "INIT seeded state file with current=$current_version (no slice on first run)"
+    exit 0
 fi
 
+stored_version=$(tr -d '[:space:]' < "$STATE_FILE" 2>/dev/null)
+
+# Corrupt/empty state file: treat like a re-init so we don't carry forward
+# a garbage comparison. No slice produced on re-seed either.
 if [[ -z "$stored_version" ]] || ! [[ "$stored_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    log "WARN stored version invalid ('$stored_version'), resetting to baseline"
-    stored_version="$BASELINE_VERSION"
+    log "WARN stored version invalid ('$stored_version'), re-seeding with current=$current_version"
+    if ! write_state "$current_version"; then
+        log "RESEED_FAIL cannot rewrite state file at $STATE_FILE"
+    fi
+    exit 0
 fi
 
 # --- Equal version: nothing to do ---------------------------------------
@@ -157,10 +181,35 @@ fi
 if [[ "$need_fetch" -eq 1 ]]; then
     if command -v curl >/dev/null 2>&1; then
         tmp_fetch=$(mktemp "$CACHE_DIR/.changelog.XXXXXX" 2>/dev/null)
-        if [[ -n "$tmp_fetch" ]] && curl --max-time 3 --fail --silent \
+        # TLS hardening: force HTTPS, require TLS 1.2+. The fetched body is
+        # later rendered into the model context via /changelog, so this is a
+        # trusted input channel and any weakening here is a prompt-injection
+        # surface via DNS/MITM against raw.githubusercontent.com.
+        if [[ -n "$tmp_fetch" ]] && curl --proto '=https' --tlsv1.2 \
+             --max-time 3 --fail --silent \
              "$CHANGELOG_URL" -o "$tmp_fetch" 2>/dev/null; then
-            mv -f "$tmp_fetch" "$CACHE_FILE" 2>/dev/null || rm -f "$tmp_fetch"
-            log "FETCH ok (cache refreshed)"
+            # Content sanity checks before promoting into the cache:
+            #   1. non-empty and <=2MB (CHANGELOG.md is tens of KB)
+            #   2. contains at least one `## <semver>` heading line
+            # On rejection, keep the previous cache (if any) untouched.
+            fetch_size=$(wc -c < "$tmp_fetch" 2>/dev/null | tr -d ' ')
+            if [[ -z "$fetch_size" ]] || [[ "$fetch_size" -eq 0 ]] || [[ "$fetch_size" -gt 2097152 ]]; then
+                log "FETCH_REJECT size=${fetch_size:-unknown} outside (0, 2MB]"
+                rm -f "$tmp_fetch" 2>/dev/null
+                [[ -f "$CACHE_FILE" ]] || exit 0
+            elif ! grep -qE '^##[[:space:]].*[0-9]+\.[0-9]+\.[0-9]+' "$tmp_fetch" 2>/dev/null; then
+                log "FETCH_REJECT no semver heading lines found in response body"
+                rm -f "$tmp_fetch" 2>/dev/null
+                [[ -f "$CACHE_FILE" ]] || exit 0
+            else
+                if mv -f "$tmp_fetch" "$CACHE_FILE" 2>/dev/null; then
+                    log "FETCH ok (cache refreshed, ${fetch_size} bytes)"
+                else
+                    rm -f "$tmp_fetch" 2>/dev/null
+                    log "FETCH_FAIL could not move tmp into cache path"
+                    [[ -f "$CACHE_FILE" ]] || exit 0
+                fi
+            fi
         else
             rm -f "$tmp_fetch" 2>/dev/null
             log "FETCH_FAIL curl could not download CHANGELOG"
@@ -191,16 +240,20 @@ function semver_cmp(a, b,    ap, bp, i, an, bn, ai, bi, mx) {
     return 0
 }
 BEGIN { printing = 0 }
-/^## [0-9]+\.[0-9]+\.[0-9]+/ {
-    v = $2
-    if (semver_cmp(v, stored) > 0 && semver_cmp(v, current) <= 0) {
-        printing = 1
-        print
-        next
-    } else {
-        printing = 0
-        next
+/^## / {
+    # Extract the first semver anywhere in the heading so we tolerate
+    # `## 2.1.101`, `## [2.1.101]`, `## 2.1.101 (2026-04-10)`, etc. If the
+    # heading has no semver, treat it as a section break (printing = 0).
+    if (match($0, /[0-9]+\.[0-9]+\.[0-9]+/)) {
+        v = substr($0, RSTART, RLENGTH)
+        if (semver_cmp(v, stored) > 0 && semver_cmp(v, current) <= 0) {
+            printing = 1
+            print
+            next
+        }
     }
+    printing = 0
+    next
 }
 printing { print }
 ' "$CACHE_FILE" 2>/dev/null)
@@ -228,10 +281,16 @@ if [[ -n "$tmp_upgrade" ]]; then
         printf 'detected_at: %s\n' "$(date '+%Y-%m-%d %H:%M:%S %z')"
         printf -- '---\n\n'
         printf '%s\n' "$slice"
-    } > "$tmp_upgrade" 2>/dev/null \
-        && chmod 600 "$tmp_upgrade" 2>/dev/null \
-        && mv -f "$tmp_upgrade" "$last_upgrade_file" 2>/dev/null \
-        || rm -f "$tmp_upgrade" 2>/dev/null
+    } > "$tmp_upgrade" 2>/dev/null
+    # Explicit branch: either chmod+mv both succeed (tmp becomes the final
+    # file and is gone from the .XXXXXX path), or we clean up the tmp file.
+    if chmod 600 "$tmp_upgrade" 2>/dev/null \
+        && mv -f "$tmp_upgrade" "$last_upgrade_file" 2>/dev/null; then
+        :  # success: tmp is now at last_upgrade_file
+    else
+        rm -f "$tmp_upgrade" 2>/dev/null
+        log "SLICE_WRITE_FAIL could not persist $last_upgrade_file"
+    fi
 fi
 
 # --- Update state AFTER persisting slice --------------------------------
