@@ -211,12 +211,21 @@ STEP 5: Finalize
     OUTPUT: "Saved {count} skipped issues for /ship-it acknowledgment"
 
   IF: fixes applied
-    ASK_USER:
-      question: "Commit, push, and post resolution to PR #{pr}? ({fix_count} fixes on {current_branch})"
-      options:
-        - "Yes - commit, push, and post @coderabbitai resolve"
-        - "No - stop after local changes only"
-    WAIT: for user response
+    USE: AskUserQuestion tool with:
+      questions:
+        - header: "Commit+push"
+          question: "Commit, push, and post resolution to PR #{pr}? ({fix_count} fixes on {current_branch})"
+          multiSelect: false
+          options:
+            - label: "Commit, push, post"
+              description: "Stage tracked files, commit, push, and reply @coderabbitai resolve on each thread"
+            - label: "Local only"
+              description: "Keep working-tree changes as-is; no commit, push, or PR comment"
+    WAIT: for the AskUserQuestion response
+    MAP: selected label to decision
+      - "Commit, push, post" → proceed with commit+push+PR comment flow
+      - "Local only" → skip commit/push/comment and end after finalize
+      - Any "Other" freeform response → treat as "Local only" unless it clearly authorizes the commit+push flow
 
     IF: user selected "Yes"
       VALIDATE: fix_count is numeric integer > 0
@@ -233,7 +242,21 @@ STEP 5: Finalize
             END
         IF: unexpected files detected
           OUTPUT: "Warning: detected changes to files not in fix list"
-          ASK_USER: whether to include or exclude unexpected files
+          USE: AskUserQuestion tool with:
+            questions:
+              - header: "Extra files"
+                question: "Detected changes to files not in the fix list. How should they be handled?"
+                multiSelect: false
+                options:
+                  - label: "Exclude extras (Recommended)"
+                    description: "Stage only files associated with resolved issues; leave extras uncommitted"
+                  - label: "Include all"
+                    description: "Stage every modified tracked file in this commit"
+          WAIT: for the AskUserQuestion response
+          MAP: selected label to decision
+            - "Exclude extras (Recommended)" → git add only the reconciled list
+            - "Include all" → expand modified_files to the full `git diff --name-only`
+            - Any "Other" freeform response → default to exclude extras (safer)
       RUN: git add {modified_files} (never use git add -A)
       RUN: git commit -m "fix: resolve CodeRabbit feedback ({fix_count} issues)"
       RUN: git push
@@ -426,12 +449,21 @@ STEP 3: Apply fixes
 
 STEP 4: Finalize
   IF: fixes applied AND fix_count > 0
-    ASK_USER:
-      question: "Commit {fix_count} fixes to the repository?"
-      options:
-        - "Yes - commit changes"
-        - "No - keep changes uncommitted"
-    WAIT: for user response
+    USE: AskUserQuestion tool with:
+      questions:
+        - header: "Commit?"
+          question: "Commit {fix_count} fixes to the repository?"
+          multiSelect: false
+          options:
+            - label: "Commit fixes"
+              description: "Stage the modified files and create a local commit (no push)"
+            - label: "Keep uncommitted"
+              description: "Leave fixes as working-tree changes; caller will commit later"
+    WAIT: for the AskUserQuestion response
+    MAP: selected label to decision
+      - "Commit fixes" → stage + commit flow below
+      - "Keep uncommitted" → skip commit, preserve changes
+      - Any "Other" freeform response → default to keep uncommitted
 
     IF: user selected "Yes"
       RECONCILE: modified_files list against git diff --name-only
@@ -527,13 +559,24 @@ IF: --dry-run flag
 IF: --auto flag
   PROCEED: with all recommended fixes
 ELSE:
-  ASK_USER:
-    question: "How would you like to proceed?"
-    options:
-      - "Approve all fixes ({fix_count} issues)"
-      - "Review each issue individually"
-      - "Skip all"
-  WAIT: for user response
+  USE: AskUserQuestion tool with:
+    questions:
+      - header: "Triage"
+        question: "How would you like to proceed with the {fix_count + skip_count} issues?"
+        multiSelect: false
+        options:
+          - label: "Approve all fixes (Recommended)"
+            description: "Apply all {fix_count} recommended FIX actions; the {skip_count} SKIP items go to the ignored list"
+          - label: "Review each issue"
+            description: "Walk through every issue individually and decide per issue"
+          - label: "Skip all"
+            description: "Do not apply any fixes; record everything as skipped"
+  WAIT: for the AskUserQuestion response
+  MAP: selected label to decision
+    - "Approve all fixes (Recommended)" → apply all FIX-recommended issues, move SKIP items to skipped_issues
+    - "Review each issue" → enter the per-issue review loop below
+    - "Skip all" → record every issue in skipped_issues with reason "user skipped all during triage"
+    - Any "Other" freeform response → treat as "Review each issue" so the user can choose per issue
 ```
 
 ### Apply Fixes
@@ -589,18 +632,23 @@ FOR_EACH: skipped issue
   USE: auto-generated skip_category and reason from evaluation phase
   STORE: issue with category in skipped_issues
 
-IF: user selected "Review each issue individually"
+IF: user selected "Review each issue"
   FOR_EACH: issue in issues
     DISPLAY: issue details (source, description, recommendation)
-    ASK_USER:
-      question: "Resolve this issue?"
-      options:
-        - "Yes - apply fix"
-        - "No - skip"
-    WAIT: for user response
-    IF: user selected "Yes - apply fix"
+    USE: AskUserQuestion tool with:
+      questions:
+        - header: "This issue"
+          question: "Resolve this issue? ({issue.location} — {issue.summary})"
+          multiSelect: false
+          options:
+            - label: "Apply fix"
+              description: "Apply the recommended fix for this single issue"
+            - label: "Skip"
+              description: "Record this issue in the skipped list with a user-skipped reason"
+    WAIT: for the AskUserQuestion response
+    IF: user selected "Apply fix"
       ADD: issue to approved_issues
-    ELSE:
+    ELSE:  # "Skip" or "Other" freeform
       IF: issue.skip_category is undefined (e.g., originally recommended as FIX)
         SET: issue.skip_category = "user-skipped"
         SET: issue.reason = "User chose to skip during individual review"
@@ -702,8 +750,10 @@ Summary: 4 to fix, 1 to skip
 
 ## Context Compatibility
 
-This skill requires user interaction (ASK_USER prompts) and MUST NOT use `context: fork`.
-When invoked from a forked context, callers MUST pass `--auto` to bypass prompts.
+This skill requires user interaction via the **AskUserQuestion** tool and MUST NOT
+use `context: fork`. Forked contexts cannot show AskUserQuestion prompts to the
+user, so any caller that runs this skill in a forked context MUST pass `--auto`
+to bypass the prompts.
 
 | Caller | Flag Required | Reason |
 |--------|---------------|--------|
