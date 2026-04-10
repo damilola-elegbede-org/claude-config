@@ -19,6 +19,13 @@ REPO_DIR="$(dirname "$SCRIPT_DIR")"
 SOURCE_DIR="$REPO_DIR/system-configs/.claude"
 TARGET_DIR="$HOME/.claude"
 
+# Declarative map of runtime hook scripts that sync deploys to ~/.claude/.
+# Each entry is a filename under $SOURCE_DIR, referenced from settings.json
+# hooks. To add a new hook script: add its filename here and wire it into
+# settings.json. Both sync_files() and the dry-run preview read from this
+# single source of truth.
+RUNTIME_HOOK_SCRIPTS="statusline.sh exit_hook.sh session_start_version_check.sh"
+
 # Parse arguments
 DRY_RUN=false
 CREATE_BACKUP=true
@@ -268,30 +275,29 @@ sync_files() {
         cp "$SOURCE_DIR/settings.json" "$TARGET_DIR/"
     fi
 
-    if [ -f "$SOURCE_DIR/statusline.sh" ]; then
-        validation_errors=$(sh -n "$SOURCE_DIR/statusline.sh" 2>&1) || {
-            print_error "Invalid shell script: statusline.sh"
+    # Sync each tracked hook script: validate syntax, copy, make executable.
+    # RUNTIME_HOOK_SCRIPTS is defined at the top of this file.
+    for script in $RUNTIME_HOOK_SCRIPTS; do
+        src="$SOURCE_DIR/$script"
+        if [ ! -f "$src" ]; then
+            continue  # optional entry not present, skip silently
+        fi
+        validation_errors=$(sh -n "$src" 2>&1) || {
+            print_error "Invalid shell script: $script"
             printf "    %s\n" "$validation_errors"
             return 1
         }
-        cp "$SOURCE_DIR/statusline.sh" "$TARGET_DIR/"
-        chmod +x "$TARGET_DIR/statusline.sh"
-    fi
+        cp "$src" "$TARGET_DIR/"
+        chmod +x "$TARGET_DIR/$script"
+    done
 
-    if [ -f "$SOURCE_DIR/exit_hook.sh" ]; then
-        validation_errors=$(sh -n "$SOURCE_DIR/exit_hook.sh" 2>&1) || {
-            print_error "Invalid shell script: exit_hook.sh"
-            printf "    %s\n" "$validation_errors"
-            return 1
-        }
-        cp "$SOURCE_DIR/exit_hook.sh" "$TARGET_DIR/"
-        chmod +x "$TARGET_DIR/exit_hook.sh"
-    fi
-
-    # Build synced settings list dynamically
+    # Build synced settings summary line from the same map.
     synced_settings="settings.json"
-    [ -f "$SOURCE_DIR/statusline.sh" ] && synced_settings="$synced_settings, statusline.sh"
-    [ -f "$SOURCE_DIR/exit_hook.sh" ] && synced_settings="$synced_settings, exit_hook.sh"
+    for script in $RUNTIME_HOOK_SCRIPTS; do
+        if [ -f "$SOURCE_DIR/$script" ]; then
+            synced_settings="$synced_settings, $script"
+        fi
+    done
     echo "  ✅ Settings: $synced_settings"
 
     # Sync main CLAUDE.md to home directory
@@ -357,8 +363,11 @@ main() {
         echo "  - $(find "$SOURCE_DIR/agents" -name "*.md" 2>/dev/null | wc -l | tr -d ' ') agent files → ~/.claude/agents/"
         echo "  - $(find "$SOURCE_DIR/skills" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ') skills → ~/.claude/skills/"
         echo "  - settings.json → ~/.claude/settings.json"
-        [ -f "$SOURCE_DIR/statusline.sh" ] && echo "  - statusline.sh → ~/.claude/statusline.sh"
-        [ -f "$SOURCE_DIR/exit_hook.sh" ] && echo "  - exit_hook.sh → ~/.claude/exit_hook.sh"
+        for script in $RUNTIME_HOOK_SCRIPTS; do
+            if [ -f "$SOURCE_DIR/$script" ]; then
+                echo "  - $script → ~/.claude/$script"
+            fi
+        done
         echo ""
         echo "📊 Preview summary:"
         echo "  Total files: $(find "$SOURCE_DIR" -name "*.md" -o -name "*.json" -o -name "*.sh" 2>/dev/null | wc -l | tr -d ' ') configurations ready"
