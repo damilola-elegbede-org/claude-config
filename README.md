@@ -443,9 +443,9 @@ The sync process deploys the complete framework configuration:
 
 🔄 Synchronizing files:
   ✅ Agents: 12 files → ~/.claude/agents/
-  ✅ Commands: 20 files → ~/.claude/commands/
+  ✅ Skills: 34 skills → ~/.claude/skills/
   ✅ Output styles: 8 files → ~/.claude/output-styles/
-  ✅ Settings: settings.json, statusline.sh
+  ✅ Settings: settings.json, statusline.sh, exit_hook.sh, session_start_version_check.sh
 
 📡 MCP Server Configuration:
   ✅ Updated Claude Desktop config with MCP servers:
@@ -521,8 +521,10 @@ claude-config/
 │   │   │   ├── verify.md
 │   │   │   └── ... (15 more commands)
 │   │   ├── output-styles/         # Formatting configurations
-│   │   ├── settings.json          # Audio notifications and preferences
-│   │   └── statusline.sh          # Terminal statusline integration
+│   │   ├── settings.json          # Hook configuration and audio preferences
+│   │   ├── statusline.sh          # Terminal statusline integration
+│   │   ├── exit_hook.sh           # SessionEnd cleanup hook
+│   │   └── session_start_version_check.sh  # SessionStart upgrade/CHANGELOG capture hook
 ├── docs/                          # 42 comprehensive documentation files
 │   ├── setup/                     # Installation and configuration guides
 │   ├── development/               # Development guidelines and requirements

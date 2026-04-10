@@ -19,6 +19,18 @@ REPO_DIR="$(dirname "$SCRIPT_DIR")"
 SOURCE_DIR="$REPO_DIR/system-configs/.claude"
 TARGET_DIR="$HOME/.claude"
 
+# Declarative map of runtime hook scripts that sync deploys to ~/.claude/.
+# Each entry is a filename under $SOURCE_DIR, referenced from settings.json
+# hooks. To add a new hook script: add its filename here and wire it into
+# settings.json. Both sync_files() and the dry-run preview read from this
+# single source of truth.
+#
+# NOTE: space-delimited. Filenames MUST NOT contain spaces — the loops
+# below rely on unquoted word-splitting to iterate this list. If a hook
+# script ever needs a space in its name, switch this to a newline-delimited
+# heredoc and iterate with `while read`.
+RUNTIME_HOOK_SCRIPTS="statusline.sh exit_hook.sh session_start_version_check.sh"
+
 # Parse arguments
 DRY_RUN=false
 CREATE_BACKUP=true
@@ -268,30 +280,46 @@ sync_files() {
         cp "$SOURCE_DIR/settings.json" "$TARGET_DIR/"
     fi
 
-    if [ -f "$SOURCE_DIR/statusline.sh" ]; then
-        validation_errors=$(sh -n "$SOURCE_DIR/statusline.sh" 2>&1) || {
-            print_error "Invalid shell script: statusline.sh"
+    # Sync each tracked hook script: validate syntax, copy, make executable.
+    # RUNTIME_HOOK_SCRIPTS is defined at the top of this file.
+    #
+    # All shipped hooks have a `#!/bin/bash` shebang and use bash-only
+    # constructs (`local`, `[[ ]]`, `=~`). We validate with `bash -n` so
+    # Linux (where /bin/sh is dash) doesn't false-positive on bashisms.
+    # macOS /bin/sh is bash-compat which is why `sh -n` previously slipped
+    # through during local dev.
+    if ! command -v bash >/dev/null 2>&1; then
+        print_error "bash not available — required to validate hook scripts"
+        return 1
+    fi
+    # RUNTIME_HOOK_SCRIPTS is the declarative source of truth. Every
+    # entry MUST exist in the source tree — silently skipping missing
+    # entries lets /sync report success while settings.json still points
+    # at a hook that was never installed. Fail fast so that class of
+    # drift is impossible.
+    for script in $RUNTIME_HOOK_SCRIPTS; do
+        src="$SOURCE_DIR/$script"
+        if [ ! -f "$src" ]; then
+            print_error "Tracked hook script missing from source tree: $script"
+            print_error "RUNTIME_HOOK_SCRIPTS lists '$script' but it is not present in $SOURCE_DIR"
+            return 1
+        fi
+        validation_errors=$(bash -n "$src" 2>&1) || {
+            print_error "Invalid shell script: $script"
             printf "    %s\n" "$validation_errors"
             return 1
         }
-        cp "$SOURCE_DIR/statusline.sh" "$TARGET_DIR/"
-        chmod +x "$TARGET_DIR/statusline.sh"
-    fi
+        cp "$src" "$TARGET_DIR/"
+        chmod +x "$TARGET_DIR/$script"
+    done
 
-    if [ -f "$SOURCE_DIR/exit_hook.sh" ]; then
-        validation_errors=$(sh -n "$SOURCE_DIR/exit_hook.sh" 2>&1) || {
-            print_error "Invalid shell script: exit_hook.sh"
-            printf "    %s\n" "$validation_errors"
-            return 1
-        }
-        cp "$SOURCE_DIR/exit_hook.sh" "$TARGET_DIR/"
-        chmod +x "$TARGET_DIR/exit_hook.sh"
-    fi
-
-    # Build synced settings list dynamically
+    # Build synced settings summary line from the same map. Every entry
+    # is guaranteed to exist at this point (the loop above would have
+    # returned on any missing script), so no `-f` guard is needed.
     synced_settings="settings.json"
-    [ -f "$SOURCE_DIR/statusline.sh" ] && synced_settings="$synced_settings, statusline.sh"
-    [ -f "$SOURCE_DIR/exit_hook.sh" ] && synced_settings="$synced_settings, exit_hook.sh"
+    for script in $RUNTIME_HOOK_SCRIPTS; do
+        synced_settings="$synced_settings, $script"
+    done
     echo "  ✅ Settings: $synced_settings"
 
     # Sync main CLAUDE.md to home directory
@@ -357,8 +385,13 @@ main() {
         echo "  - $(find "$SOURCE_DIR/agents" -name "*.md" 2>/dev/null | wc -l | tr -d ' ') agent files → ~/.claude/agents/"
         echo "  - $(find "$SOURCE_DIR/skills" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ') skills → ~/.claude/skills/"
         echo "  - settings.json → ~/.claude/settings.json"
-        [ -f "$SOURCE_DIR/statusline.sh" ] && echo "  - statusline.sh → ~/.claude/statusline.sh"
-        [ -f "$SOURCE_DIR/exit_hook.sh" ] && echo "  - exit_hook.sh → ~/.claude/exit_hook.sh"
+        for script in $RUNTIME_HOOK_SCRIPTS; do
+            if [ -f "$SOURCE_DIR/$script" ]; then
+                echo "  - $script → ~/.claude/$script"
+            else
+                echo "  - $script ⚠️  MISSING from source tree (real sync would fail)"
+            fi
+        done
         echo ""
         echo "📊 Preview summary:"
         echo "  Total files: $(find "$SOURCE_DIR" -name "*.md" -o -name "*.json" -o -name "*.sh" 2>/dev/null | wc -l | tr -d ' ') configurations ready"

@@ -37,6 +37,45 @@ In addition to audio hooks, `PreToolUse` hooks enforce quality policies:
 - **--no-verify blocker**: Command-based hook that blocks `--no-verify` and `--no-gpg-sign` flags on Bash commands (exit code 2 = block)
 - **Destructive git detector**: Prompt-based hook (haiku model) that analyzes Bash commands for destructive git operations (`reset --hard`, `push --force`, `clean -f`, `branch -D`)
 
+### Session Version-Check Hook
+
+A command-based `SessionStart` hook runs `~/.claude/session_start_version_check.sh`
+on every real session startup (source == `startup`; resume/clear/compact are
+skipped). Its job is to detect Claude Code CLI upgrades and persist the
+relevant CHANGELOG slice for the `/changelog` skill to replay on demand.
+
+- **Script**: `system-configs/.claude/session_start_version_check.sh` (synced
+  to `~/.claude/session_start_version_check.sh` by `/sync`)
+- **State file**: `~/.claude/last_seen_claude_version` (plain text, one
+  semver line, `chmod 600`)
+- **Cache file**: `~/.claude/cache/claude-code-changelog.md` (full upstream
+  CHANGELOG, 24h TTL, refetched from
+  `https://raw.githubusercontent.com/anthropics/claude-code/main/CHANGELOG.md`)
+- **Slice file**: `~/.claude/cache/last_upgrade.md` (YAML header + raw
+  CHANGELOG slice for versions in `(stored, current]`, consumed by
+  `/changelog`)
+- **Log file**: `~/.claude/logs/session_start_version_check.log`
+- **First run**: When the state file does not exist, the hook seeds it
+  with the currently-resolved `claude --version` and exits **without
+  producing a slice**. No `last_upgrade.md` is written on first run.
+  The first real upgrade *after* init is what triggers the first slice,
+  so new installs never see a fabricated "upgrade from arbitrary
+  baseline → now" on their first session.
+- **Failure policy**: Every error path exits 0 with no stdout. Session
+  startup must never be blocked or delayed — the hook has a 5-second timeout
+  in `settings.json` and silently no-ops on network/curl failures.
+- **Test mode**: Pass `--test` to isolate state under
+  `$CLAUDE_TEST_DIR` (defaults to `.tmp/session_start_check/`). To
+  verify init on a clean slate: `rm -rf .tmp/session_start_check &&
+  ./session_start_version_check.sh --test && cat
+  .tmp/session_start_check/last_seen_claude_version` — you should see
+  the currently-installed CLI version and no slice file under
+  `.tmp/session_start_check/cache/`.
+
+The hook writes nothing to stdout, so it does not affect the model context.
+The user-facing "what's new" experience is served by the statusline's upgrade
+indicator plus the `/changelog` skill, which reads `last_upgrade.md`.
+
 ### Settings Configuration
 
 Add to `$HOME/.claude/settings.json`:
@@ -73,6 +112,17 @@ Add to `$HOME/.claude/settings.json`:
           {
             "type": "command",
             "command": "afplay -v 1.0 '/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Modern/Aurora.m4r' 2>/dev/null &"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/session_start_version_check.sh",
+            "timeout": 5
           }
         ]
       }
