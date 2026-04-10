@@ -292,10 +292,17 @@ sync_files() {
         print_error "bash not available — required to validate hook scripts"
         return 1
     fi
+    # RUNTIME_HOOK_SCRIPTS is the declarative source of truth. Every
+    # entry MUST exist in the source tree — silently skipping missing
+    # entries lets /sync report success while settings.json still points
+    # at a hook that was never installed. Fail fast so that class of
+    # drift is impossible.
     for script in $RUNTIME_HOOK_SCRIPTS; do
         src="$SOURCE_DIR/$script"
         if [ ! -f "$src" ]; then
-            continue  # optional entry not present, skip silently
+            print_error "Tracked hook script missing from source tree: $script"
+            print_error "RUNTIME_HOOK_SCRIPTS lists '$script' but it is not present in $SOURCE_DIR"
+            return 1
         fi
         validation_errors=$(bash -n "$src" 2>&1) || {
             print_error "Invalid shell script: $script"
@@ -306,12 +313,12 @@ sync_files() {
         chmod +x "$TARGET_DIR/$script"
     done
 
-    # Build synced settings summary line from the same map.
+    # Build synced settings summary line from the same map. Every entry
+    # is guaranteed to exist at this point (the loop above would have
+    # returned on any missing script), so no `-f` guard is needed.
     synced_settings="settings.json"
     for script in $RUNTIME_HOOK_SCRIPTS; do
-        if [ -f "$SOURCE_DIR/$script" ]; then
-            synced_settings="$synced_settings, $script"
-        fi
+        synced_settings="$synced_settings, $script"
     done
     echo "  ✅ Settings: $synced_settings"
 
@@ -381,6 +388,8 @@ main() {
         for script in $RUNTIME_HOOK_SCRIPTS; do
             if [ -f "$SOURCE_DIR/$script" ]; then
                 echo "  - $script → ~/.claude/$script"
+            else
+                echo "  - $script ⚠️  MISSING from source tree (real sync would fail)"
             fi
         done
         echo ""

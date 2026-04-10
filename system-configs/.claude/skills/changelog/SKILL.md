@@ -65,16 +65,23 @@ user wants to see every bullet.
 
 1. Skip `last_upgrade.md` entirely.
 2. Read the cached full changelog at `$HOME/.claude/cache/claude-code-changelog.md`
-   (maintained by the hook, 24h TTL).
+   (maintained by the hook).
 3. **Do not fetch.** This skill is read-only with respect to the cache —
    the hook owns network I/O so TLS hardening, sanity checks, and error
-   handling live in one place. If the cache is missing or older than 24
-   hours, tell the user: *"The cached CHANGELOG is missing or stale. Start
-   a new Claude Code session to refresh it (the SessionStart hook will
-   refetch), then re-run `/changelog <version>`."* Do not run `curl`.
-4. Extract the `## <version>` section (everything from `## 2.1.99` up to the
-   next `##` heading) and summarize it with the same Features/Improvements/Fixes
-   structure as the default mode.
+   handling live in one place. If the cache file does not exist, tell
+   the user: *"The cached CHANGELOG is missing. Start a new Claude Code
+   session to refresh it — the SessionStart hook will refetch — then
+   re-run `/changelog <version>`."* Do not run `curl`. The hook refreshes
+   the cache on session start when the file is more than 24h old, so
+   "start a new session" is the user-visible refresh mechanism. The
+   skill itself has no way to inspect the cache's age (Read gives
+   contents, not mtime), so it must not make freshness claims.
+4. Extract the section for the requested version. Scan `##` headings
+   and pull the first semver found in each (so `## 2.1.99`,
+   `## [2.1.99]`, and `## 2.1.99 (2026-04-10)` all match version
+   `2.1.99` — matching the hook's own slicer). Take everything from the
+   matching heading up to the next `##` heading and summarize it with
+   the same Features/Improvements/Fixes structure as the default mode.
 5. If the requested version is not present in the CHANGELOG, say so — do not
    invent content.
 

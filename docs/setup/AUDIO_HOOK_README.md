@@ -55,13 +55,22 @@ relevant CHANGELOG slice for the `/changelog` skill to replay on demand.
   CHANGELOG slice for versions in `(stored, current]`, consumed by
   `/changelog`)
 - **Log file**: `~/.claude/logs/session_start_version_check.log`
-- **Baseline**: First run with no state file seeds `BASELINE_VERSION=2.1.100`
-  so the very first real upgrade after deploy produces a slice.
+- **First run**: When the state file does not exist, the hook seeds it
+  with the currently-resolved `claude --version` and exits **without
+  producing a slice**. No `last_upgrade.md` is written on first run.
+  The first real upgrade *after* init is what triggers the first slice,
+  so new installs never see a fabricated "upgrade from arbitrary
+  baseline → now" on their first session.
 - **Failure policy**: Every error path exits 0 with no stdout. Session
   startup must never be blocked or delayed — the hook has a 5-second timeout
   in `settings.json` and silently no-ops on network/curl failures.
 - **Test mode**: Pass `--test` to isolate state under
-  `$CLAUDE_TEST_DIR` (defaults to `.tmp/session_start_check/`).
+  `$CLAUDE_TEST_DIR` (defaults to `.tmp/session_start_check/`). To
+  verify init on a clean slate: `rm -rf .tmp/session_start_check &&
+  ./session_start_version_check.sh --test && cat
+  .tmp/session_start_check/last_seen_claude_version` — you should see
+  the currently-installed CLI version and no slice file under
+  `.tmp/session_start_check/cache/`.
 
 The hook writes nothing to stdout, so it does not affect the model context.
 The user-facing "what's new" experience is served by the statusline's upgrade

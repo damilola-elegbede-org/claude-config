@@ -76,21 +76,61 @@ write_state() {
     return 0
 }
 
+# --- Portable semver comparison -----------------------------------------
+# Prints -1 if $1 < $2, 0 if equal, 1 if $1 > $2. Used instead of
+# `sort -V` because BSD/macOS sort does not support -V and fails with a
+# stderr leak — the header's fail-silent contract forbids that.
+semver_cmp() {
+    awk -v a="$1" -v b="$2" '
+    BEGIN {
+        an = split(a, ap, ".")
+        bn = split(b, bp, ".")
+        mx = (an > bn ? an : bn)
+        for (i = 1; i <= mx; i++) {
+            ai = (i in ap) ? ap[i] + 0 : 0
+            bi = (i in bp) ? bp[i] + 0 : 0
+            if (ai < bi) { print -1; exit }
+            if (ai > bi) { print 1; exit }
+        }
+        print 0
+    }'
+}
+
 # --- Read stdin (SessionStart payload) ----------------------------------
-# In TEST_MODE we're invoked from a terminal where stdin is a TTY — an
-# unconditional `cat` blocks forever waiting for EOF. Skip the read entirely
-# in test mode and default to source=startup. In real mode, Claude Code
-# pipes a JSON payload on stdin that closes promptly.
+# Real mode: Claude Code pipes the JSON payload on stdin and closes it.
+# Test mode: only read stdin if it's a pipe/file, never if it's a TTY
+# (an unconditional `cat` from a terminal would hang waiting for EOF).
+# The TTY check lets piped input (echo ... | ./script --test) still
+# exercise the payload-parsing path during testing.
 input=""
-if [[ "$TEST_MODE" -eq 0 ]]; then
+if [[ "$TEST_MODE" -eq 0 ]] || [[ ! -t 0 ]]; then
     input=$(cat 2>/dev/null || echo "")
 fi
 
-# Filter on source == "startup" so resume/clear/compact don't re-greet
+# Filter on source == "startup" so resume/clear/compact don't re-greet.
+# When stdin has a payload we MUST determine .source. If jq is unavailable
+# we fall back to a tolerant regex parse; if the fallback also fails we
+# fail closed (exit 0, no slice) rather than silently defaulting to
+# "startup" — defaulting there would fire the upgrade check on every
+# resume/clear/compact event, which is exactly the wrong behavior.
 source_val="startup"
-if [[ -n "$input" ]] && command -v jq >/dev/null 2>&1; then
-    parsed=$(printf '%s' "$input" | jq -r '.source // "startup"' 2>/dev/null)
-    [[ -n "$parsed" ]] && source_val="$parsed"
+if [[ -n "$input" ]]; then
+    if command -v jq >/dev/null 2>&1; then
+        parsed=$(printf '%s' "$input" | jq -r '.source // empty' 2>/dev/null)
+    else
+        # Tolerant shell fallback: extract the first "source":"..." value,
+        # allowing arbitrary whitespace around the colon.
+        parsed=$(printf '%s' "$input" \
+            | grep -oE '"source"[[:space:]]*:[[:space:]]*"[^"]*"' \
+            | head -n1 \
+            | sed -E 's/.*"source"[[:space:]]*:[[:space:]]*"([^"]*)".*/\1/')
+    fi
+    if [[ -n "$parsed" ]]; then
+        source_val="$parsed"
+    else
+        log "SKIP could not parse .source from stdin payload (jq=$(command -v jq >/dev/null 2>&1 && echo yes || echo no))"
+        exit 0
+    fi
 fi
 
 if [[ "$source_val" != "startup" ]]; then
@@ -152,9 +192,10 @@ if [[ "$stored_version" == "$current_version" ]]; then
 fi
 
 # --- Detect upgrade vs downgrade ----------------------------------------
-newer=$(printf '%s\n%s\n' "$stored_version" "$current_version" | sort -V | tail -n1)
-if [[ "$newer" != "$current_version" ]]; then
-    # Downgrade: update file silently, no slice
+# Uses the portable semver_cmp helper instead of `sort -V` (GNU-only).
+cmp=$(semver_cmp "$current_version" "$stored_version")
+if [[ "$cmp" == "-1" ]]; then
+    # Downgrade: update state silently, no slice
     write_state "$current_version"
     log "DOWNGRADE stored=$stored_version current=$current_version, updated silently"
     exit 0
