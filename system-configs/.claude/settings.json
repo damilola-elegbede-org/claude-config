@@ -2,6 +2,11 @@
   "env": {
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
   },
+  "model": "sonnet",
+  "permissions": {
+    "defaultMode": "bypassPermissions"
+  },
+  "skipDangerousModePermissionPrompt": true,
   "teammateMode": "tmux",
   "theme": "dark",
   "trustedDirectories": ["/Users/daelegbe"],
