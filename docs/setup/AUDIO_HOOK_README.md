@@ -20,8 +20,6 @@ manual intervention.
 `/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Modern/Chord.m4r`
 - **Pre-Compact Warning** (PreCompact):
 `/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Modern/Aurora.m4r`
-- **Stop Sound** (Stop):
-`/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Modern/Chord.m4r`
 - **Session End Sound** (SessionEnd):
 `/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Classic/Choo Choo.m4r`
 - **Notification Sound** (Notification):
@@ -90,17 +88,6 @@ Add to `$HOME/.claude/settings.json`:
           {
             "type": "command",
             "command": "afplay -v 1.0 '/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Classic/Swish.m4r' 2>/dev/null &"
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "afplay -v 1.0 '/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Modern/Chord.m4r' 2>/dev/null &"
           }
         ]
       }
@@ -184,11 +171,6 @@ Add to `$HOME/.claude/settings.json`:
 - **PreCompact**: When context is about to be compacted
 - Plays Modern Aurora sound as a warning
 
-### Stop Hooks (Chord.m4r)
-
-- **Stop**: When Claude stops execution
-- Plays Modern Chord sound for completion
-
 ### SessionEnd Hooks (Choo Choo.m4r)
 
 - **SessionEnd**: When session ends
@@ -253,7 +235,7 @@ you're still getting too many notifications, you can:
 To temporarily disable:
 
 1. Comment out the entire hooks section in settings.json
-2. Or remove specific hooks (PostToolUse, Stop, Notification, SessionEnd, PermissionRequest)
+2. Or remove specific hooks (PostToolUse, Notification, SessionEnd, PermissionRequest)
 
 ## Testing
 
@@ -289,9 +271,6 @@ To test the audio notifications directly:
 # Test PostToolUse hooks (Swish.m4r)
 afplay -v 1.0 '/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Classic/Swish.m4r' 2>/dev/null &
 
-# Test Stop hooks (Chord.m4r)
-afplay -v 1.0 '/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Modern/Chord.m4r' 2>/dev/null &
-
 # Test SessionEnd hooks (Choo Choo.m4r)
 afplay -v 1.0 '/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Classic/Choo Choo.m4r' 2>/dev/null &
 
@@ -305,7 +284,6 @@ afplay -v 1.0 '/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/
 ### Expected Behavior
 
 - **Swish sound**: Plays after each tool operation (matcher: "*")
-- **Chord sound**: Plays when Claude stops execution
 - **Choo Choo sound**: Plays when session ends
 - **Aurora sound**: Plays when prompt input has been idle
 - **Keys sound**: Plays when Claude needs permission to use a tool
@@ -316,7 +294,6 @@ afplay -v 1.0 '/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/
 ### Test Results Verification
 
 - PostToolUse hooks trigger Swish.m4r audio notifications (matcher: "*")
-- Stop hooks trigger Chord.m4r audio notifications
 - SessionEnd hooks trigger Choo Choo.m4r audio notifications
 - Notification hooks trigger Aurora.m4r for idle events
 - PermissionRequest hooks trigger Keys.m4r when permission is needed
