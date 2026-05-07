@@ -263,6 +263,35 @@ For operations with continuous progress:
 - Best practice recommendations
 - Optional optimizations
 
+### Clarification and User Questions
+
+When Claude needs to ask the user a question or request clarification, it must use the `AskUserQuestion` tool rather than embedding the question in plain text responses. This ensures questions are surfaced clearly and the user can provide focused answers.
+
+#### When to Use AskUserQuestion
+
+- Ambiguous requests with multiple valid interpretations
+- Non-routine decisions that require user input before proceeding
+- Irreversible or high-impact operations needing explicit confirmation
+- Missing information required to complete the task
+
+#### When Not to Use AskUserQuestion
+
+- Routine decisions where an assumption can be stated and work can proceed
+- Questions whose answer can be inferred from context
+- Situations where the General Directive applies: state the assumption and proceed
+
+#### Example
+
+```text
+# Correct: use AskUserQuestion tool
+[AskUserQuestion] Which environment should I target: staging or production?
+
+# Incorrect: embedding the question in plain text response
+I can proceed once you tell me whether to target staging or production.
+```
+
+This requirement is defined in the General Directive section of `system-configs/CLAUDE.md`.
+
 ### Audio Feedback Integration
 
 #### Audio Cue Standards
