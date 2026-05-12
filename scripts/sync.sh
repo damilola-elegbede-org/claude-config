@@ -71,7 +71,7 @@ create_backup() {
     if [ -d "$TARGET_DIR" ]; then
         BACKUP_DIR="$HOME/.claude.backup.$(date +%Y%m%d_%H%M%S)"
         echo "Creating backup at $BACKUP_DIR..."
-        if ! cp -r "$TARGET_DIR" "$BACKUP_DIR"; then
+        if ! cp -RP "$TARGET_DIR" "$BACKUP_DIR"; then
             print_error "Backup failed - aborting sync to prevent data loss"
             return 1
         fi
