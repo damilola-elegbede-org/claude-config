@@ -1,5 +1,5 @@
 ---
-name: claude-advisor
+name: advisor
 description: Pair Sonnet executor with Opus advisor for complex tasks
 argument-hint: "<task description>"
 category: orchestration
@@ -52,6 +52,9 @@ STEP 3: Advisor escalation (when triggered in Step 2)
   INVOKE: claude-advisor agent via Agent tool
   PASS: full current context + the specific decision requiring guidance
   RECEIVE: focused strategic advice from Opus
+  IF: advice signals user escalation (decision requires user input, not strategic judgment)
+    ASK user via AskUserQuestion with the advisor's framing of the decision
+    APPLY user's response as the direction for this step
   LOG: "advisor consulted: [decision summary] → [advice summary]"
   RETURN to Step 2 executor loop
 
