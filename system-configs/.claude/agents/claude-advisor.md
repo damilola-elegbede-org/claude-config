@@ -8,6 +8,7 @@ thinking-tokens: 31999
 category: orchestration
 color: purple
 permissionMode: plan
+memory: project
 ---
 
 # Claude Advisor
