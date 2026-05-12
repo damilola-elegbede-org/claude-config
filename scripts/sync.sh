@@ -68,10 +68,19 @@ print_warning() {
 
 # Function to create backup
 create_backup() {
-    if [ -d "$TARGET_DIR" ]; then
+    _target="$TARGET_DIR"
+    # Dereference TARGET_DIR itself if it is a symlink, so cp -RP
+    # gets a real directory and -P applies only to contents.
+    if [ -L "$_target" ]; then
+        _target="$(cd "$_target" && pwd -P)" || {
+            print_error "Cannot resolve symlink $TARGET_DIR"
+            return 1
+        }
+    fi
+    if [ -d "$_target" ]; then
         BACKUP_DIR="$HOME/.claude.backup.$(date +%Y%m%d_%H%M%S)"
         echo "Creating backup at $BACKUP_DIR..."
-        if ! cp -RP "$TARGET_DIR" "$BACKUP_DIR"; then
+        if ! cp -RP "$_target" "$BACKUP_DIR"; then
             print_error "Backup failed - aborting sync to prevent data loss"
             return 1
         fi
