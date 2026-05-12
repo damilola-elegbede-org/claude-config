@@ -24,14 +24,14 @@ COMMANDS_DIR = PROJECT_ROOT / "system-configs" / ".claude" / "commands"
 SKILLS_DIR = PROJECT_ROOT / "system-configs" / ".claude" / "skills"
 
 # Expected counts
-# 8 agents: architect, code-reviewer, debugger, devops, feature-agent,
+# 9 agents: architect, claude-advisor, code-reviewer, debugger, devops, feature-agent,
 #   frontend-engineer, security-auditor, test-engineer
-# 34 skills: git, orchestration, quality, planning, formats, specialized, agent-context,
+# 35 skills: git, orchestration, quality, planning, formats, specialized, agent-context,
 #   plus office-common (shared toolkit for xlsx/pptx/docx) and changelog
 #   (replay of the last Claude Code CLI upgrade's CHANGELOG slice)
 # Note: sync and skills-import are project-local (.claude/skills/), not in system-configs
-EXPECTED_AGENT_COUNT = 8
-EXPECTED_SKILL_COUNT = 34
+EXPECTED_AGENT_COUNT = 9
+EXPECTED_SKILL_COUNT = 35
 
 # Non-agent/command documentation files to skip
 NON_AGENT_FILES = [
