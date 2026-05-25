@@ -2,8 +2,9 @@
 name: deps
 description: Manage dependencies with security scanning and safe updates. Use when auditing or updating dependencies.
 argument-hint: "[audit|update|clean|--quick]"
-category: orchestration
 context: fork
+metadata:
+  category: orchestration
 ---
 
 # /deps

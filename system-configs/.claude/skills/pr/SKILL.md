@@ -2,7 +2,8 @@
 name: pr
 description: Create pull requests with smart title and description generation. Use when creating a PR.
 argument-hint: "[target_branch] [--draft|--force]"
-category: workflow
+metadata:
+  category: workflow
 ---
 
 # /pr

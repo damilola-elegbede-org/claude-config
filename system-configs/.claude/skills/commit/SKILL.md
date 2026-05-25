@@ -2,7 +2,8 @@
 name: commit
 description: Create git commits with intelligent message generation. Use when changes are ready to commit.
 argument-hint: "[--amend]"
-category: workflow
+metadata:
+  category: workflow
 ---
 
 # /commit

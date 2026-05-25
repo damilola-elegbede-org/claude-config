@@ -1,8 +1,9 @@
 ---
 name: security-checklist
 description: OWASP Top 10 quick reference and common vulnerability patterns for security-focused code review and auditing.
-category: workflow
 user-invocable: false
+metadata:
+  category: workflow
 ---
 
 # Security Checklist Reference

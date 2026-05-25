@@ -19,7 +19,8 @@
 #
 name: skill-name  # lowercase-hyphenated, must match directory name
 description: Brief description under 60 chars
-category: workflow  # language, format, framework, infrastructure, workflow, orchestration
+metadata:
+  category: workflow  # language, format, framework, infrastructure, workflow, orchestration
 ---
 
 # /skill-name Skill

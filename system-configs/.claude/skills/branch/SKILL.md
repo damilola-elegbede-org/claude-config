@@ -2,7 +2,8 @@
 name: branch
 description: Create branches with intelligent naming patterns. Use when creating a new git branch.
 argument-hint: "[description]"
-category: workflow
+metadata:
+  category: workflow
 ---
 
 # /branch

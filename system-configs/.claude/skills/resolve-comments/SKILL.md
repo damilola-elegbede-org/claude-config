@@ -2,7 +2,8 @@
 name: resolve-comments
 description: Resolve review comments from any source. Use when addressing PR review feedback.
 argument-hint: "[pr-number] [--code-rabbit|--local|--auto|--dry-run]"
-category: orchestration
+metadata:
+  category: orchestration
 ---
 
 # /resolve-comments

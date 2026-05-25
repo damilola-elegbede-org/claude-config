@@ -2,7 +2,8 @@
 name: merge
 description: Merge a branch into current branch with conflict handling. Use when merging branches.
 argument-hint: "[source_branch] [--theirs|--ours|--abort]"
-category: workflow
+metadata:
+  category: workflow
 ---
 
 # /merge

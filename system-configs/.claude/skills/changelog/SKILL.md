@@ -2,7 +2,8 @@
 name: changelog
 description: Replay the Claude Code CHANGELOG entries from the most recent CLI upgrade. Use when the user wants to revisit "what's new" after the session-start greeting has scrolled away, or asks things like "what changed in the last upgrade", "show me the changelog", "what did I just upgrade into".
 argument-hint: "[--full|<version>]"
-category: workflow
+metadata:
+  category: workflow
 ---
 
 # /changelog

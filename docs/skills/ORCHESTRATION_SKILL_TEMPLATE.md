@@ -17,7 +17,8 @@ skills/<name>/
 ---
 name: skill-name              # Required: lowercase-hyphenated, matches directory
 description: Brief description # Required: shown in autocomplete
-category: orchestration       # Required: orchestration for complex workflows
+metadata:
+  category: orchestration     # Required: orchestration for complex workflows
 
 # Claude Code Skill Features (all optional)
 context: fork                 # Run in isolated subagent context
@@ -120,9 +121,10 @@ TaskOutput: task_id=<id2>, block=true
 ---
 name: example-orchestrator
 description: Example multi-phase orchestration skill
-category: orchestration
 context: fork
 allowed-tools: Skill, Task, TaskCreate, TaskUpdate, TaskList, TaskOutput
+metadata:
+  category: orchestration
 ---
 ```
 

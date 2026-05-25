@@ -2,7 +2,8 @@
 name: audit
 description: Validate agent and skill ecosystem integrity. Use when checking configuration compliance or ecosystem health.
 argument-hint: "[--scope agents|skills|all] [--fix]"
-category: workflow
+metadata:
+  category: workflow
 ---
 
 # /audit

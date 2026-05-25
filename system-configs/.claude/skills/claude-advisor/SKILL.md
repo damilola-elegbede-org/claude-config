@@ -2,8 +2,9 @@
 name: advisor
 description: Pair Sonnet executor with Opus advisor for complex tasks
 argument-hint: "<task description>"
-category: orchestration
 context: fork
+metadata:
+  category: orchestration
 ---
 
 # /advisor

@@ -2,7 +2,8 @@
 name: push
 description: Push changes to remote repository with validation. Use when pushing committed changes.
 argument-hint: "[--force|--dry-run]"
-category: workflow
+metadata:
+  category: workflow
 ---
 
 # /push
