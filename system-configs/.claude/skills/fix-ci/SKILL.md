@@ -332,10 +332,12 @@ Common Root Causes:
 - Debugger identity and capabilities embedded in diagnoser spawn prompts (prompt-based specialization)
 - Domain-specific context embedded in fixer spawn prompts
 - Subagents are ephemeral — no cleanup needed after they return
-- When [#24316][tc] lands, replace `subagent_type: "general-purpose"` with
-  custom agent types (the issue tracks teammate inheritance of custom
-  `.claude/agents/` definitions, which would let us use the project's
-  domain-specific agents instead of `general-purpose`)
+- When [#24316][tc] fully ships (i.e. when all teammate inheritance behavior is
+  supported), replace `subagent_type: "general-purpose"` with custom agent
+  types. The issue is still open and partial inheritance already works (system
+  prompt, tools, model are inherited via `subagent_type`); the remaining gap is
+  full inheritance of custom `.claude/agents/` definitions, which would let us
+  use the project's domain-specific agents instead of `general-purpose`.
 - Subagent thinking level: spawned subagents inherit Claude Code's session
   thinking-mode setting. `ultrathink` is a valid keyword and a valid value in
   this repo's `thinking-level` frontmatter (see
