@@ -2,8 +2,9 @@
 name: implement
 description: Implement features from markdown specs. Use when building features from a specification.
 argument-hint: "[spec-file.md] [--backend|--frontend|--full-stack]"
-category: workflow
 context: fork
+metadata:
+  category: workflow
 ---
 
 # /implement
@@ -19,8 +20,9 @@ context: fork
 ## Description
 
 Reads a markdown specification and implements the described features. Deploys appropriate
-engineers based on the spec requirements. Uses TeamCreate for multi-domain specs (2+ domains),
-or a single Task call for single-domain specs.
+engineers based on the spec requirements. Fans out parallel subagents (one Task call per domain
+in a single message) for multi-domain specs (2+ domains), or a single Task call for single-domain
+specs.
 
 ## Execution Steps
 
@@ -80,36 +82,23 @@ TaskUpdate: "Classify tasks by domain" → completed
 TaskUpdate: "Deploy implementation" → in_progress
 ```
 
-**Decision: Team vs Single Agent**
+**Decision: Fan-Out vs Single Agent**
 
 ```text
 IF: 2+ domains identified
-  → TeamCreate path (parallel teammates)
+  → Subagent fan-out (parallel Task calls in one message)
 ELSE:
-  → Single Task path (no team overhead)
+  → Single Task path
 ```
 
-#### Path A: Multi-Domain (TeamCreate)
+#### Path A: Multi-Domain (Subagent Fan-Out)
 
-```text
-# Create the team
-TeamCreate:
-  team_name: "impl-{current-branch}"
-  description: "Implementation from {spec-file}"
-
-# Create a task for each domain's work
-TaskCreate: "Implement {domain-1} tasks" (team task)
-TaskCreate: "Implement {domain-2} tasks" (team task)
-...
-```
-
-Spawn one teammate per domain **in a SINGLE message with multiple Task tool calls**:
+Fan out one subagent per domain **in a SINGLE message with multiple Task tool calls**:
 
 ```text
 Task tool call:
   subagent_type: "general-purpose"
-  name: "{domain}-engineer"
-  team_name: "impl-{current-branch}"
+  description: "Implement {domain} tasks"
   model: "sonnet"
   prompt: |
     You are a {domain} specialist implementing features from a specification.
@@ -122,8 +111,8 @@ Task tool call:
     {list of files assigned to this domain}
 
     Do NOT modify files outside your ownership list. If you need changes
-    to a file you don't own, document the needed change and mark your task
-    as completed with a note.
+    to a file you don't own, document the needed change and return a note
+    describing what's needed.
 
     ## Dependencies
     {any task dependency information}
@@ -131,16 +120,10 @@ Task tool call:
     ## Acceptance Criteria
     {relevant acceptance criteria from spec}
 
-    Implement each task, then mark your assigned tasks as completed.
+    Implement each task and return a summary of changes made.
 ```
 
-Wait for all teammates to complete their tasks.
-
-```text
-# Cleanup team
-SendMessage shutdown_request to all teammates
-TeamDelete
-```
+Wait for all subagents to return.
 
 #### Path B: Single Domain (Task)
 
@@ -202,17 +185,12 @@ User: /implement feature-spec.md
   - backend (3 tasks): API endpoints, validation, auth middleware
   - frontend (2 tasks): UserProfile component, form integration
 
-🏗️ Creating team: impl-feature-user-profile
-   Spawning 2 teammates...
-   [tmux panes show backend-engineer, frontend-engineer]
-
+Fanning out 2 subagents in parallel...
    backend-engineer owns: src/api/, src/middleware/, src/models/
    frontend-engineer owns: src/components/, src/pages/
 
    ✓ backend-engineer: 3/3 tasks completed
    ✓ frontend-engineer: 2/2 tasks completed
-
-🧹 Shutting down team impl-feature-user-profile...
 
 🧪 Running tests...
 ✅ All tests passing
@@ -251,7 +229,7 @@ User: /implement spec.md --dry-run
   - backend: 3 tasks (API endpoints, validation, auth)
   - frontend: 2 tasks (UserProfile, form integration)
 
-  Deployment: TeamCreate (2 domains → parallel teammates)
+  Deployment: Subagent fan-out (2 domains → parallel Task calls)
   File ownership:
     backend-engineer: src/api/, src/middleware/
     frontend-engineer: src/components/, src/pages/
@@ -279,14 +257,13 @@ Ready to proceed? Run without --dry-run
 
 ## Notes
 
-- Uses TeamCreate for 2+ domains, single Task for 1 domain (avoids team overhead)
-- All teammates spawned with `model: "sonnet"` to match custom agent cost/behavior
+- Parallel subagent fan-out for 2+ domains (multiple Task calls in a single message); single Task for 1 domain
+- All subagents spawned with `model: "sonnet"` to match custom agent cost/behavior
 - Docs-domain tasks use `model: "haiku"` (template-following, structured output)
 - Well-scoped implementation tasks can be delegated to Codex via `/codex` for cost savings
-- File ownership prevents conflicts between teammates working in parallel
+- File ownership prevents conflicts between subagents working in parallel
 - Shared files (types, configs) assigned to exactly one domain
-- Cleanup (shutdown + TeamDelete) always runs after multi-domain deployment
-- Manual cleanup if needed: `rm -rf ~/.claude/teams/impl-* ~/.claude/tasks/impl-*`
+- Subagents are ephemeral — no cleanup needed after they return
 - When [#24316](https://github.com/anthropics/claude-code/issues/24316) lands, replace `subagent_type: "general-purpose"` with custom agent types
 - Respects task dependencies within and across domains
 - Use `--incremental` to resume partial implementations

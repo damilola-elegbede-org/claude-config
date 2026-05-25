@@ -2,7 +2,8 @@
 name: feature-lifecycle
 description: End-to-end autonomous feature implementation from plan to merged PR. Use when implementing a complete feature, bug fix, or refactor from a spec, GitHub issue, or description.
 argument-hint: "[spec-file|--issue <number>|description]"
-category: orchestration
+metadata:
+  category: orchestration
 ---
 
 # /feature-lifecycle Skill

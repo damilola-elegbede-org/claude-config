@@ -2,9 +2,9 @@
 name: plan
 description: Generate PRD and task files for implementation. Use when planning a feature, project, or task.
 argument-hint: "[task] [--simple|--no-execute|--file]"
-category: workflow
 context: fork
-agent: architect
+metadata:
+  category: workflow
 ---
 
 # /plan

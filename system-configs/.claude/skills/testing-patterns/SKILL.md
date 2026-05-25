@@ -1,8 +1,9 @@
 ---
 name: testing-patterns
 description: TDD/BDD patterns, fixture strategies, and coverage requirements for consistent test engineering.
-category: workflow
 user-invocable: false
+metadata:
+  category: workflow
 ---
 
 # Testing Patterns Reference

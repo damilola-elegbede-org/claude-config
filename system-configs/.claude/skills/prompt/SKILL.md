@@ -2,7 +2,8 @@
 name: prompt
 description: Optimize prompts using direct execution with SCOPE framework. Use when refining or improving prompts.
 argument-hint: "[text|--file|--f]"
-category: workflow
+metadata:
+  category: workflow
 ---
 
 # /prompt

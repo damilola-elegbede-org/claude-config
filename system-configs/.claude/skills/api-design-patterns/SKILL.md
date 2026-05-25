@@ -1,8 +1,9 @@
 ---
 name: api-design-patterns
 description: REST and GraphQL API design conventions including versioning, error handling, and response formats.
-category: framework
 user-invocable: false
+metadata:
+  category: framework
 ---
 
 # API Design Patterns Reference

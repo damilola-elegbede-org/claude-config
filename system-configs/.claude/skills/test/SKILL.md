@@ -2,7 +2,8 @@
 name: test
 description: Auto-discover and run tests for any project. Use when running or creating tests.
 argument-hint: "[--create|--framework|--coverage]"
-category: workflow
+metadata:
+  category: workflow
 ---
 
 # /test

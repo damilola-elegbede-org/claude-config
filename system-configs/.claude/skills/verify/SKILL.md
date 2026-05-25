@@ -2,7 +2,8 @@
 name: verify
 description: Verify command execution met requirements. Use when confirming a command or skill completed correctly.
 argument-hint: "[--last|--command|--report-only]"
-category: workflow
+metadata:
+  category: workflow
 ---
 
 # /verify

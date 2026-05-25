@@ -15,7 +15,7 @@ graph TB
     B --> D[Skill Library]
     B --> E[Configuration Management System]
 
-    C --> F[Parallel Execution via TeamCreate]
+    C --> F[Parallel Execution via Subagent Fan-Out]
     C --> G[Agent Categories]
     C --> H[Security Boundaries]
 

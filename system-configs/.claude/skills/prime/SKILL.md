@@ -2,9 +2,9 @@
 name: prime
 description: Build repository understanding and context. Use when onboarding to a codebase or building context.
 argument-hint: "[--lite|--full|component-name]"
-category: workflow
 context: fork
-agent: researcher
+metadata:
+  category: workflow
 ---
 
 # /prime

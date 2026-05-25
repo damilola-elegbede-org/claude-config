@@ -2,9 +2,9 @@
 name: debug
 description: Root cause analysis for bugs and performance issues. Use when something is broken, buggy, crashing, slow, or not working.
 argument-hint: "[issue] [--issue|--performance]"
-category: workflow
 context: fork
-agent: debugger
+metadata:
+  category: workflow
 ---
 
 # /debug

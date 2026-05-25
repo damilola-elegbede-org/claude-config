@@ -2,7 +2,8 @@
 name: rebase
 description: Rebase current branch on latest main or specified branch. Use when updating branch with upstream changes.
 argument-hint: "[target_branch] [--continue|--abort]"
-category: workflow
+metadata:
+  category: workflow
 ---
 
 # /rebase

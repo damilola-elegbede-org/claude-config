@@ -1,8 +1,9 @@
 ---
 name: git-conventions
 description: Branch naming conventions, conventional commit standards, and PR best practices for consistent git workflows.
-category: workflow
 user-invocable: false
+metadata:
+  category: workflow
 ---
 
 # Git Conventions Reference

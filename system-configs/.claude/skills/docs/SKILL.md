@@ -2,9 +2,9 @@
 name: docs
 description: Documentation generation and updates. Use when creating or updating documentation.
 argument-hint: "[scope|--audit|--full|--clean]"
-category: workflow
 context: fork
-agent: tech-writer
+metadata:
+  category: workflow
 ---
 
 # /docs
