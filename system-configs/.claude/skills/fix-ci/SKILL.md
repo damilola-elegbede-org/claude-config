@@ -238,11 +238,14 @@ TaskUpdate: "Verify CI passes" → completed
 
 ### Step 6: Iterate if Needed
 
-If CI still fails after fix:
+If CI still fails after the fix is pushed:
 
-1. Return to Step 3 (re-diagnose — may be different issues)
-2. Fan out appropriate fixer subagents
-3. Continue until green
+1. **Return to Step 2** — re-fetch CI failure details. The new run's failures
+   may be different (different jobs, different error messages), so don't reuse
+   the previous failure list. Overwrite the previous `.tmp/diagnosis-N.json`
+   files to avoid mixing stale and fresh diagnoses.
+2. Proceed through Steps 3–5 again (diagnose, fix, verify).
+3. Continue until green.
 
 ```text
 TaskList: show final status of all phases
@@ -329,8 +332,15 @@ Common Root Causes:
 - Debugger identity and capabilities embedded in diagnoser spawn prompts (prompt-based specialization)
 - Domain-specific context embedded in fixer spawn prompts
 - Subagents are ephemeral — no cleanup needed after they return
-- When [#24316][tc] lands, replace `subagent_type: "general-purpose"` with custom agent types
-- Thinking level gap: subagents use default thinking, not ultrathink — a real limitation until #24316
+- When [#24316][tc] lands, replace `subagent_type: "general-purpose"` with
+  custom agent types (the issue tracks teammate inheritance of custom
+  `.claude/agents/` definitions, which would let us use the project's
+  domain-specific agents instead of `general-purpose`)
+- Subagent thinking level: spawned subagents inherit Claude Code's session
+  thinking-mode setting. `ultrathink` is a valid keyword and a valid value in
+  this repo's `thinking-level` frontmatter (see
+  `scripts/validate-agent-yaml.py` `THINKING_TOKEN_MAP`); include it in the
+  subagent prompt if a specific diagnosis warrants deeper reasoning.
 - Iterates until GitHub shows all checks green
 
 [tc]: https://github.com/anthropics/claude-code/issues/24316

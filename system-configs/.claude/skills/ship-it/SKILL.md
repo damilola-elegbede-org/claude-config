@@ -58,9 +58,14 @@ Run enabled steps in this fixed order; halt immediately on failure:
 4. **Commit + push + PR** (after any of -d/-t/-r have run): pick the right path
    based on which of `-c`, `-p`, `-pr` are set (in the no-flag default, all
    three are set, so this step runs `commit-commands:commit-push-pr`):
-   - All three of `-c -p -pr` set (including the no-flag default): one tool
-     call to `commit-commands:commit-push-pr`. No TaskCreate ceremony, no
-     orchestration.
+   - All three of `-c -p -pr` set (including the no-flag default):
+     - **Check** that `commit-commands:commit-push-pr` is available (the
+       Anthropic-published `commit-commands` plugin installs it).
+     - **If available:** one tool call to `commit-commands:commit-push-pr`.
+       No TaskCreate ceremony, no orchestration.
+     - **If not available:** output `commit-commands:commit-push-pr not
+       installed, falling back to local skills` and invoke our `/commit` →
+       `/push` → `/pr` in sequence.
    - `-c -p` without `-pr`: `commit-commands:commit-push-pr` always creates a
      PR, so for "commit + push only" invoke our `/commit` followed by `/push`.
    - `-pr` alone or alongside only `-d`/`-t`/`-r` (not `-c`/`-p`): invoke our
