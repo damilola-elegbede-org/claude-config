@@ -18,7 +18,7 @@ jobs:
 
     steps:
     - name: Checkout PR branch
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
       with:
         fetch-depth: 1  # Standardize with main CI workflow
 
@@ -126,7 +126,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
 
     - name: Validate skill structure
       run: |
@@ -245,7 +245,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
 
     - name: Check for sensitive data
       run: |
