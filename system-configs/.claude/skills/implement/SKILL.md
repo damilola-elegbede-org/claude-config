@@ -24,6 +24,26 @@ engineers based on the spec requirements. Fans out parallel subagents (one Task 
 in a single message) for multi-domain specs (2+ domains), or a single Task call for single-domain
 specs.
 
+## Implementation Contract
+
+Every slice is built the same way, whether run standalone or inside a `/feature-lifecycle`
+loop:
+
+- **TDD, red-green-refactor in vertical slices.** For each behavior: write ONE failing test
+  through the public interface (RED), write the minimal code to pass it (GREEN), then the next
+  behavior; refactor only once all of the slice's tests are green. Never all tests first, then
+  all code.
+- **Tests green before done.** Run the project's test suite (auto-detected) before marking a
+  task complete; never commit with a failing check.
+- **Mock only at system boundaries** — external APIs, DBs, time, randomness, filesystem —
+  never internal collaborators.
+- **Test behavior, not implementation** — one logical assertion per test; a test that breaks
+  when you rename a private function was testing the wrong thing.
+- **Scope discipline (YAGNI)** — build only what the task and its acceptance criteria require.
+
+Pure scaffolding (types, config, directory structure) and docs-only changes skip TDD — use
+judgment: if there is behavior to verify, use TDD.
+
 ## Execution Steps
 
 ### Step 1: Parse Specification
@@ -120,7 +140,8 @@ Task tool call:
     ## Acceptance Criteria
     {relevant acceptance criteria from spec}
 
-    Implement each task and return a summary of changes made.
+    Follow the Implementation Contract: TDD (red-green-refactor), tests green before done,
+    mock only at system boundaries. Implement each task and return a summary of changes made.
 ```
 
 Wait for all subagents to return.
@@ -137,6 +158,9 @@ Task tool:
 
     Files to modify: {file list}
     Acceptance criteria: {criteria}
+
+    Follow the Implementation Contract: TDD (red-green-refactor), tests green before done,
+    mock only at system boundaries.
 ```
 
 ```text

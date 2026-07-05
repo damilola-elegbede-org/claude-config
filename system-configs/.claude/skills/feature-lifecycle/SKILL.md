@@ -1,7 +1,7 @@
 ---
 name: feature-lifecycle
 description: End-to-end autonomous feature implementation from plan to merged PR. Use when implementing a complete feature, bug fix, or refactor from a spec, GitHub issue, or description.
-argument-hint: "[spec-file|--issue <number>|description]"
+argument-hint: "[spec-file|--issue <number>|description] [--afk [max-iters]]"
 metadata:
   category: orchestration
 ---
@@ -59,9 +59,9 @@ STEP 1: Create feature branch (if on main/master)
   RUN: /branch <descriptive-branch-name>
 
 STEP 2: Generate implementation plan
-  INVOKE: /plan with architect agent context
+  INVOKE: /plan to shape the spec into a PRD + phase task files
   INPUT: Normalized spec from Phase 0
-  OUTPUT: Implementation plan with task breakdown, file changes, agent assignments
+  OUTPUT: PRD + phase_*.md task files, each with a ## Tasks list and ## Acceptance section
 
 STEP 3: Self-review loop
   REVIEW: Does the plan cover all acceptance criteria?
@@ -76,6 +76,10 @@ STEP 4: Save plan
 
 ## Phase 2: Implement
 
+Two modes: a single pass (default), or an autonomous per-slice loop (`--afk`).
+
+### Default — single pass
+
 ```text
 STEP 1: Implement features
   INVOKE: /implement with the saved plan
@@ -89,6 +93,35 @@ STEP 2: Run tests
   IF: still failing after 3 attempts
     HALT: Report failures and request user input
 ```
+
+### Autonomous loop — `--afk [max-iters]` (default 20)
+
+Use when the plan decomposes into multiple PR-sized slices (the `phase_*` task files from
+`/plan`, or the sub-issues of a `--issue`). Drives every slice to done with a review gate
+after each, using `/loop` as the iteration engine and one-slice-per-iteration discipline.
+
+```text
+LOOP: via /loop, up to max-iters iterations
+  STEP 1: Pick ONE slice that is open and NOT blocked by an open slice
+          (respect `depends on:` / blocked-by ordering).
+          IF: no open, unblocked slice remains → loop is complete, exit
+  STEP 2: INVOKE /implement <slice>
+          - one slice only; small, focused change
+          - TDD, tests green before commit (see /implement Implementation Contract)
+  STEP 3: Review gate
+          INVOKE: /review on the slice's changes
+          IF: real issues found → fix forward, re-run /review (max 2 passes per slice)
+  STEP 4: Mark the slice done
+          - verify the slice's ## Acceptance is met
+          - if issue-backed, close its sub-issue with a link to the commit
+
+  Completion: when every slice is done → continue to Phase 3 (one PR for the whole feature)
+  IF: max-iters reached first → HALT, report which slices remain and why
+```
+
+One slice per iteration is what keeps context from rotting across a long autonomous run.
+`/loop` supplies the iteration engine; this phase supplies the per-iteration contract
+(implement one slice → review-gate → mark done → converge on all-slices-done).
 
 ## Phase 3: Ship
 
@@ -252,4 +285,5 @@ Use the Task tool to delegate to feature-agent:
 - Halts immediately on unrecoverable failures with clear error messages
 - All intermediate artifacts saved to `.tmp/plans/` for debugging
 - The monitor loop prevents infinite cycles with a hard cap of 5 iterations
+- `--afk` runs Phase 2 as an autonomous loop (`/loop`, one-slice-per-iteration, review gate); the default single pass is unchanged when the flag is absent
 - Requires `gh` CLI authenticated for GitHub operations
