@@ -109,7 +109,9 @@ def parse_yaml_structure(yaml_text):
 
                 # Check for valid model values
                 if field == 'model':
-                    valid_models = ['opus', 'sonnet', 'haiku']
+                    # Short aliases plus explicit full IDs for tiers without a
+                    # stable alias (Fable 5 — premium advisor tier, ENG-1315).
+                    valid_models = ['opus', 'sonnet', 'haiku', 'fable', 'claude-fable-5']
                     if value and value not in valid_models:
                         issues.append(f"Invalid model '{value}'. Must be one of: {', '.join(valid_models)}")
 
