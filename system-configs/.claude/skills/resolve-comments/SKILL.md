@@ -346,6 +346,47 @@ STEP 5: Finalize
           IF: success_count > 0 AND failure_count > 0
             OUTPUT: "⚠️ Partial success: {success_count} resolved, {failure_count} failed"
 
+      POST_RESOLUTION_VERIFICATION (CRITICAL — DO NOT SKIP, exit 1 on failure):
+        NOTE: Posting "@coderabbitai resolve" is not the same as the threads
+              actually being marked resolved. CodeRabbit must observe the reply
+              and flip isResolved server-side. If that fails silently, a later
+              run or an automated gate still sees unresolved threads while the PR
+              may already have been marked ready. This block re-queries and fails
+              loudly if anything is still open.
+
+        SLEEP: 30 seconds (CodeRabbit needs time to process the resolve replies)
+
+        INIT: all_thread_nodes = [], cursor = null
+        LOOP:
+          RUN: gh api graphql -F owner={owner} -F repo={repo} -F pr={pr_number} -F cursor={cursor} -f query='
+            query($owner: String!, $repo: String!, $pr: Int!, $cursor: String) {
+              repository(owner: $owner, name: $repo) {
+                pullRequest(number: $pr) {
+                  reviewThreads(first: 100, after: $cursor) {
+                    nodes {
+                      id
+                      isResolved
+                      comments(first: 1) { nodes { path line } }
+                    }
+                    pageInfo { hasNextPage endCursor }
+                  }
+                }
+              }
+            }'
+          APPEND: reviewThreads.nodes to all_thread_nodes
+          IF: reviewThreads.pageInfo.hasNextPage == false
+            BREAK
+          SET: cursor = reviewThreads.pageInfo.endCursor
+
+        PARSE: unresolved = all_thread_nodes where isResolved == false
+        IF: unresolved is non-empty
+          OUTPUT to STDERR: "ERROR: {unresolved.length} thread(s) remain unresolved after @coderabbitai resolve replies:"
+          FOR_EACH: thread in unresolved
+            OUTPUT to STDERR: "  - {thread.id} @ {thread.comments[0].path}:{thread.comments[0].line}"
+          EXIT: 1
+
+        OUTPUT: "✅ Verified: all {success_count} threads now isResolved=true"
+
       COMPUTE: total = all_issues.length, fix_count = fixed_issues.length, skip_count = skipped_issues.length
       GENERATE: summary of changes
         DATA_SOURCE: all_issues (fixed_issues + skipped_issues) from triage
