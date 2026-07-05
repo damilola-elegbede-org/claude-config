@@ -356,22 +356,29 @@ STEP 5: Finalize
 
         SLEEP: 30 seconds (CodeRabbit needs time to process the resolve replies)
 
-        RUN: gh api graphql -F owner={owner} -F repo={repo} -F pr={pr_number} -f query='
-          query($owner: String!, $repo: String!, $pr: Int!) {
-            repository(owner: $owner, name: $repo) {
-              pullRequest(number: $pr) {
-                reviewThreads(first: 100) {
-                  nodes {
-                    id
-                    isResolved
-                    comments(first: 1) { nodes { path line } }
+        INIT: all_thread_nodes = [], cursor = null
+        LOOP:
+          RUN: gh api graphql -F owner={owner} -F repo={repo} -F pr={pr_number} -F cursor={cursor} -f query='
+            query($owner: String!, $repo: String!, $pr: Int!, $cursor: String) {
+              repository(owner: $owner, name: $repo) {
+                pullRequest(number: $pr) {
+                  reviewThreads(first: 100, after: $cursor) {
+                    nodes {
+                      id
+                      isResolved
+                      comments(first: 1) { nodes { path line } }
+                    }
+                    pageInfo { hasNextPage endCursor }
                   }
                 }
               }
-            }
-          }'
+            }'
+          APPEND: reviewThreads.nodes to all_thread_nodes
+          IF: reviewThreads.pageInfo.hasNextPage == false
+            BREAK
+          SET: cursor = reviewThreads.pageInfo.endCursor
 
-        PARSE: unresolved = nodes where isResolved == false
+        PARSE: unresolved = all_thread_nodes where isResolved == false
         IF: unresolved is non-empty
           OUTPUT to STDERR: "ERROR: {unresolved.length} thread(s) remain unresolved after @coderabbitai resolve replies:"
           FOR_EACH: thread in unresolved
