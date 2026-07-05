@@ -4,6 +4,7 @@ description: "When the user wants to read, transcribe, summarize, or research a 
 metadata:
   version: 1.0.0
   category: workflow
+license: MIT. LICENSE has complete terms
 ---
 
 <!-- Vendored from TheCraigHewitt/skills (general/watch), MIT © 2026 Craig Hewitt. See ./LICENSE. -->
