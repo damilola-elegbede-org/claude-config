@@ -112,6 +112,30 @@ Unless `--no-execute`, write to `.tmp/plans/<repo>/<feature>/`:
 
 Print the paths written and the next step (`/implement <first phase file>`).
 
+## Expected Output
+
+```text
+User: /plan Add rate limiting to the users API
+
+Grounding in codebase… (README, CLAUDE.md, src/middleware/auth)
+
+Q: What is the limit keyed on — IP, API key, or user ID?
+A: API key — every /api route is already authenticated by key (src/middleware/auth).
+Why: match existing identity; per-key is the unit callers reason about.
+
+Q: What happens when the limit is exceeded?
+A: Respond 429 with a Retry-After header; never drop silently.
+Why: REST convention — callers need a backoff signal.
+
+… (tree continues: storage, window algorithm, edge cases, testing, security, out-of-scope) …
+
+Writing plan to .tmp/plans/my-app/rate-limiting/:
+  - prd.md
+  - phase_1_pr_1_limiter.md   (## Tasks + ## Acceptance)
+
+Next: /implement .tmp/plans/my-app/rate-limiting/phase_1_pr_1_limiter.md
+```
+
 ## Notes
 
 - `context: fork` — the tree walk runs in a forked context; only the streamed decisions and final paths surface.
