@@ -285,5 +285,5 @@ Use the Task tool to delegate to feature-agent:
 - Halts immediately on unrecoverable failures with clear error messages
 - All intermediate artifacts saved to `.tmp/plans/` for debugging
 - The monitor loop prevents infinite cycles with a hard cap of 5 iterations
-- `--afk` runs Phase 2 as an autonomous loop (`/loop` + one-slice-per-iteration + review gate); the default single pass is unchanged when the flag is absent
+- `--afk` runs Phase 2 as an autonomous loop (`/loop`, one-slice-per-iteration, review gate); the default single pass is unchanged when the flag is absent
 - Requires `gh` CLI authenticated for GitHub operations
