@@ -1,6 +1,6 @@
 ---
 name: plan
-description: Generate PRD and task files for implementation. Use when planning a feature, project, or task.
+description: Shape a task into a complete PRD and task files by walking the decision tree in the open — self-answering with software-engineering best practices and streaming each decision for live override. Use when planning a feature, project, or task.
 argument-hint: "[task] [--simple|--no-execute|--file]"
 context: fork
 metadata:
@@ -12,94 +12,133 @@ metadata:
 ## Usage
 
 ```bash
-/plan $ARGUMENTS         # Generate PRD and task files
-/plan --simple <task>            # Single PR plan (small features)
-/plan --no-execute <task>        # Plan only, no file generation
-/plan --file <path>              # Read requirements from file
+/plan <task>              # Walk the decision tree → PRD + task files
+/plan --simple <task>     # Single-PR plan (small features), lighter tree
+/plan --no-execute <task> # Stream the tree + PRD preview only, write nothing
+/plan --file <path>       # Read the requirement from a file
 ```
 
 ## Description
 
-Generate Product Requirements Document (PRD) and task files using architect agent.
-Creates structured implementation plans with clear phases and agent assignments.
+Turn a rough idea into a complete, buildable plan in one pass. Rather than handing off to an
+opaque planning agent, `/plan` walks the decision tree itself, answers each question with
+best-practice defaults grounded in the actual codebase, and **streams every decision as
+`Q / A / Why`** so you can catch a bad assumption while it is being made. The output is a PRD
+plus per-PR task files — each with an `## Acceptance` section — that `/implement` consumes
+directly and `/feature-lifecycle` loops until.
 
-## Behavior
+## Instructions
 
-1. **Analyze**: Deploy architect agent to understand requirements
-2. **Design**: Create technical architecture and task breakdown
-3. **Generate**: Write PRD and phase files to `.tmp/plans/<repo>/<feature>/`
+### 1. Capture the task
 
-### Clarification
+Use `$ARGUMENTS` (or the `--file` contents). If empty, ask once:
 
-Never guesses requirements. Asks specific questions when needed before proceeding.
+> What do you want to build? (one paragraph is fine)
+
+Then proceed without further interactive questions until the write step.
+
+### 2. Ground in the codebase
+
+Before answering anything:
+
+- Read `README.md`, `CLAUDE.md`, and any architecture docs.
+- Identify existing modules, conventions, test patterns, and prior art the work should match.
+- Verify factual claims in the request against the code — don't trust, check.
+- Note the language, framework, test runner, and directory layout.
+
+Greenfield/empty repo: skip to step 3 and record it in the PRD's notes.
+
+### 3. Walk the decision tree
+
+For each branch, generate the questions a thorough engineer would ask, then answer each
+one yourself. **Do not skip a branch because it feels obvious — completeness is the point.**
+
+- **Actors & user stories** — who uses this, what they want, what success looks like
+- **Happy-path flow** — the primary interaction, step by step
+- **Edge cases** — empty/large inputs, concurrency, partial failures, network errors, permission denied, missing data, encoding, time zones
+- **Data model & schema** — entities, relationships, indexes, migrations
+- **Module boundaries** — deep modules, public interfaces, what stays internal
+- **API contracts** — request/response shapes, error codes, idempotency, versioning
+- **Testing strategy** — what to test, what to mock (boundaries only), prior art in the repo
+- **Security** — authn/authz, input validation, secrets, rate limiting
+- **Observability** — what to log, what to surface as metrics
+- **Out of scope** — explicit non-goals
+- **Dependencies & blockers** — what must exist first
+
+`--simple` walks only: actors, happy-path, edge cases, testing, out-of-scope.
+
+### 4. Best-practice defaults
+
+When self-answering, prefer: boring over clever; deep modules (Ousterhout — wide functionality
+behind a simple, stable interface); match the codebase over external standards; TDD-friendly
+design (testable through public interfaces, not internals); validate at system boundaries;
+YAGNI; parameterized queries; rate-limited auth endpoints; never log secrets or PII; mock only
+at system boundaries. **Codebase facts beat generic best practices** — if the project already
+does X, the answer is X.
+
+### 5. Stream the decisions
+
+Emit each decision as you make it — do not batch:
+
+```text
+Q: <the question>
+A: <the chosen answer>
+Why: <one sentence — cite a codebase reference if relevant>
+```
+
+This is the moment to override a bad assumption.
+
+### 6. Write the PRD + task files
+
+Unless `--no-execute`, write to `.tmp/plans/<repo>/<feature>/`:
+
+- `prd.md` — Problem, Solution, User Stories, Implementation Decisions, Testing, Security, and Out of
+  Scope, synthesized from the tree. No file paths or code snippets — they go stale.
+- `phase_<n>_pr_<m>_<slug>.md` — one file per PR-sized slice. Each MUST match the format `/implement` consumes:
+
+```markdown
+# <Slice Name>
+
+## Tasks
+1. [ ] <task>  (depends on: <n>)
+
+## Acceptance
+- [ ] <verifiable criterion>
+```
+
+`--no-execute`: stream the tree + a PRD preview, write nothing.
+
+### 7. Report
+
+Print the paths written and the next step (`/implement <first phase file>`).
 
 ## Expected Output
 
 ```text
-User: /plan Add user authentication
+User: /plan Add rate limiting to the users API
 
-Analyzing requirements...
+Grounding in codebase… (README, CLAUDE.md, src/middleware/auth)
 
-Deploying architect agent...
+Q: What is the limit keyed on — IP, API key, or user ID?
+A: API key — every /api route is already authenticated by key (src/middleware/auth).
+Why: match existing identity; per-key is the unit callers reason about.
 
-PRD Preview: User Authentication
+Q: What happens when the limit is exceeded?
+A: Respond 429 with a Retry-After header; never drop silently.
+Why: REST convention — callers need a backoff signal.
 
-Executive Summary:
-  JWT-based authentication with registration and login flows
+… (tree continues: storage, window algorithm, edge cases, testing, security, out-of-scope) …
 
-Technical Design:
-  - Database: users table with bcrypt passwords
-  - API: /auth/register, /auth/login, /auth/refresh
-  - Frontend: Login/Register components with form validation
-
-Phases:
-  Phase 1: Database schema and migrations (2 tasks)
-  Phase 2: Auth service and API endpoints (3 tasks)
-  Phase 3: Frontend components and integration (4 tasks)
-
-Ready to generate files? (yes/no/modify): yes
-
-Generated in .tmp/plans/my-app/authentication/:
+Writing plan to .tmp/plans/my-app/rate-limiting/:
   - prd.md
-  - phase_1_pr_1_database.md
-  - phase_2_pr_1_auth_service.md
-  - phase_3_pr_1_frontend.md
-```
+  - phase_1_pr_1_limiter.md   (## Tasks + ## Acceptance)
 
-### Simple Mode
-
-```text
-User: /plan --simple Add logout button
-
-Simple Plan: Logout Button
-
-Tasks (1 PR):
-  1. Add logout button to header component
-  2. Implement logout API call
-  3. Clear auth state on logout
-  4. Add confirmation dialog
-
-Generated: .tmp/plans/my-app/logout/phase_1_pr_1_logout.md
-```
-
-### No-Execute Mode
-
-```text
-User: /plan --no-execute Add caching
-
-[Analysis completes...]
-
-Implementation Plan (preview only)
-  Files to modify: 8
-  Risk: Low
-  Dependencies: redis
-
-No files generated (--no-execute mode)
+Next: /implement .tmp/plans/my-app/rate-limiting/phase_1_pr_1_limiter.md
 ```
 
 ## Notes
 
-- Uses architect agent for technical planning
-- Generates structured task files with agent assignments
-- Always asks for clarification on ambiguous requirements
-- Typical execution: 2-5 minutes
+- `context: fork` — the tree walk runs in a forked context; only the streamed decisions and final paths surface.
+- Every task file carries an `## Acceptance` section — it is the contract `/implement` verifies against and the gate `/feature-lifecycle` loops until.
+- Interactive only at two points: capturing the idea (if not given) and any override you inject mid-stream.
+- `--simple` produces a single slice; larger plans fan out into multiple `phase_*` files with `depends on:` ordering.
