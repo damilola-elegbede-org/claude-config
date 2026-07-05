@@ -80,7 +80,7 @@ does X, the answer is X.
 
 Emit each decision as you make it — do not batch:
 
-```
+```text
 Q: <the question>
 A: <the chosen answer>
 Why: <one sentence — cite a codebase reference if relevant>
@@ -92,7 +92,8 @@ This is the moment to override a bad assumption.
 
 Unless `--no-execute`, write to `.tmp/plans/<repo>/<feature>/`:
 
-- `prd.md` — Problem, Solution, User Stories, Implementation Decisions, Testing, Security, and Out of Scope, synthesized from the tree. No file paths or code snippets — they go stale.
+- `prd.md` — Problem, Solution, User Stories, Implementation Decisions, Testing, Security, and Out of
+  Scope, synthesized from the tree. No file paths or code snippets — they go stale.
 - `phase_<n>_pr_<m>_<slug>.md` — one file per PR-sized slice. Each MUST match the format `/implement` consumes:
 
 ```markdown
