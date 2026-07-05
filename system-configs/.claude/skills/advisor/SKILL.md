@@ -1,8 +1,9 @@
 ---
 name: advisor
-description: Pair Sonnet executor with Opus advisor for complex tasks
+description: Pair a Sonnet executor with the Fable advisor for complex tasks
 argument-hint: "<task description>"
 context: fork
+model: sonnet
 metadata:
   category: orchestration
 ---
@@ -20,9 +21,9 @@ metadata:
 ## Description
 
 Implements the advisor strategy: a Sonnet executor handles the task end-to-end, consulting
-the `claude-advisor` Opus agent on-demand when it hits decisions too complex or high-stakes
+the `fable-advisor` Fable-tier agent on-demand when it hits decisions too complex or high-stakes
 to resolve independently. Routine steps run at Sonnet speed and cost; elevated reasoning
-is reserved for decision gates that actually need it.
+is reserved for decision gates that actually need it. Consult budget: at most 2 per session.
 
 ## Execution Script
 
@@ -45,14 +46,14 @@ STEP 2: Executor loop
       CONTINUE to next step
 
     IF decision gate:
-      ESCALATE to claude-advisor agent (see Step 3)
+      ESCALATE to fable-advisor agent (see Step 3)
       APPLY returned guidance
       CONTINUE with advised approach
 
 STEP 3: Advisor escalation (when triggered in Step 2)
-  INVOKE: claude-advisor agent via Agent tool
+  INVOKE: fable-advisor agent via Agent tool
   PASS: full current context + the specific decision requiring guidance
-  RECEIVE: focused strategic advice from Opus
+  RECEIVE: focused strategic advice from Fable
   IF: advice signals user escalation (decision requires user input, not strategic judgment)
     ASK user via AskUserQuestion with the advisor's framing of the decision
     APPLY user's response as the direction for this step
