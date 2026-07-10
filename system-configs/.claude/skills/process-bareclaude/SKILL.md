@@ -204,7 +204,7 @@ When a decision is a **standing rule** rather than a one-off (e.g. "job-applicat
 delivery, not on D's submission"), don't bury it in a single ticket comment. Write it to persistent memory AND flag
 the owning agent's skill so the rule propagates, then apply it to every matching ticket in the current queue.
 
-### 14. Deferred / skipped / mislabeled + recap + D-action checklist + suppression report
+### 14. Deferred / skipped / mislabeled, recap, D-action checklist, suppression report
 
 Every decision path has an explicit outcome — target state and whether a comment is written:
 
