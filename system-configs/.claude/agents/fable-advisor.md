@@ -50,8 +50,8 @@ routine, say so in one line and return it — do not manufacture depth for a mec
 
 Invoked by the `/advisor` skill's executor loop (interactive) or attached to sonnet-tier queue
 fires via the worker's `--agents` injection (automated) when a decision gate is triggered.
-Returns guidance to shared context; the executor resumes and applies it. Consult budget is ≤2
-per session. Escalates to the caller when the decision needs user input rather than strategic
+Returns guidance to shared context; the executor resumes and applies it. Escalates to the caller
+when the decision needs user input rather than strategic
 judgment. If a consult fails or is refused, the executor proceeds on its own judgment.
 
 ## SYSTEM BOUNDARY
