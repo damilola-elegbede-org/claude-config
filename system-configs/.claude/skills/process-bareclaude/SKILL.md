@@ -40,18 +40,18 @@ Claude: Loading BareClaude triage views…
   ⏳ Needs Your Sign-off (In Review) .......... 12 tickets
 
 Proposed order (most-unblocking first):
-  1. ENG-42  (blocks 4)  https://linear.app/bareclaude/issue/ENG-42/...
-  2. OPS-17  (blocks 2)  https://linear.app/bareclaude/issue/OPS-17/...
+  1. [ENG-42](https://linear.app/bareclaude/issue/ENG-42/...)  (blocks 4)
+  2. [OPS-17](https://linear.app/bareclaude/issue/OPS-17/...)  (blocks 2)
   ...
 [dry-run question] Proceed / reorder / drop some?
 
 User: proceed
-Claude: [ENG-42] Blocked on a policy decision — <2-line context>.
+Claude: [ENG-42](https://linear.app/bareclaude/issue/ENG-42/...) — Blocked on a policy decision — <2-line context>.
         (options via AskUserQuestion; one tagged "(Recommended)")
 User: <picks an option>
-Claude: ✓ Recorded [triage-decision] comment on ENG-42, set state → Todo
+Claude: ✓ Recorded [triage-decision] comment on [ENG-42](https://linear.app/bareclaude/issue/ENG-42/...), set state → Todo
         ✓ Noted the unblock on 4 dependents
-        Next → OPS-17 …
+        Next → [OPS-17](https://linear.app/bareclaude/issue/OPS-17/...) …
 
 Recap:
   Decided: 6 · Deferred: 1 · Skipped (state drift): 1
@@ -107,17 +107,23 @@ Immediately before asking about a ticket, re-fetch its current state. If it chan
   option slots on these.
 - **One decision per question. Never bundle unrelated decisions.**
 
-### 7. Record atomically
+### 7. Record atomically (re-check, then idempotent write)
 
-On D's answer, post a decision comment using the template below, THEN set the ticket state. Verify both writes
-succeeded; retry up to 3×. If a write cannot be confirmed, **halt and report** — never advance the queue on an
-unverified write. A lost decision is worse than a stall.
+On D's answer, **FIRST re-fetch** the ticket's state and scan for an existing `[triage-decision]` marker — D may
+have taken minutes to answer, and an agent may have moved the ticket meanwhile. If the state drifted or a marker
+already exists, abort and re-surface the ticket rather than writing stale.
+
+Then post the decision comment using the template below, THEN set the ticket state. Make both writes **idempotent**:
+before retrying either, re-scan for the exact marker/state and treat an existing match as success — retry only the
+missing operation. Verify both writes; retry up to 3×. On unrecoverable partial failure, report exactly what landed
+and **halt** — never advance the queue on an unverified write. A lost or duplicated decision is worse than a stall.
 
 ### 8. Cascade lightly
 
 Comment on **direct** dependents to note the unblock (e.g. "blocker ENG-42 resolved: `<decision>`"). Do NOT
 auto-transition downstream tickets — the agents own those. Auto-transitioning shared state is an irreversibility
-trap and is out of scope.
+trap and is out of scope. These dependent comments are **best-effort**: verify and retry once, but on failure log
+the miss in the recap rather than halting — a failed courtesy-comment must never block D's decisions.
 
 ### 9. Per-view special handling
 
@@ -128,9 +134,18 @@ trap and is out of scope.
 
 ### 10. Deferred / skipped / mislabeled + recap
 
-Deferred tickets go to the end and are re-offered once, then left for next session. "This ticket is mislabeled" is a
-first-class answer: fix state, comment why, record no decision. End with a recap: decisions made (hyperlinked),
-comments posted, states changed, deferred/skipped list.
+Every decision path has an explicit outcome — target state and whether a comment is written:
+
+| Path | Target state | Comment |
+| --- | --- | --- |
+| Normal decision | per D's choice | `[triage-decision]` |
+| Skip | unchanged | none |
+| Defer | unchanged (re-queued once, then left for next session) | brief "deferred by D" note |
+| "Show me the brief" | unchanged (re-asked after D reads) | none |
+| Mislabeled | corrected state | note explaining the correction; no `[triage-decision]` |
+
+End with a recap that reflects those transitions: decisions made (hyperlinked), comments posted, states changed,
+and the deferred/skipped list.
 
 ## Decision comment template
 

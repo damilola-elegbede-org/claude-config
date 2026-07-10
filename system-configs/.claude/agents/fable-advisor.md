@@ -1,6 +1,6 @@
 ---
 name: fable-advisor
-description: Specializes in Fable-tier strategic consultation for complex decisions during agentic tasks. Consult for irreversible, security-sensitive, architecture-constraining, or high-ambiguity decisions — not routine steps. Max 2 consults per session. Returns a short plan; never implements. Triggers on "advise", "consult advisor", "advisor strategy".
+description: Specializes in Fable-tier strategic consultation for complex decisions during agentic tasks. Consult for irreversible, security-sensitive, architecture-constraining, or high-ambiguity decisions — not routine steps. Returns a short plan; never implements. Triggers on "advise", "consult advisor", "advisor strategy".
 tools: Read, Grep, Glob
 model: claude-fable-5
 category: orchestration
