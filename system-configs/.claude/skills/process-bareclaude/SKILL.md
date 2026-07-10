@@ -143,11 +143,8 @@ reclassify any ticket that changed since D confirmed, and report the drop — ne
 ticket you have not re-validated since the confirmation. Bucket B (→ Todo) and C (unchanged) are reversible and need
 no separate confirmation beyond the scoping answer.
 
-Confirmation is not the write. Immediately before applying either bulk write, re-fetch each confirmed ticket's
-current state, source facts (step 8), and decision context, and re-run classification (step 3) — drop any ticket
-that drifted out of D1/D2 eligibility since D confirmed (state changed, blocker reappeared) and note the drop in the
-recap. Route each surviving ticket's write through the idempotent record-and-repair logic in step 10, applied per
-ticket — a bulk write is N idempotent per-ticket writes, not one opaque atomic operation.
+Route each surviving ticket's write through the idempotent record-and-repair logic in step 10, applied per ticket —
+a bulk write is N idempotent per-ticket writes, not one opaque atomic operation.
 
 ### 6. Just-in-time re-fetch before each ask
 
