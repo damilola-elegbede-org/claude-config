@@ -60,16 +60,16 @@ Claude: ✓ Recorded [triage-decision] on [ENG-1190](...), set state → Todo
 
 Recap:
   Decided: 9 · Bulk-accepted: 19 · Bounced: 14 · Cancelled: 2
-  Comments posted: 40 · States changed: 34
+  Comments posted: 46 · States changed: 44   (9 A + 14 B→Todo + 19 D1→Done + 2 D2→Canceled)
 
-D-action checklist (produced by the decisions):
-  1. Run 3 gh secret commands (ENG-517 / ENG-1022 / ENG-1132)
-  2. Uninstall 16 retired GitHub Apps (org settings)  ✅ done this run
+D-action checklist (produced by the decisions — every item hyperlinked):
+  1. Run 3 gh secret commands: [ENG-517](.../ENG-517/...) / [ENG-1022](.../ENG-1022/...) / [ENG-1132](.../ENG-1132/...)
+  2. Uninstall 16 retired GitHub Apps (org settings)  ✅ done this run — [ENG-1210](.../ENG-1210/...)
 
-Suppression report (classified NOT-for-D — reopen anything I got wrong):
-  B  · bounced (14): ENG-1070, ENG-373, OPS-292 …
+Suppression report (classified NOT-for-D — reopen anything I got wrong; runtime lists EVERY ID, no ellipsis):
+  B  · bounced (14): ENG-1070, ENG-373, OPS-292, ENG-1201, OPS-286, ENG-1071, ENG-717 (+7 more at runtime)
   C  · left blocked-upstream (5): OPS-242, OPS-25, OPS-27, OPS-38, ENG-604
-  D1 · bulk-accepted (19): OPS-224, OPS-264 …
+  D1 · bulk-accepted (19): OPS-224, OPS-264, OPS-265, OPS-241, OPS-169, OPS-235 (+13 more at runtime)
   D2 · cancelled (2): ENG-571, ENG-272
 ```
 
@@ -136,8 +136,12 @@ lower bucket into A, or push one down.
 
 Because D1 and D2 apply **irreversible** state changes (`Done` / `Canceled`), do not execute them off the scoping
 answer alone. Before any bulk write, show each cohort's **exact ticket IDs, count, and target state**, and get D's
-explicit confirmation **per cohort** (accept-these-N → Done; cancel-these-M → Canceled). Bucket B (→ Todo) and C
-(unchanged) are reversible and need no separate confirmation beyond the scoping answer.
+explicit confirmation **per cohort** (accept-these-N → Done; cancel-these-M → Canceled). Then, **immediately before
+writing each cohort, run a per-ID preflight**: re-fetch state + context for every ticket (and verified source state
+for D2 cancels of code/PR tickets, per step 8), because a ticket can change while confirmation is pending. Drop or
+reclassify any ticket that changed since D confirmed, and report the drop — never apply a bulk `Done`/`Canceled` to a
+ticket you have not re-validated since the confirmation. Bucket B (→ Todo) and C (unchanged) are reversible and need
+no separate confirmation beyond the scoping answer.
 
 Confirmation is not the write. Immediately before applying either bulk write, re-fetch each confirmed ticket's
 current state, source facts (step 8), and decision context, and re-run classification (step 3) — drop any ticket
