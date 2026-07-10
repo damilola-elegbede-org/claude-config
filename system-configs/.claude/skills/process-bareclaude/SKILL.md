@@ -226,7 +226,9 @@ duplicate the note (same idempotency contract as the decision comment, keyed on 
 **keystone**, also drop its now-resolved dependents out of the remaining walk (re-derive the A-queue) so you never ask
 a question a prior answer already settled. Do NOT auto-transition downstream tickets — the agents own those;
 auto-transitioning shared state is an irreversibility trap and is out of scope. These dependent comments are
-**best-effort**: verify and retry once, but on failure log the miss in the recap rather than halting — a failed
+**best-effort**: verify and retry once — but before that retry, re-scan for the exact marker and skip the retry if
+it's already present, since the first attempt may have landed even though its verification response was lost (same
+idempotency contract as step 10). On failure log the miss in the recap rather than halting — a failed
 courtesy-comment must never block D's decisions.
 
 ### 12. Per-view special handling
