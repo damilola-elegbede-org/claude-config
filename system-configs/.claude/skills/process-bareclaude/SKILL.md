@@ -208,9 +208,12 @@ unverified write. A lost or duplicated decision is worse than a stall.
 
 ### 11. Cascade lightly + collapse keystones
 
-Comment on **direct** dependents to note the unblock (e.g. "blocker ENG-42 resolved: `<decision>`"). When the ticket
-was a **keystone**, also drop its now-resolved dependents out of the remaining walk (re-derive the A-queue) so you
-never ask a question a prior answer already settled. Do NOT auto-transition downstream tickets — the agents own those;
+Comment on **direct** dependents to note the unblock. Give each cascade note a **deterministic marker** that names the
+blocker, e.g. lead with `[unblock: ENG-42]` then "blocker resolved: `<decision>`". Before posting, scan the dependent
+for that exact marker referencing this blocker and **skip if already present** — so reruns and later sessions never
+duplicate the note (same idempotency contract as the decision comment, keyed on the blocker ID). When the ticket was a
+**keystone**, also drop its now-resolved dependents out of the remaining walk (re-derive the A-queue) so you never ask
+a question a prior answer already settled. Do NOT auto-transition downstream tickets — the agents own those;
 auto-transitioning shared state is an irreversibility trap and is out of scope. These dependent comments are
 **best-effort**: verify and retry once, but on failure log the miss in the recap rather than halting — a failed
 courtesy-comment must never block D's decisions.
