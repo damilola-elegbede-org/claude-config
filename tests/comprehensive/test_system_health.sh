@@ -189,7 +189,7 @@ fi
 # Test 7: Git repository health
 echo "Checking git repository..."
 
-if [ -d "$ORIGINAL_DIR/.git" ]; then
+if [ -d "$ORIGINAL_DIR/.git" ] || [ -f "$ORIGINAL_DIR/.git" ]; then
     # Check for uncommitted changes
     cd "$ORIGINAL_DIR"
     UNCOMMITTED=$(git status --porcelain | wc -l | tr -d ' ')

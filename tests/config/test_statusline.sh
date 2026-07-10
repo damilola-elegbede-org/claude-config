@@ -270,8 +270,10 @@ test_git_handling() {
     local statusline_path="$(cd ../../system-configs/.claude && pwd)/statusline.sh"
     local test_input='{"model":{"display_name":"Claude"},"version":"6.0.0","workspace":{"current_dir":"/tmp"},"output_style":{"name":"default"}}'
 
-    # Test in non-git directory using subshell to avoid changing current directory
-    output=$(cd /tmp && HOME="$TEST_HOME" echo "$test_input" | bash "$statusline_path" --test 2>/dev/null)
+    # Test in non-git directory using subshell to avoid changing current directory.
+    # Unset GIT_DIR/GIT_WORK_TREE so an inherited (e.g. worktree hook) value cannot
+    # make /tmp resolve as a git repository.
+    output=$(cd /tmp && unset GIT_DIR GIT_WORK_TREE && HOME="$TEST_HOME" echo "$test_input" | bash "$statusline_path" --test 2>/dev/null)
 
     # Strip ANSI color codes for testing
     output_clean=$(echo "$output" | sed 's/\x1b\[[0-9;]*m//g')
