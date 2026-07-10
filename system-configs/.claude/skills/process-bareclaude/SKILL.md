@@ -42,12 +42,13 @@ Claude: Loading BareClaude triage views…
   ⏳ Needs Your Sign-off (In Review) .......... 25 tickets
 
 Classified (only the genuine decisions get walked):
-  A · needs D            9   → walk one at a time
-  B · bounce to agent   14   → back to Dara/Clara (Todo)
-  C · blocked upstream   5   → left; not D's
-  D · bulk-ack / shelved 21  → accept-close or cancel in bulk
+  A  · needs D            9   → walk one at a time
+  B  · bounce to agent   14   → back to Dara/Clara (Todo)
+  C  · blocked upstream   5   → left; not D's
+  D1 · bulk-accept       19   → Done  (confirm IDs first)
+  D2 · cancel / shelved   2   → Canceled  (confirm IDs first)
 
-[dry-run question] Walk the 9 A-tickets? (B/C/D handled as above — see suppression report)
+[dry-run question] Walk the 9 A-tickets? (B/C handled as above; D1/D2 need a per-cohort confirm — see suppression report)
 
 User: proceed
 Claude: [ENG-1190](https://linear.app/bareclaude/issue/ENG-1190/...) — keystone: blocks 3 secret-cleanup tickets — <2-line context>.
@@ -66,8 +67,10 @@ D-action checklist (produced by the decisions):
   2. Uninstall 16 retired GitHub Apps (org settings)  ✅ done this run
 
 Suppression report (classified NOT-for-D — reopen anything I got wrong):
-  B · bounced: ENG-1070, ENG-373, OPS-292 …
-  D · bulk-accepted: OPS-224, OPS-264 …
+  B  · bounced (14): ENG-1070, ENG-373, OPS-292 …
+  C  · left blocked-upstream (5): OPS-242, OPS-25, OPS-27, OPS-38, ENG-604
+  D1 · bulk-accepted (19): OPS-224, OPS-264 …
+  D2 · cancelled (2): ENG-571, ENG-272
 ```
 
 ## Behavior
@@ -103,7 +106,11 @@ context, sort every ticket into exactly one bucket:
 | **A — needs D** | A real decision only D can make (policy, irreversible, security, spend, ambiguous product call) | Walk one at a time (steps 6-11) |
 | **B — bounce to agent** | Agent-executable work (bug fix, investigation, implementation) mis-parked as if it were a D-decision | Comment "not a D-decision, execute or re-block with a specific non-D blocker" → set Todo |
 | **C — blocked upstream** | Correctly blocked on ANOTHER ticket / external gate, not on D | Leave as-is; note in the suppression report |
-| **D — bulk-ack / shelved** | Completed deliverable awaiting acknowledgment, OR a cancelled/superseded/dead project | Bulk accept-and-close, or cancel, per D's one bulk instruction |
+| **D1 — bulk-accept** | Completed deliverable awaiting acknowledgment | Bulk accept → `Done` |
+| **D2 — cancel / shelved** | A cancelled / superseded / dead-project ticket | Bulk cancel → `Canceled` |
+
+Keep D1 and D2 as **separate cohorts** — they trigger different irreversible state changes (`Done` vs `Canceled`),
+so they must be confirmed and executed separately, never merged into one "handle bucket D" instruction.
 
 Two classification cautions, because this skill filters D's attention using labels the fleet itself wrote:
 
@@ -122,15 +129,24 @@ cause, or a policy that answers N tickets at once), group them so you ask ONCE, 
 
 ### 5. Dry-run summary first (one question) + suppression preview
 
-Present the classification counts (A/B/C/D) and the ordered, hyperlinked list of the **A** tickets with a one-line
-"why it's here" + dependent count each. State how B/C/D will be handled. Ask D once: **proceed / reorder / drop /
-reclassify**. This is the sanctioned batching point for scoping. D may pull a ticket up from B/C/D into A, or push
-one down.
+Present the classification counts (A / B / C / D1 / D2) and the ordered, hyperlinked list of the **A** tickets with a
+one-line "why it's here" + dependent count each. State how each bucket will be handled. Ask D once: **proceed /
+reorder / drop / reclassify**. This is the sanctioned batching point for scoping. D may pull a ticket up from a
+lower bucket into A, or push one down.
+
+Because D1 and D2 apply **irreversible** state changes (`Done` / `Canceled`), do not execute them off the scoping
+answer alone. Before any bulk write, show each cohort's **exact ticket IDs, count, and target state**, and get D's
+explicit confirmation **per cohort** (accept-these-N → Done; cancel-these-M → Canceled). Bucket B (→ Todo) and C
+(unchanged) are reversible and need no separate confirmation beyond the scoping answer.
 
 ### 6. Just-in-time re-fetch before each ask
 
-Immediately before asking about a ticket, re-fetch its current state. If it changed since prefetch, or a prior
-`[triage-decision]` marker comment already exists, or a keystone already resolved it, **skip it with a note**
+Immediately before asking about a ticket, re-fetch its current **state AND decision context** — not state alone. The
+recommendation rests on the prefetched description, comments, relations, and any PR/source facts, and those can change
+without a state transition (a new comment, a resolved blocker, a diff update). Compare against prefetch (e.g.
+`updatedAt`, comment count, relations, verified source state from step 8). If the decision-relevant context changed,
+refresh the recommendation and re-run classification (step 3) for that ticket before asking. If the state changed, a
+prior `[triage-decision]` marker already exists, or a keystone already resolved it, **skip it with a note**
 (idempotency + race safety).
 
 ### 7. Ask one question per DECISION (not per ticket)
@@ -174,13 +190,21 @@ options you present; D still decides. Elsewhere the consult is optional — don'
 ### 10. Record atomically (re-check, then idempotent write)
 
 On D's answer, **FIRST re-fetch** the ticket's state and scan for an existing `[triage-decision]` marker — D may
-have taken minutes to answer, and an agent may have moved the ticket meanwhile. If the state drifted or a marker
-already exists, abort and re-surface the ticket rather than writing stale.
+have taken minutes to answer, and an agent may have moved the ticket meanwhile. Resolve the pre-write check by cases,
+so a partial write from a prior interrupted attempt is repaired rather than orphaned:
+
+- **Marker present AND state already matches this decision** → fully done; skip with a note.
+- **Marker present but state inconsistent** (comment landed, state write did not, on a prior attempt) → this is a
+  partial write, NOT a conflict: skip the comment op and complete only the missing state write.
+- **Marker present for a DIFFERENT decision, or the state drifted to conflict with D's answer** → genuine drift;
+  abort and re-surface the ticket rather than writing stale.
+- **No marker** → proceed with a fresh write.
 
 Then post the decision comment using the template below, THEN set the ticket state. Make both writes **idempotent**:
-before retrying either, re-scan for the exact marker/state and treat an existing match as success — retry only the
-missing operation. Verify both writes; retry up to 3×. On unrecoverable partial failure, report exactly what landed
-and **halt** — never advance the queue on an unverified write. A lost or duplicated decision is worse than a stall.
+before (re)trying either, re-scan for the exact marker/state and treat an existing match as success for that
+operation only — never let a completed comment op suppress a still-missing state op. Verify both writes; retry up to
+3×. On unrecoverable partial failure, report exactly what landed and **halt** — never advance the queue on an
+unverified write. A lost or duplicated decision is worse than a stall.
 
 ### 11. Cascade lightly + collapse keystones
 
@@ -198,11 +222,20 @@ courtesy-comment must never block D's decisions.
 - **Ungroomed Backlog** (grooming pass): these need a `## Acceptance` section — that is **agent grooming, not a D
   decision**. Flag them and offer to route the batch to Clara; do not ask D to write acceptance criteria.
 
-### 13. Capture standing policies
+### 13. Capture standing policies (explicitly authorized only)
 
-When a decision is a **standing rule** rather than a one-off (e.g. "job-application tickets close on Clara's email
-delivery, not on D's submission"), don't bury it in a single ticket comment. Write it to persistent memory AND flag
-the owning agent's skill so the rule propagates, then apply it to every matching ticket in the current queue.
+When a decision reads as a **standing rule** rather than a one-off (e.g. "job-application tickets close on Clara's
+email delivery, not on D's submission"), surface that and ask D to **confirm it is a standing policy** before any
+cross-ticket write. Only on D's explicit yes:
+
+- Write it to persistent memory (one memory file; if one already covers it, update rather than duplicate).
+- Note the owning agent + skill the rule should propagate to (a pointer/flag — do not silently rewrite another
+  agent's skill here), and apply the rule to every matching ticket in the current queue.
+
+This is a **deliberate, confirmed exception** to the "all writes stay on the decided ticket" guardrail — it is
+allowed ONLY because D explicitly designated a standing policy. Without that explicit designation, record the ruling
+as a normal per-ticket `[triage-decision]` and nothing more. If a policy write fails, report it and fall back to the
+per-ticket record; never leave the rule half-propagated silently.
 
 ### 14. Deferred / skipped / mislabeled, recap, D-action checklist, suppression report
 
@@ -216,7 +249,8 @@ Every decision path has an explicit outcome — target state and whether a comme
 | "Show me the source" | unchanged (re-asked after D reads) | none |
 | Mislabeled | corrected state | note explaining the correction; no `[triage-decision]` |
 | Bounce (bucket B) | Todo | "not a D-decision; execute or re-block" note |
-| Bulk-ack (bucket D) | Done / Canceled | `[triage-decision]` (acceptance or cancellation) |
+| Bulk-accept (bucket D1) | Done | `[triage-decision]` (acceptance) — after per-cohort confirm |
+| Cancel (bucket D2) | Canceled | `[triage-decision]` (cancellation) — after per-cohort confirm |
 
 End with a recap that carries three things:
 
