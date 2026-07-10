@@ -1,10 +1,24 @@
 {
   "env": {
-    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
+    "DISABLE_TELEMETRY": "1",
+    "DISABLE_ERROR_REPORTING": "1",
+    "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY": "1",
+    "DO_NOT_TRACK": "1",
+    "DISABLE_FEEDBACK_COMMAND": "1",
+    "CLAUDE_CODE_DISABLE_GROWTHBOOK": "1",
+    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "60"
   },
   "model": "claude-opus-4-8[1m]",
   "tui": "fullscreen",
   "agentPushNotifEnabled": true,
+  "spinnerTipsEnabled": false,
+  "cleanupPeriodDays": 180,
+  "feedbackSurveyRate": 0,
+  "attribution": {
+    "commit": "",
+    "pr": ""
+  },
   "enabledPlugins": {
     "code-review@claude-plugins-official": true,
     "frontend-design@claude-plugins-official": true,
@@ -25,7 +39,6 @@
     "type": "command",
     "command": "${HOME}/.claude/statusline.sh"
   },
-  "skipDangerousModePermissionPrompt": true,
   "hooks": {
     "PreToolUse": [
       {
@@ -43,7 +56,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "FILE=\"$CLAUDE_FILE_PATHS\"; if [[ -z \"$FILE\" ]]; then exit 0; fi; if [[ \"$FILE\" =~ \\.(test|spec)\\. ]] || [[ \"$FILE\" =~ __tests__/ ]] || [[ \"$FILE\" =~ /tests?/ ]] || [[ \"$FILE\" =~ \\.env\\.example$ ]] || [[ \"$FILE\" =~ \\.(md|json|yaml|yml|css|scss|html|txt|svg|lock)$ ]] || [[ \"$FILE\" =~ \\.(d\\.ts)$ ]]; then exit 0; fi; CONTENT=\"$CLAUDE_TOOL_INPUT\"; PATTERNS='AKIA[0-9A-Z]{16}|sk-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36}|xoxb-[0-9]{10,}|xoxp-[0-9]{10,}|glpat-[a-zA-Z0-9_-]{20}'; if echo \"$CONTENT\" | grep -qE \"$PATTERNS\"; then echo 'BLOCKED: Suspected credential/secret detected in file content' >&2; exit 2; fi",
+            "command": "FILE=\"$CLAUDE_FILE_PATHS\"; if [[ -z \"$FILE\" ]]; then exit 0; fi; if [[ \"$FILE\" =~ \\.(test|spec)\\. ]] || [[ \"$FILE\" =~ __tests__/ ]] || [[ \"$FILE\" =~ /tests?/ ]] || [[ \"$FILE\" =~ \\.env\\.example$ ]] || [[ \"$FILE\" =~ \\.(md|css|scss|html|txt|svg|lock)$ ]] || [[ \"$FILE\" =~ \\.(d\\.ts)$ ]]; then exit 0; fi; CONTENT=\"$CLAUDE_TOOL_INPUT\"; PATTERNS='AKIA[0-9A-Z]{16}|sk-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36}|xoxb-[0-9]{10,}|xoxp-[0-9]{10,}|glpat-[a-zA-Z0-9_-]{20}'; if echo \"$CONTENT\" | grep -qE \"$PATTERNS\"; then echo 'BLOCKED: Suspected credential/secret detected in file content' >&2; exit 2; fi",
             "timeout": 5
           }
         ]
