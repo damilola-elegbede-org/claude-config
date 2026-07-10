@@ -68,7 +68,7 @@ filter. Keep the names identical to the workspace views so they stay conceptuall
 | Skill view | Clara's saved view | Filter (`list_issues`) | Mode |
 | --- | --- | --- | --- |
 | `unblock` | **Needs Unblocking** | `state: Blocked` (OPS + ENG) | Interactive decision |
-| `signoff` | **Needs Your Sign-off** | `state: In Review` (+ `needs-d` label if adopted) | Interactive decision |
+| `signoff` | **Needs Your Sign-off** | `state: In Review` (OPS + ENG) | Interactive decision |
 | `deadlines` | **Upcoming Deadlines** | issues with a `dueDate`, order by dueDate asc | Risk pass |
 | `ungroomed` | **Ungroomed Backlog** | `state: Backlog` where description lacks `## Acceptance` | Grooming pass |
 
@@ -171,6 +171,5 @@ not render links, so the links live in the prose around each question.
 - Speed comes from parallel prefetch + tight question prose, NOT from bundling.
 - Views mirror Clara's saved workspace views (`Needs Unblocking`, `Needs Your Sign-off`, `Upcoming Deadlines`,
   `Ungroomed Backlog`); keep names in sync if she renames them.
-- Recommended follow-up: adopt a `needs-d` label as the escalation contract so "Needs Your Sign-off" is a clean
-  filter instead of comment archaeology.
-- Workspace convention: in `bareclaude`, `In Review` ≈ D's decision queue, not "ready to ship."
+- Workspace convention: in `bareclaude`, `In Review` ≈ D's decision queue, not "ready to ship." The `In Review`
+  state filter is the sign-off queue — no extra label needed.
