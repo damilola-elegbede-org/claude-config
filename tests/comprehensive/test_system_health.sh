@@ -189,10 +189,15 @@ fi
 # Test 7: Git repository health
 echo "Checking git repository..."
 
-if [ -d "$ORIGINAL_DIR/.git" ]; then
+if [ -d "$ORIGINAL_DIR/.git" ] || [ -f "$ORIGINAL_DIR/.git" ]; then
     # Check for uncommitted changes
     cd "$ORIGINAL_DIR"
-    UNCOMMITTED=$(git status --porcelain | wc -l | tr -d ' ')
+    if ! status_output=$(git status --porcelain); then
+        echo -e "${RED}✗${NC} Invalid git repository metadata"
+        exit 1
+    fi
+    UNCOMMITTED=$(printf '%s\n' "$status_output" |
+        awk 'NF { count++ } END { print count + 0 }')
     if [ "$UNCOMMITTED" -gt 0 ]; then
         echo -e "${YELLOW}⚠${NC} Repository has $UNCOMMITTED uncommitted changes"
     else
