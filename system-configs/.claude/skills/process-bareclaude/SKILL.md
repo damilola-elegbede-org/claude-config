@@ -38,39 +38,39 @@ the fleet's own labels decide what deserves D's attention.
 ```text
 User: /process-bareclaude
 Claude: Loading BareClaude triage views…
-  🚫 Needs Unblocking (Blocked, OPS+ENG) ...... 24 tickets
-  ⏳ Needs Your Sign-off (In Review) .......... 25 tickets
+  🚫 Needs Unblocking (Blocked, OPS+ENG) ...... <N> tickets
+  ⏳ Needs Your Sign-off (In Review) .......... <M> tickets
 
 Classified (only the genuine decisions get walked):
-  A  · needs D            9   → walk one at a time
-  B  · bounce to agent   14   → back to Dara/Clara (Todo)
-  C  · blocked upstream   5   → left; not D's
-  D1 · bulk-accept       19   → Done  (confirm IDs first)
-  D2 · cancel / shelved   2   → Canceled  (confirm IDs first)
+  A  · needs D           <a>   → walk one at a time
+  B  · bounce to agent   <b>   → back to Dara/Clara (Todo)
+  C  · blocked upstream  <c>   → left; not D's
+  D1 · bulk-accept       <d1>  → Done      (confirm IDs first)
+  D2 · cancel / shelved  <d2>  → Canceled  (confirm IDs first)
 
-[dry-run question] Walk the 9 A-tickets? (B/C handled as above; D1/D2 need a per-cohort confirm — see suppression report)
+[dry-run question] Walk the <a> A-tickets? (B/C handled as above; D1/D2 need a per-cohort confirm — see suppression report)
 
 User: proceed
-Claude: [ENG-1190](https://linear.app/bareclaude/issue/ENG-1190/...) — keystone: blocks 3 secret-cleanup tickets — <2-line context>.
+Claude: [<ID>](<linear url>) — keystone: blocks <k> dependents — <2-line context>.
         (options via AskUserQuestion; one tagged "(Recommended)")
 User: <picks an option>
-Claude: ✓ Recorded [triage-decision] on [ENG-1190](...), set state → Todo
-        ✓ Keystone resolved 3 downstream tickets — dropped from the walk
-        Next → [OPS-299](https://linear.app/bareclaude/issue/OPS-299/...) …
+Claude: ✓ Recorded [triage-decision] on [<ID>](<url>), set state → <target state>
+        ✓ Keystone resolved <k> downstream tickets — dropped from the walk
+        Next → [<next ID>](<url>) …
 
 Recap:
-  Decided: 9 · Bulk-accepted: 19 · Bounced: 14 · Cancelled: 2
-  Comments posted: 46 · States changed: 44   (9 A + 14 B→Todo + 19 D1→Done + 2 D2→Canceled)
+  Decided: <a> · Bulk-accepted: <d1> · Bounced: <b> · Cancelled: <d2>
+  Comments posted: <p> · States changed: <s>
 
-D-action checklist (produced by the decisions — every item hyperlinked):
-  1. Run 3 gh secret commands: [ENG-517](.../ENG-517/...) / [ENG-1022](.../ENG-1022/...) / [ENG-1132](.../ENG-1132/...)
-  2. Uninstall 16 retired GitHub Apps (org settings)  ✅ done this run — [ENG-1210](.../ENG-1210/...)
+D-action checklist (the concrete actions the decisions handed to D — each hyperlinked, done items marked ✅):
+  1. <e.g. run the N shell commands from ticket X> — [<ID>](<url>) …
+  2. <e.g. a console/UI change>  ✅ done this run — [<ID>](<url>)
 
-Suppression report (classified NOT-for-D — reopen anything I got wrong; runtime lists EVERY ID, no ellipsis):
-  B  · bounced (14): ENG-1070, ENG-373, OPS-292, ENG-1201, OPS-286, ENG-1071, ENG-717 (+7 more at runtime)
-  C  · left blocked-upstream (5): OPS-242, OPS-25, OPS-27, OPS-38, ENG-604
-  D1 · bulk-accepted (19): OPS-224, OPS-264, OPS-265, OPS-241, OPS-169, OPS-235 (+13 more at runtime)
-  D2 · cancelled (2): ENG-571, ENG-272
+Suppression report (classified NOT-for-D — reopen anything misclassified; lists EVERY suppressed ID at runtime):
+  B  · bounced (<b>): <all bounced IDs>
+  C  · left blocked-upstream (<c>): <all IDs, each with its blocker>
+  D1 · bulk-accepted (<d1>): <all accepted IDs>
+  D2 · cancelled (<d2>): <all cancelled IDs>
 ```
 
 ## Behavior
@@ -220,7 +220,7 @@ unverified write. A lost or duplicated decision is worse than a stall.
 ### 11. Cascade lightly + collapse keystones
 
 Comment on **direct** dependents to note the unblock. Give each cascade note a **deterministic marker** that names the
-blocker, e.g. lead with `[unblock: ENG-42]` then "blocker resolved: `<decision>`". Before posting, scan the dependent
+blocker, e.g. lead with `[unblock: <blocker-id>]` then "blocker resolved: `<decision>`". Before posting, scan the dependent
 for that exact marker referencing this blocker and **skip if already present** — so reruns and later sessions never
 duplicate the note (same idempotency contract as the decision comment, keyed on the blocker ID). When the ticket was a
 **keystone**, also drop its now-resolved dependents out of the remaining walk (re-derive the A-queue) so you never ask
@@ -302,7 +302,7 @@ All writes stay on the decided ticket, and dependents get comments only. Nothing
 ## Hyperlink rule
 
 Every ticket reference shown to D is a clickable markdown link built from the MCP-returned `url`, e.g.
-`[OPS-274](https://linear.app/bareclaude/issue/OPS-274/...)`. Never show a bare ID alone. `AskUserQuestion` chips may
+`[<ID>](https://linear.app/bareclaude/issue/<ID>/<slug>)`. Never show a bare ID alone. `AskUserQuestion` chips may
 not render links, so the links live in the prose around each question.
 
 ## Prerequisites
