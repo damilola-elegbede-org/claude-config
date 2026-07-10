@@ -139,6 +139,12 @@ answer alone. Before any bulk write, show each cohort's **exact ticket IDs, coun
 explicit confirmation **per cohort** (accept-these-N → Done; cancel-these-M → Canceled). Bucket B (→ Todo) and C
 (unchanged) are reversible and need no separate confirmation beyond the scoping answer.
 
+Confirmation is not the write. Immediately before applying either bulk write, re-fetch each confirmed ticket's
+current state, source facts (step 8), and decision context, and re-run classification (step 3) — drop any ticket
+that drifted out of D1/D2 eligibility since D confirmed (state changed, blocker reappeared) and note the drop in the
+recap. Route each surviving ticket's write through the idempotent record-and-repair logic in step 10, applied per
+ticket — a bulk write is N idempotent per-ticket writes, not one opaque atomic operation.
+
 ### 6. Just-in-time re-fetch before each ask
 
 Immediately before asking about a ticket, re-fetch its current **state AND decision context** — not state alone. The
@@ -189,9 +195,10 @@ options you present; D still decides. Elsewhere the consult is optional — don'
 
 ### 10. Record atomically (re-check, then idempotent write)
 
-On D's answer, **FIRST re-fetch** the ticket's state and scan for an existing `[triage-decision]` marker — D may
-have taken minutes to answer, and an agent may have moved the ticket meanwhile. Resolve the pre-write check by cases,
-so a partial write from a prior interrupted attempt is repaired rather than orphaned:
+On D's answer — for a single A-ticket, or for each ticket surviving the step-5 preflight in a confirmed D1/D2
+cohort — **FIRST re-fetch** the ticket's state and scan for an existing `[triage-decision]` marker; D (or the step-5
+preflight) may have taken minutes, and an agent may have moved the ticket meanwhile. Resolve the pre-write check by
+cases, so a partial write from a prior interrupted attempt is repaired rather than orphaned:
 
 - **Marker present AND state already matches this decision** → fully done; skip with a note.
 - **Marker present but state inconsistent** (comment landed, state write did not, on a prior attempt) → this is a
