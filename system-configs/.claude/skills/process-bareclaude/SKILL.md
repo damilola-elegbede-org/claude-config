@@ -152,7 +152,7 @@ Date: <YYYY-MM-DD>
 4. **Re-run duplication** → `[triage-decision]` marker checked in step 5; never double-decide a ticket.
 5. **Mislabeled state** → treat "this isn't really blocked/ready" as a valid answer; fix state, no fake decision.
 
-All writes stay on the decided ticket + comments-only on dependents. Nothing auto-transitions downstream.
+All writes stay on the decided ticket, and dependents get comments only. Nothing auto-transitions downstream.
 
 ## Hyperlink rule
 
