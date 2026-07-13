@@ -9,7 +9,7 @@
     "CLAUDE_CODE_DISABLE_GROWTHBOOK": "1",
     "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "60"
   },
-  "model": "claude-opus-4-8[1m]",
+  "model": "claude-opus-4-8",
   "tui": "fullscreen",
   "agentPushNotifEnabled": true,
   "spinnerTipsEnabled": false,
