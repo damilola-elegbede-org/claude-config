@@ -58,6 +58,7 @@ if [[ -z "$input" ]] || ! echo "$input" | jq . >/dev/null 2>&1; then
   output_style="default"
   version="unknown"
   context_pct="--"
+  session_name=""
 else
   # Valid JSON input - extract all fields in a single jq call to reduce process overhead
   jq_output=$(printf '%s' "$input" | jq -r --arg pwd "$PWD" '[
@@ -65,9 +66,10 @@ else
     (.workspace.current_dir // .cwd // $pwd),
     (.output_style.name // "default"),
     (.version // "unknown"),
-    ((.context_window.used_percentage // "") | tostring)
+    ((.context_window.used_percentage // "") | tostring),
+    (.session_name // "")
   ] | @tsv')
-  IFS=$'\t' read -r model_name raw_dir output_style version context_pct <<< "$jq_output"
+  IFS=$'\t' read -r model_name raw_dir output_style version context_pct session_name <<< "$jq_output"
   current_dir=$(basename "$raw_dir")
 fi
 
@@ -359,6 +361,11 @@ rm -f "$version_dir/acknowledged_version" "$version_dir/notified_session" 2>/dev
 
 # Reset any previous formatting first
 printf '\033[0m'
+
+# Session name: leading magenta segment, shown only when the session has a name
+if [[ -n "$session_name" ]]; then
+  printf '\033[35m%s\033[0m \033[90m•\033[0m ' "$session_name"
+fi
 
 # Output with colors
 # Model: red | Branch: orange | Dir: cyan | Style: yellow | Version: green (with ✨ if new) | Context: dynamic color
