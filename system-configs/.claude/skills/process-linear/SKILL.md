@@ -163,7 +163,8 @@ prior `[triage-decision]` marker already exists, or a keystone already resolved 
   stakes genuinely diverge. **Never bundle unrelated decisions into one question.**
 - **All decision-relevant context lives INSIDE the dialog** (D ruling, 2026-07-17): the AskUserQuestion dialog takes
   focus immediately, so D answers without reading prose above it. Prose around the question carries only the
-  clickable links and the post-decision record; never park load-bearing context there.
+  clickable links, the post-decision record, and the standing interaction affordances below (`skip`/`defer`/`show
+  me the source`, which can't be spent as option slots); never park load-bearing recommendation context there.
 - **The question text follows D's ratified ask format** (2026-07-17 feedback; mirrors the OPS-319 framework in
   `infra/references/d-facing-ask-template.md`). Structured and scannable, in exactly this order, each part 1-2 short
   lines — never a run-on paragraph of inlined figures and ticket IDs (that density is the failure mode this format
@@ -334,8 +335,9 @@ All writes stay on the decided ticket, and dependents get comments only. Nothing
 
 Every ticket reference shown to D is a clickable markdown link built from the MCP-returned `url`, e.g.
 `[<ID>](https://linear.app/bareclaude/issue/<ID>/<slug>)`. Never show a bare ID alone. `AskUserQuestion` chips may
-not render links, so the links live in the prose around each question — but links are the ONLY thing the prose is
-load-bearing for; all decision context goes inside the dialog per step 7.
+not render links, so the links live in the prose around each question — the prose is load-bearing only for those
+links, the post-decision record, and the `skip`/`defer`/`show me the source` affordance (step 7); all decision
+context goes inside the dialog.
 
 ## Prerequisites
 
