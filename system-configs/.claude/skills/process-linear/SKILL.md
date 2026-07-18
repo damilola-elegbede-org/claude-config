@@ -1,23 +1,23 @@
 ---
-name: process-bareclaude
+name: process-linear
 description: Walk D through the BareClaude Linear triage one decision at a time, driven by Clara's saved workspace views — Needs Unblocking and Needs Your Sign-off. Classifies the queue FIRST (typically only ~1 in 5 tickets truly needs D), walks only the genuine decisions with full context, recommended options, and clickable ticket links, and bulk-handles the rest. Use when D wants to clear the Linear decision/approval queue.
 argument-hint: "[--view signoff|unblock|deadlines|ungroomed|all] [--team ENG|OPS|all]"
 metadata:
   category: workflow
 ---
 
-# /process-bareclaude
+# /process-linear
 
 ## Usage
 
 ```bash
-/process-bareclaude                  # Decision views: Needs Unblocking, then Needs Your Sign-off
-/process-bareclaude --view signoff   # Only "Needs Your Sign-off"
-/process-bareclaude --view unblock   # Only "Needs Unblocking"
-/process-bareclaude --view deadlines # Risk pass over "Upcoming Deadlines"
-/process-bareclaude --view ungroomed # Grooming pass over "Ungroomed Backlog"
-/process-bareclaude --view all       # All four views in order
-/process-bareclaude --team OPS       # Restrict to Operations
+/process-linear                  # Decision views: Needs Unblocking, then Needs Your Sign-off
+/process-linear --view signoff   # Only "Needs Your Sign-off"
+/process-linear --view unblock   # Only "Needs Unblocking"
+/process-linear --view deadlines # Risk pass over "Upcoming Deadlines"
+/process-linear --view ungroomed # Grooming pass over "Ungroomed Backlog"
+/process-linear --view all       # All four views in order
+/process-linear --team OPS       # Restrict to Operations
 ```
 
 ## Description
@@ -36,7 +36,7 @@ the fleet's own labels decide what deserves D's attention.
 ## Expected Output
 
 ```text
-User: /process-bareclaude
+User: /process-linear
 Claude: Loading BareClaude triage views…
   🚫 Needs Unblocking (Blocked, OPS+ENG) ...... <N> tickets
   ⏳ Needs Your Sign-off (In Review) .......... <M> tickets
@@ -161,9 +161,41 @@ prior `[triage-decision]` marker already exists, or a keystone already resolved 
 - One question per **decision**. A decision may span N homogeneous tickets (a keystone that unblocks several; a
   bulk-accept of completed briefs) — ask once and record on each affected ticket. Keep it per-ticket only when the
   stakes genuinely diverge. **Never bundle unrelated decisions into one question.**
+- **All decision-relevant context lives INSIDE the dialog** (D ruling, 2026-07-17): the AskUserQuestion dialog takes
+  focus immediately, so D answers without reading prose above it. Prose around the question carries only the
+  clickable links and the post-decision record; never park load-bearing context there.
+- **The question text follows D's ratified ask format** (2026-07-17 feedback; mirrors the OPS-319 framework in
+  `infra/references/d-facing-ask-template.md`). Structured and scannable, in exactly this order, each part 1-2 short
+  lines — never a run-on paragraph of inlined figures and ticket IDs (that density is the failure mode this format
+  replaced):
+
+  ```text
+  <ID> — <issue headline, verbatim title>
+
+  Context: <what this ticket is, in plain words — no ticket-diving needed>
+  Latest: <the most recent material activity/update, dated>
+  Why it matters: <consequence of this decision — what unblocks, costs, or breaks>
+
+  Ask: <exactly ONE clear question>
+  ```
+
+  **Example (a real one):**
+
+  ```text
+  ENG-1478 — Fix Execute spec: remove phantom .claude/ write-guard
+
+  Context: Execute's task-spec claims a write-guard blocks .claude/ writes in cron runs, so it drafts-and-blocks instead of writing.
+  Latest: 7/16 — Dara verified against the live runtime that no guard exists; PR #249 rewrites the spec to attempt-first. CI green, mergeable.
+  Why it matters: the phantom caused ~3 weeks of self-blocks and hides 42 of 154 Todo issues from Execute's pickup.
+
+  Ask: Approve merging PR #249?
+  ```
+
 - Put the **full linear.app URL** in prose — use the `url` the MCP returns; never string-build it.
-- 2-4 concrete options; tag exactly one **"(Recommended)"** with a one-line rationale. Use option `preview` text to
-  mock the concrete outcome of each choice — it reads far better than labels alone.
+- 2-4 concrete options; tag exactly one **"(Recommended)"** with a one-line rationale in its description.
+- Option `preview` panes carry **artifacts only** — the exact message copy, the diff summary, the dollar math a
+  choice would enact. Never restate in a preview the context that belongs in the question text; a preview that
+  re-narrates the ticket is noise D has to re-read.
 - If any option's real substance lives outside Linear (a diff, a vault doc, org state), verify it (step 8) or mark
   the recommendation **tentative** and offer to pull it — never a confident rec built on a source you did not read.
 - In prose, state that D can also type **"skip"**, **"defer"**, or **"show me the source"** at any time — do not
@@ -280,7 +312,7 @@ Post every decision in this exact shape so the agents can parse D's rulings reli
 [triage-decision]
 Decision: <what D chose>
 Rationale: <one line — D's reasoning if given>
-Decided-by: D via /process-bareclaude triage
+Decided-by: D via /process-linear triage
 Date: <YYYY-MM-DD>
 ```
 
@@ -302,7 +334,8 @@ All writes stay on the decided ticket, and dependents get comments only. Nothing
 
 Every ticket reference shown to D is a clickable markdown link built from the MCP-returned `url`, e.g.
 `[<ID>](https://linear.app/bareclaude/issue/<ID>/<slug>)`. Never show a bare ID alone. `AskUserQuestion` chips may
-not render links, so the links live in the prose around each question.
+not render links, so the links live in the prose around each question — but links are the ONLY thing the prose is
+load-bearing for; all decision context goes inside the dialog per step 7.
 
 ## Prerequisites
 
