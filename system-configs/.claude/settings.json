@@ -140,7 +140,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${HOME}/.claude/exit_hook.sh"
+            "command": "${HOME}/.claude/exit_hook.sh",
+            "timeout": 10
           }
         ]
       }
