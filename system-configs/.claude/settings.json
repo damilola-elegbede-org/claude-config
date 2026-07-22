@@ -10,7 +10,7 @@
     "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "60"
   },
   "model": "fable",
-  "outputStyle": "The Brief",
+  "outputStyle": "Ultra Concise",
   "tui": "fullscreen",
   "agentPushNotifEnabled": true,
   "spinnerTipsEnabled": false,
