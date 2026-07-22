@@ -50,8 +50,8 @@ if not last:
 t = re.sub(r'```.*?```', ' (code block omitted) ', last, flags=re.S)
 t = re.sub(r'`([^`]*)`', r'\1', t)
 t = re.sub(r'\[([^\]]*)\]\([^)]*\)', r'\1', t)
-t = re.sub(r'^[#>\-\*\|\s]+', '', t, flags=re.M)
 t = re.sub(r'[\*_]{1,3}([^\*_\n]+)[\*_]{1,3}', r'\1', t)
+t = re.sub(r'^[#>\-\*\|\s]+', '', t, flags=re.M)
 t = ' '.join(t.split())
 print(t[:int(sys.argv[2])])
 PYEOF
