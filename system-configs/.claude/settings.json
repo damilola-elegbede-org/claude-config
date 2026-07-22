@@ -156,6 +156,17 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/claude-speak.sh",
+            "timeout": 45
+          }
+        ]
+      }
     ]
   }
 }
