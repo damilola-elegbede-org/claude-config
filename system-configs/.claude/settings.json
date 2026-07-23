@@ -10,7 +10,7 @@
     "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "60"
   },
   "model": "fable",
-  "outputStyle": "The Brief",
+  "outputStyle": "Ultra Concise",
   "tui": "fullscreen",
   "agentPushNotifEnabled": true,
   "spinnerTipsEnabled": false,
@@ -153,6 +153,17 @@
           {
             "type": "command",
             "command": "afplay -v 1.0 '/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Modern/Keys.m4r' 2>/dev/null &"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/claude-speak.sh",
+            "timeout": 45
           }
         ]
       }
