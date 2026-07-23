@@ -386,6 +386,8 @@ if [[ $cache_age -gt 60 ]]; then
       rm -f "$tmp_usage"
       touch "$usage_cache" 2>/dev/null || true
     fi
+  else
+    touch "$usage_cache" 2>/dev/null || true
   fi
 fi
 
