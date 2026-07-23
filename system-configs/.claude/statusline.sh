@@ -359,30 +359,81 @@ perform_cleanup "$terminal_versions_dir"
 # Clean up legacy files from old implementations
 rm -f "$version_dir/acknowledged_version" "$version_dir/notified_session" 2>/dev/null || true
 
-# Usage segment via ccusage (skipped when not installed or no session JSON)
-# Bounded with a portable execution deadline: no `timeout`/`gtimeout` on stock
-# macOS, so a background watchdog kills a stalled ccusage after 2s and a
-# timeout/non-zero exit is treated as an empty (skipped) segment.
-usage_segment=""
-if command -v ccusage >/dev/null 2>&1 && [[ -n "$input" ]]; then
-  usage_raw=""
-  usage_tmpfile=$(mktemp 2>/dev/null) || usage_tmpfile=""
-  if [[ -n "$usage_tmpfile" ]]; then
-    printf '%s' "$input" | ccusage statusline --offline >"$usage_tmpfile" 2>/dev/null &
-    usage_pid=$!
-    ( sleep 2; kill -9 "$usage_pid" 2>/dev/null ) &
-    usage_watchdog=$!
-    if wait "$usage_pid" 2>/dev/null; then
-      usage_raw=$(cat "$usage_tmpfile" 2>/dev/null)
+# ---- Plan-usage segment: weekly-all / weekly-Fable / 5h-session ----
+# Percentages come from Claude's OAuth usage endpoint (the same numbers /usage
+# shows), cached 60s so the statusline stays fast. Token is read from the macOS
+# Keychain; on any failure the segment is omitted and stale cache is reused.
+usage_cache="$HOME/.claude/.usage_cache.json"
+cache_age=999999
+if [[ -f "$usage_cache" ]]; then
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    cache_mtime=$(stat -f %m "$usage_cache" 2>/dev/null || echo "0")
+  else
+    cache_mtime=$(stat -c %Y "$usage_cache" 2>/dev/null || echo "0")
+  fi
+  cache_age=$(( $(date +%s) - cache_mtime ))
+fi
+if [[ $cache_age -gt 60 ]]; then
+  oauth_bearer=$(security find-generic-password -s "Claude Code-credentials" -w 2>/dev/null | jq -r '.claudeAiOauth.accessToken // empty' 2>/dev/null)
+  if [[ -n "$oauth_bearer" ]]; then
+    tmp_usage=$(mktemp "$HOME/.claude/.usage_cache.XXXXXX" 2>/dev/null || printf '%s' "$HOME/.claude/.usage_cache.$$")
+    if curl -s --max-time 3 -o "$tmp_usage" "https://api.anthropic.com/api/oauth/usage" \
+         -H "Authorization: Bearer $oauth_bearer" -H "anthropic-beta: oauth-2025-04-20" 2>/dev/null \
+       && jq -e '.limits' "$tmp_usage" >/dev/null 2>&1; then
+      mv -f "$tmp_usage" "$usage_cache"
+    else
+      # Backoff: keep stale percentages, don't re-hit a failing endpoint every refresh
+      rm -f "$tmp_usage"
+      touch "$usage_cache" 2>/dev/null || true
     fi
-    kill "$usage_watchdog" 2>/dev/null
-    wait "$usage_watchdog" 2>/dev/null
-    rm -f "$usage_tmpfile" 2>/dev/null
   fi
-  if [[ "$usage_raw" == *💰* ]]; then
-    # Keep only the cost + burn-rate segments (model/context already shown)
-    usage_segment=$(printf '%s' "$usage_raw" | sed -E 's/^[^|]*\| *//; s/ *\| *🧠.*$//')
-  fi
+fi
+
+# Heat-map color for a percentage (same thresholds as context)
+heat_color() {
+  local p=$1
+  if [[ $p -ge 90 ]]; then printf '\033[31m'
+  elif [[ $p -ge 80 ]]; then printf '\033[38;5;208m'
+  elif [[ $p -ge 65 ]]; then printf '\033[33m'
+  else printf '\033[32m'; fi
+}
+
+# 5-segment progress bar for a percentage (▓ filled, ░ empty)
+heat_bar() {
+  local p=$1 filled bar="" i
+  filled=$(( (p + 10) / 20 ))
+  [[ $filled -gt 5 ]] && filled=5
+  [[ $filled -lt 0 ]] && filled=0
+  for ((i=0; i<filled; i++)); do bar+="▓"; done
+  for ((i=filled; i<5; i++)); do bar+="░"; done
+  printf '%s' "$bar"
+}
+
+usage_segment=""
+if [[ -f "$usage_cache" ]]; then
+  usage_tsv=$(jq -r '[
+    ([.limits[] | select(.kind == "weekly_all")][0].percent // ""),
+    ([.limits[] | select(.kind == "weekly_scoped")][0].percent // ""),
+    ([.limits[] | select(.kind == "session")][0].percent // "")
+  ] | @tsv' "$usage_cache" 2>/dev/null)
+  IFS=$'\t' read -r u_all u_fable u_5h <<< "$usage_tsv"
+  usage_parts=""
+  for metric in "all:$u_all" "fable:$u_fable" "5h:$u_5h"; do
+    m_label=${metric%%:*}
+    m_pct=${metric#*:}; m_pct=${m_pct%.*}
+    [[ "$m_pct" =~ ^[0-9]+$ ]] || continue
+    m_part=$(printf '%s %s%s %s%%\033[0m' "$m_label" "$(heat_color "$m_pct")" "$(heat_bar "$m_pct")" "$m_pct")
+    [[ -n "$usage_parts" ]] && usage_parts+=" · "
+    usage_parts+="$m_part"
+  done
+  [[ -n "$usage_parts" ]] && usage_segment="usage: $usage_parts"
+fi
+
+# Context rendered as label + bar + percentage with the same heat map
+if [[ "$ctx_display" == "--" ]]; then
+  ctx_render=$(printf 'context \033[90m--\033[0m')
+else
+  ctx_render=$(printf "context ${ctx_color}%s %s\033[0m" "$(heat_bar "$ctx_int")" "$ctx_display")
 fi
 
 # Reset any previous formatting first
@@ -396,13 +447,13 @@ fi
 # Output with colors
 # Model: red | Branch: orange | Dir: cyan | Style: yellow | Version: green (with ✨ if new) | Context: dynamic color
 # Using • (bullet) as separator
-printf '\033[31m%s\033[0m \033[90m•\033[0m \033[38;5;208m%s\033[0m \033[90m•\033[0m \033[36m%s\033[0m \033[90m•\033[0m \033[33m%s\033[0m \033[90m•\033[0m \033[32m%s\033[0m \033[90m•\033[0m '"${ctx_color}"'%s\033[0m' \
+printf '\033[31m%s\033[0m \033[90m•\033[0m \033[38;5;208m%s\033[0m \033[90m•\033[0m \033[36m%s\033[0m \033[90m•\033[0m \033[33m%s\033[0m \033[90m•\033[0m \033[32m%s\033[0m \033[90m•\033[0m %s' \
   "$model_name" \
   "$git_branch" \
   "$current_dir" \
   "$output_style" \
   "$version_display" \
-  "$ctx_display"
+  "$ctx_render"
 if [[ -n "$usage_segment" ]]; then
   printf ' \033[90m•\033[0m %s' "$usage_segment"
 fi
