@@ -26,9 +26,31 @@ fi
 # ---- Stop-hook mode ----
 [ -f "$FLAG" ] || exit 0
 
+# Headless fleet fires (queue worker, telegram listener, crons — anything
+# launched through agent-shell-bootstrap) must never speak: they have their own
+# voice surfaces, and a 3am cron reading its summary aloud is a pager, not a
+# feature. Interactive sessions don't carry the slug.
+[ -n "$BARECLAUDE_AGENT_SLUG" ] && exit 0
+
 INPUT=$(cat)
 TRANSCRIPT=$(printf '%s' "$INPUT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('transcript_path',''))" 2>/dev/null)
 [ -f "$TRANSCRIPT" ] || exit 0
+
+# Corresponding voices (D rule 2026-07-22): a session running in an agent's
+# workspace speaks in THAT agent's voice, resolved from the fleet model policy;
+# anything else (D's plain sessions) stays Matilda. Policy unreadable → Matilda.
+CWD=$(printf '%s' "$INPUT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('cwd',''))" 2>/dev/null)
+POLICY="$HOME/BareClaude/infra/model-policy.json"
+AGENT=""
+case "$CWD" in
+  "$HOME"/BareClaude/dara*)  AGENT="dara" ;;
+  "$HOME"/BareClaude/clara*) AGENT="clara" ;;
+  "$HOME"/BareClaude/tars*)  AGENT="tars" ;;
+esac
+if [ -n "$AGENT" ] && [ -f "$POLICY" ]; then
+  AV=$(jq -r --arg a "$AGENT" '.telegram_media.tts.voices[$a] | if type == "object" then .id else . end // empty' "$POLICY" 2>/dev/null)
+  case "$AV" in ??????????*) VOICE_ID="$AV" ;; esac
+fi
 
 TEXT=$(python3 - "$TRANSCRIPT" "$MAX_CHARS" <<'PYEOF'
 import json, re, sys
