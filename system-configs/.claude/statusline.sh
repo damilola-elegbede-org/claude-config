@@ -359,6 +359,16 @@ perform_cleanup "$terminal_versions_dir"
 # Clean up legacy files from old implementations
 rm -f "$version_dir/acknowledged_version" "$version_dir/notified_session" 2>/dev/null || true
 
+# Usage segment via ccusage (skipped when not installed or no session JSON)
+usage_segment=""
+if command -v ccusage >/dev/null 2>&1 && [[ -n "$input" ]]; then
+  usage_raw=$(printf '%s' "$input" | ccusage statusline --offline 2>/dev/null)
+  if [[ "$usage_raw" == *💰* ]]; then
+    # Keep only the cost + burn-rate segments (model/context already shown)
+    usage_segment=$(printf '%s' "$usage_raw" | sed -E 's/^[^|]*\| *//; s/ *\| *🧠.*$//')
+  fi
+fi
+
 # Reset any previous formatting first
 printf '\033[0m'
 
@@ -370,10 +380,14 @@ fi
 # Output with colors
 # Model: red | Branch: orange | Dir: cyan | Style: yellow | Version: green (with ✨ if new) | Context: dynamic color
 # Using • (bullet) as separator
-printf '\033[31m%s\033[0m \033[90m•\033[0m \033[38;5;208m%s\033[0m \033[90m•\033[0m \033[36m%s\033[0m \033[90m•\033[0m \033[33m%s\033[0m \033[90m•\033[0m \033[32m%s\033[0m \033[90m•\033[0m '"${ctx_color}"'%s\033[0m\n' \
+printf '\033[31m%s\033[0m \033[90m•\033[0m \033[38;5;208m%s\033[0m \033[90m•\033[0m \033[36m%s\033[0m \033[90m•\033[0m \033[33m%s\033[0m \033[90m•\033[0m \033[32m%s\033[0m \033[90m•\033[0m '"${ctx_color}"'%s\033[0m' \
   "$model_name" \
   "$git_branch" \
   "$current_dir" \
   "$output_style" \
   "$version_display" \
   "$ctx_display"
+if [[ -n "$usage_segment" ]]; then
+  printf ' \033[90m•\033[0m %s' "$usage_segment"
+fi
+printf '\n'
