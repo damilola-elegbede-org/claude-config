@@ -78,10 +78,17 @@ rm -f "$OUT.json"
 # (laptop runs voice-rx.sh + `RemoteForward 7777 localhost:7777` in its ssh
 # config), stream the audio through it so speech follows you to the machine
 # you're SSH'd in from; otherwise play on this machine's speakers.
+# Receiver candidates, first listener wins: explicit SSH tunnel (127.0.0.1,
+# for non-tailnet paths), then the laptop directly over the tailnet — D SSHes
+# via Tailscale, so the Mini usually has a direct route to the Air and no
+# forward is needed. Override list via CLAUDE_VOICE_RX_HOSTS.
 RX_PORT=7777
-if nc -z 127.0.0.1 "$RX_PORT" 2>/dev/null; then
-  ( nc 127.0.0.1 "$RX_PORT" < "$OUT"; rm -f "$OUT" ) &
-else
-  ( afplay "$OUT" 2>/dev/null; rm -f "$OUT" ) &
-fi
+RX_HOSTS="${CLAUDE_VOICE_RX_HOSTS:-127.0.0.1 damilola-mba}"
+for RX in $RX_HOSTS; do
+  if nc -z -G 1 "$RX" "$RX_PORT" 2>/dev/null; then
+    ( nc -G 2 -w 10 "$RX" "$RX_PORT" < "$OUT" 2>/dev/null; rm -f "$OUT" ) &
+    exit 0
+  fi
+done
+( afplay "$OUT" 2>/dev/null; rm -f "$OUT" ) &
 exit 0
