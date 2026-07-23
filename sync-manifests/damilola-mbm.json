@@ -1,0 +1,28 @@
+{
+  "_comment": "Per-station sync manifest for the Mac Mini (fleet production node). Station is resolved via `scutil --get LocalHostName`; a machine with NO manifest file gets the default full sync (laptops: damilola-mba, damilola-mbp). settings 'merge' mode: repo wins ONLY on settings_owned_keys — every other live key survives untouched, so fleet-local settings can never be clobbered by a sync. To hand a drifted key to repo control, add it to settings_owned_keys deliberately (that is the ratification step).",
+  "mode": "scoped",
+  "sync": {
+    "agents": true,
+    "skills": true,
+    "output_styles": true,
+    "hook_scripts": true,
+    "claude_md": true,
+    "settings": "merge",
+    "settings_owned_keys": [
+      "model",
+      "outputStyle",
+      "hooks",
+      "statusLine",
+      "tui",
+      "spinnerTipsEnabled",
+      "cleanupPeriodDays",
+      "feedbackSurveyRate",
+      "attribution",
+      "agentPushNotifEnabled",
+      "theme",
+      "teammateMode",
+      "skipDangerousModePermissionPrompt",
+      "trustedDirectories"
+    ]
+  }
+}
