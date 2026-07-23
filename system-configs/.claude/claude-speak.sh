@@ -65,7 +65,7 @@ KEY="$ELEVENLABS_API_KEY"
 [ -n "$KEY" ] || KEY=$(grep ELEVENLABS_API_KEY "$HOME/.zshrc" 2>/dev/null | head -1 | sed -E "$STRIP")
 [ -n "$KEY" ] || exit 0
 
-OUT=$(mktemp -t claude-speak).mp3
+OUT=$(mktemp -t claude-speak) && mv "$OUT" "$OUT.mp3" && OUT="$OUT.mp3"
 printf '%s' "$TEXT" | python3 -c "import json,sys; print(json.dumps({'text': sys.stdin.read(), 'model_id': '$MODEL'}))" > "$OUT.json"
 curl -s --max-time 30 -o "$OUT" -X POST \
   "https://api.elevenlabs.io/v1/text-to-speech/$VOICE_ID" \
