@@ -26,11 +26,16 @@ fi
 # ---- Stop-hook mode ----
 [ -f "$FLAG" ] || exit 0
 
-# Headless fleet fires (queue worker, telegram listener, crons — anything
-# launched through agent-shell-bootstrap) must never speak: they have their own
-# voice surfaces, and a 3am cron reading its summary aloud is a pager, not a
-# feature. Interactive sessions don't carry the slug.
+# Only D's TRULY interactive sessions ever speak (D rule 2026-07-23):
+# - fleet fires (queue worker, telegram listener, crons) carry
+#   BARECLAUDE_AGENT_SLUG via agent-shell-bootstrap — silent, they have their
+#   own voice surfaces and a 3am cron must not become a pager;
+# - background job sessions carry CLAUDE_JOB_DIR — silent, D isn't
+#   necessarily watching and parallel jobs talking over each other is noise.
+# What remains is a foreground `claude` D launched in a terminal, gated by the
+# voice-on flag (default OFF).
 [ -n "$BARECLAUDE_AGENT_SLUG" ] && exit 0
+[ -n "$CLAUDE_JOB_DIR" ] && exit 0
 
 INPUT=$(cat)
 TRANSCRIPT=$(printf '%s' "$INPUT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('transcript_path',''))" 2>/dev/null)
