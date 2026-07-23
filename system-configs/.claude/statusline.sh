@@ -360,9 +360,25 @@ perform_cleanup "$terminal_versions_dir"
 rm -f "$version_dir/acknowledged_version" "$version_dir/notified_session" 2>/dev/null || true
 
 # Usage segment via ccusage (skipped when not installed or no session JSON)
+# Bounded with a portable execution deadline: no `timeout`/`gtimeout` on stock
+# macOS, so a background watchdog kills a stalled ccusage after 2s and a
+# timeout/non-zero exit is treated as an empty (skipped) segment.
 usage_segment=""
 if command -v ccusage >/dev/null 2>&1 && [[ -n "$input" ]]; then
-  usage_raw=$(printf '%s' "$input" | ccusage statusline --offline 2>/dev/null)
+  usage_raw=""
+  usage_tmpfile=$(mktemp 2>/dev/null) || usage_tmpfile=""
+  if [[ -n "$usage_tmpfile" ]]; then
+    printf '%s' "$input" | ccusage statusline --offline >"$usage_tmpfile" 2>/dev/null &
+    usage_pid=$!
+    ( sleep 2; kill -9 "$usage_pid" 2>/dev/null ) &
+    usage_watchdog=$!
+    if wait "$usage_pid" 2>/dev/null; then
+      usage_raw=$(cat "$usage_tmpfile" 2>/dev/null)
+    fi
+    kill "$usage_watchdog" 2>/dev/null
+    wait "$usage_watchdog" 2>/dev/null
+    rm -f "$usage_tmpfile" 2>/dev/null
+  fi
   if [[ "$usage_raw" == *💰* ]]; then
     # Keep only the cost + burn-rate segments (model/context already shown)
     usage_segment=$(printf '%s' "$usage_raw" | sed -E 's/^[^|]*\| *//; s/ *\| *🧠.*$//')
