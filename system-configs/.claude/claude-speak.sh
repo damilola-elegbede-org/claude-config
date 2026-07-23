@@ -74,6 +74,14 @@ curl -s --max-time 30 -o "$OUT" -X POST \
 rm -f "$OUT.json"
 
 # Background playback so the hook returns immediately (same pattern as the
-# Notification hook's afplay).
-( afplay "$OUT" 2>/dev/null; rm -f "$OUT" ) &
+# Notification hook's afplay). If an SSH reverse tunnel receiver is listening
+# (laptop runs voice-rx.sh + `RemoteForward 7777 localhost:7777` in its ssh
+# config), stream the audio through it so speech follows you to the machine
+# you're SSH'd in from; otherwise play on this machine's speakers.
+RX_PORT=7777
+if nc -z 127.0.0.1 "$RX_PORT" 2>/dev/null; then
+  ( nc 127.0.0.1 "$RX_PORT" < "$OUT"; rm -f "$OUT" ) &
+else
+  ( afplay "$OUT" 2>/dev/null; rm -f "$OUT" ) &
+fi
 exit 0
