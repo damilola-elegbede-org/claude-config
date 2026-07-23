@@ -8,7 +8,7 @@ PORT="${1:-7777}"
 echo "voice-rx: listening on :$PORT (ctrl-c to stop)"
 while :; do
   T=$(mktemp -t voice-rx).mp3
-  nc -l "$PORT" > "$T" 2>/dev/null
+  nc -l 127.0.0.1 "$PORT" > "$T" 2>/dev/null
   [ -s "$T" ] && afplay "$T" 2>/dev/null
   rm -f "$T"
 done
