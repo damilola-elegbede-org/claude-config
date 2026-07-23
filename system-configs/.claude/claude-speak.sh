@@ -85,17 +85,22 @@ PYEOF
 )
 [ -n "$TEXT" ] || exit 0
 
-# Sourced from env, falling back to the shell profile. Structured this way so
-# the repo's pre-commit secret scan doesn't false-positive on the var name.
-STRIP='s/^[^=]*=//; s/"//g'
+# Key resolution: env override, else the fleet age vault — never a plaintext
+# shell profile (D ruling 2026-07-23; any process can read ~/.zshrc, and the
+# vault is the single rotation point).
 KEY="$ELEVENLABS_API_KEY"
-[ -n "$KEY" ] || KEY=$(grep ELEVENLABS_API_KEY "$HOME/.zshrc" 2>/dev/null | head -1 | sed -E "$STRIP")
+if [ -z "$KEY" ]; then
+  VAULT="$HOME/BareClaude/infra/credentials/shared/elevenlabs-api.age"
+  AGEKEY="$HOME/BareClaude/infra/credentials/age-key.txt"
+  AGEBIN=$(command -v age || echo /opt/homebrew/bin/age)
+  [ -f "$VAULT" ] && [ -f "$AGEKEY" ] && KEY=$("$AGEBIN" -d -i "$AGEKEY" "$VAULT" 2>/dev/null)
+fi
 [ -n "$KEY" ] || exit 0
 
 OUT=$(mktemp -t claude-speak) && mv "$OUT" "$OUT.mp3" && OUT="$OUT.mp3"
 printf '%s' "$TEXT" | python3 -c "import json,sys; print(json.dumps({'text': sys.stdin.read(), 'model_id': '$MODEL'}))" > "$OUT.json"
 curl -s --max-time 30 -o "$OUT" -X POST \
-  "https://api.elevenlabs.io/v1/text-to-speech/$VOICE_ID" \
+  "https://api.elevenlabs.io/v1/text-to-speech/$VOICE_ID?enable_logging=false" \
   -H "xi-api-key: $KEY" -H "Content-Type: application/json" \
   --data @"$OUT.json"
 rm -f "$OUT.json"
