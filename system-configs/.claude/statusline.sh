@@ -375,6 +375,12 @@ if [[ -f "$usage_cache" ]]; then
 fi
 if [[ $cache_age -gt 60 ]]; then
   oauth_bearer=$(security find-generic-password -s "Claude Code-credentials" -w 2>/dev/null | jq -r '.claudeAiOauth.accessToken // empty' 2>/dev/null)
+  # Headless/SSH fallback: machines using file-based credential storage (the
+  # Mac Mini fleet node) have no Keychain item, and SSH sessions can't answer
+  # a Keychain prompt anyway. Same JSON shape either way.
+  if [[ -z "$oauth_bearer" && -f "$HOME/.claude/.credentials.json" ]]; then
+    oauth_bearer=$(jq -r '.claudeAiOauth.accessToken // empty' "$HOME/.claude/.credentials.json" 2>/dev/null)
+  fi
   if [[ -n "$oauth_bearer" ]]; then
     tmp_usage=$(mktemp "$HOME/.claude/.usage_cache.XXXXXX" 2>/dev/null || printf '%s' "$HOME/.claude/.usage_cache.$$")
     if curl -s --max-time 3 -o "$tmp_usage" "https://api.anthropic.com/api/oauth/usage" \
