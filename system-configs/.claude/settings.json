@@ -9,7 +9,8 @@
     "CLAUDE_CODE_DISABLE_GROWTHBOOK": "1",
     "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "60"
   },
-  "model": "fable",
+  "model": "claude-sonnet-5",
+  "advisorModel": "claude-opus-5",
   "outputStyle": "Ultra Concise",
   "tui": "fullscreen",
   "agentPushNotifEnabled": true,
