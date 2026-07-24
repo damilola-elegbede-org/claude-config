@@ -328,6 +328,10 @@ Date: <YYYY-MM-DD>
 5. **Re-run duplication** → `[triage-decision]` marker checked in step 6; keystone collapse (step 11); never
    double-decide a ticket.
 6. **Mislabeled state** → treat "this isn't really blocked/ready" as a valid answer; fix state, no fake decision.
+7. **Execution boundary (D rule, 2026-07-24)** → triage RECORDS decisions; the owning agent (Dara/Clara/TARS)
+   EXECUTES them. Do not merge PRs, send messages, or deploy on an approval — write the `[triage-decision]` and
+   let the agent act on it. Act on D's behalf ONLY when the agent demonstrably cannot: D-only surfaces (billing
+   dashboards, Google Search Console, D's accounts) or a live assist D explicitly requests in-session.
 
 All writes stay on the decided ticket, and dependents get comments only. Nothing auto-transitions downstream.
 
