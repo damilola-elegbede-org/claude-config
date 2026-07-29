@@ -41,6 +41,77 @@ if ! git diff --quiet || ! git diff --cached --quiet; then
 fi
 ```
 
+## Conflict handler
+
+Defined here, before the section that calls it.
+
+```bash
+handle_conflicts() {
+  TMP_DIR=".tmp/merge"
+  mkdir -p "$TMP_DIR"
+
+  conflicted_files=$(git diff --name-only --diff-filter=U)
+
+  if [ -z "$conflicted_files" ]; then
+    echo "Merge failed but no conflicts detected"
+    echo "Run: git status"
+    exit 1
+  fi
+
+  echo "$conflicted_files" > "${TMP_DIR}/conflicted_files.txt"
+  conflict_count=$(echo "$conflicted_files" | wc -l | tr -d ' ')
+
+  echo ""
+  echo "Merge conflicts in $conflict_count file(s):"
+  echo "$conflicted_files" | while read -r file; do echo "  - $file"; done
+
+  cat > "${TMP_DIR}/conflict_metadata.txt" <<EOF
+Merge Conflict Summary
+======================
+Date: $(date '+%Y-%m-%d %H:%M:%S')
+Current Branch: $(git branch --show-current)
+Source Branch: $source_branch
+Conflicted Files: $conflict_count
+
+Files requiring resolution:
+$conflicted_files
+
+Conflict Details:
+EOF
+
+  echo "$conflicted_files" | while read -r file; do
+    if [ -f "$file" ]; then
+      {
+        echo ""
+        echo "=== $file ==="
+        grep -n "^<<<<<<< \|^======= \|^>>>>>>> " "$file" | head -20
+      } >> "${TMP_DIR}/conflict_metadata.txt" 2>/dev/null || true
+    fi
+  done
+
+  cat <<MSG
+
+Conflict data saved to: ${TMP_DIR}/
+   - conflicted_files.txt (list of files)
+   - conflict_metadata.txt (detailed conflict info)
+
+Next steps:
+  1. Open conflicting files and resolve conflicts (look for <<<<<<< markers)
+  2. Stage resolved files: git add <file>
+  3. Complete merge: git commit
+
+MSG
+  if [ "$stashed" = true ]; then
+    echo "Note: Your uncommitted changes are stashed."
+    echo "   After resolving conflicts and completing the merge, run: git stash pop"
+    echo ""
+  fi
+  echo "Or abort the merge: /merge --abort"
+  echo ""
+  exit 1
+}
+```
+
 ## Fetch and merge
 
 ```bash
@@ -115,77 +186,6 @@ else
   echo "Merge conflicts detected"
   handle_conflicts
 fi
-```
-
-## Conflict handler
-
-Define before it's called.
-
-```bash
-handle_conflicts() {
-  TMP_DIR=".tmp/merge"
-  mkdir -p "$TMP_DIR"
-
-  conflicted_files=$(git diff --name-only --diff-filter=U)
-
-  if [ -z "$conflicted_files" ]; then
-    echo "Merge failed but no conflicts detected"
-    echo "Run: git status"
-    exit 1
-  fi
-
-  echo "$conflicted_files" > "${TMP_DIR}/conflicted_files.txt"
-  conflict_count=$(echo "$conflicted_files" | wc -l | tr -d ' ')
-
-  echo ""
-  echo "Merge conflicts in $conflict_count file(s):"
-  echo "$conflicted_files" | while read -r file; do echo "  - $file"; done
-
-  cat > "${TMP_DIR}/conflict_metadata.txt" <<EOF
-Merge Conflict Summary
-======================
-Date: $(date '+%Y-%m-%d %H:%M:%S')
-Current Branch: $(git branch --show-current)
-Source Branch: $source_branch
-Conflicted Files: $conflict_count
-
-Files requiring resolution:
-$conflicted_files
-
-Conflict Details:
-EOF
-
-  echo "$conflicted_files" | while read -r file; do
-    if [ -f "$file" ]; then
-      {
-        echo ""
-        echo "=== $file ==="
-        grep -n "^<<<<<<< \|^======= \|^>>>>>>> " "$file" | head -20
-      } >> "${TMP_DIR}/conflict_metadata.txt" 2>/dev/null || true
-    fi
-  done
-
-  cat <<MSG
-
-Conflict data saved to: ${TMP_DIR}/
-   - conflicted_files.txt (list of files)
-   - conflict_metadata.txt (detailed conflict info)
-
-Next steps:
-  1. Open conflicting files and resolve conflicts (look for <<<<<<< markers)
-  2. Stage resolved files: git add <file>
-  3. Complete merge: git commit
-
-MSG
-  if [ "$stashed" = true ]; then
-    echo "Note: Your uncommitted changes are stashed."
-    echo "   After resolving conflicts and completing the merge, run: git stash pop"
-    echo ""
-  fi
-  echo "Or abort the merge: /merge --abort"
-  echo ""
-  exit 1
-}
 ```
 
 ## Cases to handle

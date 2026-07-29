@@ -2,6 +2,77 @@
 
 The canonical sequence. Direct execution — no agents.
 
+## Conflict handler
+
+Defined here, before the main sequence that calls it. Conflicted files are captured
+programmatically so resolution is systematic rather than rediscovered by parsing `git status` — and
+so nothing edits a file without knowing it's conflicted.
+
+```bash
+handle_conflicts() {
+  TMP_DIR=".tmp/rebase"
+  mkdir -p "$TMP_DIR"
+
+  # --diff-filter=U targets exactly the unmerged (conflicted) files
+  conflicted_files=$(git diff --name-only --diff-filter=U)
+
+  if [ -z "$conflicted_files" ]; then
+    echo "Rebase failed but no conflicts detected"
+    echo "Run: git status"
+    exit 1
+  fi
+
+  echo "$conflicted_files" > "${TMP_DIR}/conflicted_files.txt"
+  conflict_count=$(echo "$conflicted_files" | wc -l | tr -d ' ')
+
+  echo ""
+  echo "Rebase conflicts in $conflict_count file(s):"
+  echo "$conflicted_files" | while read -r file; do echo "  - $file"; done
+
+  cat > "${TMP_DIR}/conflict_metadata.txt" <<EOF
+Rebase Conflict Summary
+=======================
+Date: $(date '+%Y-%m-%d %H:%M:%S')
+Branch: $(git branch --show-current)
+Target: $target_branch
+Conflicted Files: $conflict_count
+
+Files requiring resolution:
+$conflicted_files
+
+Conflict Details:
+EOF
+
+  echo "$conflicted_files" | while read -r file; do
+    if [ -f "$file" ]; then
+      {
+        echo ""
+        echo "=== $file ==="
+        grep -n "^<<<<<<< \|^======= \|^>>>>>>> " "$file" | head -20
+      } >> "${TMP_DIR}/conflict_metadata.txt" 2>/dev/null || true
+    fi
+  done
+
+  cat <<MSG
+
+Conflict data saved to: ${TMP_DIR}/
+   - conflicted_files.txt (list of files)
+   - conflict_metadata.txt (detailed conflict info)
+
+Next steps:
+  1. Open conflicting files and resolve conflicts (look for <<<<<<< markers)
+  2. Stage resolved files: git add <file>
+  3. Continue rebase: /rebase --continue
+
+Or abort the rebase: /rebase --abort
+
+MSG
+  exit 1
+}
+```
+
+## Main sequence
+
 ```bash
 current_branch=$(git branch --show-current)
 
@@ -74,75 +145,6 @@ MSG
 else
   handle_conflicts
 fi
-```
-
-## Conflict handler
-
-Define before it's called. Conflicted files are captured programmatically so resolution is systematic
-rather than rediscovered by parsing `git status` — and so nothing edits a file without knowing it's
-conflicted.
-
-```bash
-handle_conflicts() {
-  TMP_DIR=".tmp/rebase"
-  mkdir -p "$TMP_DIR"
-
-  # --diff-filter=U targets exactly the unmerged (conflicted) files
-  conflicted_files=$(git diff --name-only --diff-filter=U)
-
-  if [ -z "$conflicted_files" ]; then
-    echo "Rebase failed but no conflicts detected"
-    echo "Run: git status"
-    exit 1
-  fi
-
-  echo "$conflicted_files" > "${TMP_DIR}/conflicted_files.txt"
-  conflict_count=$(echo "$conflicted_files" | wc -l | tr -d ' ')
-
-  echo ""
-  echo "Rebase conflicts in $conflict_count file(s):"
-  echo "$conflicted_files" | while read -r file; do echo "  - $file"; done
-
-  cat > "${TMP_DIR}/conflict_metadata.txt" <<EOF
-Rebase Conflict Summary
-=======================
-Date: $(date '+%Y-%m-%d %H:%M:%S')
-Branch: $(git branch --show-current)
-Target: $target_branch
-Conflicted Files: $conflict_count
-
-Files requiring resolution:
-$conflicted_files
-
-Conflict Details:
-EOF
-
-  echo "$conflicted_files" | while read -r file; do
-    if [ -f "$file" ]; then
-      {
-        echo ""
-        echo "=== $file ==="
-        grep -n "^<<<<<<< \|^======= \|^>>>>>>> " "$file" | head -20
-      } >> "${TMP_DIR}/conflict_metadata.txt" 2>/dev/null || true
-    fi
-  done
-
-  cat <<MSG
-
-Conflict data saved to: ${TMP_DIR}/
-   - conflicted_files.txt (list of files)
-   - conflict_metadata.txt (detailed conflict info)
-
-Next steps:
-  1. Open conflicting files and resolve conflicts (look for <<<<<<< markers)
-  2. Stage resolved files: git add <file>
-  3. Continue rebase: /rebase --continue
-
-Or abort the rebase: /rebase --abort
-
-MSG
-  exit 1
-}
 ```
 
 ## `--continue` / `--abort`

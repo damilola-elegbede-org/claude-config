@@ -51,7 +51,7 @@ WHILE: has_more_threads
           }
         }
       }
-    }' -F owner={owner} -F repo={repo} -F pr={pr} -F after={threads_cursor}
+    }' -F owner="{owner}" -F repo="{repo}" -F pr="{pr}" -F after="{threads_cursor}"
 
   ON_ERROR:
     rate limit / 403 → OUTPUT "GitHub API rate limited. Wait 60s or check: gh auth status"; END
@@ -152,7 +152,8 @@ FOR_EACH: issue in all_issues          # every thread needs its own mutation —
       (if missing/empty → "Reviewed and acknowledged")
 
   SANITIZE: body_detail BEFORE truncating (so escapes aren't cut mid-sequence)
-    - escape " → \" and ` → \`
+    - escape " → \", ` → \`, and $ → \$ (the $ escape specifically blocks $() command
+      substitution — escaping quotes and backticks alone does not stop it)
     - control chars (newline, tab) → space
     - protect @coderabbitai as {{CODERABBIT}}, neutralize all other @mentions (@user → `@`user),
       then restore {{CODERABBIT}} → @coderabbitai
@@ -161,13 +162,21 @@ FOR_EACH: issue in all_issues          # every thread needs its own mutation —
 
   NOTE: thread_id is opaque per GitHub docs — never decode or pattern-validate node IDs.
 
+  SAFETY: body_detail crosses a trust boundary — it's derived from a CodeRabbit PR comment, not
+    typed by the user. Never build the mutation by splicing it into a shell string that then gets
+    re-parsed; escaping is defense in depth, not the primary control. Write the composed message to
+    a file and pass it with gh's `@file` syntax, which reads the value as literal bytes with no
+    shell re-interpretation of its contents:
+
   TRY:
+    WRITE: "@coderabbitai resolve - {body_prefix}: {body_detail}" to .tmp/thread-reply-{issue.id}.txt
     RUN: gh api graphql -f query='
       mutation($threadId: ID!, $body: String!) {
         addPullRequestReviewThreadReply(input: {
           pullRequestReviewThreadId: $threadId, body: $body
         }) { comment { id } }
-      }' -F threadId={issue.thread_id} -f body="@coderabbitai resolve - {body_prefix}: {body_detail}"
+      }' -F threadId="{issue.thread_id}" -F body=@.tmp/thread-reply-{issue.id}.txt
+    DELETE: .tmp/thread-reply-{issue.id}.txt
     INCREMENT success_count; OUTPUT "Resolved thread ({body_prefix}): {issue.location}"
   ON_ERROR:
     CAPTURE error; INCREMENT failure_count
@@ -190,7 +199,7 @@ SLEEP: 30 seconds     # CodeRabbit needs time to process the replies
 
 INIT: all_thread_nodes = [], cursor = null
 LOOP:
-  RUN: gh api graphql -F owner={owner} -F repo={repo} -F pr={pr_number} -F cursor={cursor} -f query='
+  RUN: gh api graphql -F owner="{owner}" -F repo="{repo}" -F pr="{pr_number}" -F cursor="{cursor}" -f query='
     query($owner: String!, $repo: String!, $pr: Int!, $cursor: String) {
       repository(owner: $owner, name: $repo) {
         pullRequest(number: $pr) {
