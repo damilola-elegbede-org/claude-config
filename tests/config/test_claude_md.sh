@@ -19,18 +19,22 @@ test_claude_md_structure() {
 
     echo "Validating CLAUDE.md behavioral structure..."
 
-    # Check for helpfulness directive
-    if grep -q "helpful" "$claude_file"; then
+    # Assert on directives rather than section titles — CLAUDE.md is deliberately
+    # minimal, so headings move as it is rightsized. What must survive is the
+    # decision-escalation rule, a verification rule, and the file convention.
+
+    # Check for decision/ask directive
+    if grep -qi "ask when\|AskUserQuestion" "$claude_file"; then
         has_communication=true
     else
-        echo "Warning: Missing helpfulness directive"
+        echo "Warning: Missing decision-escalation directive"
     fi
 
-    # Check for Quality Standards
-    if grep -q "^## Quality Standards" "$claude_file"; then
+    # Check for a verification directive
+    if grep -qi "verify\|verification" "$claude_file"; then
         has_quality=true
     else
-        echo "Warning: Missing Quality Standards section"
+        echo "Warning: Missing verification directive"
     fi
 
     # Check for File Organization
