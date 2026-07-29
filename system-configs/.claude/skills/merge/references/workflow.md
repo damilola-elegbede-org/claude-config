@@ -66,12 +66,12 @@ echo "Fetching latest $source_branch..."
 git fetch origin "$source_branch" 2>/dev/null || true
 
 echo "Merging $source_branch into $current_branch..."
-merge_cmd="git merge $source_branch --no-edit"
+merge_cmd=(git merge "$source_branch" --no-edit)
 if [ -n "${strategy:-}" ]; then
-  merge_cmd="git merge $source_branch -X $strategy --no-edit"
+  merge_cmd=(git merge "$source_branch" -X "$strategy" --no-edit)
 fi
 
-merge_output=$(eval "$merge_cmd" 2>&1) && merge_status=0 || merge_status=$?
+merge_output=$("${merge_cmd[@]}" 2>&1) && merge_status=0 || merge_status=$?
 
 # "Already up to date" is success with nothing to do — still restore the stash
 if echo "$merge_output" | grep -qi "already up to date"; then
