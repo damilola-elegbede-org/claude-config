@@ -168,19 +168,22 @@ FOR_EACH: issue in all_issues          # every thread needs its own mutation —
     a file and pass it with gh's `@file` syntax, which reads the value as literal bytes with no
     shell re-interpretation of its contents:
 
+  SET: reply_file = .tmp/thread-reply-{issue.thread_id}-{issue.id}.txt   # unique per thread+issue
   TRY:
-    WRITE: "@coderabbitai resolve - {body_prefix}: {body_detail}" to .tmp/thread-reply-{issue.id}.txt
+    WRITE: "@coderabbitai resolve - {body_prefix}: {body_detail}" to {reply_file}
     RUN: gh api graphql -f query='
       mutation($threadId: ID!, $body: String!) {
         addPullRequestReviewThreadReply(input: {
           pullRequestReviewThreadId: $threadId, body: $body
         }) { comment { id } }
-      }' -F threadId="{issue.thread_id}" -F body=@.tmp/thread-reply-{issue.id}.txt
-    DELETE: .tmp/thread-reply-{issue.id}.txt
+      }' -F threadId="{issue.thread_id}" -F body=@{reply_file}
     INCREMENT success_count; OUTPUT "Resolved thread ({body_prefix}): {issue.location}"
   ON_ERROR:
     CAPTURE error; INCREMENT failure_count
     OUTPUT "Warning: Failed to resolve {issue.location}: {error_message}"
+  FINALLY:
+    DELETE: {reply_file} if it exists — runs whether the mutation succeeded, failed, or the
+      surrounding step was interrupted, so no reply file survives this iteration
 
 OUTPUT: "Thread resolution complete: {success_count} succeeded, {failure_count} failed"
 IF: failure_count > 0 → OUTPUT the failed locations
