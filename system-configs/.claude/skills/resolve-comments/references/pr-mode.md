@@ -151,9 +151,7 @@ FOR_EACH: issue in all_issues          # every thread needs its own mutation —
     body_prefix = "Acknowledged"; body_detail = issue.reason
       (if missing/empty → "Reviewed and acknowledged")
 
-  SANITIZE: body_detail BEFORE truncating (so escapes aren't cut mid-sequence)
-    - escape " → \", ` → \`, and $ → \$ (the $ escape specifically blocks $() command
-      substitution — escaping quotes and backticks alone does not stop it)
+  SANITIZE: body_detail BEFORE truncating (so mention neutralization isn't cut mid-sequence)
     - control chars (newline, tab) → space
     - protect @coderabbitai as {{CODERABBIT}}, neutralize all other @mentions (@user → `@`user),
       then restore {{CODERABBIT}} → @coderabbitai
@@ -164,9 +162,10 @@ FOR_EACH: issue in all_issues          # every thread needs its own mutation —
 
   SAFETY: body_detail crosses a trust boundary — it's derived from a CodeRabbit PR comment, not
     typed by the user. Never build the mutation by splicing it into a shell string that then gets
-    re-parsed; escaping is defense in depth, not the primary control. Write the composed message to
-    a file and pass it with gh's `@file` syntax, which reads the value as literal bytes with no
-    shell re-interpretation of its contents:
+    re-parsed. Write the composed message to a file and pass it with gh's `@file` syntax, which
+    reads the value as literal bytes with no shell re-interpretation of its contents — this is the
+    control, so body_detail is never string-escaped (escaping it would corrupt the literal bytes
+    posted to the review thread):
 
   SET: reply_file = mktemp --tmpdir=.tmp thread-reply-XXXXXX.txt
     # generated filename — never interpolate issue.thread_id/issue.id into a path;
