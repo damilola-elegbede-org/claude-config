@@ -46,6 +46,11 @@ routine, say so in one line and return it — do not manufacture depth for a mec
 - Simple lookups, formatting changes, or mechanical transformations
 - Decisions already resolved in prior conversation context
 
+## Memory Hygiene
+
+`memory: project` claims can outlive the issue/PR they cite. If Linear is readable, verify a
+cited id's live state before restating it as an open carry-forward — don't recall it as settled.
+
 ## Coordination
 
 Invoked by the `/advisor` skill's executor loop (interactive) or attached to sonnet-tier queue
