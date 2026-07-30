@@ -151,25 +151,32 @@ FOR_EACH: issue in all_issues          # every thread needs its own mutation —
     body_prefix = "Acknowledged"; body_detail = issue.reason
       (if missing/empty → "Reviewed and acknowledged")
 
-  SANITIZE: body_detail BEFORE truncating (so mention neutralization isn't cut mid-sequence)
+  SANITIZE: body_detail BEFORE truncating (so mention neutralization isn't cut mid-sequence — and
+    delivery is file-based, see SAFETY below, so this is Markdown/mention hygiene only, not shell
+    escaping; don't add backslashes before ", `, or $, they'd show up literally in the posted reply)
     - control chars (newline, tab) → space
     - protect @coderabbitai as {{CODERABBIT}}, neutralize all other @mentions (@user → `@`user),
       then restore {{CODERABBIT}} → @coderabbitai
     - truncate to 100 chars AFTER sanitization
     IF: empty after sanitization → "Issue resolved"
 
-  NOTE: thread_id is opaque per GitHub docs — never decode or pattern-validate node IDs.
+  NOTE: thread_id is opaque per GitHub docs — never decode or pattern-validate node IDs, and never
+    build a filesystem path out of it or issue.id for the same reason (see SET below).
 
   SAFETY: body_detail crosses a trust boundary — it's derived from a CodeRabbit PR comment, not
     typed by the user. Never build the mutation by splicing it into a shell string that then gets
     re-parsed. Write the composed message to a file and pass it with gh's `@file` syntax, which
     reads the value as literal bytes with no shell re-interpretation of its contents — this is the
     control, so body_detail is never string-escaped (escaping it would corrupt the literal bytes
-    posted to the review thread):
+    posted to the review thread).
 
-  SET: reply_file = mktemp --tmpdir=.tmp thread-reply-XXXXXX.txt
-    # generated filename — never interpolate issue.thread_id/issue.id into a path;
-    # thread_id stays opaque and is only ever passed as the quoted GraphQL variable below
+  ENSURE: .tmp/ exists (mktemp fails if the parent directory is missing)
+  SET: reply_file = mktemp ".tmp/thread-reply-XXXXXX"   # positional template, not --tmpdir=: BSD
+    mktemp (macOS) doesn't recognize --tmpdir= and silently fails to randomize the X's, reusing the
+    literal filename every call. The positional form is portable across BSD and GNU mktemp.
+    Random suffix — never derived from thread_id or issue.id; both are opaque and unvalidated,
+    so they don't belong in a path, and thread_id is only ever passed as the quoted GraphQL
+    variable below.
   TRY:
     WRITE: "@coderabbitai resolve - {body_prefix}: {body_detail}" to {reply_file}
     RUN: gh api graphql -f query='
@@ -177,7 +184,7 @@ FOR_EACH: issue in all_issues          # every thread needs its own mutation —
         addPullRequestReviewThreadReply(input: {
           pullRequestReviewThreadId: $threadId, body: $body
         }) { comment { id } }
-      }' -F threadId="{issue.thread_id}" -F body=@{reply_file}
+      }' -F threadId="{issue.thread_id}" -F "body=@{reply_file}"
     INCREMENT success_count; OUTPUT "Resolved thread ({body_prefix}): {issue.location}"
   ON_ERROR:
     CAPTURE error; INCREMENT failure_count
