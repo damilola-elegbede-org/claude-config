@@ -168,7 +168,9 @@ FOR_EACH: issue in all_issues          # every thread needs its own mutation —
     a file and pass it with gh's `@file` syntax, which reads the value as literal bytes with no
     shell re-interpretation of its contents:
 
-  SET: reply_file = .tmp/thread-reply-{issue.thread_id}-{issue.id}.txt   # unique per thread+issue
+  SET: reply_file = mktemp --tmpdir=.tmp thread-reply-XXXXXX.txt
+    # generated filename — never interpolate issue.thread_id/issue.id into a path;
+    # thread_id stays opaque and is only ever passed as the quoted GraphQL variable below
   TRY:
     WRITE: "@coderabbitai resolve - {body_prefix}: {body_detail}" to {reply_file}
     RUN: gh api graphql -f query='
