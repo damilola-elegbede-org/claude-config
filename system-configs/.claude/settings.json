@@ -9,7 +9,7 @@
   },
   "model": "claude-sonnet-5",
   "advisorModel": "claude-opus-5",
-  "outputStyle": "Ultra Concise",
+  "outputStyle": "Concise",
   "tui": "fullscreen",
   "agentPushNotifEnabled": true,
   "spinnerTipsEnabled": false,
