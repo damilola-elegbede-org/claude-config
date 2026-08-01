@@ -119,7 +119,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "afplay -v 1.0 '/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Modern/Aurora.m4r' 2>/dev/null &"
+            "command": "if [ -n \"$BARECLAUDE_AGENT_SLUG\" ] || [ -n \"$CLAUDE_JOB_DIR\" ]; then exit 0; fi; afplay -v 1.0 '/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Modern/Aurora.m4r' 2>/dev/null &"
           }
         ]
       }
@@ -151,7 +151,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "afplay -v 1.0 '/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Modern/Keys.m4r' 2>/dev/null &"
+            "command": "if [ -n \"$BARECLAUDE_AGENT_SLUG\" ] || [ -n \"$CLAUDE_JOB_DIR\" ]; then exit 0; fi; afplay -v 1.0 '/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Modern/Keys.m4r' 2>/dev/null &"
           }
         ]
       }
