@@ -57,10 +57,8 @@ what you can verify yourself.
 
 ### 3. Every question is an /ask
 
-Each question follows the `/ask` format: context-adaptive scaffold, 2-4 concrete options, exactly one
-**"(Recommended)"** with a one-line rationale, previews for artifacts only. Recommendations come from judgment
-of the conversation — a recommendation-free menu pushes the thinking back onto D, which is what this skill
-exists to prevent. Optionality is real: if every option secretly leads to the same plan, the question is fake.
+Each question follows the `/ask` format — that skill owns it. One thing this skill adds: optionality must be
+real. If every option secretly leads to the same plan, the question is fake.
 
 ### 4. Loop criterion
 

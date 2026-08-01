@@ -70,10 +70,12 @@ test_claude_md_consistency() {
     assert_file_exists "$system_claude" \
         "System CLAUDE.md should exist in system-configs/"
 
-    # Check for key behavioral directives (require all three)
-    if grep -q "^## Quality Standards" "$system_claude" \
+    # Check for key behavioral directives (require all three).
+    # Assert on the directives themselves, not on section titles — CLAUDE.md is
+    # deliberately kept minimal, so headings move as it is rightsized.
+    if grep -qi "ask when\|AskUserQuestion" "$system_claude" \
        && grep -qi "verify\|verification" "$system_claude" \
-       && grep -qi "helpful\|communication" "$system_claude"; then
+       && grep -qi "\.tmp/" "$system_claude"; then
         echo "✓ System CLAUDE.md defines behavioral directives"
     else
         echo "❌ System CLAUDE.md should define behavioral directives"
