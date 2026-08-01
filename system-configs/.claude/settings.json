@@ -48,6 +48,10 @@
             "type": "command",
             "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -qE '(--no-verify|--no-gpg-sign|git\\s+reset\\s+--hard|git\\s+push\\s+--force|git\\s+push\\s+-f\\b|git\\s+clean\\s+-f|git\\s+branch\\s+-D|git\\s+checkout\\s+\\.)'; then echo 'BLOCKED: Destructive or policy-violating git operation detected' >&2; exit 2; fi",
             "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -qE '(^|[;&|(]|&&|\\|\\|)[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=(\"[^\"]*\"|[^[:space:]]*)[[:space:]]+)*git[[:space:]]+(commit|push|clone|tag|remote|am|cherry-pick|revert)([[:space:]]|$)'; then echo \"BLOCKED: bare git for an identity/remote op. Bare git commits under the repo git config (often D personal email), not the bot - ENG-124 leak class. Use: infra/scripts/git-agent.sh <agent> <git args>\" >&2; exit 2; fi"
           }
         ]
       },
