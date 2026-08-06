@@ -20,13 +20,13 @@
     "pr": ""
   },
   "enabledPlugins": {
-    "code-review@claude-plugins-official": true,
-    "frontend-design@claude-plugins-official": true,
+    "code-review@claude-plugins-official": false,
+    "frontend-design@claude-plugins-official": false,
     "ralph-loop@claude-plugins-official": true,
     "skill-creator@claude-plugins-official": true,
-    "supabase@claude-plugins-official": true,
+    "supabase@claude-plugins-official": false,
     "superpowers@claude-plugins-official": false,
-    "telegram@claude-plugins-official": true
+    "telegram@claude-plugins-official": false
   },
   "permissions": {
     "defaultMode": "bypassPermissions"
@@ -171,5 +171,28 @@
         ]
       }
     ]
+  },
+  "skillOverrides": {
+    "api-design-patterns": "off",
+    "audit": "off",
+    "changelog": "off",
+    "debug": "off",
+    "deps": "off",
+    "docx": "off",
+    "feature-lifecycle": "off",
+    "frontend-design": "off",
+    "git-conventions": "off",
+    "implement": "off",
+    "mcp-builder": "off",
+    "merge": "off",
+    "plan": "off",
+    "pptx": "off",
+    "prime": "off",
+    "prompt": "off",
+    "rebase": "off",
+    "security-checklist": "off",
+    "testing-patterns": "off",
+    "watch": "off",
+    "xlsx": "off"
   }
 }
