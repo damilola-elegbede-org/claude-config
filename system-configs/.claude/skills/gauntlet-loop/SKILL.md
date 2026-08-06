@@ -164,12 +164,18 @@ Six steps, in order, each gated on the one before it resolving, each a single de
 - **Launch mode**: run now in this session, or save the prompt only — a separate dialog from the cap, since how
   long the loop may run and where it executes are independent axes; you could sensibly run now with a cap, or
   save an unbounded run for later. Bundling them would be exactly the unrelated-decisions-in-one-dialog pattern
-  the `ask` and `interview` skills both rule out.
+  the `ask` and `interview` skills both rule out. Because both choices persist the assembled Gauntlet Prompt to
+  disk in plain text either way (Behavior 7), this dialog's own description carries a one-line warning that the
+  saved file will contain the deliverable, reference, and rubric content D just confirmed, at the path Behavior 7
+  resolves — so D can decide against saving or launching at all if any of it is sensitive.
 - **Rubric**: the skill shows the pre-registered rubric derived from the reference (Behavior 4) — the concrete,
   checkable qualities the build will be judged against — pre-grouped into the dimension slices the final panel
   (Behavior 6) will use, and asks D to confirm, edit, add, or remove lines or groupings before build starts.
   This is what makes "wowed" falsifiable instead of a mood: D approves the yardstick before any critic uses it,
-  the same way D approves the reference and the decomposition.
+  the same way D approves the reference and the decomposition. If D confirms fewer than three groupings, the
+  skill proposes subdividing them into at least three distinct, non-overlapping sub-slices — each still nested
+  under its parent grouping — so the final panel (Behavior 6) always has at least three independent judges. That
+  subdivision is shown to D as part of this same confirmation, never invented silently later.
 - **Decomposition**: the skill reads the confirmed deliverable and reference and proposes a concrete aspect
   split before asking — never asks D to decompose blind. Options: use as proposed (recommended), edit the list,
   a genuinely different split (e.g. regroup by screen instead of by layer), or no fan-out at all for a
@@ -183,9 +189,13 @@ Once the Gauntlet Prompt is assembled (Behavior 4), one more dialog closes the i
 launches: the **Playback**. This is this skill's Understanding Playback — the same closing mechanism `/interview`
 uses — showing the assembled Task, Build Method, and Bar to Hit, plus the confirmed rubric, played back verbatim
 for D's confirmation, not summarized or re-narrated. Only D's confirmation ends it; a correction reopens the
-relevant earlier dialog and produces a fresh playback before trying again. If D says "just launch it" or similar
-mid-playback, the skill skips straight to Behavior 7, stating any still-open assumptions in prose first — the
-same escape hatch `/interview` uses, never a silent skip.
+relevant earlier dialog and produces a fresh playback before trying again. The `/interview` escape hatch ("just
+proceed", "enough") applies only to the earlier reference/cap/launch-mode/rubric/decomposition dialogs above —
+saying it before Playback fast-forwards through whichever of those are still open, stating the skipped
+assumptions in prose, and lands on the Playback dialog itself, never past it: Playback is the one gate this
+skill treats as needing D's explicit confirmation every time, since it's the last checkpoint before a run that
+can be unbounded and unattended. Saying "launch it" once the Playback dialog is actually showing is simply
+answering it, the same as any other `ask`-format response — not a bypass of it.
 
 ### 4. Assemble the Gauntlet Prompt — Task, Build Method, Bar to Hit
 
@@ -209,9 +219,14 @@ confirms it in this same interview) is what keeps that gap from becoming a looph
   it retains memory of what it already fixed and why; this is what the anti-regression ledger in Behavior 5
   relies on. Builder sub-agents work at maximum thoroughness on every pass, not a quick draft — the direct
   analog of the source prompt's "ultracode" instruction, and it applies every round, not just the first. Every
-  builder and critic sub-agent, at every round, is launched with a restricted tool set: read/write within the
-  run's own working area only — no deploy, publish, send, purchase, or production-write tools, regardless of
-  what the ambient session can access. This is enforced at launch, not policed after the fact.
+  builder and critic sub-agent prompt explicitly instructs it not to deploy, publish, send, purchase, or write to
+  production or shared systems. This is advisory, not a technical enforcement mechanism: `Workflow`-spawned
+  sub-agents inherit the parent session's own permissions and sandboxing, and there is no documented
+  per-sub-agent `tools`/`disallowedTools`/isolation parameter this skill can rely on to wall this off at launch.
+  If the ambient session can reach production or a shared system, so can a sub-agent launched from it — the
+  restriction lives in what each sub-agent is told, backed by the harsh-critic review catching a violation after
+  the fact, not by a technical barrier. Don't run this skill from a session with production access without
+  accepting that.
 - **Bar to Hit**: don't stop until the final panel (Behavior 6) is unanimous — every panelist decisively prefers
   the build on their assigned rubric slice, which is the cashed-out meaning of "utterly wowed." A tie, a narrow
   or non-decisive preference, or a single dissent all read as not done.
@@ -239,17 +254,22 @@ question every round adds cost without adding signal. It does not apply to the f
 critics each answer a different, non-overlapping question (a distinct rubric slice), so there is no redundant
 vote to be correlated in the first place.
 
-The critic's verdict is a list of specific, located defects, each tagged to the pre-registered rubric line item
-(Behavior 3-4) it violates — an empty list is the only pass; adjectives ("looks great", "feels AAA") are not an
-acceptable verdict on their own and get rejected back to the critic for specifics. Tagging every defect to a
-rubric line item, rather than free prose, is what makes "the identical defect" and "a previously-fixed defect
-regressed" checkable at all despite critics being fresh and memoryless: the Workflow script's own loop state (a
-plain ledger object carried across iterations in the script, not owned by any critic) tracks, per rubric line
-item, whether it was open last round and whether this round's list still names it. An item drops only when the
-current round's list omits a line item that was previously open; the builder — which does persist across rounds
-(Behavior 4) — is the one accountable for not letting a dropped item's underlying issue silently reappear, since
-it is the only party present across the whole aspect's history. Guardrails requires this anti-regression check
-to run every round, not just be asserted.
+Each builder revision returns structured evidence alongside its output: for every rubric line item it addressed
+this round, the changed artifact location(s) and that item's ID. The critic's verdict is a list of specific,
+located defects, each tagged to the pre-registered rubric line item (Behavior 3-4) it violates — an empty list is
+the only pass; adjectives ("looks great", "feels AAA") are not an acceptable verdict on their own and get
+rejected back to the critic for specifics. Tagging every defect to a rubric line item, rather than free prose, is
+what makes "the identical defect" and "a previously-fixed defect regressed" checkable at all despite critics
+being fresh and memoryless: the Workflow script's own loop state (a plain ledger object carried across iterations
+in the script, not owned by any critic) tracks, per rubric line item, whether it was open last round, whether the
+builder claimed fix evidence for it this round, and whether this round's critic list still names it. A
+previously-open item closes only when **both** hold: the current critic's list omits it, and the builder's
+evidence for this round names that same item ID with a changed-artifact location. A critic's omission with no
+matching builder evidence is not treated as a fix — the item stays open, and the next critic is told explicitly
+it is "still open, unconfirmed by builder evidence" rather than being silently dropped on a critic's say-so alone.
+The builder — which does persist across rounds (Behavior 4) — is the one accountable for not letting a genuinely
+closed item's underlying issue silently reappear later. Guardrails requires this anti-regression check to run
+every round, not just be asserted.
 
 **Stall handling:** because every defect is tagged to a rubric line item, "identical defect" has the same
 checkable definition as above — the same rubric line item failing in consecutive rounds, regardless of how
@@ -279,9 +299,10 @@ loop rather than being silently absorbed or dropped. Only once integration produ
 build proceed to the panel.
 
 **The panel.** The integrated build is handed to a final panel whose slices are exactly the dimension groupings
-D confirmed in the Rubric dialog (Behavior 3) — one critic per confirmed grouping, minimum three panelists even
-for a narrow rubric, covering the full confirmed rubric by construction rather than an arbitrary subset, so no
-single critic is ever both judge and jury for the whole build. Panelists are fresh, have no access to per-aspect
+D confirmed in the Rubric dialog (Behavior 3) — one critic per confirmed slice, including any sub-slices Behavior
+3 proposed to keep the panel at a minimum of three when D confirmed fewer than three groupings — covering the
+full confirmed rubric by construction rather than an arbitrary subset, so no single critic is ever both judge and
+jury for the whole build. Panelists are fresh, have no access to per-aspect
 critic history or prior verdicts, and are shown only the integrated build and the reference — anonymized as A/B
 with position randomized per critic — genuinely blind, not just unlabeled to a critic who can infer which is
 which from context.
@@ -299,9 +320,12 @@ aspects they implicate — not a full rebuild — and those aspects re-enter the
 seeded with the new punch list, then flow back through integration before the panel re-runs.
 
 **Outer-loop stall guard.** Behavior 5's stall guard only counts rounds within one aspect's own inner loop; this
-outer cycle gets a symmetric guard, matched the same way — by rubric line item, not prose. If the same aspect
-gets routed back by the final panel three times running, the run marks that aspect stalled at the outer level
-(same mechanism as Behavior 5) instead of re-entering it a fourth time automatically.
+outer cycle gets a symmetric guard, keyed the same way — by the specific `(aspect, rubric line item)` pair a
+dissent implicates, not by aspect alone and not by prose. Three different panel-cited defects landing on the same
+aspect in three different cycles do not trigger this guard; the same rubric line item being cited against the
+same aspect three cycles running does. When that happens, the run marks that `(aspect, rubric line item)` stalled
+at the outer level (same mechanism as Behavior 5) instead of re-entering it a fourth time automatically — other
+defects on that same aspect, if any, keep cycling normally.
 
 **Rubric-only mode.** If Behavior 2's modality fallback is in effect, there is no live artifact to blind-compare,
 so the panel judges differently: each panelist still owns a rubric-grouping slice, but scores the integrated
@@ -348,7 +372,11 @@ root or a source directory. When the discovered convention names multiple purpos
 this repo's own `.tmp/plans/`, `.tmp/reports/`, `.tmp/analysis/`, `.tmp/drafts/`), the Gauntlet Prompt is a build
 plan handed to `Workflow`, so it saves under the subdirectory that convention names for plans; if none is
 plan-shaped, it falls to the convention's most general default subdirectory rather than guessing among the
-specific ones. The resolved path is always stated in the response, never asked as a separate decision.
+specific ones. The resolved path is always stated in the response, never asked as a separate decision. Because
+this file holds deliverable, reference, and rubric content in plain text (Behavior 3's launch-mode dialog warns
+D of this before it's written), the skill writes it with owner-only file permissions. It does not manage
+retention or cleanup beyond that — the file persists at the stated path until D removes it, same as any other
+file this skill or its siblings write to a `.tmp/`-equivalent location.
 
 ### 8. Cost transparency instead of a silent cap
 
@@ -398,24 +426,34 @@ their own capped loops, not by a separate panel-level counter.
   cashed-out meaning of "utterly wowed." A tie, a toss-up, a non-decisive preference, or any single dissent all
   mean not done. Majority approval is never sufficient.
 - Producers are never accepted as their own critics — critic and builder are always separate sub-agent instances.
-- The builder sub-agent persists across rounds within one aspect's loop and is accountable for not letting a
-  previously-flagged, rubric-tagged defect silently reappear; the script's own loop state checks every round for
-  a previously-open rubric line item unexpectedly missing from the current defect list without a corresponding
-  fix, and treats that as a regression, not a clean pass.
+- The builder sub-agent persists across rounds within one aspect's loop and must return structured fix evidence
+  (changed artifact location + rubric item ID) for every item it addresses each round. The script's own loop
+  state closes a previously-open rubric line item only when the current critic's list omits it **and** the
+  builder's evidence names that same item as fixed this round — a critic's omission with no matching builder
+  evidence never closes an item on its own, and a closed item that later reappears is treated as a regression,
+  not a clean pass.
 - The integration pass between aspect fan-out and the final panel is a defined step with a named owner (Behavior
   6), never implicit — conflicts between aspects are resolved by rubric priority, and any integration-introduced
   defect that doesn't map to an existing aspect becomes its own cross-cutting aspect rather than being dropped.
 - The identical unresolved defect (same rubric line item) surviving three consecutive rounds within one aspect's
-  own loop, or the same aspect being routed back by the final panel three times running, marks that aspect
-  stalled and stops looping on it rather than continuing silently — it does not block other aspects. A stall is
+  own loop, or the same `(aspect, rubric line item)` pair being routed back by the final panel three times
+  running, marks that item stalled and stops looping on it rather than continuing silently — it does not block
+  other aspects or other defects on the same aspect. A stall is
   never resolved by a running `Workflow` script itself asking D a question; only the orchestrating session does
   that, once the run reports the stall (Behavior 7).
 - The Gauntlet Prompt (one artifact: Task, Build Method, Bar to Hit, plus the confirmed rubric) is saved to disk
   on every run, whether or not it's launched immediately, and never written to a repo root or source directory —
   it is the same artifact `Workflow` consumes when launched, not a separate script.
-- No irreversible side effects run inside the loop: builder and critic sub-agents are launched with a restricted
-  tool set — no deploys, sends, purchases, or writes to production or shared systems, regardless of what the
-  ambient session can access. This is enforced at launch, not merely asserted as policy.
+- Builder and critic sub-agent prompts explicitly forbid deploys, sends, purchases, or writes to production or
+  shared systems inside the loop — but this is advisory, not enforced: `Workflow`-spawned sub-agents inherit the
+  parent session's own permissions and sandboxing, with no documented per-sub-agent mechanism this skill can use
+  to restrict tools at launch. If the ambient session can reach production, so can a sub-agent; that risk is not
+  eliminated by this skill and must be accepted before running it from such a session.
+- Every persisted artifact (the Gauntlet Prompt file, and per-run state referenced via `resumeFromRunId`) is
+  written with owner-only file permissions. D is warned, at the launch-mode dialog (Behavior 3), that it will
+  contain plain-text deliverable/reference/rubric content before it's saved. The skill does not encrypt, redact,
+  or auto-expire these files — cleanup and retention are D's responsibility, the same as `.tmp/`-equivalent
+  files written by sibling skills.
 - If the `Workflow` tool is unavailable in the current session, the skill states this and does not run a
   degraded substitute — no other mechanism in this skill can perform the fan-out and background execution
   `Workflow` provides.
