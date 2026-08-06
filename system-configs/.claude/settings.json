@@ -47,7 +47,7 @@
           {
             "type": "command",
             "timeout": 5,
-            "command": "INPUT=$(cat); command -v jq >/dev/null 2>&1 || exit 0; CMD=$(printf '%s' \"$INPUT\" | jq -r '.tool_input.command // empty' 2>/dev/null); if [[ -z \"$CMD\" ]]; then exit 0; fi; if printf '%s' \"$CMD\" | grep -qE '(--no-verify|--no-gpg-sign|git\\s+reset\\s+--hard|git\\s+push\\s+--force|git\\s+push\\s+-f\\b|git\\s+clean\\s+-f|git\\s+branch\\s+-D|git\\s+checkout\\s+\\.)'; then echo 'BLOCKED: Destructive or policy-violating git operation detected' >&2; exit 2; fi"
+            "command": "INPUT=$(cat); command -v jq >/dev/null 2>&1 || exit 0; CMD=$(printf '%s' \"$INPUT\" | jq -r '.tool_input.command // empty' 2>/dev/null); if [[ -z \"$CMD\" ]]; then exit 0; fi; if printf '%s' \"$CMD\" | grep -qE '(--no-verify|--no-gpg-sign|git(\\s+-[A-Za-z]+(\\s+\\S+)?)*\\s+reset\\s+--hard|git\\s+push\\s+--force|git\\s+push\\s+-f\\b|git\\s+clean\\s+-[a-zA-Z]*f[a-zA-Z]*|git\\s+branch\\s+-D|git\\s+checkout\\s+(--\\s+)?\\.)'; then echo 'BLOCKED: Destructive or policy-violating git operation detected' >&2; exit 2; fi"
           },
           {
             "type": "command",
