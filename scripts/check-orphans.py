@@ -69,7 +69,7 @@ def extract_agent_references(content):
         # Reference in prose: the agent-name agent
         r"the\s+(\w+-\w+(?:-\w+)?)\s+agent",
         # Use agent: use agent-name
-        r"use\s+(\w+-\w+(?:-\w+)?)",
+        r"\buse\s+(\w+-\w+(?:-\w+)?)",
     ]
 
     for pattern in patterns:
