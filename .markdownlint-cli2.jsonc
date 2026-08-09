@@ -110,7 +110,11 @@
     // MD051: Link fragments should be valid (disabled for emoji compatibility)
     "MD051": false,
     // MD058: Tables should be surrounded by blank lines (re-enabled)
-    "MD058": true
+    "MD058": true,
+    // MD060: Table column style (new in markdownlint v0.41; enforce per-file
+    // consistency rather than one repo-wide pipe-padding style — the repo's
+    // 39 table-bearing files use both compact and padded tables deliberately)
+    "MD060": { "style": "consistent" }
   },
   // Ignore patterns - completely ignore technical documentation directories
   // to resolve MD013 line length violations from long URLs, specifications, and diagrams
