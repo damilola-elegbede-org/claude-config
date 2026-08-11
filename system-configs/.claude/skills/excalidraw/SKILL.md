@@ -97,8 +97,11 @@ actors. A page of identical rounded rectangles conveys nothing beyond its labels
 ### Layout constants
 
 Node `200 × 76`, column gap `40`, row pitch `180`, left gutter `80`. Title `28`, body `20`,
-annotations `16`, tier labels `14` uppercase in `ink.muted`. Estimate text width as
-`characters × fontSize × 0.55` and clamp bound labels to `container.width - 10`. Full table in
+annotations `16`, tier labels `14` uppercase in `ink.muted`. `ink.muted` carries real content —
+tier labels, margin notes — not decoration, so every bundled theme's `ink.muted` must clear
+WCAG AA text contrast (4.5:1) against `canvas.background`; `check-theme.mjs` enforces this the
+same way it enforces `ink.primary`. Estimate text width as `characters × fontSize × 0.55` and
+clamp bound labels to `container.width - 10`. Full table in
 [references/layout.md](references/layout.md).
 
 ### Not this skill

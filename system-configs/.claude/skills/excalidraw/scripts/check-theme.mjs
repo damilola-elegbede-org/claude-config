@@ -94,6 +94,13 @@ function checkTheme(theme, file) {
     err(`ink.primary on canvas is ${bodyContrast.toFixed(2)}, below AA ${AA_TEXT}`);
   }
 
+  // ink.muted renders as text (tier labels, annotations, margin notes), not decoration —
+  // same AA text bar as ink.primary, not the looser non-text minimum used for strokes.
+  const mutedContrast = contrastRatio(theme.ink.muted, theme.canvas.background);
+  if (mutedContrast != null && mutedContrast < AA_TEXT) {
+    err(`ink.muted on canvas is ${mutedContrast.toFixed(2)}, below AA ${AA_TEXT}`);
+  }
+
   return { errors, warnings };
 }
 

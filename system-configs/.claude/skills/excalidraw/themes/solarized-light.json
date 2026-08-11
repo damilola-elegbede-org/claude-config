@@ -10,7 +10,7 @@
   },
   "ink": {
     "primary": "#073642",
-    "muted": "#93a1a1",
+    "muted": "#586e75",
     "connector": "#268bd2"
   },
   "surfaces": [

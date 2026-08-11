@@ -48,7 +48,7 @@ alongside baked colours.
   "mode": "dark",
   "authored": "baked",
   "canvas": { "background": "#1a1b26", "panel": "#292e42" },
-  "ink": { "primary": "#c0caf5", "muted": "#565f89", "connector": "#7aa2f7" },
+  "ink": { "primary": "#c0caf5", "muted": "#7982a9", "connector": "#7aa2f7" },
   "surfaces": [
     {
       "slot": "blue",
