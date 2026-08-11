@@ -9,7 +9,7 @@ description: >-
   emits real DDL.
 ---
 
-# Excalidraw Diagrams
+# /excalidraw
 
 ## Usage
 
