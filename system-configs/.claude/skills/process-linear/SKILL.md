@@ -220,12 +220,14 @@ ticket involves any of:
 For everything else, source verification is optional but encouraged. When a check contradicts the ticket, treat that
 as the finding.
 
-### 9. Escalate to the fable-advisor at the sharp gates
+### 9. Escalate to the advisor at the sharp gates
 
-Consult the `fable-advisor` (Fable tier) **before finalizing** the recommendation when a decision is
+Call the `advisor` tool **before finalizing** the recommendation when a decision is
 **financial, secrets/access-scoped, bulk-destructive, or architecturally constraining** — the gates where a plausible
-wrong call is expensive. Pass it the verified facts (step 8), not the ticket text alone. Its guidance sharpens the
-options you present; D still decides. Elsewhere the consult is optional — don't manufacture it for routine calls.
+wrong call is expensive. The advisor runs on Fable and receives this session's full transcript automatically, so the
+step-8 verifications reach it only if you actually ran them here — there is no context argument to pass by hand. Its
+guidance sharpens the options you present; D still decides. Elsewhere the consult is optional — don't manufacture it
+for routine calls.
 
 ### 10. Record atomically (re-check, then idempotent write)
 
