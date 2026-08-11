@@ -7,6 +7,9 @@ description: >-
   diagram, sketch, or visualise a system, flow, or architecture, or mentions Excalidraw by name.
   Not for database schemas or entity-relationship diagrams, which belong in a schema tool that
   emits real DDL.
+argument-hint: "[subject] [--theme <theme-id>]"
+metadata:
+  category: workflow
 ---
 
 # /excalidraw
