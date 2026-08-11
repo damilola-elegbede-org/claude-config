@@ -1,0 +1,107 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Excalidraw skill theme",
+  "type": "object",
+  "required": [
+    "id",
+    "name",
+    "mode",
+    "authored",
+    "canvas",
+    "ink",
+    "surfaces",
+    "defaults"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "name": { "type": "string" },
+    "mode": {
+      "enum": ["dark", "light"],
+      "description": "How the diagram is meant to LOOK, not the value of appState.theme."
+    },
+    "authored": {
+      "enum": ["baked"],
+      "description": "Colours are written literally into elements; appState.theme stays 'light' so Excalidraw's inversion filter never runs. See references/themes.md."
+    },
+    "canvas": {
+      "type": "object",
+      "required": ["background", "panel"],
+      "additionalProperties": false,
+      "properties": {
+        "background": {
+          "$ref": "#/$defs/hex",
+          "description": "appState.viewBackgroundColor"
+        },
+        "panel": {
+          "$ref": "#/$defs/hex",
+          "description": "Fill for grouping frames / backdrops"
+        }
+      }
+    },
+    "ink": {
+      "type": "object",
+      "required": ["primary", "muted", "connector"],
+      "additionalProperties": false,
+      "properties": {
+        "primary": {
+          "$ref": "#/$defs/hex",
+          "description": "Body and label text"
+        },
+        "muted": {
+          "$ref": "#/$defs/hex",
+          "description": "Annotations, secondary labels"
+        },
+        "connector": {
+          "$ref": "#/$defs/hex",
+          "description": "Default arrow / line stroke"
+        }
+      }
+    },
+    "surfaces": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "description": "Six categorical node styles. Slot order is stable across themes, so slot N means the same category index everywhere.",
+      "items": {
+        "type": "object",
+        "required": ["slot", "fill", "stroke", "text", "contrast"],
+        "additionalProperties": false,
+        "properties": {
+          "slot": {
+            "enum": ["blue", "green", "amber", "red", "violet", "teal"]
+          },
+          "fill": { "$ref": "#/$defs/hex" },
+          "stroke": { "$ref": "#/$defs/hex" },
+          "text": { "$ref": "#/$defs/hex" },
+          "contrast": {
+            "type": "number",
+            "minimum": 4.5,
+            "description": "WCAG contrast of text on fill. Must clear AA."
+          }
+        }
+      }
+    },
+    "defaults": {
+      "type": "object",
+      "required": ["roughness", "strokeWidth", "fontFamily", "fontSize"],
+      "additionalProperties": false,
+      "properties": {
+        "roughness": {
+          "enum": [0, 1, 2],
+          "description": "0 architect, 1 artist, 2 cartoonist"
+        },
+        "strokeWidth": { "enum": [1, 2, 4] },
+        "fontFamily": {
+          "type": "integer",
+          "description": "Excalidraw FONT_FAMILY code"
+        },
+        "fontSize": { "type": "number" }
+      }
+    }
+  },
+  "$defs": {
+    "hex": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" }
+  }
+}

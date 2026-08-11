@@ -1,0 +1,66 @@
+{
+  "$schema": "./_schema.json",
+  "id": "monokai",
+  "name": "Monokai",
+  "mode": "dark",
+  "authored": "baked",
+  "canvas": {
+    "background": "#272822",
+    "panel": "#3e3d32"
+  },
+  "ink": {
+    "primary": "#f8f8f2",
+    "muted": "#75715e",
+    "connector": "#66d9ef"
+  },
+  "surfaces": [
+    {
+      "slot": "blue",
+      "fill": "#324847",
+      "stroke": "#66d9ef",
+      "text": "#f8f8f2",
+      "contrast": 9.15
+    },
+    {
+      "slot": "green",
+      "fill": "#3e4924",
+      "stroke": "#a6e22e",
+      "text": "#f8f8f2",
+      "contrast": 9.02
+    },
+    {
+      "slot": "amber",
+      "fill": "#4e3c21",
+      "stroke": "#fd971f",
+      "text": "#f8f8f2",
+      "contrast": 9.89
+    },
+    {
+      "slot": "red",
+      "fill": "#4d2830",
+      "stroke": "#f92672",
+      "text": "#f8f8f2",
+      "contrast": 11.86
+    },
+    {
+      "slot": "violet",
+      "fill": "#3f384a",
+      "stroke": "#ae81ff",
+      "text": "#f8f8f2",
+      "contrast": 10.5
+    },
+    {
+      "slot": "teal",
+      "fill": "#324847",
+      "stroke": "#66d9ef",
+      "text": "#f8f8f2",
+      "contrast": 9.15
+    }
+  ],
+  "defaults": {
+    "roughness": 1,
+    "strokeWidth": 2,
+    "fontFamily": 5,
+    "fontSize": 20
+  }
+}

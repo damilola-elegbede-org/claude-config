@@ -1,0 +1,66 @@
+{
+  "$schema": "./_schema.json",
+  "id": "gruvbox-dark",
+  "name": "Gruvbox Dark",
+  "mode": "dark",
+  "authored": "baked",
+  "canvas": {
+    "background": "#282828",
+    "panel": "#3c3836"
+  },
+  "ink": {
+    "primary": "#ebdbb2",
+    "muted": "#928374",
+    "connector": "#83a598"
+  },
+  "surfaces": [
+    {
+      "slot": "blue",
+      "fill": "#383f3c",
+      "stroke": "#83a598",
+      "text": "#ebdbb2",
+      "contrast": 7.87
+    },
+    {
+      "slot": "green",
+      "fill": "#424228",
+      "stroke": "#b8bb26",
+      "text": "#ebdbb2",
+      "contrast": 7.5
+    },
+    {
+      "slot": "amber",
+      "fill": "#4e4329",
+      "stroke": "#fabd2f",
+      "text": "#ebdbb2",
+      "contrast": 7.09
+    },
+    {
+      "slot": "red",
+      "fill": "#4e2e2a",
+      "stroke": "#fb4934",
+      "text": "#ebdbb2",
+      "contrast": 8.76
+    },
+    {
+      "slot": "violet",
+      "fill": "#47393d",
+      "stroke": "#d3869b",
+      "text": "#ebdbb2",
+      "contrast": 7.97
+    },
+    {
+      "slot": "teal",
+      "fill": "#3a4337",
+      "stroke": "#8ec07c",
+      "text": "#ebdbb2",
+      "contrast": 7.51
+    }
+  ],
+  "defaults": {
+    "roughness": 1,
+    "strokeWidth": 2,
+    "fontFamily": 5,
+    "fontSize": 20
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "$schema": "./_schema.json",
+  "id": "catppuccin-mocha",
+  "name": "Catppuccin Mocha",
+  "mode": "dark",
+  "authored": "baked",
+  "canvas": {
+    "background": "#1e1e2e",
+    "panel": "#313244"
+  },
+  "ink": {
+    "primary": "#cdd6f4",
+    "muted": "#6c7086",
+    "connector": "#89b4fa"
+  },
+  "surfaces": [
+    {
+      "slot": "blue",
+      "fill": "#313953",
+      "stroke": "#89b4fa",
+      "text": "#cdd6f4",
+      "contrast": 7.89
+    },
+    {
+      "slot": "green",
+      "fill": "#364143",
+      "stroke": "#a6e3a1",
+      "text": "#cdd6f4",
+      "contrast": 7.28
+    },
+    {
+      "slot": "amber",
+      "fill": "#46393e",
+      "stroke": "#fab387",
+      "text": "#cdd6f4",
+      "contrast": 7.58
+    },
+    {
+      "slot": "red",
+      "fill": "#443244",
+      "stroke": "#f38ba8",
+      "text": "#cdd6f4",
+      "contrast": 8.13
+    },
+    {
+      "slot": "violet",
+      "fill": "#3d3652",
+      "stroke": "#cba6f7",
+      "text": "#cdd6f4",
+      "contrast": 7.86
+    },
+    {
+      "slot": "teal",
+      "fill": "#33414c",
+      "stroke": "#94e2d5",
+      "text": "#cdd6f4",
+      "contrast": 7.26
+    }
+  ],
+  "defaults": {
+    "roughness": 1,
+    "strokeWidth": 2,
+    "fontFamily": 5,
+    "fontSize": 20
+  }
+}

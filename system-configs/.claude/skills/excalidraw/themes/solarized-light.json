@@ -1,0 +1,66 @@
+{
+  "$schema": "./_schema.json",
+  "id": "solarized-light",
+  "name": "Solarized Light",
+  "mode": "light",
+  "authored": "baked",
+  "canvas": {
+    "background": "#fdf6e3",
+    "panel": "#eee8d5"
+  },
+  "ink": {
+    "primary": "#073642",
+    "muted": "#93a1a1",
+    "connector": "#268bd2"
+  },
+  "surfaces": [
+    {
+      "slot": "blue",
+      "fill": "#d2e1e0",
+      "stroke": "#268bd2",
+      "text": "#073642",
+      "contrast": 9.65
+    },
+    {
+      "slot": "green",
+      "fill": "#e5e3b6",
+      "stroke": "#859900",
+      "text": "#073642",
+      "contrast": 9.9
+    },
+    {
+      "slot": "amber",
+      "fill": "#efe0b6",
+      "stroke": "#b58900",
+      "text": "#073642",
+      "contrast": 9.91
+    },
+    {
+      "slot": "red",
+      "fill": "#f6cfbf",
+      "stroke": "#dc322f",
+      "text": "#073642",
+      "contrast": 9.04
+    },
+    {
+      "slot": "violet",
+      "fill": "#e0dbdd",
+      "stroke": "#6c71c4",
+      "text": "#073642",
+      "contrast": 9.5
+    },
+    {
+      "slot": "teal",
+      "fill": "#d3e5d4",
+      "stroke": "#2aa198",
+      "text": "#073642",
+      "contrast": 9.86
+    }
+  ],
+  "defaults": {
+    "roughness": 1,
+    "strokeWidth": 2,
+    "fontFamily": 5,
+    "fontSize": 20
+  }
+}
