@@ -31,10 +31,16 @@ function parseArgs(argv) {
     const a = argv[i];
     if (a === "--list") opts.list = true;
     else if (a === "--json") opts.json = true;
-    else if (a === "--only") opts.only.push(argv[++i]);
-    else if (a === "--skip") opts.skip.push(argv[++i]);
-    else if (a === "--dir") opts.dir = argv[++i];
-    else {
+    else if (a === "--only" || a === "--skip" || a === "--dir") {
+      const value = argv[++i];
+      if (value === undefined) {
+        console.error(`${a} requires a value`);
+        process.exit(2);
+      }
+      if (a === "--only") opts.only.push(value);
+      else if (a === "--skip") opts.skip.push(value);
+      else opts.dir = value;
+    } else {
       console.error(`Unknown argument: ${a}`);
       process.exit(2);
     }
@@ -180,6 +186,14 @@ function runCheck(check, dir) {
 function main() {
   const opts = parseArgs(process.argv.slice(2));
   let checks = detectChecks(opts.dir);
+
+  const knownIds = new Set(checks.map((c) => c.id));
+  const unknownIds = [...new Set([...opts.only, ...opts.skip])].filter((id) => !knownIds.has(id));
+  if (unknownIds.length) {
+    console.error(`Unknown gate id(s): ${unknownIds.join(", ")}`);
+    console.error(`Known gate ids: ${[...knownIds].join(", ") || "(none detected)"}`);
+    process.exit(2);
+  }
 
   if (opts.only.length) checks = checks.filter((c) => opts.only.includes(c.id));
   if (opts.skip.length) checks = checks.filter((c) => !opts.skip.includes(c.id));
