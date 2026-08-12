@@ -148,7 +148,12 @@ function detectChecks(dir) {
   return checks;
 }
 
-const GATE_TIMEOUT_MS = Number(process.env.VERIFY_GATE_TIMEOUT_MS ?? 10 * 60 * 1000);
+// 0 would disable spawnSync's timeout entirely and negative/NaN values make it
+// throw RangeError, so anything but a finite positive number falls back.
+const DEFAULT_GATE_TIMEOUT_MS = 10 * 60 * 1000;
+const envTimeout = Number(process.env.VERIFY_GATE_TIMEOUT_MS);
+const GATE_TIMEOUT_MS =
+  Number.isFinite(envTimeout) && envTimeout > 0 ? envTimeout : DEFAULT_GATE_TIMEOUT_MS;
 
 function runCheck(check, dir) {
   const started = Date.now();
@@ -250,12 +255,18 @@ function main() {
   const failed = results.filter((r) => r.status === "fail");
   const unavailable = results.filter((r) => r.status === "unavailable");
 
+  // Verdict is three-valued on purpose. "pass" means every detected gate ran
+  // and passed. Any unavailable gate makes the result "incomplete", and
+  // incomplete is not green: a project that declares a typecheck gate has not
+  // been verified on a machine where the typechecker cannot run.
+  const verdict = failed.length ? "fail" : unavailable.length ? "incomplete" : "pass";
+
   if (opts.json) {
     console.log(JSON.stringify({
       checks: results,
       failed: failed.length,
       unavailable: unavailable.length,
-      verdict: failed.length ? "fail" : "pass",
+      verdict,
     }, null, 2));
   } else {
     for (const r of results) {
@@ -266,19 +277,12 @@ function main() {
       console.log(`\n--- ${r.id} (exit ${r.exitCode}) ---\n${r.output}`);
     }
     console.log(
-      `\n${failed.length ? "FAILED" : "PASSED"}: ${results.length - failed.length - unavailable.length}/${results.length - unavailable.length} gates passed` +
-        (unavailable.length ? `, ${unavailable.length} unavailable` : ""),
+      `\n${verdict.toUpperCase()}: ${results.length - failed.length - unavailable.length}/${results.length} gates passed` +
+        (unavailable.length ? `, ${unavailable.length} unavailable (an unavailable gate is not a pass)` : ""),
     );
   }
 
-  // Every gate unavailable means nothing was verified. Exiting 0 there would
-  // report "pass" for a machine missing every toolchain.
-  if (!failed.length && unavailable.length === results.length) {
-    if (!opts.json) console.log("Nothing was verified — every detected gate was unavailable.");
-    process.exit(1);
-  }
-
-  process.exit(failed.length ? 1 : 0);
+  process.exit(verdict === "pass" ? 0 : 1);
 }
 
 main();

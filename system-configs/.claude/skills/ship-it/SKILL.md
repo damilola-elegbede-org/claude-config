@@ -53,15 +53,13 @@ Parse flags from `$ARGUMENTS`. With no flags, enable every step.
 
 Run enabled steps in this fixed order; halt immediately on failure.
 
-**Pre-commit gate.** Before any step that commits, pushes, or opens a PR, full verification must
-have run in this invocation. Only `-v` counts. `-t` runs the test suite alone — it does not cover
-linters, type checkers, or builds, so it does not satisfy this gate. `-r` does not count either,
-because `/review` reads code and runs no gates. When the caller selected a narrow action —
-`/ship-it -c -p -pr`, `/ship-it -c`, `/ship-it -t -c -p` — full verification still has not run,
-and the shipping steps would otherwise proceed against unknown state.
+**Pre-commit gate.** Before any step that commits, pushes, or opens a PR, the project's gates
+must have been run in this invocation. Only `-v` satisfies that: `/test` runs the test suite but
+not lint, typecheck, or build, and `/review` reads code and runs no gates at all. A green `-t`
+with a red typecheck is exactly the state this gate exists to catch.
 
 ```text
-IF: any of -c / -p / -pr is set AND -v did not run
+IF: any of -c / -p / -pr is set AND -v did not run and pass
   RUN: /verify --report-only
   IF: any gate failed
     OUTPUT: "Refusing to ship with N failing gate(s): {names}. Fix them and re-run."
@@ -96,7 +94,7 @@ that choice.
      - **If available:** one tool call to `commit-commands:commit-push-pr`.
        No TaskCreate ceremony, no orchestration.
      - **If not available:** output `commit-commands:commit-push-pr not
-installed, falling back to local skills` and invoke our `/commit` →
+       installed, falling back to local skills` and invoke our `/commit` →
        `/push` → `/pr` in sequence.
    - `-c -p` without `-pr`: `commit-commands:commit-push-pr` always creates a
      PR, so for "commit + push only" invoke our `/commit` followed by `/push`.
