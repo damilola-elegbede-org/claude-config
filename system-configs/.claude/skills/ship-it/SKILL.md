@@ -1,7 +1,7 @@
 ---
 name: ship-it
 description: Orchestrate development workflows with composable flags. Use when shipping code through docs, test, commit, review, push, and PR stages.
-argument-hint: "[-d] [-t] [-c] [-r] [-p] [-pr] [--dry-run]"
+argument-hint: "[-d] [-t] [-v] [-c] [-r] [-p] [-pr] [--dry-run]"
 metadata:
   category: orchestration
 ---
@@ -33,39 +33,60 @@ back to invoking our own skill instead.
 
 ## Flags
 
-| Flag | What it enables |
-|------|-----------------|
-| `-d` | Run `/docs` first |
-| `-t` | Run `/test` first |
-| `-r` | Run `/review` first |
-| `-c -p -pr` | Commit + push + PR (delegated to `commit-commands:commit-push-pr`) |
+| Flag               | What it enables                                                                                                                 |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| `-d`               | Run `/docs` first                                                                                                               |
+| `-t`               | Run `/test` first                                                                                                               |
+| `-v`               | Run `/verify` first (gates must be green to proceed)                                                                            |
+| `-r`               | Run `/review` first                                                                                                             |
+| `-c -p -pr`        | Commit + push + PR (delegated to `commit-commands:commit-push-pr`)                                                              |
 | `-c -p` (no `-pr`) | Commit + push only (`commit-commands:commit-push-pr` without the PR step is not available, so fall back to `/commit` + `/push`) |
-| `-c` alone | Run `/commit` only |
-| `-p` alone | Run `/push` only |
-| `-pr` alone | Create PR via `/pr` (preserves `--draft`, CodeRabbit acknowledgment) |
-| Other combinations | Any other partial combination (e.g., `-c -pr` without `-p`) is rejected with an error. |
-| `--dry-run` | Print the plan, don't execute |
+| `-c` alone         | Run `/commit` only                                                                                                              |
+| `-p` alone         | Run `/push` only                                                                                                                |
+| `-pr` alone        | Create PR via `/pr` (preserves `--draft`, CodeRabbit acknowledgment)                                                            |
+| Other combinations | Any other partial combination (e.g., `-c -pr` without `-p`) is rejected with an error.                                          |
+| `--dry-run`        | Print the plan, don't execute                                                                                                   |
 
 ## Execution
 
 Parse flags from `$ARGUMENTS`. With no flags, enable every step.
 
-Run enabled steps in this fixed order; halt immediately on failure:
+Run enabled steps in this fixed order; halt immediately on failure.
+
+**Pre-commit gate.** Before any step that commits, pushes, or opens a PR, verification must have
+run in this invocation. In the no-flag default it has, via `-t`/`-v`/`-r`. When the caller
+selected a narrow action instead — `/ship-it -c -p -pr`, `/ship-it -c`, and so on — it has not,
+and the shipping steps would otherwise run against unknown state.
+
+```text
+IF: any of -c / -p / -pr is set AND none of -t / -v / -r ran
+  RUN: /verify --report-only
+  IF: any gate failed
+    OUTPUT: "Refusing to ship with N failing gate(s): {names}. Fix them and re-run."
+    HALT
+  IF: no gates detected
+    OUTPUT: "No verification gates detected — shipping unchecked."
+    CONTINUE (this is a warning, not a failure; a project with no gates is allowed to exist)
+```
+
+**There is no bypass flag, deliberately.** `/commit` and `/push` already carry a standing rule
+that they never pass `--no-verify`, and a settings hook blocks that string in any bash command
+outright. A skip flag here would reintroduce the hole those two guards exist to close — and
+documenting the flag would put the blocked string into the example output. To ship a red branch,
+fix the gate or run `/push` directly and own it.
 
 1. **`-d`**: Invoke `/docs`. Skip if no doc-relevant changes detected.
 2. **`-t`**: Invoke `/test`.
-3. **`-r`**: Invoke `/review`. If issues found, hand off to `/resolve-comments` per its own flow.
-4. **Commit + push + PR** (after any of -d/-t/-r have run): pick the right path
+3. **`-v`**: Invoke `/verify`. Halt if it ends with gates still failing.
+4. **`-r`**: Invoke `/review`. If issues found, hand off to `/resolve-comments` per its own flow.
+5. **Commit + push + PR** (after any of -d/-t/-r have run): pick the right path
    based on which of `-c`, `-p`, `-pr` are set (in the no-flag default, all
    three are set, so this step runs `commit-commands:commit-push-pr`):
-   - All three of `-c -p -pr` set (including the no-flag default):
-     - **Check** that `commit-commands:commit-push-pr` is available (the
-       Anthropic-published `commit-commands` plugin installs it).
-     - **If available:** one tool call to `commit-commands:commit-push-pr`.
-       No TaskCreate ceremony, no orchestration.
-     - **If not available:** output `commit-commands:commit-push-pr not
-       installed, falling back to local skills` and invoke our `/commit` →
-       `/push` → `/pr` in sequence.
+   - All three of `-c -p -pr` set (including the no-flag default): - **Check** that `commit-commands:commit-push-pr` is available (the
+     Anthropic-published `commit-commands` plugin installs it). - **If available:** one tool call to `commit-commands:commit-push-pr`.
+     No TaskCreate ceremony, no orchestration. - **If not available:** output `commit-commands:commit-push-pr not
+installed, falling back to local skills` and invoke our `/commit` →
+     `/push` → `/pr` in sequence.
    - `-c -p` without `-pr`: `commit-commands:commit-push-pr` always creates a
      PR, so for "commit + push only" invoke our `/commit` followed by `/push`.
    - `-pr` alone or alongside only `-d`/`-t`/`-r` (not `-c`/`-p`): invoke our
