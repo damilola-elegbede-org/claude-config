@@ -9,7 +9,6 @@ permissionMode: plan
 memory: project
 color: purple
 category: architecture
-skills: api-design-patterns
 ---
 
 # Architect

@@ -1,7 +1,7 @@
 ---
 name: ship-it
 description: Orchestrate development workflows with composable flags. Use when shipping code through docs, test, commit, review, push, and PR stages.
-argument-hint: "[-d] [-t] [-c] [-r] [-p] [-pr] [--dry-run]"
+argument-hint: "[-d] [-t] [-v] [-c] [-r] [-p] [-pr] [--dry-run]"
 metadata:
   category: orchestration
 ---
@@ -33,29 +33,59 @@ back to invoking our own skill instead.
 
 ## Flags
 
-| Flag | What it enables |
-|------|-----------------|
-| `-d` | Run `/docs` first |
-| `-t` | Run `/test` first |
-| `-r` | Run `/review` first |
-| `-c -p -pr` | Commit + push + PR (delegated to `commit-commands:commit-push-pr`) |
+| Flag               | What it enables                                                                                                                 |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| `-d`               | Run `/docs` first                                                                                                               |
+| `-t`               | Run `/test` first                                                                                                               |
+| `-v`               | Run `/verify` first (gates must be green to proceed)                                                                            |
+| `-r`               | Run `/review` first                                                                                                             |
+| `-c -p -pr`        | Commit + push + PR (delegated to `commit-commands:commit-push-pr`)                                                              |
 | `-c -p` (no `-pr`) | Commit + push only (`commit-commands:commit-push-pr` without the PR step is not available, so fall back to `/commit` + `/push`) |
-| `-c` alone | Run `/commit` only |
-| `-p` alone | Run `/push` only |
-| `-pr` alone | Create PR via `/pr` (preserves `--draft`, CodeRabbit acknowledgment) |
-| Other combinations | Any other partial combination (e.g., `-c -pr` without `-p`) is rejected with an error. |
-| `--dry-run` | Print the plan, don't execute |
+| `-c` alone         | Run `/commit` only                                                                                                              |
+| `-p` alone         | Run `/push` only                                                                                                                |
+| `-pr` alone        | Create PR via `/pr` (preserves `--draft`, CodeRabbit acknowledgment)                                                            |
+| Other combinations | Any other partial combination (e.g., `-c -pr` without `-p`) is rejected with an error.                                          |
+| `--dry-run`        | Print the plan, don't execute                                                                                                   |
 
 ## Execution
 
 Parse flags from `$ARGUMENTS`. With no flags, enable every step.
 
-Run enabled steps in this fixed order; halt immediately on failure:
+Run enabled steps in this fixed order; halt immediately on failure.
+
+**Pre-commit gate.** Before any step that commits, pushes, or opens a PR, the project's gates
+must have been run in this invocation. Only `-v` satisfies that: `/test` runs the test suite but
+not lint, typecheck, or build, and `/review` reads code and runs no gates at all. A green `-t`
+with a red typecheck is exactly the state this gate exists to catch.
+
+```text
+IF: any of -c / -p / -pr is set AND -v did not run and pass
+  RUN: /verify --report-only
+  IF: any gate failed
+    OUTPUT: "Refusing to ship with N failing gate(s): {names}. Fix them and re-run."
+    HALT
+  IF: no gates detected
+    OUTPUT: "No verification gates detected — shipping unchecked."
+    CONTINUE (this is a warning, not a failure; a project with no gates is allowed to exist)
+```
+
+**What this gate is, honestly.** It is a convention this skill follows, not a control that
+enforces itself. Nothing stops an agent from calling `/commit` directly and skipping it entirely —
+bare `/commit` carries no gate of its own. Treat it as the default path being the safe one, not as
+a guarantee. Making it a guarantee needs a `PreToolUse` hook on `git commit` that checks for a
+fresh verify result; that is a larger change than this skill.
+
+There is deliberately no bypass flag. `/commit` and `/push` already carry a standing rule against
+skipping hooks, and a settings hook blocks that string in any bash command outright, so a skip
+flag here would reopen the hole those guards close — and documenting it would put the blocked
+string into the example output. To ship a red branch, fix the gate or run `/push` directly and own
+that choice.
 
 1. **`-d`**: Invoke `/docs`. Skip if no doc-relevant changes detected.
 2. **`-t`**: Invoke `/test`.
-3. **`-r`**: Invoke `/review`. If issues found, hand off to `/resolve-comments` per its own flow.
-4. **Commit + push + PR** (after any of -d/-t/-r have run): pick the right path
+3. **`-v`**: Invoke `/verify`. Halt if it ends with gates still failing.
+4. **`-r`**: Invoke `/review`. If issues found, hand off to `/resolve-comments` per its own flow.
+5. **Commit + push + PR** (after any of -d/-t/-v/-r have run): pick the right path
    based on which of `-c`, `-p`, `-pr` are set (in the no-flag default, all
    three are set, so this step runs `commit-commands:commit-push-pr`):
    - All three of `-c -p -pr` set (including the no-flag default):

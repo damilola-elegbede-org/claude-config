@@ -147,7 +147,7 @@ def parse_yaml_structure(yaml_text):
                 if not re.match(r'^[a-z][a-z0-9-]*$', skill_name):
                     issues.append(
                         f"Invalid skill name '{skill_name}' in skills list. "
-                        "Must be lowercase-hyphenated (e.g., 'git-conventions')"
+                        "Must be lowercase-hyphenated (e.g., 'feature-lifecycle')"
                     )
 
     # Validate thinking-level and thinking-tokens consistency

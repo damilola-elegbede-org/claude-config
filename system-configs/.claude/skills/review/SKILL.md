@@ -248,7 +248,8 @@ Launching interactive triage...
 - `--full` mode may take longer depending on codebase size
 - `--deep` fans out three subagents in parallel for multi-perspective analysis
 - Code and security reviewers use `model: "sonnet"`; a11y-reviewer uses `model: "haiku"` (checklist-driven, structured output)
-- Code-reviewer prompt embeds `git-conventions` skill; security-reviewer embeds `security-checklist`
+- Reviewer prompts carry their own standards inline; the former `git-conventions` and
+  `security-checklist` reference skills were removed as general knowledge Claude already has
 - Subagents are ephemeral — no cleanup needed after they return
 - When [#24316][tc] lands, replace `subagent_type: "general-purpose"` with custom agent types
 

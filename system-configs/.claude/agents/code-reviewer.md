@@ -9,7 +9,6 @@ permissionMode: plan
 memory: local
 color: green
 category: quality
-skills: git-conventions, security-checklist
 ---
 
 # Code Reviewer

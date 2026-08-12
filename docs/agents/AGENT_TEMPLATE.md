@@ -33,7 +33,6 @@ category: development  # development, quality, security, architecture, design, a
 color: blue  # Must match category color - see AGENT_CATEGORIES.md
 # permissionMode: plan  # OPTIONAL: plan / acceptEdits / default / dontAsk / bypassPermissions
 # memory: project        # OPTIONAL: project / local / user - persistent agent memory
-# skills: git-conventions, security-checklist  # OPTIONAL: Preloads skill content into agent context (comma-separated)
 ---
 
 # [Agent Name]
@@ -104,7 +103,6 @@ This agent cannot invoke other agents or create Task calls. Only Claude has orch
 | `thinking-tokens` | Token budget for thinking | Must match thinking-level | `10000` |
 | `permissionMode` | Permission behavior | `plan`, `acceptEdits`, `default`, `dontAsk`, `bypassPermissions` | `plan` |
 | `memory` | Persistent memory scope | `project`, `local`, `user` | `project` |
-| `skills` | Preloaded reference skills | Comma-separated skill names | `git-conventions, security-checklist` |
 
 ### The `skills` Field
 
@@ -115,7 +113,7 @@ the user to invoke those skills separately.
 **Syntax:**
 
 ```yaml
-skills: git-conventions, security-checklist
+skills: feature-lifecycle
 ```
 
 **How it works:**
@@ -128,18 +126,9 @@ skills: git-conventions, security-checklist
 
 | Agent | Preloaded Skills |
 |-------|-----------------|
-| architect | `api-design-patterns` |
-| code-reviewer | `git-conventions`, `security-checklist` |
-| devops | `git-conventions` |
-| security-auditor | `security-checklist` |
-| test-engineer | `testing-patterns` |
 
 **Available reference skills** (all have `user-invocable: false`):
 
-- `git-conventions` - Git best practices, commit conventions, branching strategies
-- `security-checklist` - OWASP checks, vulnerability patterns, secure coding
-- `testing-patterns` - TDD/BDD patterns, test organization, coverage strategies
-- `api-design-patterns` - REST/GraphQL patterns, OpenAPI, versioning
 - `markdown-linting` - Markdownlint rules, documentation formatting
 
 **Best practices:**
@@ -153,11 +142,6 @@ skills: git-conventions, security-checklist
 
 | Agent | Model | Category | Skills |
 |-------|-------|----------|--------|
-| architect | opus | architecture | `api-design-patterns` |
-| code-reviewer | sonnet | quality | `git-conventions`, `security-checklist` |
 | debugger | sonnet | development | - |
-| devops | sonnet | infrastructure | `git-conventions` |
 | feature-agent | opus | orchestration | `feature-lifecycle` |
 | frontend-engineer | sonnet | development | - |
-| security-auditor | sonnet | security | `security-checklist` |
-| test-engineer | sonnet | quality | `testing-patterns` |
