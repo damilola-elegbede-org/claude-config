@@ -278,6 +278,22 @@ operation only — never let a completed comment op suppress a still-missing sta
 3×. On unrecoverable partial failure, report exactly what landed and **halt** — never advance the queue on an
 unverified write. A lost or duplicated decision is worse than a stall.
 
+**Bucket B bounces** get the same record-and-repair contract, keyed on a distinct `[triage-bounce]` marker (never
+`[triage-decision]` — a ticket can be bounced now and formally decided later, and the two markers must not collide).
+Immediately before each bounce write, re-fetch the ticket and scan for `[triage-bounce]`, since the gap between the
+table render and D's reply is enough time for another path to touch the ticket:
+
+- **Marker present AND state already `Todo`** → fully done; skip with a note.
+- **Marker present but state not yet `Todo`** (comment landed, state write did not, on a prior attempt) → partial
+  write; skip the comment op and complete only the missing state write.
+- **Marker present but current state conflicts** (e.g., already moved to `Done`/`Canceled` by another path) → drift;
+  skip the write and report — never force a ticket another path has already advanced back to `Todo`.
+- **No marker** → proceed with a fresh write: post the "not a D-decision; execute or re-block" note, then set state
+  to `Todo`.
+
+Same write discipline as the A/D1/D2 path: verify each write, retry up to 3×, and on unrecoverable partial failure
+report exactly what landed and halt that ticket rather than guessing.
+
 ### 11. Cascade lightly + collapse keystones
 
 Comment on **direct** dependents to note the unblock. Give each cascade note a **deterministic marker** that names the
@@ -318,16 +334,16 @@ per-ticket record; never leave the rule half-propagated silently.
 
 Every decision path has an explicit outcome — target state and whether a comment is written:
 
-| Path                    | Target state                                           | Comment                                                       |
-| ----------------------- | ------------------------------------------------------ | ------------------------------------------------------------- |
-| Normal decision         | per D's choice                                         | `[triage-decision]`                                           |
-| Skip                    | unchanged                                              | none                                                          |
-| Defer                   | unchanged (re-queued once, then left for next session) | brief "deferred by D" note                                    |
-| "Show me the source"    | unchanged (re-asked after D reads)                     | none                                                          |
-| Mislabeled              | corrected state                                        | note explaining the correction; no `[triage-decision]`        |
-| Bounce (bucket B)       | Todo                                                   | "not a D-decision; execute or re-block" note                  |
-| Bulk-accept (bucket D1) | Done                                                   | `[triage-decision]` (acceptance) — after per-cohort confirm   |
-| Cancel (bucket D2)      | Canceled                                               | `[triage-decision]` (cancellation) — after per-cohort confirm |
+| Path                    | Target state                                           | Comment                                                          |
+| ----------------------- | ------------------------------------------------------ | ---------------------------------------------------------------- |
+| Normal decision         | per D's choice                                         | `[triage-decision]`                                              |
+| Skip                    | unchanged                                              | none                                                             |
+| Defer                   | unchanged (re-queued once, then left for next session) | brief "deferred by D" note                                       |
+| "Show me the source"    | unchanged (re-asked after D reads)                     | none                                                             |
+| Mislabeled              | corrected state                                        | note explaining the correction; no `[triage-decision]`           |
+| Bounce (bucket B)       | Todo                                                   | `[triage-bounce]` + "not a D-decision; execute or re-block" note |
+| Bulk-accept (bucket D1) | Done                                                   | `[triage-decision]` (acceptance) — after per-cohort confirm      |
+| Cancel (bucket D2)      | Canceled                                               | `[triage-decision]` (cancellation) — after per-cohort confirm    |
 
 End with a recap that carries three things:
 
