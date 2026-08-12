@@ -148,13 +148,41 @@ function detectChecks(dir) {
   return checks;
 }
 
+const GATE_TIMEOUT_MS = Number(process.env.VERIFY_GATE_TIMEOUT_MS ?? 10 * 60 * 1000);
+
 function runCheck(check, dir) {
   const started = Date.now();
   const res = spawnSync(check.cmd, check.args, {
     cwd: dir,
     encoding: "utf8",
     maxBuffer: 32 * 1024 * 1024,
+    timeout: GATE_TIMEOUT_MS,
+    killSignal: "SIGKILL",
   });
+
+  // A gate that hangs must fail, not wedge the caller. Without this, /verify —
+  // and therefore ship-it's pre-commit gate — waits forever on a stuck suite.
+  if (res.error?.code === "ETIMEDOUT" || res.signal === "SIGKILL") {
+    return {
+      ...check,
+      status: "fail",
+      exitCode: null,
+      output: `Gate exceeded ${GATE_TIMEOUT_MS}ms and was killed.`,
+      ms: Date.now() - started,
+    };
+  }
+
+  // Truncated output means we cannot tell pass from fail. Treat as failure:
+  // silently downgrading to "unavailable" would exit 0 on a failing suite.
+  if (res.error?.code === "ENOBUFS") {
+    return {
+      ...check,
+      status: "fail",
+      exitCode: null,
+      output: "Gate produced more output than the 32MB buffer; result indeterminate.",
+      ms: Date.now() - started,
+    };
+  }
 
   // A missing binary is not a failing check — it means the gate cannot run here,
   // which the caller must distinguish from "the gate ran and found problems".
@@ -187,6 +215,8 @@ function main() {
   const opts = parseArgs(process.argv.slice(2));
   let checks = detectChecks(opts.dir);
 
+  // A typo'd --only would otherwise filter to zero checks and exit 0, which
+  // reads as "everything passed".
   const knownIds = new Set(checks.map((c) => c.id));
   const unknownIds = [...new Set([...opts.only, ...opts.skip])].filter((id) => !knownIds.has(id));
   if (unknownIds.length) {
@@ -239,6 +269,13 @@ function main() {
       `\n${failed.length ? "FAILED" : "PASSED"}: ${results.length - failed.length - unavailable.length}/${results.length - unavailable.length} gates passed` +
         (unavailable.length ? `, ${unavailable.length} unavailable` : ""),
     );
+  }
+
+  // Every gate unavailable means nothing was verified. Exiting 0 there would
+  // report "pass" for a machine missing every toolchain.
+  if (!failed.length && unavailable.length === results.length) {
+    if (!opts.json) console.log("Nothing was verified — every detected gate was unavailable.");
+    process.exit(1);
   }
 
   process.exit(failed.length ? 1 : 0);

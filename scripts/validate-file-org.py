@@ -25,7 +25,9 @@ TEMP_PATTERNS = [
     re.compile(r".*[-_](report|analysis|audit|summary|findings)\.(md|json|txt)$", re.I),
     re.compile(r".*[-_]plan\.(md|json|txt)$", re.I),
     re.compile(r"^(scratch|draft|temp|tmp|notes|wip)[-_.].*", re.I),
-    re.compile(r"^(scratch|scratchpad|todo|notes)\.(md|txt|json)$", re.I),
+    # TODO.md and NOTES.md are conventional top-level docs in many repos, so
+    # only the lowercase scratch-file spellings are treated as artefacts.
+    re.compile(r"^(scratch|scratchpad)\.(md|txt|json)$"),
     # Separator is [-_.] on purpose: "foo.sh.wave8-backup" is as much a stray
     # backup as "foo.sh.backup", and requiring a dot missed it.
     re.compile(r".*[-_.](bak|backup|orig|old|save)$", re.I),
@@ -33,6 +35,10 @@ TEMP_PATTERNS = [
 ]
 
 # Directories whose contents are published artefacts, not working files.
+# Note: exempting docs/ wholesale means this check enforces less than CLAUDE.md
+# states — a report committed under docs/ passes. That is deliberate: docs/ is
+# where finished reports belong, and the rule targets strays in the root and in
+# source directories.
 EXEMPT_DIRS = (".tmp/", "docs/", "tests/fixtures/", "examples/", "node_modules/", ".git/")
 
 # Files that look temporary but are load-bearing.

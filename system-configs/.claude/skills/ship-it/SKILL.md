@@ -53,13 +53,13 @@ Parse flags from `$ARGUMENTS`. With no flags, enable every step.
 
 Run enabled steps in this fixed order; halt immediately on failure.
 
-**Pre-commit gate.** Before any step that commits, pushes, or opens a PR, verification must have
-run in this invocation. In the no-flag default it has, via `-t`/`-v`/`-r`. When the caller
-selected a narrow action instead — `/ship-it -c -p -pr`, `/ship-it -c`, and so on — it has not,
-and the shipping steps would otherwise run against unknown state.
+**Pre-commit gate.** Before any step that commits, pushes, or opens a PR, gates must have been
+run in this invocation. `-t` and `-v` count; `-r` does not, because `/review` reads code and runs
+no gates. When the caller selected a narrow action — `/ship-it -c -p -pr`, `/ship-it -c` — nothing
+has been run, and the shipping steps would otherwise proceed against unknown state.
 
 ```text
-IF: any of -c / -p / -pr is set AND none of -t / -v / -r ran
+IF: any of -c / -p / -pr is set AND neither -t nor -v ran
   RUN: /verify --report-only
   IF: any gate failed
     OUTPUT: "Refusing to ship with N failing gate(s): {names}. Fix them and re-run."
@@ -69,24 +69,33 @@ IF: any of -c / -p / -pr is set AND none of -t / -v / -r ran
     CONTINUE (this is a warning, not a failure; a project with no gates is allowed to exist)
 ```
 
-**There is no bypass flag, deliberately.** `/commit` and `/push` already carry a standing rule
-that they never pass `--no-verify`, and a settings hook blocks that string in any bash command
-outright. A skip flag here would reintroduce the hole those two guards exist to close — and
-documenting the flag would put the blocked string into the example output. To ship a red branch,
-fix the gate or run `/push` directly and own it.
+**What this gate is, honestly.** It is a convention this skill follows, not a control that
+enforces itself. Nothing stops an agent from calling `/commit` directly and skipping it entirely —
+bare `/commit` carries no gate of its own. Treat it as the default path being the safe one, not as
+a guarantee. Making it a guarantee needs a `PreToolUse` hook on `git commit` that checks for a
+fresh verify result; that is a larger change than this skill.
+
+There is deliberately no bypass flag. `/commit` and `/push` already carry a standing rule against
+skipping hooks, and a settings hook blocks that string in any bash command outright, so a skip
+flag here would reopen the hole those guards close — and documenting it would put the blocked
+string into the example output. To ship a red branch, fix the gate or run `/push` directly and own
+that choice.
 
 1. **`-d`**: Invoke `/docs`. Skip if no doc-relevant changes detected.
 2. **`-t`**: Invoke `/test`.
 3. **`-v`**: Invoke `/verify`. Halt if it ends with gates still failing.
 4. **`-r`**: Invoke `/review`. If issues found, hand off to `/resolve-comments` per its own flow.
-5. **Commit + push + PR** (after any of -d/-t/-r have run): pick the right path
+5. **Commit + push + PR** (after any of -d/-t/-v/-r have run): pick the right path
    based on which of `-c`, `-p`, `-pr` are set (in the no-flag default, all
    three are set, so this step runs `commit-commands:commit-push-pr`):
-   - All three of `-c -p -pr` set (including the no-flag default): - **Check** that `commit-commands:commit-push-pr` is available (the
-     Anthropic-published `commit-commands` plugin installs it). - **If available:** one tool call to `commit-commands:commit-push-pr`.
-     No TaskCreate ceremony, no orchestration. - **If not available:** output `commit-commands:commit-push-pr not
+   - All three of `-c -p -pr` set (including the no-flag default):
+     - **Check** that `commit-commands:commit-push-pr` is available (the
+       Anthropic-published `commit-commands` plugin installs it).
+     - **If available:** one tool call to `commit-commands:commit-push-pr`.
+       No TaskCreate ceremony, no orchestration.
+     - **If not available:** output `commit-commands:commit-push-pr not
 installed, falling back to local skills` and invoke our `/commit` →
-     `/push` → `/pr` in sequence.
+       `/push` → `/pr` in sequence.
    - `-c -p` without `-pr`: `commit-commands:commit-push-pr` always creates a
      PR, so for "commit + push only" invoke our `/commit` followed by `/push`.
    - `-pr` alone or alongside only `-d`/`-t`/`-r` (not `-c`/`-p`): invoke our

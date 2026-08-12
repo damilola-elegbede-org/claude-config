@@ -35,15 +35,22 @@ the same model that did the work.
 
 ### The loop
 
+`$SKILL_DIR` below is the directory containing this SKILL.md — `~/.claude/skills/verify` once
+synced. Resolve it before running anything; a bare `scripts/run-checks.mjs` resolves against the
+target project's cwd, where the file does not exist.
+
 ```text
+0. RESOLVE
+   SET: SKILL_DIR = directory of this SKILL.md (synced location: ~/.claude/skills/verify)
+
 1. DISCOVER
-   RUN: node scripts/run-checks.mjs --list
+   RUN: node "$SKILL_DIR/scripts/run-checks.mjs" --list
    IF: no gates detected
      OUTPUT: "No verification gates detected. Nothing was checked."
      STOP — this is not a pass. Say so plainly.
 
 2. RUN
-   RUN: node scripts/run-checks.mjs --json
+   RUN: node "$SKILL_DIR/scripts/run-checks.mjs" --json
    PARSE: verdict, per-gate status (pass | fail | unavailable)
 
 3. IF verdict == pass → report and STOP.
@@ -52,7 +59,7 @@ the same model that did the work.
    a. READ the gate's actual output. Locate the failure at file:line.
    b. FIX THE CAUSE. Never edit a test, threshold, or lint rule to make the gate go green.
       If the gate is wrong, say so and stop — that is a decision for the user, not a fix.
-   c. RE-RUN that gate alone: node scripts/run-checks.mjs --only <id>
+   c. RE-RUN that gate alone: node "$SKILL_DIR/scripts/run-checks.mjs" --only <id>
    d. IF it passes → continue to the next failing gate.
       IF attempt 3 fails → STOP. Do not try a fourth time.
 
@@ -127,8 +134,11 @@ wrong or the caller must handle undefined.
 
 ## Notes
 
-- `scripts/run-checks.mjs` does the discovery and execution; it exits non-zero if any gate fails,
-  so it works as a CI step or a pre-push hook unchanged.
+- `scripts/run-checks.mjs` does the discovery and execution. It exits non-zero if any gate fails,
+  if every detected gate was unavailable, or if `--only`/`--skip` names a gate that does not
+  exist. It exits 0 when no gates are detected at all — so before relying on it as a CI step,
+  run `--list` once and confirm the gates you expect are actually found. A detection regression
+  would otherwise green the build silently.
 - Detection is evidence-based, not directory-based: a `tests/` folder alone does not add a pytest
   gate, because pytest exits 5 on an empty collection and that reads as a failure.
 - Add a project-specific gate by defining it where the runner already looks — a `package.json`

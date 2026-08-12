@@ -11,8 +11,16 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
+# Every guard begins `command -v jq || exit 0`, so without jq they all fail open.
+# Skipping here would hide exactly that state — the test for the disarmed guards
+# would itself be disarmed. In CI this is a hard failure; locally it is a loud
+# skip, because a developer without jq still needs the rest of the suite to run.
 if ! command -v jq >/dev/null 2>&1; then
-  echo "SKIP: jq not installed — hook guards require it and exit 0 without it"
+  if [[ -n "${CI:-}" ]]; then
+    echo "FAIL: jq is not installed. Every hook guard fails open without it." >&2
+    exit 1
+  fi
+  echo "SKIP: jq not installed — hook guards fail open without it (would FAIL in CI)" >&2
   exit 0
 fi
 

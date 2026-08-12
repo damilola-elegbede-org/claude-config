@@ -35,7 +35,9 @@
   "skipDangerousModePermissionPrompt": true,
   "teammateMode": "tmux",
   "theme": "dark",
-  "trustedDirectories": ["/Users/daelegbe"],
+  "trustedDirectories": [
+    "/Users/daelegbe"
+  ],
   "statusLine": {
     "type": "command",
     "command": "${HOME}/.claude/statusline.sh"
@@ -47,12 +49,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "INPUT=$(cat); command -v jq >/dev/null 2>&1 || exit 0; CMD=$(printf '%s' \"$INPUT\" | jq -r '.tool_input.command // empty' 2>/dev/null); if [[ -z \"$CMD\" ]]; then exit 0; fi; if printf '%s' \"$CMD\" | grep -qE '(--no-verify|--no-gpg-sign|git\\s+reset\\s+--hard|git\\s+push\\s+--force|git\\s+push\\s+-f\\b|git\\s+clean\\s+-f|git\\s+branch\\s+-D|git\\s+checkout\\s+\\.)'; then echo 'BLOCKED: Destructive or policy-violating git operation detected' >&2; exit 2; fi",
+            "command": "INPUT=$(cat); command -v jq >/dev/null 2>&1 || { echo 'WARNING: jq missing \u2014 Claude Code hook guards are disabled' >&2; exit 0; }; CMD=$(printf '%s' \"$INPUT\" | jq -r '.tool_input.command // empty' 2>/dev/null); if [[ -z \"$CMD\" ]]; then exit 0; fi; if printf '%s' \"$CMD\" | grep -qE '(--no-verify|--no-gpg-sign|git\\s+reset\\s+--hard|git\\s+push\\s+--force|git\\s+push\\s+-f\\b|git\\s+clean\\s+-f|git\\s+branch\\s+-D|git\\s+checkout\\s+\\.)'; then echo 'BLOCKED: Destructive or policy-violating git operation detected' >&2; exit 2; fi",
             "timeout": 5
           },
           {
             "type": "command",
-            "command": "INPUT=$(cat); command -v jq >/dev/null 2>&1 || exit 0; CMD=$(printf '%s' \"$INPUT\" | jq -r '.tool_input.command // empty' 2>/dev/null); if [[ -z \"$CMD\" ]]; then exit 0; fi; if printf '%s' \"$CMD\" | grep -qE '(^|[;&|(]|&&|\\|\\|)[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=(\"[^\"]*\"|[^[:space:]]*)[[:space:]]+)*git[[:space:]]+(commit|push|clone|tag|remote|am|cherry-pick|revert)([[:space:]]|$)'; then echo \"BLOCKED: bare git for an identity/remote op. Bare git commits under the repo git config (often D personal email), not the bot - ENG-124 leak class. Use: infra/scripts/git-agent.sh <agent> <git args>\" >&2; exit 2; fi"
+            "command": "INPUT=$(cat); command -v jq >/dev/null 2>&1 || { echo 'WARNING: jq missing \u2014 Claude Code hook guards are disabled' >&2; exit 0; }; CMD=$(printf '%s' \"$INPUT\" | jq -r '.tool_input.command // empty' 2>/dev/null); if [[ -z \"$CMD\" ]]; then exit 0; fi; [[ -x infra/scripts/git-agent.sh ]] || exit 0; if printf '%s' \"$CMD\" | grep -qE '(^|[;&|(]|&&|\\|\\|)[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=(\"[^\"]*\"|[^[:space:]]*)[[:space:]]+)*git[[:space:]]+(commit|push|clone|tag|remote|am|cherry-pick|revert)([[:space:]]|$)'; then echo \"BLOCKED: bare git for an identity/remote op. Bare git commits under the repo git config (often D personal email), not the bot - ENG-124 leak class. Use: infra/scripts/git-agent.sh <agent> <git args>\" >&2; exit 2; fi"
           }
         ]
       },
@@ -61,7 +63,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "INPUT=$(cat); command -v jq >/dev/null 2>&1 || exit 0; FILE=$(printf '%s' \"$INPUT\" | jq -r '.tool_input.file_path // empty' 2>/dev/null); if [[ -z \"$FILE\" ]]; then exit 0; fi; CONTENT=$(printf '%s' \"$INPUT\" | jq -r '[.tool_input.content, .tool_input.new_string] | map(select(. != null)) | join(\"\\n\")' 2>/dev/null); if [[ \"$FILE\" =~ \\.(test|spec)\\. ]] || [[ \"$FILE\" =~ __tests__/ ]] || [[ \"$FILE\" =~ /tests?/ ]] || [[ \"$FILE\" =~ \\.env\\.example$ ]] || [[ \"$FILE\" =~ \\.(md|css|scss|html|txt|svg|lock)$ ]] || [[ \"$FILE\" =~ \\.(d\\.ts)$ ]]; then exit 0; fi; PATTERNS='AKIA[0-9A-Z]{16}|sk-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36}|xoxb-[0-9]{10,}|xoxp-[0-9]{10,}|glpat-[a-zA-Z0-9_-]{20}'; if echo \"$CONTENT\" | grep -qE \"$PATTERNS\"; then echo 'BLOCKED: Suspected credential/secret detected in file content' >&2; exit 2; fi",
+            "command": "INPUT=$(cat); command -v jq >/dev/null 2>&1 || { echo 'WARNING: jq missing \u2014 Claude Code hook guards are disabled' >&2; exit 0; }; FILE=$(printf '%s' \"$INPUT\" | jq -r '.tool_input.file_path // empty' 2>/dev/null); if [[ -z \"$FILE\" ]]; then exit 0; fi; CONTENT=$(printf '%s' \"$INPUT\" | jq -r '[.tool_input.content, .tool_input.new_string] | map(select(. != null)) | join(\"\\n\")' 2>/dev/null); if [[ \"$FILE\" =~ \\.(test|spec)\\. ]] || [[ \"$FILE\" =~ __tests__/ ]] || [[ \"$FILE\" =~ /tests?/ ]] || [[ \"$FILE\" =~ \\.env\\.example$ ]] || [[ \"$FILE\" =~ \\.(md|css|scss|html|txt|svg|lock)$ ]] || [[ \"$FILE\" =~ \\.(d\\.ts)$ ]]; then exit 0; fi; PATTERNS='AKIA[0-9A-Z]{16}|sk-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36}|xoxb-[0-9]{10,}|xoxp-[0-9]{10,}|glpat-[a-zA-Z0-9_-]{20}'; if echo \"$CONTENT\" | grep -qE \"$PATTERNS\"; then echo 'BLOCKED: Suspected credential/secret detected in file content' >&2; exit 2; fi",
             "timeout": 5
           }
         ]
@@ -71,7 +73,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "INPUT=$(cat); command -v jq >/dev/null 2>&1 || exit 0; FILE=$(printf '%s' \"$INPUT\" | jq -r '.tool_input.file_path // empty' 2>/dev/null); if [[ -z \"$FILE\" ]]; then exit 0; fi; if [[ \"$FILE\" =~ \\.(test|spec)\\. ]] || [[ \"$FILE\" =~ __tests__/ ]] || [[ \"$FILE\" =~ /tests?/ ]] || [[ \"$FILE\" =~ \\.env ]] || [[ \"$FILE\" =~ \\.(md|json|yaml|yml|css|scss|html|txt|svg|lock|toml|cfg|ini|conf)$ ]] || [[ \"$FILE\" =~ \\.(d\\.ts)$ ]] || [[ \"$FILE\" =~ Makefile ]] || [[ \"$FILE\" =~ Dockerfile ]]; then exit 0; fi; if [[ ! \"$FILE\" =~ \\.(ts|tsx|js|jsx|py|go|rs|rb)$ ]]; then exit 0; fi; DIR=$(dirname \"$FILE\"); BASE=$(basename \"$FILE\" | sed 's/\\.[^.]*$//'); FOUND=0; for EXT in test.ts test.tsx test.js test.jsx spec.ts spec.tsx spec.js spec.jsx; do if [[ -f \"${DIR}/${BASE}.${EXT}\" ]] || [[ -f \"${DIR}/__tests__/${BASE}.${EXT}\" ]]; then FOUND=1; break; fi; done; if [[ \"$FILE\" =~ \\.py$ ]]; then if [[ -f \"${DIR}/test_${BASE}.py\" ]] || [[ -f \"${DIR}/${BASE}_test.py\" ]] || [[ -f \"${DIR}/tests/test_${BASE}.py\" ]]; then FOUND=1; fi; fi; if [[ \"$FILE\" =~ \\.go$ ]]; then if [[ -f \"${DIR}/${BASE}_test.go\" ]]; then FOUND=1; fi; fi; if [[ $FOUND -eq 0 ]]; then CONVENTION=$(find \"$DIR\" -maxdepth 2 \\( -name '*.test.*' -o -name '*.spec.*' -o -name 'test_*.py' -o -name '*_test.py' -o -name '*_test.go' \\) -print -quit 2>/dev/null); if [[ -z \"$CONVENTION\" ]]; then exit 0; fi; echo \"BLOCKED: No test file found for ${FILE}, and this directory uses colocated tests. Write the test first (TDD).\" >&2; exit 2; fi",
+            "command": "INPUT=$(cat); command -v jq >/dev/null 2>&1 || { echo 'WARNING: jq missing \u2014 Claude Code hook guards are disabled' >&2; exit 0; }; FILE=$(printf '%s' \"$INPUT\" | jq -r '.tool_input.file_path // empty' 2>/dev/null); if [[ -z \"$FILE\" ]]; then exit 0; fi; if [[ \"$FILE\" =~ \\.(test|spec)\\. ]] || [[ \"$FILE\" =~ __tests__/ ]] || [[ \"$FILE\" =~ /tests?/ ]] || [[ \"$FILE\" =~ \\.env ]] || [[ \"$FILE\" =~ \\.(md|json|yaml|yml|css|scss|html|txt|svg|lock|toml|cfg|ini|conf)$ ]] || [[ \"$FILE\" =~ \\.(d\\.ts)$ ]] || [[ \"$FILE\" =~ Makefile ]] || [[ \"$FILE\" =~ Dockerfile ]]; then exit 0; fi; if [[ ! \"$FILE\" =~ \\.(ts|tsx|js|jsx|py|go|rs|rb)$ ]]; then exit 0; fi; DIR=$(dirname \"$FILE\"); BASE=$(basename \"$FILE\" | sed 's/\\.[^.]*$//'); FOUND=0; for EXT in test.ts test.tsx test.js test.jsx spec.ts spec.tsx spec.js spec.jsx; do if [[ -f \"${DIR}/${BASE}.${EXT}\" ]] || [[ -f \"${DIR}/__tests__/${BASE}.${EXT}\" ]]; then FOUND=1; break; fi; done; if [[ \"$FILE\" =~ \\.py$ ]]; then if [[ -f \"${DIR}/test_${BASE}.py\" ]] || [[ -f \"${DIR}/${BASE}_test.py\" ]] || [[ -f \"${DIR}/tests/test_${BASE}.py\" ]]; then FOUND=1; fi; fi; if [[ \"$FILE\" =~ \\.go$ ]]; then if [[ -f \"${DIR}/${BASE}_test.go\" ]]; then FOUND=1; fi; fi; if [[ $FOUND -eq 0 ]]; then CONVENTION=$(find \"$DIR\" -maxdepth 2 \\( -name '*.test.*' -o -name '*.spec.*' -o -name 'test_*.py' -o -name '*_test.py' -o -name '*_test.go' \\) -print -quit 2>/dev/null); if [[ -z \"$CONVENTION\" ]]; then exit 0; fi; echo \"BLOCKED: No test file found for ${FILE}, and this directory uses colocated tests. Write the test first (TDD).\" >&2; exit 2; fi",
             "timeout": 5
           }
         ]
@@ -83,17 +85,17 @@
         "hooks": [
           {
             "type": "command",
-            "command": "INPUT=$(cat); command -v jq >/dev/null 2>&1 || exit 0; FILE=$(printf '%s' \"$INPUT\" | jq -r '.tool_input.file_path // empty' 2>/dev/null); if [[ -z \"$FILE\" ]]; then exit 0; fi; if [[ \"$FILE\" =~ \\.(js|jsx|ts|tsx|json|css|scss|html|md|yaml|yml)$ ]]; then npx --no-install prettier --write \"$FILE\" 2>/dev/null || true; fi",
+            "command": "INPUT=$(cat); command -v jq >/dev/null 2>&1 || { echo 'WARNING: jq missing \u2014 Claude Code hook guards are disabled' >&2; exit 0; }; FILE=$(printf '%s' \"$INPUT\" | jq -r '.tool_input.file_path // empty' 2>/dev/null); if [[ -z \"$FILE\" ]]; then exit 0; fi; if [[ \"$FILE\" =~ \\.(js|jsx|ts|tsx|json|css|scss|html|md|yaml|yml)$ ]]; then npx --no-install prettier --write \"$FILE\" 2>/dev/null || true; fi",
             "timeout": 30
           },
           {
             "type": "command",
-            "command": "INPUT=$(cat); command -v jq >/dev/null 2>&1 || exit 0; FILE=$(printf '%s' \"$INPUT\" | jq -r '.tool_input.file_path // empty' 2>/dev/null); if [[ -z \"$FILE\" ]]; then exit 0; fi; if [[ \"$FILE\" =~ \\.(js|jsx|ts|tsx)$ ]]; then npx --no-install eslint --fix \"$FILE\" 2>/dev/null; if ! npx --no-install eslint \"$FILE\" 2>&1; then echo 'ESLint errors remain after auto-fix' >&2; exit 2; fi; fi",
+            "command": "INPUT=$(cat); command -v jq >/dev/null 2>&1 || { echo 'WARNING: jq missing \u2014 Claude Code hook guards are disabled' >&2; exit 0; }; FILE=$(printf '%s' \"$INPUT\" | jq -r '.tool_input.file_path // empty' 2>/dev/null); if [[ -z \"$FILE\" ]]; then exit 0; fi; if [[ \"$FILE\" =~ \\.(js|jsx|ts|tsx)$ ]]; then npx --no-install eslint --print-config \"$FILE\" >/dev/null 2>&1 || exit 0; npx --no-install eslint --fix \"$FILE\" 2>/dev/null; if ! npx --no-install eslint \"$FILE\" 2>&1; then echo 'ESLint errors remain after auto-fix' >&2; exit 2; fi; fi",
             "timeout": 30
           },
           {
             "type": "command",
-            "command": "INPUT=$(cat); command -v jq >/dev/null 2>&1 || exit 0; FILE=$(printf '%s' \"$INPUT\" | jq -r '.tool_input.file_path // empty' 2>/dev/null); if [[ -z \"$FILE\" ]]; then exit 0; fi; if [[ \"$FILE\" =~ \\.(ts|tsx)$ ]]; then OUT=$(npx --no-install tsc --noEmit 2>&1 || true); if [[ -n \"$OUT\" ]]; then REL=\"${FILE#$PWD/}\"; MINE=$(echo \"$OUT\" | grep -F \"$REL\" || true); if [[ -n \"$MINE\" ]]; then echo \"TypeScript errors in ${REL}:\" >&2; echo \"$MINE\" >&2; exit 2; fi; fi; fi",
+            "command": "INPUT=$(cat); command -v jq >/dev/null 2>&1 || { echo 'WARNING: jq missing \u2014 Claude Code hook guards are disabled' >&2; exit 0; }; FILE=$(printf '%s' \"$INPUT\" | jq -r '.tool_input.file_path // empty' 2>/dev/null); if [[ -z \"$FILE\" ]]; then exit 0; fi; if [[ \"$FILE\" =~ \\.(ts|tsx)$ ]]; then OUT=$(npx --no-install tsc --noEmit 2>&1 || true); if [[ -n \"$OUT\" ]]; then REL=\"${FILE#$PWD/}\"; MINE=$(echo \"$OUT\" | grep -F \"$REL\" || true); if [[ -n \"$MINE\" ]]; then echo \"TypeScript errors in ${REL}:\" >&2; echo \"$MINE\" >&2; exit 2; fi; fi; fi",
             "timeout": 30
           }
         ]
@@ -103,7 +105,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "INPUT=$(cat); command -v jq >/dev/null 2>&1 || exit 0; FILE=$(printf '%s' \"$INPUT\" | jq -r '.tool_input.file_path // empty' 2>/dev/null); if [[ -z \"$FILE\" ]]; then exit 0; fi; FILE=\"$FILE\"; if [[ -z \"$FILE\" ]] || [[ \"$FILE\" =~ \\.(test|spec)\\. ]] || [[ \"$FILE\" =~ __tests__/ ]] || [[ ! \"$FILE\" =~ \\.(js|jsx|ts|tsx|py|go|rs|rb)$ ]]; then exit 0; fi; DIR=$(dirname \"$FILE\"); BASE=$(basename \"$FILE\" | sed 's/\\.[^.]*$//'); if [[ -f \"${DIR}/${BASE}.test.ts\" ]] || [[ -f \"${DIR}/${BASE}.test.tsx\" ]] || [[ -f \"${DIR}/${BASE}.test.js\" ]] || [[ -f \"${DIR}/${BASE}.spec.ts\" ]] || [[ -f \"${DIR}/${BASE}.spec.tsx\" ]] || [[ -f \"${DIR}/${BASE}.spec.js\" ]] || [[ -f \"${DIR}/__tests__/${BASE}.test.ts\" ]] || [[ -f \"${DIR}/__tests__/${BASE}.test.tsx\" ]] || [[ -f \"${DIR}/__tests__/${BASE}.test.js\" ]]; then TESTFILE=$(ls \"${DIR}/${BASE}\".{test,spec}.{ts,tsx,js} \"${DIR}/__tests__/${BASE}\".test.{ts,tsx,js} 2>/dev/null | head -1); if [[ -n \"$TESTFILE\" ]]; then if [[ -f package.json ]] || [[ -f ../package.json ]]; then npx --no-install jest --passWithNoTests \"$TESTFILE\" 2>/dev/null || npx --no-install vitest run \"$TESTFILE\" 2>/dev/null || true; elif [[ \"$FILE\" =~ \\.py$ ]]; then python -m pytest \"$TESTFILE\" 2>/dev/null || true; elif [[ \"$FILE\" =~ \\.go$ ]]; then go test \"$TESTFILE\" 2>/dev/null || true; fi; fi; fi",
+            "command": "INPUT=$(cat); command -v jq >/dev/null 2>&1 || { echo 'WARNING: jq missing \u2014 Claude Code hook guards are disabled' >&2; exit 0; }; FILE=$(printf '%s' \"$INPUT\" | jq -r '.tool_input.file_path // empty' 2>/dev/null); if [[ -z \"$FILE\" ]]; then exit 0; fi; FILE=\"$FILE\"; if [[ -z \"$FILE\" ]] || [[ \"$FILE\" =~ \\.(test|spec)\\. ]] || [[ \"$FILE\" =~ __tests__/ ]] || [[ ! \"$FILE\" =~ \\.(js|jsx|ts|tsx|py|go|rs|rb)$ ]]; then exit 0; fi; DIR=$(dirname \"$FILE\"); BASE=$(basename \"$FILE\" | sed 's/\\.[^.]*$//'); if [[ -f \"${DIR}/${BASE}.test.ts\" ]] || [[ -f \"${DIR}/${BASE}.test.tsx\" ]] || [[ -f \"${DIR}/${BASE}.test.js\" ]] || [[ -f \"${DIR}/${BASE}.spec.ts\" ]] || [[ -f \"${DIR}/${BASE}.spec.tsx\" ]] || [[ -f \"${DIR}/${BASE}.spec.js\" ]] || [[ -f \"${DIR}/__tests__/${BASE}.test.ts\" ]] || [[ -f \"${DIR}/__tests__/${BASE}.test.tsx\" ]] || [[ -f \"${DIR}/__tests__/${BASE}.test.js\" ]]; then TESTFILE=$(ls \"${DIR}/${BASE}\".{test,spec}.{ts,tsx,js} \"${DIR}/__tests__/${BASE}\".test.{ts,tsx,js} 2>/dev/null | head -1); if [[ -n \"$TESTFILE\" ]]; then if [[ -f package.json ]] || [[ -f ../package.json ]]; then npx --no-install jest --passWithNoTests \"$TESTFILE\" 2>/dev/null || npx --no-install vitest run \"$TESTFILE\" 2>/dev/null || true; elif [[ \"$FILE\" =~ \\.py$ ]]; then python -m pytest \"$TESTFILE\" 2>/dev/null || true; elif [[ \"$FILE\" =~ \\.go$ ]]; then go test \"$TESTFILE\" 2>/dev/null || true; fi; fi; fi",
             "timeout": 60
           }
         ]
