@@ -115,8 +115,15 @@ node scripts/check-theme.mjs                                   # all themes
 node scripts/check-theme.mjs --theme tokyo-night diagram.excalidraw   # diagram conformance
 ```
 
-The diagram check fails on off-theme colours, a mismatched `viewBackgroundColor`, or
+The diagram check fails on off-theme colours, unparseable colours (named values like `red`, which
+render but cannot be compared to the palette), a `strokeColor` or `backgroundColor` missing from
+any element other than a frame, a `viewBackgroundColor` that is absent or mismatched, and
 `appState.theme: "dark"`.
+
+Absence is treated as a mismatch rather than ignored, in both cases for the same reason: an
+omitted element colour is restored to Excalidraw's own default rather than left unset, and an
+omitted `viewBackgroundColor` falls back to the default white canvas. Skipping either check lets
+a Tokyo Night diagram validate and then render on white.
 
 Three light themes emit warnings because an accent stroke sits just under 3.0:1 against the
 canvas — Excalidraw's own amber at 2.48, and three Solarized accents between 2.93 and 2.98.

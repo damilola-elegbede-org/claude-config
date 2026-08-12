@@ -63,25 +63,47 @@
       "type": "array",
       "minItems": 6,
       "maxItems": 6,
-      "description": "Six categorical node styles. Slot order is stable across themes, so slot N means the same category index everywhere.",
-      "items": {
-        "type": "object",
-        "required": ["slot", "fill", "stroke", "text", "contrast"],
-        "additionalProperties": false,
-        "properties": {
-          "slot": {
-            "enum": ["blue", "green", "amber", "red", "violet", "teal"]
-          },
-          "fill": { "$ref": "#/$defs/hex" },
-          "stroke": { "$ref": "#/$defs/hex" },
-          "text": { "$ref": "#/$defs/hex" },
-          "contrast": {
-            "type": "number",
-            "minimum": 4.5,
-            "description": "WCAG contrast of text on fill. Must clear AA."
-          }
+      "additionalItems": false,
+      "description": "Six categorical node styles as a fixed tuple. Position N is always the same slot, so switching themes never reshuffles which node is which colour.",
+      "comment": "Each item is allOf[$ref, const] rather than $ref with a sibling `properties`: in draft-07 any keyword alongside $ref is ignored, so the sibling form would silently accept every slot.",
+      "items": [
+        {
+          "allOf": [
+            { "$ref": "#/$defs/surface" },
+            { "properties": { "slot": { "const": "blue" } } }
+          ]
+        },
+        {
+          "allOf": [
+            { "$ref": "#/$defs/surface" },
+            { "properties": { "slot": { "const": "green" } } }
+          ]
+        },
+        {
+          "allOf": [
+            { "$ref": "#/$defs/surface" },
+            { "properties": { "slot": { "const": "amber" } } }
+          ]
+        },
+        {
+          "allOf": [
+            { "$ref": "#/$defs/surface" },
+            { "properties": { "slot": { "const": "red" } } }
+          ]
+        },
+        {
+          "allOf": [
+            { "$ref": "#/$defs/surface" },
+            { "properties": { "slot": { "const": "violet" } } }
+          ]
+        },
+        {
+          "allOf": [
+            { "$ref": "#/$defs/surface" },
+            { "properties": { "slot": { "const": "teal" } } }
+          ]
         }
-      }
+      ]
     },
     "defaults": {
       "type": "object",
@@ -102,6 +124,22 @@
     }
   },
   "$defs": {
-    "hex": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" }
+    "hex": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+    "surface": {
+      "type": "object",
+      "required": ["slot", "fill", "stroke", "text", "contrast"],
+      "additionalProperties": false,
+      "properties": {
+        "slot": { "enum": ["blue", "green", "amber", "red", "violet", "teal"] },
+        "fill": { "$ref": "#/$defs/hex" },
+        "stroke": { "$ref": "#/$defs/hex" },
+        "text": { "$ref": "#/$defs/hex" },
+        "contrast": {
+          "type": "number",
+          "minimum": 4.5,
+          "description": "WCAG contrast of text on fill. Must clear AA."
+        }
+      }
+    }
   }
 }

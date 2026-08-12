@@ -117,27 +117,59 @@ function themeColorSet(theme) {
   return set;
 }
 
+// Excalidraw styles frames itself via FRAME_STYLE, so a frame legitimately omits
+// colours. Every other element type must carry them: an omitted colour is not
+// "unset", it is restored to Excalidraw's own default (#1e1e1e stroke,
+// transparent fill), which is off-theme by definition.
+const SELF_STYLED_TYPES = new Set(["frame", "magicframe"]);
+
 function checkDiagram(diagramPath, theme) {
   const scene = JSON.parse(readFileSync(diagramPath, "utf8"));
   const allowed = themeColorSet(theme);
   const offenders = new Map();
+  const missing = [];
+  const malformed = new Map();
+
+  const record = (map, key, where) => {
+    const entry = map.get(key) ?? [];
+    entry.push(where);
+    map.set(key, entry);
+  };
 
   for (const el of scene.elements ?? []) {
+    if (el.isDeleted) continue;
     for (const key of ["strokeColor", "backgroundColor"]) {
+      const where = `${el.type}#${el.id}.${key}`;
       const v = el[key];
-      if (v == null) continue;
+
+      if (v == null) {
+        if (!SELF_STYLED_TYPES.has(el.type)) missing.push(where);
+        continue;
+      }
+
       const norm = String(v).toLowerCase();
-      if (!allowed.has(norm) && parseHex(norm) != null) {
-        const entry = offenders.get(norm) ?? [];
-        entry.push(`${el.type}#${el.id}.${key}`);
-        offenders.set(norm, entry);
+      if (allowed.has(norm)) continue;
+
+      // Named colours ("red"), rgb()/hsl() strings and typos all land here.
+      // They are not hex, so they cannot be compared to the palette — but they
+      // are very much rendered, so they must not pass silently.
+      if (norm !== "transparent" && parseHex(norm) == null) {
+        record(malformed, norm, where);
+      } else {
+        record(offenders, norm, where);
       }
     }
   }
 
-  const bg = scene.appState?.viewBackgroundColor?.toLowerCase();
   const errors = [];
-  if (bg && bg !== theme.canvas.background.toLowerCase()) {
+  const rawBg = scene.appState?.viewBackgroundColor;
+  const bg = typeof rawBg === "string" ? rawBg.toLowerCase() : null;
+  if (bg == null) {
+    errors.push(
+      `appState.viewBackgroundColor is missing; theme expects ${theme.canvas.background}. ` +
+        "Excalidraw and the exporters fall back to their own default canvas, not the theme's",
+    );
+  } else if (bg !== theme.canvas.background.toLowerCase()) {
     errors.push(
       `appState.viewBackgroundColor is ${bg}, theme expects ${theme.canvas.background}`,
     );
@@ -147,8 +179,17 @@ function checkDiagram(diagramPath, theme) {
       'appState.theme is "dark"; baked themes must stay "light" or Excalidraw will invert them',
     );
   }
+  const sample = (where) =>
+    `${where.slice(0, 3).join(", ")}${where.length > 3 ? ` (+${where.length - 3} more)` : ""}`;
+
+  for (const [color, where] of malformed) {
+    errors.push(`unparseable colour "${color}" used by ${sample(where)}`);
+  }
   for (const [color, where] of offenders) {
-    errors.push(`off-theme colour ${color} used by ${where.slice(0, 3).join(", ")}${where.length > 3 ? ` (+${where.length - 3} more)` : ""}`);
+    errors.push(`off-theme colour ${color} used by ${sample(where)}`);
+  }
+  if (missing.length) {
+    errors.push(`missing colour property on ${sample(missing)}`);
   }
   return errors;
 }
