@@ -91,10 +91,6 @@ These are not user-invocable (`user-invocable: false`).
 
 | Skill | Preloaded By | Purpose |
 |-------|-------------|---------|
-| `git-conventions` | code-reviewer, devops | Git best practices, commit conventions, branching strategies |
-| `security-checklist` | code-reviewer, security-auditor | OWASP checks, vulnerability patterns, secure coding |
-| `testing-patterns` | test-engineer | TDD/BDD patterns, test organization, coverage strategies |
-| `api-design-patterns` | architect | REST/GraphQL patterns, OpenAPI, versioning |
 | `markdown-linting` | (reference only — tech-writer removed) | Markdownlint rules, documentation formatting |
 
 ### Imported Anthropic Skills (8)
@@ -165,7 +161,6 @@ system-configs/.claude/skills/
 │   └── SKILL.md
 ├── commit/
 │   └── SKILL.md
-├── git-conventions/
 │   └── SKILL.md
 ├── pdf/
 │   └── SKILL.md
@@ -325,7 +320,7 @@ Don't create a skill when:
 ```text
 /commit - Single responsibility: stage, generate message, commit
 /review - Clear phases: lint, security, quality, summary
-git-conventions - Reference: branching, commits, PR patterns
+feature-lifecycle - Reference: spec-to-PR lifecycle, preloaded by feature-agent
 ```
 
 **Bad:** Too broad, overlaps with agents

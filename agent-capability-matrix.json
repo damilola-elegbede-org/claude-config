@@ -40,8 +40,7 @@
     "description": "MUST BE USED for system architecture, API design, cloud infrastructure, and technical roadmaps. Consolidated from principal-architect, api-architect, cloud-architect, and frontend-architect.",
     "color": "purple",
     "permissionMode": "plan",
-    "memory": "project",
-    "skills": ["api-design-patterns"]
+    "memory": "project"
   },
   {
     "name": "backend-engineer",
@@ -62,8 +61,7 @@
     ],
     "description": "MUST BE USED for server-side architecture, microservices, distributed systems, and database engineering.",
     "color": "blue",
-    "permissionMode": "acceptEdits",
-    "skills": ["api-design-patterns"]
+    "permissionMode": "acceptEdits"
   },
   {
     "name": "career-assistant",
@@ -106,8 +104,7 @@
     "description": "MUST BE USED for pre-commit reviews, vulnerability detection, accessibility checks, and production readiness assessment.",
     "color": "green",
     "permissionMode": "plan",
-    "memory": "local",
-    "skills": ["git-conventions", "security-checklist"]
+    "memory": "local"
   },
   {
     "name": "data-engineer",
@@ -172,8 +169,7 @@
     "description": "MUST BE USED for CI/CD, Kubernetes, IaC, and platform engineering. Consolidated from devops and platform-engineer.",
     "color": "orange",
     "permissionMode": "acceptEdits",
-    "memory": "local",
-    "skills": ["git-conventions"]
+    "memory": "local"
   },
   {
     "name": "feature-agent",
@@ -194,7 +190,9 @@
     "description": "Specializes in autonomous end-to-end feature implementation from spec to merged PR. Use PROACTIVELY for complete feature lifecycles.",
     "color": "purple",
     "permissionMode": "acceptEdits",
-    "skills": ["feature-lifecycle"]
+    "skills": [
+      "feature-lifecycle"
+    ]
   },
   {
     "name": "frontend-engineer",
@@ -301,8 +299,7 @@
     "description": "MUST BE USED for security audits, vulnerability detection, and compliance reviews.",
     "color": "red",
     "permissionMode": "plan",
-    "memory": "project",
-    "skills": ["security-checklist"]
+    "memory": "project"
   },
   {
     "name": "tech-writer",
@@ -324,7 +321,9 @@
     "description": "MUST BE USED for documentation, READMEs, and API docs.",
     "color": "cyan",
     "permissionMode": "acceptEdits",
-    "skills": ["markdown-linting"]
+    "skills": [
+      "markdown-linting"
+    ]
   },
   {
     "name": "test-engineer",
@@ -345,7 +344,6 @@
     ],
     "description": "MUST BE USED for test strategy and implementation across frameworks.",
     "color": "green",
-    "permissionMode": "acceptEdits",
-    "skills": ["testing-patterns"]
+    "permissionMode": "acceptEdits"
   }
 ]
