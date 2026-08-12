@@ -8,6 +8,7 @@ description: >-
   Not for database schemas or entity-relationship diagrams, which belong in a schema tool that
   emits real DDL.
 argument-hint: "[subject] [--theme <theme-id>]"
+allowed-tools: [Read, Write, Edit, Bash, Glob]
 metadata:
   category: workflow
 ---

@@ -190,6 +190,7 @@ echo "Running Agent System Tests..."
 echo "------------------------------"
 run_test "Agent System Validation" "agents/test_agent_system.sh"
 run_test "Hook Guards" "hooks/test_hooks.sh"
+run_test "File Organization" "config/test_file_org.sh"
 
 # Run sync functionality tests
 echo "Running Sync Tests..."
