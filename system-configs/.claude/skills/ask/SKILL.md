@@ -23,6 +23,15 @@ The question primitive. D answers decisions through the `AskUserQuestion` dialog
 focus immediately, so anything load-bearing that sits in prose above it goes unread. This skill defines the one
 question format every D-facing ask uses; `/interview` and `/process-linear` both build on it.
 
+### Exception: process-linear's decision table
+
+`/process-linear` renders its D-decisions as a two-tier table instead of one dialog per decision (D ruling
+2026-08-12) — a table row IS the ask, satisfying "every question to D through `AskUserQuestion`." The dialog still
+fires on drill-in: D asks for more on a row, a decision needs structured options or an artifact preview, or a
+D1/D2 cohort needs its per-cohort irreversibility confirm (see that skill's step 7 for the exact triggers — a
+fired dialog still follows this skill's format). This is the only sanctioned substitute for the dialog; no other
+skill may swap it for prose without the same ruling.
+
 ## Expected Output
 
 ```text
