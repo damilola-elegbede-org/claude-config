@@ -99,17 +99,36 @@ def pretooluse_hooks(settings, tool):
     return out
 
 
+# Known guard identities, matched against hook stderr. Only these labels are
+# ever printed — raw hook output is payload-derived and never logged, so a
+# fixture credential cannot leak into test output (and CodeQL agrees).
+GUARDS = {
+    DESTRUCTIVE: "destructive-git",
+    BARE_GIT: "bare-git",
+    SECRET: "secret-scan",
+    TDD: "tdd-colocated",
+}
+
+
+def classify(stderr):
+    for needle, label in GUARDS.items():
+        if needle in stderr:
+            return label
+    return "unrecognized-guard"
+
+
 def run_case(commands, payload, cwd):
-    """Return the stderr of the first hook that blocks, or None if all allow."""
+    """Return (guard_label, needle_matched) for the first blocking hook, or None."""
     for cmd in commands:
         proc = subprocess.run(
             ["bash", "-c", cmd], input=payload, capture_output=True, text=True,
             timeout=30, cwd=cwd,
         )
+        stderr = (proc.stderr or "").strip()
         if proc.returncode == 2:
-            return (proc.stderr or "").strip()
+            return classify(stderr)
         if proc.returncode not in (0, 2):
-            return f"__ERROR__ exit {proc.returncode}: {proc.stderr.strip()[:120]}"
+            return f"__ERROR__ exit {proc.returncode} ({classify(stderr)})"
     return None
 
 
@@ -134,28 +153,29 @@ def main():
                 payload_input["file_path"] = str(Path(tmp) / payload_input["file_path"])
                 Path(payload_input["file_path"]).parent.mkdir(parents=True, exist_ok=True)
             payload = json.dumps({"tool_name": tool, "tool_input": payload_input})
-            reason = run_case(commands, payload, tmp)
+            guard = run_case(commands, payload, tmp)
 
-        if reason and reason.startswith("__ERROR__"):
-            failures.append(f"{desc}: {reason}")
-            print(f"  FAIL  {desc}: {reason}")
+        if guard and guard.startswith("__ERROR__"):
+            failures.append(f"{desc}: {guard}")
+            print(f"  FAIL  {desc}: {guard}")
             continue
 
+        expected_label = GUARDS.get(expected) if expected else None
         if expected is None:
-            if reason is None:
+            if guard is None:
                 print(f"  ok    {desc} (allowed)")
             else:
-                failures.append(f"{desc}: expected allowed, blocked by: {reason[:80]}")
-                print(f"  FAIL  {desc}: expected allowed, got blocked")
+                failures.append(f"{desc}: expected allowed, blocked by {guard}")
+                print(f"  FAIL  {desc}: expected allowed, blocked by {guard}")
         else:
-            if reason is None:
-                failures.append(f"{desc}: expected block on '{expected}', was allowed")
+            if guard is None:
+                failures.append(f"{desc}: expected block by {expected_label}, was allowed")
                 print(f"  FAIL  {desc}: expected blocked, got allowed")
-            elif expected not in reason:
-                failures.append(f"{desc}: blocked by the wrong guard — wanted '{expected}', got: {reason[:80]}")
-                print(f"  FAIL  {desc}: wrong guard fired")
+            elif guard != expected_label:
+                failures.append(f"{desc}: wrong guard — wanted {expected_label}, got {guard}")
+                print(f"  FAIL  {desc}: wrong guard fired ({guard})")
             else:
-                print(f"  ok    {desc} (blocked by the expected guard)")
+                print(f"  ok    {desc} (blocked by {guard})")
 
     print()
     if failures:
