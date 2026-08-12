@@ -53,13 +53,15 @@ Parse flags from `$ARGUMENTS`. With no flags, enable every step.
 
 Run enabled steps in this fixed order; halt immediately on failure.
 
-**Pre-commit gate.** Before any step that commits, pushes, or opens a PR, gates must have been
-run in this invocation. `-t` and `-v` count; `-r` does not, because `/review` reads code and runs
-no gates. When the caller selected a narrow action — `/ship-it -c -p -pr`, `/ship-it -c` — nothing
-has been run, and the shipping steps would otherwise proceed against unknown state.
+**Pre-commit gate.** Before any step that commits, pushes, or opens a PR, full verification must
+have run in this invocation. Only `-v` counts. `-t` runs the test suite alone — it does not cover
+linters, type checkers, or builds, so it does not satisfy this gate. `-r` does not count either,
+because `/review` reads code and runs no gates. When the caller selected a narrow action —
+`/ship-it -c -p -pr`, `/ship-it -c`, `/ship-it -t -c -p` — full verification still has not run,
+and the shipping steps would otherwise proceed against unknown state.
 
 ```text
-IF: any of -c / -p / -pr is set AND neither -t nor -v ran
+IF: any of -c / -p / -pr is set AND -v did not run
   RUN: /verify --report-only
   IF: any gate failed
     OUTPUT: "Refusing to ship with N failing gate(s): {names}. Fix them and re-run."
