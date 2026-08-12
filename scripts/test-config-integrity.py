@@ -26,17 +26,18 @@ SKILLS_DIR = PROJECT_ROOT / "system-configs" / ".claude" / "skills"
 # Expected counts
 # 9 agents: architect, claude-advisor, code-reviewer, debugger, devops, feature-agent,
 #   frontend-engineer, security-auditor, test-engineer
-# 39 skills: git, orchestration, quality, planning, formats, specialized, agent-context,
+# 40 skills: git, orchestration, quality, planning, formats, specialized, agent-context,
 #   plus office-common (shared toolkit for xlsx/pptx/docx), changelog
 #   (replay of the last Claude Code CLI upgrade's CHANGELOG slice), watch
 #   (video transcript/frames skill), process-linear (Linear triage skill,
 #   renamed from process-bareclaude), ask (D-facing question primitive),
 #   interview (full-understanding protocol), and gauntlet-loop (multi-round
-#   critic/builder gauntlet skill)
+#   critic/builder gauntlet skill), and excalidraw (themed .excalidraw diagram
+#   generation with a render-and-verify loop)
 #   (advisor skill removed — migrated to the native advisor tool, see PR #221)
 # Note: sync and skills-import are project-local (.claude/skills/), not in system-configs
 EXPECTED_AGENT_COUNT = 9
-EXPECTED_SKILL_COUNT = 39
+EXPECTED_SKILL_COUNT = 40
 
 # Non-agent/command documentation files to skip
 NON_AGENT_FILES = [

@@ -1,0 +1,66 @@
+{
+  "$schema": "./_schema.json",
+  "id": "one-dark-pro",
+  "name": "One Dark Pro",
+  "mode": "dark",
+  "authored": "baked",
+  "canvas": {
+    "background": "#282c34",
+    "panel": "#3e4451"
+  },
+  "ink": {
+    "primary": "#d7dae0",
+    "muted": "#8b93a1",
+    "connector": "#61afef"
+  },
+  "surfaces": [
+    {
+      "slot": "blue",
+      "fill": "#324456",
+      "stroke": "#61afef",
+      "text": "#d7dae0",
+      "contrast": 7.15
+    },
+    {
+      "slot": "green",
+      "fill": "#3c4740",
+      "stroke": "#98c379",
+      "text": "#d7dae0",
+      "contrast": 6.92
+    },
+    {
+      "slot": "amber",
+      "fill": "#4a4741",
+      "stroke": "#e5c07b",
+      "text": "#d7dae0",
+      "contrast": 6.61
+    },
+    {
+      "slot": "red",
+      "fill": "#493840",
+      "stroke": "#e06c75",
+      "text": "#d7dae0",
+      "contrast": 7.8
+    },
+    {
+      "slot": "violet",
+      "fill": "#443a52",
+      "stroke": "#c678dd",
+      "text": "#d7dae0",
+      "contrast": 7.6
+    },
+    {
+      "slot": "teal",
+      "fill": "#30454e",
+      "stroke": "#56b6c2",
+      "text": "#d7dae0",
+      "contrast": 7.18
+    }
+  ],
+  "defaults": {
+    "roughness": 1,
+    "strokeWidth": 2,
+    "fontFamily": 5,
+    "fontSize": 20
+  }
+}

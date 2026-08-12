@@ -1,0 +1,66 @@
+{
+  "$schema": "./_schema.json",
+  "id": "synthwave-84",
+  "name": "Synthwave '84",
+  "mode": "dark",
+  "authored": "baked",
+  "canvas": {
+    "background": "#262335",
+    "panel": "#34294f"
+  },
+  "ink": {
+    "primary": "#ffffff",
+    "muted": "#848bbd",
+    "connector": "#ff7edb"
+  },
+  "surfaces": [
+    {
+      "slot": "blue",
+      "fill": "#294a58",
+      "stroke": "#36f9f6",
+      "text": "#ffffff",
+      "contrast": 9.48
+    },
+    {
+      "slot": "green",
+      "fill": "#34484d",
+      "stroke": "#72f1b8",
+      "text": "#ffffff",
+      "contrast": 9.63
+    },
+    {
+      "slot": "amber",
+      "fill": "#4d453c",
+      "stroke": "#fede5d",
+      "text": "#ffffff",
+      "contrast": 9.41
+    },
+    {
+      "slot": "red",
+      "fill": "#4d293a",
+      "stroke": "#fe4450",
+      "text": "#ffffff",
+      "contrast": 12.4
+    },
+    {
+      "slot": "violet",
+      "fill": "#4d3353",
+      "stroke": "#ff7edb",
+      "text": "#ffffff",
+      "contrast": 10.97
+    },
+    {
+      "slot": "teal",
+      "fill": "#294a58",
+      "stroke": "#36f9f6",
+      "text": "#ffffff",
+      "contrast": 9.48
+    }
+  ],
+  "defaults": {
+    "roughness": 1,
+    "strokeWidth": 2,
+    "fontFamily": 5,
+    "fontSize": 20
+  }
+}

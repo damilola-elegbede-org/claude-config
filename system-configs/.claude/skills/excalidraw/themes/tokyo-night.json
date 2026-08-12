@@ -1,0 +1,66 @@
+{
+  "$schema": "./_schema.json",
+  "id": "tokyo-night",
+  "name": "Tokyo Night",
+  "mode": "dark",
+  "authored": "baked",
+  "canvas": {
+    "background": "#1a1b26",
+    "panel": "#292e42"
+  },
+  "ink": {
+    "primary": "#c0caf5",
+    "muted": "#7982a9",
+    "connector": "#7aa2f7"
+  },
+  "surfaces": [
+    {
+      "slot": "blue",
+      "fill": "#2b334c",
+      "stroke": "#7aa2f7",
+      "text": "#c0caf5",
+      "contrast": 7.74
+    },
+    {
+      "slot": "green",
+      "fill": "#323b32",
+      "stroke": "#9ece6a",
+      "text": "#c0caf5",
+      "contrast": 7.2
+    },
+    {
+      "slot": "amber",
+      "fill": "#433331",
+      "stroke": "#ff9e64",
+      "text": "#c0caf5",
+      "contrast": 7.41
+    },
+    {
+      "slot": "red",
+      "fill": "#422b39",
+      "stroke": "#f7768e",
+      "text": "#c0caf5",
+      "contrast": 7.95
+    },
+    {
+      "slot": "violet",
+      "fill": "#37324c",
+      "stroke": "#bb9af7",
+      "text": "#c0caf5",
+      "contrast": 7.55
+    },
+    {
+      "slot": "teal",
+      "fill": "#2c3b4d",
+      "stroke": "#7dcfff",
+      "text": "#c0caf5",
+      "contrast": 7.07
+    }
+  ],
+  "defaults": {
+    "roughness": 1,
+    "strokeWidth": 2,
+    "fontFamily": 5,
+    "fontSize": 20
+  }
+}

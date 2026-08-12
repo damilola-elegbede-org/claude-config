@@ -1,0 +1,66 @@
+{
+  "$schema": "./_schema.json",
+  "id": "nord",
+  "name": "Nord",
+  "mode": "dark",
+  "authored": "baked",
+  "canvas": {
+    "background": "#2e3440",
+    "panel": "#3b4252"
+  },
+  "ink": {
+    "primary": "#eceff4",
+    "muted": "#94a0b5",
+    "connector": "#88c0d0"
+  },
+  "surfaces": [
+    {
+      "slot": "blue",
+      "fill": "#3d4857",
+      "stroke": "#81a1c1",
+      "text": "#eceff4",
+      "contrast": 8.05
+    },
+    {
+      "slot": "green",
+      "fill": "#434d4e",
+      "stroke": "#a3be8c",
+      "text": "#eceff4",
+      "contrast": 7.56
+    },
+    {
+      "slot": "amber",
+      "fill": "#504f4e",
+      "stroke": "#ebcb8b",
+      "text": "#eceff4",
+      "contrast": 7.09
+    },
+    {
+      "slot": "red",
+      "fill": "#483c48",
+      "stroke": "#bf616a",
+      "text": "#eceff4",
+      "contrast": 9.04
+    },
+    {
+      "slot": "violet",
+      "fill": "#464454",
+      "stroke": "#b48ead",
+      "text": "#eceff4",
+      "contrast": 8.22
+    },
+    {
+      "slot": "teal",
+      "fill": "#3f4c56",
+      "stroke": "#8fbcbb",
+      "text": "#eceff4",
+      "contrast": 7.66
+    }
+  ],
+  "defaults": {
+    "roughness": 1,
+    "strokeWidth": 2,
+    "fontFamily": 5,
+    "fontSize": 20
+  }
+}
