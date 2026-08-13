@@ -487,21 +487,22 @@ if [[ -f "$usage_cache" ]]; then
       elapsed=-1  # stale cache (resets_at already passed) or unparsable
     fi
     if [[ $elapsed -ge 7200 ]]; then
-      # Single pass: cap the raw ratio, then classify and format from that
-      # SAME capped value, so the tier shown always matches the number shown
-      # (classifying off the pre-rounded display string caused boundary
-      # values like a true 0.96 to round-display as "1.0" but reclassify
-      # as yellow, since >=1.0 is the yellow floor).
+      # Round first, THEN classify off that rounded value — D wants the color
+      # to always match what's on screen (e.g. displayed "1.1x" must be
+      # yellow, since 1.1 is the yellow floor), not the hidden raw ratio
+      # behind the rounding (e.g. a raw 1.09 that rounds up to "1.1x" but
+      # would classify green if compared before rounding).
       burn_calc=$(awk -v p="$u_all" -v e="$elapsed" 'BEGIN{
         frac = e / 604800.0
         r = (p / 100.0) / frac
         if (r > 9.9) r = 9.9
-        if (r < 0.5) tier = "blue"
-        else if (r < 1.1) tier = "green"
-        else if (r < 1.2) tier = "yellow"
-        else if (r < 1.5) tier = "orange"
+        disp = sprintf("%.1f", r) + 0
+        if (disp < 0.5) tier = "blue"
+        else if (disp < 1.1) tier = "green"
+        else if (disp < 1.2) tier = "yellow"
+        else if (disp < 1.5) tier = "orange"
         else tier = "red"
-        printf "%.1f\t%s", r, tier
+        printf "%.1f\t%s", disp, tier
       }')
       IFS=$'\t' read -r burn_val burn_tier <<< "$burn_calc"
       burn_part=$(printf 'burn %s%sx\033[0m' "$(burn_color "$burn_tier")" "$burn_val")
