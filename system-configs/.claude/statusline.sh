@@ -472,7 +472,7 @@ if [[ -f "$usage_cache" ]]; then
   # elapsed since the last reset (Mon 10p MT, per weekly_all.resets_at).
   # 1.0 = burning quota exactly as fast as the week is passing;
   # >1.0 = on track to exhaust the quota before the next reset.
-  # blue <0.5 · green <1.1 · yellow <1.2 · orange <1.5 · red >=1.5
+  # blue <0.5 · green <1.1 · yellow <1.3 · orange <1.5 · red >=1.5
   # Placed first so it renders right after "context" and before "all".
   # Decimal-aware (matches context_pct's pattern): weekly_all.percent isn't
   # guaranteed to be a whole number, and awk below handles floats natively,
@@ -499,7 +499,7 @@ if [[ -f "$usage_cache" ]]; then
         disp = sprintf("%.1f", r) + 0
         if (disp < 0.5) tier = "blue"
         else if (disp < 1.1) tier = "green"
-        else if (disp < 1.2) tier = "yellow"
+        else if (disp < 1.3) tier = "yellow"
         else if (disp < 1.5) tier = "orange"
         else tier = "red"
         printf "%.1f\t%s", disp, tier
