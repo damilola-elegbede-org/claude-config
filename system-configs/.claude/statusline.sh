@@ -474,7 +474,10 @@ if [[ -f "$usage_cache" ]]; then
   # >1.0 = on track to exhaust the quota before the next reset.
   # blue <0.5 · green <1.1 · yellow <1.2 · orange <1.5 · red >=1.5
   # Placed first so it renders right after "context" and before "all".
-  if [[ "$u_all" =~ ^[0-9]+$ ]] && [[ -n "$u_all_resets" ]]; then
+  # Decimal-aware (matches context_pct's pattern): weekly_all.percent isn't
+  # guaranteed to be a whole number, and awk below handles floats natively,
+  # so there's no need to truncate the way the bash heat_bar arithmetic does.
+  if [[ "$u_all" =~ ^[0-9]+(\.[0-9]+)?$ ]] && [[ -n "$u_all_resets" ]]; then
     resets_epoch=$(iso_to_epoch "$u_all_resets")
     now_epoch=$(date -u +%s)
     if [[ "$resets_epoch" =~ ^[0-9]+$ ]] && [[ $resets_epoch -gt $now_epoch ]]; then
