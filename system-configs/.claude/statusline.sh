@@ -446,13 +446,26 @@ burn_color() {
 
 usage_segment=""
 if [[ -f "$usage_cache" ]]; then
-  usage_tsv=$(jq -r '[
+  # One `read` per line rather than @tsv + a single multi-var `read`: bash
+  # always classifies tab (and newline) as "IFS whitespace", so a single
+  # `read -r a b c d <<<` would still collapse adjacent delimiters around an
+  # empty field (weekly_scoped/session absent) and shift subsequent values
+  # left, silently dropping u_all_resets. A `read` per line has no
+  # delimiter to collapse - each iteration takes exactly one line, empty or
+  # not. (mapfile/readarray needs bash 4+; macOS ships 3.2.)
+  usage_fields=()
+  while IFS= read -r usage_field; do
+    usage_fields+=("$usage_field")
+  done < <(jq -r '
     ([.limits[] | select(.kind == "weekly_all")][0].percent // ""),
     ([.limits[] | select(.kind == "weekly_scoped")][0].percent // ""),
     ([.limits[] | select(.kind == "session")][0].percent // ""),
     ([.limits[] | select(.kind == "weekly_all")][0].resets_at // "")
-  ] | @tsv' "$usage_cache" 2>/dev/null)
-  IFS=$'\t' read -r u_all u_fable u_5h u_all_resets <<< "$usage_tsv"
+  ' "$usage_cache" 2>/dev/null)
+  u_all="${usage_fields[0]:-}"
+  u_fable="${usage_fields[1]:-}"
+  u_5h="${usage_fields[2]:-}"
+  u_all_resets="${usage_fields[3]:-}"
   usage_parts=""
 
   # Burn-rate index: pace of weekly-quota consumption vs. pace of the week
