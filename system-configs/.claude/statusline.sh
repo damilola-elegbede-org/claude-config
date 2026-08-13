@@ -417,15 +417,103 @@ heat_bar() {
   printf '%s' "$bar"
 }
 
+# ISO8601 timestamp (as returned by the usage endpoint, e.g.
+# "2026-08-18T04:00:00.808678+00:00") -> epoch seconds. Strips fractional
+# seconds and the UTC offset (the endpoint always returns +00:00/Z).
+iso_to_epoch() {
+  local iso="$1" clean
+  clean="${iso%%.*}"
+  clean="${clean%%+*}"
+  clean="${clean%Z}"
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    date -j -u -f "%Y-%m-%dT%H:%M:%S" "$clean" +%s 2>/dev/null
+  else
+    date -u -d "$clean" +%s 2>/dev/null
+  fi
+}
+
+# Burn-rate tier color, printed directly (mirrors heat_color) so the escape
+# byte is emitted by printf itself rather than stored literally in a variable.
+burn_color() {
+  case "$1" in
+    blue)   printf '\033[38;5;39m' ;;
+    green)  printf '\033[32m' ;;
+    yellow) printf '\033[33m' ;;
+    orange) printf '\033[38;5;208m' ;;
+    *)      printf '\033[31m' ;;
+  esac
+}
+
 usage_segment=""
 if [[ -f "$usage_cache" ]]; then
-  usage_tsv=$(jq -r '[
+  # One `read` per line rather than @tsv + a single multi-var `read`: bash
+  # always classifies tab (and newline) as "IFS whitespace", so a single
+  # `read -r a b c d <<<` would still collapse adjacent delimiters around an
+  # empty field (weekly_scoped/session absent) and shift subsequent values
+  # left, silently dropping u_all_resets. A `read` per line has no
+  # delimiter to collapse - each iteration takes exactly one line, empty or
+  # not. (mapfile/readarray needs bash 4+; macOS ships 3.2.)
+  usage_fields=()
+  while IFS= read -r usage_field; do
+    usage_fields+=("$usage_field")
+  done < <(jq -r '
     ([.limits[] | select(.kind == "weekly_all")][0].percent // ""),
     ([.limits[] | select(.kind == "weekly_scoped")][0].percent // ""),
-    ([.limits[] | select(.kind == "session")][0].percent // "")
-  ] | @tsv' "$usage_cache" 2>/dev/null)
-  IFS=$'\t' read -r u_all u_fable u_5h <<< "$usage_tsv"
+    ([.limits[] | select(.kind == "session")][0].percent // ""),
+    ([.limits[] | select(.kind == "weekly_all")][0].resets_at // "")
+  ' "$usage_cache" 2>/dev/null)
+  u_all="${usage_fields[0]:-}"
+  u_fable="${usage_fields[1]:-}"
+  u_5h="${usage_fields[2]:-}"
+  u_all_resets="${usage_fields[3]:-}"
   usage_parts=""
+
+  # Burn-rate index: pace of weekly-quota consumption vs. pace of the week
+  # elapsed since the last reset (Mon 10p MT, per weekly_all.resets_at).
+  # 1.0 = burning quota exactly as fast as the week is passing;
+  # >1.0 = on track to exhaust the quota before the next reset.
+  # blue <0.5 · green <1.1 · yellow <1.3 · orange <1.5 · red >=1.5
+  # Placed first so it renders right after "context" and before "all".
+  # Decimal-aware (matches context_pct's pattern): weekly_all.percent isn't
+  # guaranteed to be a whole number, and awk below handles floats natively,
+  # so there's no need to truncate the way the bash heat_bar arithmetic does.
+  if [[ "$u_all" =~ ^[0-9]+(\.[0-9]+)?$ ]] && [[ -n "$u_all_resets" ]]; then
+    resets_epoch=$(iso_to_epoch "$u_all_resets")
+    now_epoch=$(date -u +%s)
+    if [[ "$resets_epoch" =~ ^[0-9]+$ ]] && [[ $resets_epoch -gt $now_epoch ]]; then
+      period_start_epoch=$(( resets_epoch - 604800 ))
+      elapsed=$(( now_epoch - period_start_epoch ))
+    else
+      elapsed=-1  # stale cache (resets_at already passed) or unparsable
+    fi
+    if [[ $elapsed -ge 7200 ]]; then
+      # Round first, THEN classify off that rounded value — D wants the color
+      # to always match what's on screen (e.g. displayed "1.1x" must be
+      # yellow, since 1.1 is the yellow floor), not the hidden raw ratio
+      # behind the rounding (e.g. a raw 1.09 that rounds up to "1.1x" but
+      # would classify green if compared before rounding).
+      burn_calc=$(awk -v p="$u_all" -v e="$elapsed" 'BEGIN{
+        frac = e / 604800.0
+        r = (p / 100.0) / frac
+        if (r > 9.9) r = 9.9
+        disp = sprintf("%.1f", r) + 0
+        if (disp < 0.5) tier = "blue"
+        else if (disp < 1.1) tier = "green"
+        else if (disp < 1.3) tier = "yellow"
+        else if (disp < 1.5) tier = "orange"
+        else tier = "red"
+        printf "%.1f\t%s", disp, tier
+      }')
+      IFS=$'\t' read -r burn_val burn_tier <<< "$burn_calc"
+      burn_part=$(printf 'burn %s%sx\033[0m' "$(burn_color "$burn_tier")" "$burn_val")
+    else
+      # Too soon after reset for a stable ratio, or stale/unparsable resets_at
+      burn_part=$(printf 'burn \033[90m--\033[0m')
+    fi
+    [[ -n "$usage_parts" ]] && usage_parts+=" · "
+    usage_parts+="$burn_part"
+  fi
+
   for metric in "all:$u_all" "fable:$u_fable" "5h:$u_5h"; do
     m_label=${metric%%:*}
     m_pct=${metric#*:}; m_pct=${m_pct%.*}
@@ -434,7 +522,8 @@ if [[ -f "$usage_cache" ]]; then
     [[ -n "$usage_parts" ]] && usage_parts+=" · "
     usage_parts+="$m_part"
   done
-  [[ -n "$usage_parts" ]] && usage_segment="usage: $usage_parts"
+
+  usage_segment="$usage_parts"
 fi
 
 # Context rendered as label + bar + percentage with the same heat map
