@@ -417,15 +417,86 @@ heat_bar() {
   printf '%s' "$bar"
 }
 
+# ISO8601 timestamp (as returned by the usage endpoint, e.g.
+# "2026-08-18T04:00:00.808678+00:00") -> epoch seconds. Strips fractional
+# seconds and the UTC offset (the endpoint always returns +00:00/Z).
+iso_to_epoch() {
+  local iso="$1" clean
+  clean="${iso%%.*}"
+  clean="${clean%%+*}"
+  clean="${clean%Z}"
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    date -j -u -f "%Y-%m-%dT%H:%M:%S" "$clean" +%s 2>/dev/null
+  else
+    date -u -d "$clean" +%s 2>/dev/null
+  fi
+}
+
+# Burn-rate tier color, printed directly (mirrors heat_color) so the escape
+# byte is emitted by printf itself rather than stored literally in a variable.
+burn_color() {
+  case "$1" in
+    blue)   printf '\033[38;5;39m' ;;
+    green)  printf '\033[32m' ;;
+    yellow) printf '\033[33m' ;;
+    orange) printf '\033[38;5;208m' ;;
+    *)      printf '\033[31m' ;;
+  esac
+}
+
 usage_segment=""
 if [[ -f "$usage_cache" ]]; then
   usage_tsv=$(jq -r '[
     ([.limits[] | select(.kind == "weekly_all")][0].percent // ""),
     ([.limits[] | select(.kind == "weekly_scoped")][0].percent // ""),
-    ([.limits[] | select(.kind == "session")][0].percent // "")
+    ([.limits[] | select(.kind == "session")][0].percent // ""),
+    ([.limits[] | select(.kind == "weekly_all")][0].resets_at // "")
   ] | @tsv' "$usage_cache" 2>/dev/null)
-  IFS=$'\t' read -r u_all u_fable u_5h <<< "$usage_tsv"
+  IFS=$'\t' read -r u_all u_fable u_5h u_all_resets <<< "$usage_tsv"
   usage_parts=""
+
+  # Burn-rate index: pace of weekly-quota consumption vs. pace of the week
+  # elapsed since the last reset (Mon 10p MT, per weekly_all.resets_at).
+  # 1.0 = burning quota exactly as fast as the week is passing;
+  # >1.0 = on track to exhaust the quota before the next reset.
+  # blue <0.5 · green <1.1 · yellow <1.2 · orange <1.5 · red >=1.5
+  # Placed first so it renders right after "context" and before "all".
+  if [[ "$u_all" =~ ^[0-9]+$ ]] && [[ -n "$u_all_resets" ]]; then
+    resets_epoch=$(iso_to_epoch "$u_all_resets")
+    now_epoch=$(date -u +%s)
+    if [[ "$resets_epoch" =~ ^[0-9]+$ ]] && [[ $resets_epoch -gt $now_epoch ]]; then
+      period_start_epoch=$(( resets_epoch - 604800 ))
+      elapsed=$(( now_epoch - period_start_epoch ))
+    else
+      elapsed=-1  # stale cache (resets_at already passed) or unparsable
+    fi
+    if [[ $elapsed -ge 7200 ]]; then
+      # Single pass: cap the raw ratio, then classify and format from that
+      # SAME capped value, so the tier shown always matches the number shown
+      # (classifying off the pre-rounded display string caused boundary
+      # values like a true 0.96 to round-display as "1.0" but reclassify
+      # as yellow, since >=1.0 is the yellow floor).
+      burn_calc=$(awk -v p="$u_all" -v e="$elapsed" 'BEGIN{
+        frac = e / 604800.0
+        r = (p / 100.0) / frac
+        if (r > 9.9) r = 9.9
+        if (r < 0.5) tier = "blue"
+        else if (r < 1.1) tier = "green"
+        else if (r < 1.2) tier = "yellow"
+        else if (r < 1.5) tier = "orange"
+        else tier = "red"
+        printf "%.1f\t%s", r, tier
+      }')
+      IFS=$'\t' read -r burn_val burn_tier <<< "$burn_calc"
+      burn_part=$(printf 'burn %s%sx\033[0m' "$(burn_color "$burn_tier")" "$burn_val")
+    else
+      # Too soon after reset for a stable ratio, or stale/unparsable resets_at
+      burn_part=$(printf 'burn \033[90m--\033[0m')
+    fi
+    [[ -n "$usage_parts" ]] && usage_parts+=" · "
+    usage_parts+="$burn_part"
+  fi
+
   for metric in "all:$u_all" "fable:$u_fable" "5h:$u_5h"; do
     m_label=${metric%%:*}
     m_pct=${metric#*:}; m_pct=${m_pct%.*}
@@ -434,7 +505,8 @@ if [[ -f "$usage_cache" ]]; then
     [[ -n "$usage_parts" ]] && usage_parts+=" · "
     usage_parts+="$m_part"
   done
-  [[ -n "$usage_parts" ]] && usage_segment="usage: $usage_parts"
+
+  usage_segment="$usage_parts"
 fi
 
 # Context rendered as label + bar + percentage with the same heat map
