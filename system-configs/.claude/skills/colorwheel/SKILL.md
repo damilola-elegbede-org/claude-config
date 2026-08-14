@@ -134,8 +134,10 @@ Each Purple round is two agents:
 2. **Blue responds** to whatever broke, either with a stronger mitigation or by conceding the finding as
    unmitigated. A conceded finding is a legitimate outcome and carries forward to White as residual risk.
 
-**Converged** means a Purple round in which Red surfaces no new _material_ finding — one that would change the
-verdict or add a line to the ranked fix list. A rephrasing of an already-open finding is not new.
+**Converged** means a Purple round in which Red breaks no mitigation _and_ surfaces no new _material_ finding — one
+that would change the verdict or add a line to the ranked fix list. A mitigation Red broke this round is not
+converged even if nothing new came with it — Blue's response to that break has not yet survived a re-attack, so the
+loop continues into the next round. A rephrasing of an already-open finding is not new.
 
 **Cap:** round 1 plus at most 3 Purple rounds, 4 total. At the cap the run reports what is still contested rather
 than continuing — a still-contested finding reaches White flagged as unresolved, never silently dropped.
