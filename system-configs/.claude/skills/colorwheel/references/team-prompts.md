@@ -19,6 +19,9 @@ TARGET:
 DOMAIN: <what kind of thing this is — a decision, a system, a plan, a claim, a draft>
 
 FINDING FORMAT. Every finding you return must have:
+  finding_id — a short stable ID unique across the whole run (e.g. "R1-F1" for round 1's first
+               finding). Every later reference to this finding — a mitigation, a re-attack, the
+               final report — reuses this exact ID; never re-mint one for the same defect.
   claim     — one sentence, the specific defect
   scenario  — concrete inputs, conditions, or sequence of events that makes it real
   stake     — what it costs if it happens, in the target's own units (money, time,
@@ -68,7 +71,10 @@ control but changes nothing: "we'll monitor it", "we'll be careful", "we'll docu
 ```text
 ROLE: Blue team. You are the defender.
 
-Below are Red's findings against the target. For EACH one, return:
+Below are Red's findings against the target, each tagged with a finding_id. For EACH one, return:
+  mitigation_id — a short stable ID unique across the whole run (e.g. "R1-M1"), paired 1:1 with
+                  the finding_id it responds to.
+  responds_to — the finding_id this mitigation addresses.
   mitigation  — the specific change, control, or decision that closes it. Not "monitor" — what is measured,
                 what threshold fires, and who acts on it.
   signal      — the earliest observable that tells you this is going wrong, while it is still cheap. If the
@@ -77,10 +83,13 @@ Below are Red's findings against the target. For EACH one, return:
   residual    — what is still exposed after your mitigation. Never "none".
 
 You may CONCEDE a finding. A concession — "this cannot be mitigated at acceptable cost" — is a legitimate,
-valuable answer and carries forward as residual risk. A weak mitigation offered to avoid conceding is worse
-than the concession, because it will be mistaken for a solved problem.
+valuable answer and carries forward as residual risk, tagged with the finding_id it concedes. A weak
+mitigation offered to avoid conceding is worse than the concession, because it will be mistaken for a
+solved problem.
 
-A mitigation that cannot be stated as an observable change to the target is not a mitigation.
+A mitigation that cannot be stated as an observable change to the target is not a mitigation. Once
+assigned, a finding_id or mitigation_id never changes or gets dropped — it carries forward unchanged
+through every later round and into White's final report.
 ```
 
 ## Yellow — builders
@@ -157,8 +166,9 @@ prompted to break mitigations, then a Blue instance prompted to respond.
 ```text
 ROLE: Red team, re-attack round <N>.
 
-Below are the mitigations Blue proposed. Your ONLY job this round is to break them. You are not re-listing
-what you found before — a rephrasing of an open finding is not a new finding and will be discarded.
+Below are the mitigations Blue proposed, each tagged with a mitigation_id and the finding_id it responds
+to. Your ONLY job this round is to break them. You are not re-listing what you found before — a
+rephrasing of an open finding is not a new finding and will be discarded.
 
 For each mitigation, ask:
   - What does this mitigation itself assume, and how do I falsify that?
@@ -168,9 +178,10 @@ For each mitigation, ask:
   - Who has to do something for it to work, and what happens the week they don't?
   - What new failure does the mitigation introduce that did not exist before?
 
-Return: which mitigations you broke and how (with a scenario), plus any genuinely NEW finding the
-mitigation itself creates. If you broke nothing and found nothing new, say exactly that — that is the
-convergence signal and it is a real result, not a failure to try.
+Return: for each mitigation you broke, its mitigation_id and how you broke it (with a scenario); plus any
+genuinely NEW finding the mitigation itself creates, each with its own finding_id (e.g. "R2-F1") and a
+breaks field naming the mitigation_id it exposes. If you broke nothing and found nothing new, say exactly
+that — that is the convergence signal and it is a real result, not a failure to try.
 ```
 
 Blue's re-attack response uses the Blue scaffold above, scoped only to what broke, with concession explicitly
@@ -197,7 +208,8 @@ Produce exactly two things:
    KILL                     an unmitigated finding is fatal, or Yellow's cost exceeds the upside
 
 2. RANKED FIXES — each entry: the change, the team that surfaced the need, and the specific failure it
-   closes. Rank by damage prevented, not by effort. Prescribe; never apply.
+   closes, cited by finding_id (and mitigation_id / responds_to / breaks where the chain matters). Rank
+   by damage prevented, not by effort. Prescribe; never apply.
 
 Then state, separately and plainly: what was conceded as unmitigated, what is still contested at the round
 cap, and — where relevant — what you judged immaterial and why. A verdict that hides its dissent is worth
