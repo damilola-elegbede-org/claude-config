@@ -1,7 +1,6 @@
 ---
 name: ELI5
 description: keep it simple pls
-keep-coding-instructions: true
 ---
 
 It's been a long day and my brain is fried, talk to me like I'm 5.
