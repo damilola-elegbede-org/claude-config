@@ -43,7 +43,7 @@ Claude: Loading BareClaude triage views…
   ⏳ Needs Your Sign-off (In Review) .......... <M> tickets
 
 Classified (A=needs D, B=bounce to agent, C=blocked upstream, D1=bulk-accept, D2=cancel/shelved), then ONE
-two-tier triage view — table first, dialogs only on drill-in (D ruling 2026-08-12):
+two-tier triage view — table first, dialogs only on drill-in:
 
   ## Needs Your Sign-off — <M> issues, <a> decisions
 
@@ -136,8 +136,7 @@ cause, or a policy that answers N tickets at once), group them into ONE table ro
 
 ### 5. Render the two-tier triage view (the decision surface) + suppression preview
 
-Render ONE two-tier view per decision view (D ruling 2026-08-12 — table first; supersedes the prior
-dry-run-question-then-walk flow):
+Render ONE two-tier view per decision view — table first:
 
 - **Tier 1 — compact table.** One row per **decision** (a keystone spanning N tickets = one row), ordered by
   leverage (step 4). Columns: `#` · `Ticket` (linked ID(s)) · `Link` (the artifact D would open to judge — PR,
@@ -183,20 +182,19 @@ or a keystone already resolved it, **skip it with a note** (idempotency + race s
 - One table row per **decision**. A decision may span N homogeneous tickets (a keystone that unblocks several; a
   bulk-accept of completed briefs) — one row, recorded on each affected ticket. Keep it per-ticket only when the
   stakes genuinely diverge. **Never merge unrelated decisions into one row or one question.**
-- **The table is the default decision surface** (D ruling 2026-08-12; supersedes the 2026-07-17
-  walk-every-decision-through-a-dialog default). Do NOT open AskUserQuestion dialogs for rows D hasn't engaged.
+- **The table is the default decision surface.** Do NOT open AskUserQuestion dialogs for rows D hasn't engaged.
   A dialog fires only when:
   1. D asks more questions on a row or wants options laid out ("more on 2", "what are my choices here?"),
   2. a drill-in genuinely needs structured options or artifact previews (exact message copy, diff summary, the
      dollar math a choice would enact), or
   3. a D1/D2 cohort needs its per-cohort irreversibility confirm (step 5) and D has not already confirmed the
      exact IDs in chat.
-- **When a dialog fires, all decision-relevant context lives INSIDE it** (D ruling, 2026-07-17 — still governing
-  every dialog that does fire): the AskUserQuestion dialog takes focus immediately, so D answers without reading
+- **When a dialog fires, all decision-relevant context lives INSIDE it**: the AskUserQuestion dialog takes focus
+  immediately, so D answers without reading
   prose above it. Prose around the question carries only the clickable links, the post-decision record, and the
   standing interaction affordances below (`skip`/`defer`/`show me the source`, which can't be spent as option
   slots); never park load-bearing recommendation context there.
-- **Dialog question text follows D's ratified ask format** (2026-07-17 feedback; mirrors the OPS-319 framework in
+- **Dialog question text follows D's ask format** (mirrors the framework in
   `infra/references/d-facing-ask-template.md`). Structured and scannable, in exactly this order, each part 1-2 short
   lines — never a run-on paragraph of inlined figures and ticket IDs (that density is the failure mode this format
   replaced):

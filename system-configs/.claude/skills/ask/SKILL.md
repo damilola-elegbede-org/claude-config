@@ -25,12 +25,11 @@ question format every D-facing ask uses; `/interview` and `/process-linear` both
 
 ### Exception: process-linear's decision table
 
-`/process-linear` renders its D-decisions as a two-tier table instead of one dialog per decision (D ruling
-2026-08-12) — a table row IS the ask, satisfying "every question to D through `AskUserQuestion`." The dialog still
-fires on drill-in: D asks for more on a row, a decision needs structured options or an artifact preview, or a
-D1/D2 cohort needs its per-cohort irreversibility confirm (see that skill's step 7 for the exact triggers — a
-fired dialog still follows this skill's format). This is the only sanctioned substitute for the dialog; no other
-skill may swap it for prose without the same ruling.
+`/process-linear` renders its D-decisions as a two-tier table instead of one dialog per decision — a table row IS
+the ask, satisfying "every question to D through `AskUserQuestion`." The dialog still fires on drill-in: D asks for
+more on a row, a decision needs structured options or an artifact preview, or a D1/D2 cohort needs its per-cohort
+irreversibility confirm (see that skill's step 7 for the exact triggers — a fired dialog still follows this skill's
+format). This is the only sanctioned substitute for the dialog; no other skill swaps it for prose.
 
 ## Expected Output
 
@@ -52,7 +51,7 @@ Ask exactly one thing. A dialog may carry up to 4 questions only when they are t
 same decision — unrelated decisions never share a dialog. Use `multiSelect` when the choices are not mutually
 exclusive.
 
-### Question format (D's ratified ask format, 2026-07-17)
+### Question format
 
 All decision-relevant context lives inside the dialog. The scaffold is **context-adaptive**:
 
