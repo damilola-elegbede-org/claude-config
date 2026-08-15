@@ -177,7 +177,7 @@ a re-attack yet, which is the whole reason that round cannot be the last one.
 **Cap:** round 1 plus at most 3 Purple rounds, 4 total. At the cap the run reports what is still contested rather
 than continuing — a still-contested finding reaches White flagged as unresolved, never silently dropped.
 
-**Ledger:** the loop's state — per finding, whether it is open, mitigated, broken, conceded, or unresolved — is
+**Ledger:** the loop's state — the status of every finding and every mitigation, per the vocabulary below — is
 carried by the orchestrating session at default depth, and by the `Workflow` script's own loop state at `--deep`,
 the same pattern `gauntlet-loop` uses. A finding closes only when Blue has a mitigation _and_ the following Red
 round failed to break it. Red's silence alone never closes a finding.
@@ -196,20 +196,31 @@ IDs are assigned once, at first emission, and carried unchanged through every su
 the final report. A team that returns findings without IDs is re-prompted for them before the next wave runs — an
 unlabelled finding cannot be tracked and so cannot be closed.
 
+**Status vocabulary.** Findings and mitigations have separate, closed sets of statuses. No other words are used
+for ledger state anywhere in a run or its report:
+
+- A **finding** is exactly one of: `open` · `mitigated` (a mitigation exists but has not yet survived a re-attack)
+  · `closed` · `conceded` · `unresolved` (still contested when the round cap hit).
+- A **mitigation** is exactly one of: `untested` · `held` (survived its re-attack) · `broken`.
+
+`mitigated` is provisional by definition — it is the state of having an `untested` mitigation, and it is not the
+same as `closed`. Only `closed`, `conceded`, and `unresolved` are terminal for a finding.
+
 **When a mitigation breaks, its replacement is a revision, not a new row.** Blue's stronger answer to a broken
-`R1-M3` is `R1-M3′` (then `R1-M3″`), keeping the same `responds_to`. The ledger transition is explicit:
+`R1-M3` is `R1-M3′` (then `R1-M3″`), keeping the same `responds_to`. The transition is explicit:
 
-| Event                                 | `R1-F3` status           | `R1-M3` status                          |
-| ------------------------------------- | ------------------------ | --------------------------------------- |
-| Blue proposes `R1-M3`                 | mitigated (provisional)  | open, untested                          |
-| Red `breaks: R1-M3`                   | **back to open**         | broken — terminal, never revived        |
-| Blue proposes `R1-M3′`                | mitigated (provisional)  | broken (stays); `R1-M3′` open, untested |
-| Next Red round doesn't break `R1-M3′` | **closed**               | `R1-M3′` held                           |
-| Blue concedes instead of revising     | conceded → residual risk | broken                                  |
+| Event                                 | `R1-F3`      | `R1-M3`    | `R1-M3′`   |
+| ------------------------------------- | ------------ | ---------- | ---------- |
+| Blue proposes `R1-M3`                 | `mitigated`  | `untested` | —          |
+| Red `breaks: R1-M3`                   | `open`       | `broken`   | —          |
+| Blue proposes `R1-M3′`                | `mitigated`  | `broken`   | `untested` |
+| Next Red round doesn't break `R1-M3′` | `closed`     | `broken`   | `held`     |
+| Blue concedes instead of revising     | `conceded`   | `broken`   | —          |
+| Round cap hits while still contested  | `unresolved` | `broken`   | `untested` |
 
-A broken mitigation ID is never reused or reopened — the run needs the history of what was tried and failed, since
-a later round proposing something equivalent to an already-broken control is itself a finding. The finding, not the
-mitigation, is what closes.
+`broken` is terminal for a mitigation: that ID is never reused or reopened, because the run needs the history of
+what was tried and failed — a later round proposing something equivalent to an already-broken control is itself a
+finding. The finding, not the mitigation, is what closes.
 
 Yellow, Orange, and Green are recalled only if the design materially changes mid-loop — i.e. Blue's mitigation
 alters what is being built, not just how it is watched. Recalling them every round would re-emit round 1 in
