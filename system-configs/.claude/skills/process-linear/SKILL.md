@@ -274,7 +274,13 @@ decided by an actual comparison rather than by a catch-all that swallows both.
   complete only the missing state write.
 - **Marker present for a DIFFERENT decision, or current state is neither the pre-decision state nor this
   decision's target** → genuine drift; abort and re-surface the ticket rather than writing stale.
-- **No marker** → proceed with a fresh write.
+- **No marker AND current state still equals the captured pre-decision state** → proceed with a fresh write.
+- **No marker but current state has moved** → drift; abort and re-surface. A missing marker is not permission to
+  write: another path may have advanced the ticket without leaving one, and writing here posts a stale comment and
+  sets a target D's answer was never about.
+
+The state check is re-run immediately before the state write as well, not only before the comment — the two ops are
+not atomic, and the window between them is exactly when another path lands.
 
 Then post the decision comment using the template below, THEN set the ticket state. Make both writes **idempotent**:
 before (re)trying either, re-scan for the exact marker/state and treat an existing match as success for that
@@ -284,13 +290,13 @@ unverified write. A lost or duplicated decision is worse than a stall.
 
 **Bucket B bounces** get the same record-and-repair contract, keyed on a distinct `[triage-bounce: <ISO-8601
 timestamp>]` marker (never bare `[triage-bounce]`, and never `[triage-decision]` — a ticket can be bounced more than
-once over its life and bounced now / formally decided later, so the marker must identify *this* bounce operation,
+once over its life and bounced now / formally decided later, so the marker must identify _this_ bounce operation,
 not just the bucket). Immediately before each bounce write, re-fetch the ticket and scan for `[triage-bounce`,
 since the gap between the table render and D's reply is enough time for another path to touch the ticket:
 
 Capture the ticket's **pre-bounce state** and mint this operation's timestamped marker before the first write
 attempt; the branches below compare against both, so "partial write" and "drift" stay distinguishable rather than
-collapsing into a single catch-all, and a stale marker from an *earlier* bounce can never be read as this one:
+collapsing into a single catch-all, and a stale marker from an _earlier_ bounce can never be read as this one:
 
 - **Exact marker for THIS operation present AND state already `Todo`** → fully done; skip with a note.
 - **Exact marker for THIS operation present AND current state still equals the captured pre-bounce state** (comment
@@ -299,11 +305,17 @@ collapsing into a single catch-all, and a stale marker from an *earlier* bounce 
 - **Exact marker for THIS operation present AND current state is anything else** (e.g., already moved to
   `Done`/`Canceled` by another path) → drift; skip the write and report — never force a ticket another path has
   already advanced back to `Todo`.
-- **No exact marker for THIS operation** (whether or not an *earlier* `[triage-bounce: ...]` marker exists on the
-  ticket) → proceed with a fresh write: post the "not a D-decision; execute or re-block" note under the new
-  timestamped marker, then set state to `Todo`. An earlier bounce's marker is never read as evidence of a prior
-  attempt for this operation — it is either drift from an unrelated past bounce (leave it, don't touch it) or
-  simply irrelevant history; either way this operation always starts from "no marker."
+- **No exact marker for THIS operation, AND current state still equals the captured pre-bounce state** (whether or
+  not an _earlier_ `[triage-bounce: ...]` marker exists on the ticket) → proceed with a fresh write: post the "not
+  a D-decision; execute or re-block" note under the new timestamped marker, then set state to `Todo`. An earlier
+  bounce's marker is never read as evidence of a prior attempt for this operation — it is either drift from an
+  unrelated past bounce (leave it, don't touch it) or simply irrelevant history.
+- **No exact marker for THIS operation, but current state has moved off the captured pre-bounce state** → drift;
+  skip and report. A missing marker is not permission to write: another path can advance a ticket without leaving
+  one, and writing here sets `Todo` over a state change someone else made deliberately.
+
+The state comparison is re-run immediately before the state write as well, not only before the comment — the two
+ops are not atomic, and the window between them is exactly when another path lands.
 
 Same write discipline as the A/D1/D2 path: verify each write, retry up to 3×, and on unrecoverable partial failure
 report exactly what landed and halt that ticket rather than guessing.
