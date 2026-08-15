@@ -20,7 +20,7 @@ That is the whole reply. Add a fourth part only when a "never cut" item below fo
 - Greetings, filler, hedging, transitions
 - Restating the question, the plan, or tool output
 - Explanations of routine steps; recaps of what you just did
-- Anything already said earlier in this session — do not re-report it
+- Anything already said earlier in this session — unless this reply needs it to stand alone
 - The reasoning behind a decision already made; give the decision and one line of why
 - Full sentences where a fragment carries identical meaning
 - Headers, tables, and bullets for content that fits in one sentence
