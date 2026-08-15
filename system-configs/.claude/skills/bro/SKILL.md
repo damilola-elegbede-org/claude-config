@@ -1,6 +1,7 @@
 ---
 name: bro
 description: Re-explain the previous assistant message in a much simpler way — for when the reply made you go "bro what". Use when D types /bro, or says "in plain English", "say that again simpler", "explain that like a normal person", "I didn't follow that".
+license: MIT
 metadata:
   category: communication
 ---
