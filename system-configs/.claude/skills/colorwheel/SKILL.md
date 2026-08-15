@@ -191,12 +191,13 @@ round failed to break it. Red's silence alone never closes a finding.
 **Stable IDs are what make the ledger joinable.** Without them, "Blue mitigated it" and "Red broke it" cannot be
 matched to the same row across rounds, and findings silently merge or get misfiled. Every team emits and preserves:
 
-| Field           | Emitted by                                                               | Meaning                                                     |
-| --------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------- |
-| `finding_id`    | Red (`R1-F1`, …), Yellow (`Y1-F1`…), Orange (`O1-F1`…), Green (`G1-F1`…) | Stable for the whole run. Never renumbered between rounds.  |
-| `mitigation_id` | Blue (`R1-M1`, …)                                                        | One per mitigation, paired 1:1 with the finding it answers. |
-| `responds_to`   | Blue                                                                     | The `finding_id` this mitigation addresses.                 |
-| `breaks`        | Red, in Purple rounds                                                    | The `mitigation_id` this re-attack broke.                   |
+| Field           | Emitted by                                                               | Meaning                                                                                       |
+| --------------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| `finding_id`    | Red (`R1-F1`, …), Yellow (`Y1-F1`…), Orange (`O1-F1`…), Green (`G1-F1`…) | Stable for the whole run. Never renumbered between rounds.                                    |
+| `mitigation_id` | Blue (`R1-M1`, …)                                                        | One per mitigation record, unique ASCII string, never reused.                                 |
+| `responds_to`   | Blue                                                                     | The `finding_id` this mitigation addresses.                                                   |
+| `revision_of`   | Blue, on a revision only                                                 | The `mitigation_id` of the record this one replaces. Absent on a mitigation's first proposal. |
+| `breaks`        | Red, in Purple rounds                                                    | The `mitigation_id` this re-attack broke.                                                     |
 
 IDs are assigned once, at first emission, and carried unchanged through every subsequent round, the round cap, and
 the final report. A team that returns findings without IDs is re-prompted for them before the next wave runs — an
@@ -212,21 +213,30 @@ for ledger state anywhere in a run or its report:
 `mitigated` is provisional by definition — it is the state of having an `untested` mitigation, and it is not the
 same as `closed`. Only `closed`, `conceded`, and `unresolved` are terminal for a finding.
 
-**When a mitigation breaks, its replacement is a revision, not a new row.** Blue's stronger answer to a broken
-`R1-M3` is `R1-M3′` (then `R1-M3″`), keeping the same `responds_to`. The transition is explicit:
+**When a mitigation breaks, its replacement is a revision, not a new row.** Each revision gets its own unique
+ASCII `mitigation_id` — never a reused base ID with a decoration appended — and carries `revision_of` pointing at
+the id it replaces, so the chain is walkable without parsing the ID string itself. The convention: append `-r2`,
+`-r3`, … to the base id in emission order, e.g. `R1-M3` → `R1-M3-r2` → `R1-M3-r3`. Every record in a chain keeps
+the same `responds_to`. The transition is explicit:
 
-| Event                                 | `R1-F3`      | `R1-M3`    | `R1-M3′`   |
-| ------------------------------------- | ------------ | ---------- | ---------- |
-| Blue proposes `R1-M3`                 | `mitigated`  | `untested` | —          |
-| Red `breaks: R1-M3`                   | `open`       | `broken`   | —          |
-| Blue proposes `R1-M3′`                | `mitigated`  | `broken`   | `untested` |
-| Next Red round doesn't break `R1-M3′` | `closed`     | `broken`   | `held`     |
-| Blue concedes instead of revising     | `conceded`   | `broken`   | —          |
-| Round cap hits while still contested  | `unresolved` | `broken`   | `untested` |
+| Event                                          | `R1-F3`      | `R1-M3`    | `R1-M3-r2` |
+| ---------------------------------------------- | ------------ | ---------- | ---------- |
+| Blue proposes `R1-M3`                          | `mitigated`  | `untested` | —          |
+| Red `breaks: R1-M3`                            | `open`       | `broken`   | —          |
+| Blue proposes `R1-M3-r2`, `revision_of: R1-M3` | `mitigated`  | `broken`   | `untested` |
+| Next Red round doesn't break `R1-M3-r2`        | `closed`     | `broken`   | `held`     |
+| Blue concedes instead of revising              | `conceded`   | `broken`   | —          |
+| Round cap hits while still contested           | `unresolved` | `broken`   | `untested` |
 
 `broken` is terminal for a mitigation: that ID is never reused or reopened, because the run needs the history of
 what was tried and failed — a later round proposing something equivalent to an already-broken control is itself a
 finding. The finding, not the mitigation, is what closes.
+
+**Active-revision rule.** For a given `responds_to` finding, the active mitigation is the record with the highest
+revision suffix in its chain whose status is not `broken` (i.e. `untested` or `held`). Red's `breaks` field and any
+report reference to "the current mitigation for `R1-F3`" always name that active id — never an earlier `broken`
+link in the same chain. If every record in the chain is `broken`, there is no active mitigation and the finding is
+`conceded` or `unresolved`, not silently pointed at stale history.
 
 Yellow, Orange, and Green are recalled only if the design materially changes mid-loop — i.e. Blue's mitigation
 alters what is being built, not just how it is watched. Recalling them every round would re-emit round 1 in

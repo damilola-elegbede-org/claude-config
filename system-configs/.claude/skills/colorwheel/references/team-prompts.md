@@ -210,7 +210,11 @@ that — that is the convergence signal and it is a real result, not a failure t
 ```
 
 Blue's re-attack response uses the Blue scaffold above, scoped only to what broke, with concession explicitly
-available and encouraged where the mitigation genuinely cannot be strengthened.
+available and encouraged where the mitigation genuinely cannot be strengthened. A revised mitigation gets its own
+unique `mitigation_id` — append `-r2`, `-r3`, … to the broken id's base (`R1-M3` → `R1-M3-r2`) — and a `revision_of`
+field naming the broken id it replaces. Never reuse the broken id or decorate it with a symbol; the id and the
+`revision_of` link are what let White and later rounds tell which record in a chain is current (see SKILL.md's
+active-revision rule).
 
 ## White — referee
 

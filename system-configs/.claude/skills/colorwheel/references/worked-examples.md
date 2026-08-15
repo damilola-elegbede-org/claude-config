@@ -7,7 +7,7 @@ Findings are abridged — a real run returns more per team. What is not abridged
 location, scenario, stake**. The examples use the canonical ID format throughout: `R1-F1` is Red's first finding
 from round 1, `O1-F1` is Orange's first, `R1-M1` is Blue's mitigation answering `R1-F1`, and `R2-F1` is a finding
 that first appeared in round 2. Blue's mitigations are written `R1-M1 → R1-F1`, showing the `responds_to` link;
-`R1-M3′` is a revised mitigation replacing a broken `R1-M3`. `location` is compressed into the claim here because
+`R1-M3-r2` is a revised mitigation (`revision_of: R1-M3`) replacing a broken `R1-M3`. `location` is compressed into the claim here because
 these targets are prose — on a code or document target it is an explicit `file:line` or section reference.
 
 ---
@@ -94,17 +94,18 @@ to a neighbouring sounder version, no scenario, no stake. Generic criticism (see
 
 **Blue responds:**
 
-> **B3′:** Replace volume discounts with a _committed-spend_ model — customer picks a monthly ceiling up front and
-> gets that capacity. Predictability is the product, not the discount. _Residual:_ under-committed customers churn
-> at renewal rather than mid-month.
-> **B2′:** Cap triggers a soft stop with a 24h grace window and an alert, not a hard stop. _Residual:_ a runaway
-> loop can still spend one grace window's worth.
+> **R1-M3-r2** (`revision_of: R1-M3`)**:** Replace volume discounts with a _committed-spend_ model — customer picks
+> a monthly ceiling up front and gets that capacity. Predictability is the product, not the discount. _Residual:_
+> under-committed customers churn at renewal rather than mid-month.
+> **R1-M2-r2** (`revision_of: R1-M2`)**:** Cap triggers a soft stop with a 24h grace window and an alert, not a
+> hard stop. _Residual:_ a runaway loop can still spend one grace window's worth.
 > **R2-F1:** _Concede._ Any default is an anchor. Choosing not to publish a default and setting it per-customer at
 > onboarding trades the anchor for onboarding friction.
 
 ### Round 3 — Purple
 
-> Red: nothing new. B3′ and B2′ hold under re-attack; R2-F1 is conceded rather than contested. **Converged.**
+> Red: nothing new. `R1-M3-r2` and `R1-M2-r2` hold under re-attack; R2-F1 is conceded rather than contested.
+> **Converged.**
 
 ### White
 
