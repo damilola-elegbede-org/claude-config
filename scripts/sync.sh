@@ -361,12 +361,18 @@ sync_files() {
         echo "  🧹 Removed legacy ~/.claude/commands/"
     fi
 
-    # Sync output styles if they exist
+    # Sync output styles if they exist.
+    #
+    # --exclude='local-*.md' is load-bearing, not cosmetic. --delete otherwise
+    # destroys any style authored directly in ~/.claude/output-styles/ — which
+    # is exactly how you'd A/B a candidate style against the deployed one, so
+    # the flag was quietly deleting the only means of evaluating these files.
+    # Anything named local-*.md is yours: never synced from here, never removed.
     if [ "$(manifest_flag output_styles)" != "true" ]; then
         echo "  ⏭  Output styles: skipped by $STATION manifest"
     elif [ -d "$SOURCE_DIR/output-styles" ]; then
         rsync_output=""
-        if rsync_output=$(rsync -a --delete "$SOURCE_DIR/output-styles/" "$TARGET_DIR/output-styles/" 2>&1); then
+        if rsync_output=$(rsync -a --delete --exclude='local-*.md' "$SOURCE_DIR/output-styles/" "$TARGET_DIR/output-styles/" 2>&1); then
             STYLE_COUNT=$(find "$SOURCE_DIR/output-styles" -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
             echo "  ✅ Output styles: $STYLE_COUNT files → ~/.claude/output-styles/"
         else
