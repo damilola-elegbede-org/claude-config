@@ -3,8 +3,12 @@
 Three full runs across the three target types this skill sees. Each shows what a real finding looks like, what
 gets rejected, how the Purple loop breaks a mitigation, and how White resolves it.
 
-Findings are abridged — a real run returns more per team. What is not abridged is the _shape_: claim, scenario,
-stake.
+Findings are abridged — a real run returns more per team. What is not abridged is the _shape_: **id, claim,
+location, scenario, stake**. The examples below show `id` and `claim` inline (the `R1.` prefix is the id) and
+`location` compressed into the claim where the target is prose; on a code or document target, `location` is an
+explicit `file:line` or section reference. Blue's mitigations carry `M<n>` ids and a `responds_to`, and Red's
+re-attacks name the `mitigation_id` they `break` — that is what lets the ledger join a mitigation to the finding
+it closed across rounds.
 
 ---
 

@@ -86,15 +86,15 @@ simultaneously Red's finding and Green's most urgent one.
 
 Blue's mitigations should name their class. A mitigation that doesn't fit one is usually a wish.
 
-| Class         | What it does                                   | Real example                                        | Not this                             |
-| ------------- | ---------------------------------------------- | --------------------------------------------------- | ------------------------------------ |
-| **Eliminate** | Removes the failure's precondition             | Don't hold the data at all                          | "Handle the data carefully"          |
-| **Cap**       | Bounds the blast radius                        | Hard per-customer monthly spend limit               | "Watch for runaway usage"            |
-| **Detect**    | Names a measurement and a threshold that fires | Alert when weekly active drops below N              | "Monitor engagement"                 |
-| **Contain**   | Limits damage after the fact                   | Staged rollout, feature flag, rollback path         | "Be ready to revert"                 |
-| **Transfer**  | Moves the risk to someone equipped for it      | Insurance, a vendor SLA, an escrow                  | "They'll probably handle it"         |
-| **Defer**     | Buys information before committing             | Pilot with 3 customers before the build             | "Start small" with no exit criterion |
-| **Accept**    | Explicit, priced, recorded residual risk       | "We accept churn risk up to 6%; below that we stop" | Silence                              |
+| Class         | What it does                                   | Real example                                   | Not this                             |
+| ------------- | ---------------------------------------------- | ---------------------------------------------- | ------------------------------------ |
+| **Eliminate** | Removes the failure's precondition             | Don't hold the data at all                     | "Handle the data carefully"          |
+| **Cap**       | Bounds the blast radius                        | Hard per-customer monthly spend limit          | "Watch for runaway usage"            |
+| **Detect**    | Names a measurement and a threshold that fires | Alert when weekly active drops below N         | "Monitor engagement"                 |
+| **Contain**   | Limits damage after the fact                   | Staged rollout, feature flag, rollback path    | "Be ready to revert"                 |
+| **Transfer**  | Moves the risk to someone equipped for it      | Insurance, a vendor SLA, an escrow             | "They'll probably handle it"         |
+| **Defer**     | Buys information before committing             | Pilot with 3 customers before the build        | "Start small" with no exit criterion |
+| **Accept**    | Explicit, priced, recorded residual risk       | "We accept churn up to 6%; above that we stop" | Silence                              |
 
 **Accept is a first-class answer.** A concession that names the exposure beats a mitigation that hides it. The
 failure mode Blue must avoid is the control that sounds like control: _monitor, document, be careful, communicate,

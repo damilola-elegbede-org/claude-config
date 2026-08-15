@@ -25,9 +25,11 @@ as literal teams**. That reading is the one this skill adopts — they are lense
 Red teaming predates computers by roughly a millennium, and its non-security lineage is what licenses applying it
 to ideas, plans, and drafts rather than only to systems:
 
-- **The Devil's Advocate** (_advocatus diaboli_) — the Vatican office, dating to roughly the 11th century, formally
-  charged with arguing _against_ candidates for sainthood. The original institutionalized structured dissent, and
-  the direct ancestor of the modern term.
+- **The Devil's Advocate** (_advocatus diaboli_) — the Vatican official formally charged with arguing _against_
+  candidates for sainthood. Adversarial scrutiny in canonization has medieval precursors, but the **formal office
+  was established under Pope Sixtus V in 1587** and abolished in 1983. The original institutionalized structured
+  dissent, and the direct ancestor of the modern term. (Zenko traces red teaming's lineage to this office; some
+  accounts date it loosely to the 11th century, which conflates the earlier practice with the formal role.)
 - **Kriegsspiel** — the Prussian General Staff's 19th-century wargame, where an opposing staff played the enemy
   with real freedom of action rather than as a scripted foil.
 - **Israel's AMAN military intelligence directorate** — post-1973 reforms institutionalizing a dissent function
@@ -155,9 +157,12 @@ target is model behavior rather than an exploitable system:
   techniques for the same threat model, making cross-system comparison unreliable. This is the same reason this
   skill fixes its structure, its finding format, and its verdict vocabulary rather than improvising per run.
 
-One empirical result worth carrying: attack success against LLM-backed agents rose from **11% to 81%** when red
-teamers developed techniques tailored to the specific target rather than reusing baseline patterns (CAISI with the
-UK AI Security Institute, using AgentDojo). Generic attacks badly understate real exposure — which is why
+One empirical result worth carrying: task-hijacking success against LLM-backed agents rose from **11% to 81%** when
+red teamers developed techniques tailored to the target's specific behaviour rather than reusing baseline attack
+patterns. Reported by the US **Center for AI Standards and Innovation (CAISI)** with the **UK AI Security
+Institute**, using the open-source **AgentDojo** evaluation framework (97 injection tasks across 629 test cases).
+Treat the figure as a single reported result, not a settled benchmark — it is cited here for the direction of the
+effect, which is what the design depends on. Generic attacks badly understate real exposure — which is why
 `attack-library.md` requires every finding to be one that would _not_ apply to a neighbouring, sounder version of
 the target.
 
