@@ -50,7 +50,7 @@ two-tier triage view — table first, dialogs only on drill-in (D ruling 2026-08
   | # | Ticket | Link | Decision | Rec |
   |---|--------|------|----------|-----|
   | 1 | [ENG-717](<linear url>) | [PR #52](<github url>) | Merge PR #52 (Venmo) | ✅ Merge |
-  | 2 | [OPS-345/6](<linear url>) | — | Accept pair as Done | ✅ Accept |
+  | 2 | [OPS-345](<linear url>) [OPS-346](<linear url>) | — | Accept pair as Done | ✅ Accept |
   | — | [OPS-353](<linear url>) | — | (parked — not D's; exit 8/14) | — |
 
   ### 1 · ENG-717 — <verbatim title>
@@ -387,7 +387,13 @@ All writes stay on the decided ticket, and dependents get comments only. Nothing
 Every ticket reference shown to D is a clickable markdown link built from the MCP-returned `url`, e.g.
 `[<ID>](https://linear.app/bareclaude/issue/<ID>/<slug>)`. Never show a bare ID alone. The triage table's `Ticket`
 and `Link` columns carry these links (ticket ID + the PR/artifact/issue D would open to judge), and the tier-2
-detail blocks may add more. `AskUserQuestion` chips may not render links, so when a drill-in dialog fires its links
+detail blocks may add more.
+
+**A grouped row links every ticket it covers, individually.** When one decision spans N tickets (step 9's
+grouping rule), the `Ticket` cell carries N separate links — `[OPS-345](<url>) [OPS-346](<url>)`, never a
+collapsed `[OPS-345/6](<url>)` or an abbreviated range. A collapsed form gives the second and later tickets no
+destination, which is the bare-ID failure wearing a link's clothes: D can't open what the row is asking them to
+decide on. `AskUserQuestion` chips may not render links, so when a drill-in dialog fires its links
 live in the prose around it — that prose is load-bearing only for links and the post-decision record; all decision
 context goes inside the dialog.
 
