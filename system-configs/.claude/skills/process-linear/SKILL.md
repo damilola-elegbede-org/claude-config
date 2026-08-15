@@ -265,11 +265,15 @@ cohort — **FIRST re-fetch** the ticket's state and scan for an existing `[tria
 preflight) may have taken minutes, and an agent may have moved the ticket meanwhile. Resolve the pre-write check by
 cases, so a partial write from a prior interrupted attempt is repaired rather than orphaned:
 
+Capture the ticket's **pre-decision state** before the first write attempt, so "partial write" and "drift" are
+decided by an actual comparison rather than by a catch-all that swallows both.
+
 - **Marker present AND state already matches this decision** → fully done; skip with a note.
-- **Marker present but state inconsistent** (comment landed, state write did not, on a prior attempt) → this is a
-  partial write, NOT a conflict: skip the comment op and complete only the missing state write.
-- **Marker present for a DIFFERENT decision, or the state drifted to conflict with D's answer** → genuine drift;
-  abort and re-surface the ticket rather than writing stale.
+- **Marker present for THIS decision AND current state still equals the captured pre-decision state** (comment
+  landed, state write did not, on a prior attempt) → partial write, NOT a conflict: skip the comment op and
+  complete only the missing state write.
+- **Marker present for a DIFFERENT decision, or current state is neither the pre-decision state nor this
+  decision's target** → genuine drift; abort and re-surface the ticket rather than writing stale.
 - **No marker** → proceed with a fresh write.
 
 Then post the decision comment using the template below, THEN set the ticket state. Make both writes **idempotent**:
@@ -283,11 +287,14 @@ unverified write. A lost or duplicated decision is worse than a stall.
 Immediately before each bounce write, re-fetch the ticket and scan for `[triage-bounce]`, since the gap between the
 table render and D's reply is enough time for another path to touch the ticket:
 
+Capture the ticket's **pre-bounce state** before the first write attempt; the branches below compare against it, so
+"partial write" and "drift" stay distinguishable rather than collapsing into a single catch-all.
+
 - **Marker present AND state already `Todo`** → fully done; skip with a note.
-- **Marker present but state not yet `Todo`** (comment landed, state write did not, on a prior attempt) → partial
-  write; skip the comment op and complete only the missing state write.
-- **Marker present but current state conflicts** (e.g., already moved to `Done`/`Canceled` by another path) → drift;
-  skip the write and report — never force a ticket another path has already advanced back to `Todo`.
+- **Marker present AND current state still equals the captured pre-bounce state** (comment landed, state write did
+  not, on a prior attempt) → partial write; skip the comment op and complete only the missing state write.
+- **Marker present AND current state is anything else** (e.g., already moved to `Done`/`Canceled` by another path)
+  → drift; skip the write and report — never force a ticket another path has already advanced back to `Todo`.
 - **No marker** → proceed with a fresh write: post the "not a D-decision; execute or re-block" note, then set state
   to `Todo`.
 
