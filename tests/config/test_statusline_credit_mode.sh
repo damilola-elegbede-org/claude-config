@@ -63,12 +63,16 @@ mk_cache() {
 EOF
 }
 
-# render <cache-json> [credit-samples-content] -> plain (ANSI-stripped) statusline
+# render <cache-json> [credit-samples-content] [endpoint-last-ok-epoch]
+#   -> plain (ANSI-stripped) statusline
+# The .usage_cache.ok marker defaults to "just now": most cases are testing
+# behaviour with a healthy endpoint. Pass an older epoch to simulate an outage.
 render() {
-    local cache="$1" samples="$2"
+    local cache="$1" samples="$2" ok_at="$3"
     local h="$TEST_TEMP_DIR/home_$RANDOM$RANDOM"
     mkdir -p "$h/.claude"
     printf '%s' "$cache" > "$h/.claude/.usage_cache.json"
+    printf '%s' "${ok_at:-$(date +%s)}" > "$h/.claude/.usage_cache.ok"
     [[ -n "$samples" ]] && printf '%s' "$samples" > "$h/.claude/.credit_samples"
     LAST_HOME="$h"
     printf '%s' "$STDIN_JSON" | HOME="$h" bash "$STATUSLINE_PATH" 2>/dev/null \
@@ -143,6 +147,18 @@ OUT=$(render "$(mk_cache 100 14 true 75160 200000 38 false)" "$((NOW-3600)) 7365
 assert_contains "$OUT" "burn 0."          "burn rendered from endpoint deltas"
 assert_missing  "$OUT" "burn --"          "placeholder replaced by a real ratio"
 assert_missing  "$OUT" "plan back"        "no countdown anywhere"
+
+echo
+print_info "A silent endpoint does not decay burn toward green"
+# Same history that yields ~\$15/hr above, but the endpoint last answered an hour
+# ago. used_credits is frozen at its last known value while wall-clock advances,
+# so aging the rate would walk burn down to a green reflecting an outage rather
+# than restraint. (The failure path touches .usage_cache.json to back off, so
+# its mtime can't be trusted for this - only the success marker can.)
+OUT=$(render "$(mk_cache 100 14 true 75160 200000 38 false)" "$((NOW-3600)) 73655
+" "$((NOW-3600))")
+assert_contains "$OUT" "burn --"          "stale endpoint yields no rate"
+assert_missing  "$OUT" "burn 0."          "no reassuring number invented during an outage"
 
 echo
 print_info "Heavy spend produces a burn above the stranding line"

@@ -364,6 +364,12 @@ rm -f "$version_dir/acknowledged_version" "$version_dir/notified_session" 2>/dev
 # shows), cached 60s so the statusline stays fast. Token is read from the macOS
 # Keychain; on any failure the segment is omitted and stale cache is reused.
 usage_cache="$HOME/.claude/.usage_cache.json"
+# Last *successful* refresh. The failure path below deliberately touches
+# .usage_cache.json to back off, so its mtime says nothing about whether the
+# contents are current - only this marker does. Credit mode needs the
+# distinction: a frozen used_credits means "idle" when the endpoint is healthy
+# and "unknown" when it isn't, and those must not render the same.
+usage_cache_ok="$HOME/.claude/.usage_cache.ok"
 cache_age=999999
 if [[ -f "$usage_cache" ]]; then
   if [[ "$OSTYPE" == "darwin"* ]]; then
@@ -387,6 +393,8 @@ if [[ $cache_age -gt 60 ]]; then
          -H "Authorization: Bearer $oauth_bearer" -H "anthropic-beta: oauth-2025-04-20" 2>/dev/null \
        && jq -e '.limits' "$tmp_usage" >/dev/null 2>&1; then
       mv -f "$tmp_usage" "$usage_cache"
+      date +%s > "$usage_cache_ok" 2>/dev/null || true
+      chmod 600 "$usage_cache_ok" 2>/dev/null || true
     else
       # Backoff: keep stale percentages, don't re-hit a failing endpoint every refresh
       rm -f "$tmp_usage"
@@ -455,6 +463,18 @@ burn_color() {
 credit_samples="$HOME/.claude/.credit_samples"
 CREDIT_WINDOW_SECS=${CREDIT_WINDOW_SECS:-14400}  # 4h trailing window
 CREDIT_MIN_SECS=${CREDIT_MIN_SECS:-900}          # need 15m of history before a rate is trustworthy
+CREDIT_STALE_SECS=${CREDIT_STALE_SECS:-600}      # endpoint silent this long -> refuse to age the rate
+
+# Seconds since the usage endpoint last answered successfully. A huge number
+# when it has never answered (or the marker is unreadable), which reads as stale
+# and therefore fails safe.
+usage_data_age() {
+  local ok
+  [[ -f "$usage_cache_ok" ]] || { printf '999999'; return; }
+  ok=$(cat "$usage_cache_ok" 2>/dev/null)
+  [[ "$ok" =~ ^[0-9]+$ ]] || { printf '999999'; return; }
+  printf '%s' $(( $(date +%s) - ok ))
+}
 
 # Dollars/hour of credit spend, from usage-endpoint deltas. Prints nothing until
 # there's enough history to be meaningful.
@@ -637,6 +657,12 @@ if [[ -f "$usage_cache" ]] && [[ $credit_mode -eq 1 ]]; then
     # Runway is zero and the ratio can't divide by it - the terminal state is
     # the message.
     cm_tail=$(printf '\033[31mcredits spent\033[0m')
+  elif [[ $(usage_data_age) -gt $CREDIT_STALE_SECS ]]; then
+    # The endpoint has gone quiet. used_credits is frozen at its last known
+    # value while wall-clock keeps advancing, so continuing to divide by a
+    # growing span would decay the rate and walk burn down to a green that
+    # reflects an outage rather than restraint. Refuse to age it.
+    cm_tail=$(printf 'burn \033[90m--\033[0m')
   elif [[ -n "$cm_rate" ]] && [[ $cm_secs_left -gt 0 ]] && [[ $cm_remaining -gt 0 ]]; then
     cm_calc=$(awk -v r="$cm_rate" -v s="$cm_secs_left" -v rem="$cm_remaining" 'BEGIN{
       b = (r * (s / 3600.0)) / (rem / 100.0)
