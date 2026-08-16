@@ -120,18 +120,29 @@ assert_missing  "$OUT" "fable "           "fable dropped (moot sub-limit)"
 assert_missing  "$OUT" "5h "              "5h dropped (non-binding)"
 
 echo
-print_info "Cold start falls back to the reset countdown"
-# No sample history yet: the usage endpoint takes ~20min to register first spend.
-assert_contains "$OUT" "plan back "       "countdown shown while burn is unknowable"
-assert_missing  "$OUT" "burn "            "no burn invented without a rate"
+print_info "Cold start holds burn blank rather than inventing a rate"
+# No sample history yet. The usage endpoint doesn't register credit spend for
+# ~20min, so a rate computed now would read a reassuring 0.00x green while money
+# is genuinely going out.
+assert_contains "$OUT" "burn --"          "burn held blank until spend is observable"
+assert_missing  "$OUT" "plan back"        "no countdown - the ratio owns the slot"
+
+echo
+print_info "A flat endpoint reading is not mistaken for zero spend"
+# Sample exists but used_credits hasn't moved: still inside the endpoint blackout.
+OUT=$(render "$(mk_cache 100 14 true 75160 200000 38 false)" "$((NOW-3600)) 75160
+")
+assert_contains "$OUT" "burn --"          "unmoved counter yields no rate"
+assert_missing  "$OUT" "burn 0.00"        "never reports a reassuring zero burn"
 
 echo
 print_info "Burn appears once a spend rate is measurable"
 # ~\$15/hr over the past hour against \$1248.40 remaining, ~36.5h to reset.
 OUT=$(render "$(mk_cache 100 14 true 75160 200000 38 false)" "$((NOW-3600)) 73655
 ")
-assert_contains "$OUT" "burn "            "burn rendered from endpoint deltas"
-assert_missing  "$OUT" "plan back"        "countdown yields to burn"
+assert_contains "$OUT" "burn 0."          "burn rendered from endpoint deltas"
+assert_missing  "$OUT" "burn --"          "placeholder replaced by a real ratio"
+assert_missing  "$OUT" "plan back"        "no countdown anywhere"
 
 echo
 print_info "Heavy spend produces a burn above the stranding line"
@@ -144,20 +155,22 @@ echo
 print_info "Session exhaustion also triggers credit mode"
 OUT=$(render "$(mk_cache 40 100 true 75160 200000 38 false)")
 assert_contains "$OUT" "credits "         "5h exhaustion engages credit mode"
-assert_contains "$OUT" "plan back "       "countdown targets the session reset"
+assert_contains "$OUT" "burn --"          "burn slot retained with no rate history"
 
 echo
 print_info "Exhausted credits are called out as a hard block"
 OUT=$(render "$(mk_cache 100 14 true 200000 200000 100 true)" "$((NOW-3600)) 190000
 ")
 assert_contains "$OUT" "credits spent"    "exhaustion flagged"
-assert_contains "$OUT" "plan back "       "countdown is the only remaining signal"
+assert_missing  "$OUT" "plan back"        "no countdown on the hard block either"
 
 echo
 print_info "Both limits exhausted: binding reset is the later of the two"
 # Weekly resets in 1h, session (5h) resets in 3h - billing doesn't stop until
-# the session reset, so that's the one that must drive the countdown even
-# though weekly_all is checked first.
+# BOTH have refreshed, so the later (session) reset is the horizon even though
+# weekly_all is checked first. Asserted through burn, which is the only thing
+# the binding reset now feeds: at a seeded $500/hr against $1248.40 remaining,
+# the 3h horizon gives 1.20x and the 1h horizon would give 0.40x.
 BOTH_EXHAUSTED_CACHE=$(cat <<EOF
 {
   "extra_usage": { "spend_limit_reached": false },
@@ -174,9 +187,10 @@ BOTH_EXHAUSTED_CACHE=$(cat <<EOF
 }
 EOF
 )
-OUT=$(render "$BOTH_EXHAUSTED_CACHE")
-assert_contains "$OUT" "plan back 3h" "binding reset is the later (session) reset, not the earlier weekly one"
-assert_missing  "$OUT" "plan back 1h" "earlier weekly reset is not used while session is still binding"
+OUT=$(render "$BOTH_EXHAUSTED_CACHE" "$((NOW-3600)) 25160
+")
+assert_contains "$OUT" "burn 1.20" "binding reset is the later (session) reset, not the earlier weekly one"
+assert_missing  "$OUT" "burn 0.40" "earlier weekly reset is not used while session is still binding"
 
 echo
 print_info "Credits disabled keeps plan mode even at 100%"

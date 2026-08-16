@@ -456,20 +456,6 @@ credit_samples="$HOME/.claude/.credit_samples"
 CREDIT_WINDOW_SECS=${CREDIT_WINDOW_SECS:-14400}  # 4h trailing window
 CREDIT_MIN_SECS=${CREDIT_MIN_SECS:-900}          # need 15m of history before a rate is trustworthy
 
-# ISO8601 -> "1d 12h" / "3h 40m" / "12m" remaining. "--" when unparsable.
-fmt_countdown() {
-  local iso="$1" e now d
-  e=$(iso_to_epoch "$iso")
-  now=$(date -u +%s)
-  if ! [[ "$e" =~ ^[0-9]+$ ]]; then printf -- '--'; return; fi
-  d=$(( e - now ))
-  [[ $d -lt 0 ]] && d=0
-  if   [[ $d -ge 86400 ]]; then printf '%dd %dh' $((d/86400)) $(((d%86400)/3600))
-  elif [[ $d -ge 3600  ]]; then printf '%dh %dm' $((d/3600))  $(((d%3600)/60))
-  else                          printf '%dm' $(((d+59)/60))
-  fi
-}
-
 # Dollars/hour of credit spend, from usage-endpoint deltas. Prints nothing until
 # there's enough history to be meaningful.
 #
@@ -523,7 +509,17 @@ credit_rate_per_hour() {
   mv -f "$tmp" "$f" 2>/dev/null || true
 
   span=$(( now - ${s_ts[$base_i]} ))
+  # Two guards, both required.
+  # The span guard stops a tiny window from producing a wild rate.
+  # The movement guard is the important one: the usage endpoint doesn't register
+  # credit spend for ~20min after credit mode begins, and during that blackout
+  # "no delta" is indistinguishable from "not spending". Computing a rate then
+  # would print a reassuring 0.00x green while money is genuinely going out -
+  # the exact failure this whole segment exists to remove. Once the value has
+  # moved even once, a later flat stretch really does mean idle, and the rate
+  # correctly decays toward zero.
   [[ $span -ge $CREDIT_MIN_SECS ]] || return 0
+  [[ ${s_val[$base_i]} -lt $used_minor ]] || return 0
   awk -v a="${s_val[$base_i]}" -v b="$used_minor" -v s="$span" 'BEGIN{
     d = (b - a) / 100.0
     if (d < 0) d = 0
@@ -638,7 +634,9 @@ if [[ -f "$usage_cache" ]] && [[ $credit_mode -eq 1 ]]; then
   # number on screen - same rule the plan-mode burn follows.)
   cm_tail=""
   if [[ "$sp_exhausted" == "true" ]]; then
-    cm_tail=$(printf '\033[31mcredits spent\033[0m · plan back %s' "$(fmt_countdown "$binding_reset")")
+    # Runway is zero and the ratio can't divide by it - the terminal state is
+    # the message.
+    cm_tail=$(printf '\033[31mcredits spent\033[0m')
   elif [[ -n "$cm_rate" ]] && [[ $cm_secs_left -gt 0 ]] && [[ $cm_remaining -gt 0 ]]; then
     cm_calc=$(awk -v r="$cm_rate" -v s="$cm_secs_left" -v rem="$cm_remaining" 'BEGIN{
       b = (r * (s / 3600.0)) / (rem / 100.0)
@@ -653,10 +651,10 @@ if [[ -f "$usage_cache" ]] && [[ $credit_mode -eq 1 ]]; then
     IFS=$'\t' read -r cm_burn_val cm_burn_tier <<< "$cm_calc"
     cm_tail=$(printf 'burn %s%sx\033[0m' "$(burn_color "$cm_burn_tier")" "$cm_burn_val")
   else
-    # No trustworthy rate yet (credit mode just began - the usage endpoint takes
-    # ~20min to register the first spend). The reset countdown is the only
-    # honest number until then.
-    cm_tail=$(printf 'plan back %s' "$(fmt_countdown "$binding_reset")")
+    # No trustworthy rate yet - credit mode just began and the usage endpoint
+    # hasn't registered any spend. Held blank rather than filled with a number,
+    # same as plan-mode burn does before its own ratio stabilises.
+    cm_tail=$(printf 'burn \033[90m--\033[0m')
   fi
   usage_parts+=" · $cm_tail"
   usage_segment="$usage_parts"
