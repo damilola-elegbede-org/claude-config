@@ -498,7 +498,7 @@ credit_rate_per_hour() {
   n=${#s_ts[@]}
 
   # Monthly cap rolled over (cumulative spend dropped) - discard stale history.
-  if [[ $n -gt 0 ]] && [[ $used_minor -lt ${s_val[0]} ]]; then
+  if [[ $n -gt 0 ]] && [[ $used_minor -lt ${s_val[$((n-1))]} ]]; then
     s_ts=(); s_val=(); n=0
   fi
 
