@@ -193,6 +193,32 @@ assert_contains "$OUT" "burn 1.20" "binding reset is the later (session) reset, 
 assert_missing  "$OUT" "burn 0.40" "earlier weekly reset is not used while session is still binding"
 
 echo
+print_info "Both limits exhausted, reversed: later reset is chosen by time, not by kind"
+# Mirror of the above with the resets swapped - weekly now the later of the two.
+# Guards against the selection being positional (weekly-first / session-first)
+# rather than an actual comparison of the two reset timestamps.
+REVERSED_CACHE=$(cat <<EOF
+{
+  "extra_usage": { "spend_limit_reached": false },
+  "spend": {
+    "used":  { "amount_minor": 75160, "currency": "USD", "exponent": 2 },
+    "limit": { "amount_minor": 200000, "currency": "USD", "exponent": 2 },
+    "percent": 38, "enabled": true
+  },
+  "limits": [
+    { "kind": "session",       "percent": 100, "resets_at": "$(iso_in 3600)"  },
+    { "kind": "weekly_all",    "percent": 100, "resets_at": "$(iso_in 10800)" },
+    { "kind": "weekly_scoped", "percent": 25,  "resets_at": "$(iso_in 10800)" }
+  ]
+}
+EOF
+)
+OUT=$(render "$REVERSED_CACHE" "$((NOW-3600)) 25160
+")
+assert_contains "$OUT" "burn 1.20" "binding reset is the later (weekly) reset when session resets sooner"
+assert_missing  "$OUT" "burn 0.40" "earlier session reset is not used while weekly is still binding"
+
+echo
 print_info "Credits disabled keeps plan mode even at 100%"
 OUT=$(render "$(mk_cache 100 14 false 0 0 0 false)")
 assert_contains "$OUT" "all "             "plan meters retained"
