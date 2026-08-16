@@ -154,6 +154,31 @@ assert_contains "$OUT" "credits spent"    "exhaustion flagged"
 assert_contains "$OUT" "plan back "       "countdown is the only remaining signal"
 
 echo
+print_info "Both limits exhausted: binding reset is the later of the two"
+# Weekly resets in 1h, session (5h) resets in 3h - billing doesn't stop until
+# the session reset, so that's the one that must drive the countdown even
+# though weekly_all is checked first.
+BOTH_EXHAUSTED_CACHE=$(cat <<EOF
+{
+  "extra_usage": { "spend_limit_reached": false },
+  "spend": {
+    "used":  { "amount_minor": 75160, "currency": "USD", "exponent": 2 },
+    "limit": { "amount_minor": 200000, "currency": "USD", "exponent": 2 },
+    "percent": 38, "enabled": true
+  },
+  "limits": [
+    { "kind": "session",       "percent": 100, "resets_at": "$(iso_in 10800)" },
+    { "kind": "weekly_all",    "percent": 100, "resets_at": "$(iso_in 3600)"  },
+    { "kind": "weekly_scoped", "percent": 25,  "resets_at": "$(iso_in 3600)"  }
+  ]
+}
+EOF
+)
+OUT=$(render "$BOTH_EXHAUSTED_CACHE")
+assert_contains "$OUT" "plan back 3h" "binding reset is the later (session) reset, not the earlier weekly one"
+assert_missing  "$OUT" "plan back 1h" "earlier weekly reset is not used while session is still binding"
+
+echo
 print_info "Credits disabled keeps plan mode even at 100%"
 OUT=$(render "$(mk_cache 100 14 false 0 0 0 false)")
 assert_contains "$OUT" "all "             "plan meters retained"

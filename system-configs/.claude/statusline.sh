@@ -581,7 +581,16 @@ if [[ -f "$usage_cache" ]]; then
   [[ "$u_all_int" =~ ^[0-9]+$ ]] || u_all_int=-1
   [[ "$u_5h_int"  =~ ^[0-9]+$ ]] || u_5h_int=-1
   if [[ "$sp_enabled" == "true" ]] && [[ "$sp_used" =~ ^[0-9]+$ ]] && [[ "$sp_limit" =~ ^[0-9]+$ ]]; then
-    if [[ $u_all_int -ge 100 ]]; then
+    if [[ $u_all_int -ge 100 ]] && [[ $u_5h_int -ge 100 ]]; then
+      # Both exhausted - credits stay necessary until the later of the two
+      # resets, not just the weekly one.
+      all_epoch=$(iso_to_epoch "$u_all_resets")
+      h5_epoch=$(iso_to_epoch "$u_5h_resets")
+      credit_mode=1; binding_reset="$u_all_resets"
+      if [[ "$all_epoch" =~ ^[0-9]+$ ]] && [[ "$h5_epoch" =~ ^[0-9]+$ ]] && [[ $h5_epoch -gt $all_epoch ]]; then
+        binding_reset="$u_5h_resets"
+      fi
+    elif [[ $u_all_int -ge 100 ]]; then
       credit_mode=1; binding_reset="$u_all_resets"
     elif [[ $u_5h_int -ge 100 ]]; then
       credit_mode=1; binding_reset="$u_5h_resets"
