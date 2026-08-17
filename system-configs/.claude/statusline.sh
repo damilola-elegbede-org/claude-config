@@ -357,19 +357,16 @@ perform_cleanup() {
 perform_cleanup "$terminal_versions_dir"
 
 # Clean up legacy files from old implementations
-rm -f "$version_dir/acknowledged_version" "$version_dir/notified_session" 2>/dev/null || true
+# .credit_samples / .usage_cache.ok backed an earlier rate-sampling version of
+# the credit burn; it now derives from the payload alone and keeps no state.
+rm -f "$version_dir/acknowledged_version" "$version_dir/notified_session" \
+      "$version_dir/.credit_samples" "$version_dir/.usage_cache.ok" 2>/dev/null || true
 
 # ---- Plan-usage segment: weekly-all / weekly-Fable / 5h-session ----
 # Percentages come from Claude's OAuth usage endpoint (the same numbers /usage
 # shows), cached 60s so the statusline stays fast. Token is read from the macOS
 # Keychain; on any failure the segment is omitted and stale cache is reused.
 usage_cache="$HOME/.claude/.usage_cache.json"
-# Last *successful* refresh. The failure path below deliberately touches
-# .usage_cache.json to back off, so its mtime says nothing about whether the
-# contents are current - only this marker does. Credit mode needs the
-# distinction: a frozen used_credits means "idle" when the endpoint is healthy
-# and "unknown" when it isn't, and those must not render the same.
-usage_cache_ok="$HOME/.claude/.usage_cache.ok"
 cache_age=999999
 if [[ -f "$usage_cache" ]]; then
   if [[ "$OSTYPE" == "darwin"* ]]; then
@@ -393,8 +390,6 @@ if [[ $cache_age -gt 60 ]]; then
          -H "Authorization: Bearer $oauth_bearer" -H "anthropic-beta: oauth-2025-04-20" 2>/dev/null \
        && jq -e '.limits' "$tmp_usage" >/dev/null 2>&1; then
       mv -f "$tmp_usage" "$usage_cache"
-      date +%s > "$usage_cache_ok" 2>/dev/null || true
-      chmod 600 "$usage_cache_ok" 2>/dev/null || true
     else
       # Backoff: keep stale percentages, don't re-hit a failing endpoint every refresh
       rm -f "$tmp_usage"
@@ -452,101 +447,6 @@ burn_color() {
   esac
 }
 
-# ---- Credit mode helpers ----
-# Once the plan quota is exhausted, usage credits pay the bill and the plan
-# meters stop carrying information (see the credit-mode block below). These
-# helpers back the replacement instrument.
-
-# Rolling sample history for the credit spend rate. Kept only while credit mode
-# is active, so the rate reflects credit-billed spend and isn't diluted by the
-# plan-covered stretch that preceded it.
-credit_samples="$HOME/.claude/.credit_samples"
-CREDIT_WINDOW_SECS=${CREDIT_WINDOW_SECS:-14400}  # 4h trailing window
-CREDIT_MIN_SECS=${CREDIT_MIN_SECS:-900}          # need 15m of history before a rate is trustworthy
-CREDIT_STALE_SECS=${CREDIT_STALE_SECS:-600}      # endpoint silent this long -> refuse to age the rate
-
-# Seconds since the usage endpoint last answered successfully. A huge number
-# when it has never answered (or the marker is unreadable), which reads as stale
-# and therefore fails safe.
-usage_data_age() {
-  local ok
-  [[ -f "$usage_cache_ok" ]] || { printf '999999'; return; }
-  ok=$(cat "$usage_cache_ok" 2>/dev/null)
-  [[ "$ok" =~ ^[0-9]+$ ]] || { printf '999999'; return; }
-  printf '%s' $(( $(date +%s) - ok ))
-}
-
-# Dollars/hour of credit spend, from usage-endpoint deltas. Prints nothing until
-# there's enough history to be meaningful.
-#
-# Deliberately endpoint-sourced rather than computed from local transcript token
-# counts: local data misses other machines and the web/mobile apps, which all
-# draw on the same pool, so a locally-derived rate reads reassuringly low while
-# actually overspending. It also can't tell plan-billed tokens from credit-billed
-# ones. The endpoint lags (~20min before the first movement, then every few
-# minutes), which is why burn stays "--" for a while after credit mode begins.
-#
-# Rate is measured against calendar time, not active time: the reset arrives on
-# calendar time and no credits are spent while idle, so an idle stretch should
-# and does dilute the rate toward zero.
-credit_rate_per_hour() {
-  local used_minor="$1" now="$2" f="$credit_samples"
-  local -a s_ts s_val
-  local ts val i n base_i span tmp out=""
-  s_ts=(); s_val=()
-  if [[ -f "$f" ]]; then
-    while read -r ts val; do
-      [[ "$ts" =~ ^[0-9]+$ ]] && [[ "$val" =~ ^[0-9]+$ ]] || continue
-      [[ $ts -le $now ]] || continue
-      s_ts+=("$ts"); s_val+=("$val")
-    done < "$f"
-  fi
-  n=${#s_ts[@]}
-
-  # Monthly cap rolled over (cumulative spend dropped) - discard stale history.
-  if [[ $n -gt 0 ]] && [[ $used_minor -lt ${s_val[$((n-1))]} ]]; then
-    s_ts=(); s_val=(); n=0
-  fi
-
-  # Append the current reading only when the value actually moved. Holding the
-  # old baseline through a flat stretch is what makes idle time dilute the rate.
-  if [[ $n -eq 0 ]] || [[ "${s_val[$((n-1))]}" != "$used_minor" ]]; then
-    s_ts+=("$now"); s_val+=("$used_minor"); n=$((n+1))
-  fi
-
-  # Baseline: oldest sample still inside the trailing window. If every sample has
-  # aged out, fall back to the newest so a long idle gap doesn't reset burn to "--".
-  base_i=$((n-1))
-  for ((i=0; i<n; i++)); do
-    if [[ $(( now - ${s_ts[$i]} )) -le $CREDIT_WINDOW_SECS ]]; then base_i=$i; break; fi
-  done
-
-  for ((i=base_i; i<n; i++)); do out+="${s_ts[$i]} ${s_val[$i]}"$'\n'; done
-  tmp="$(mktemp "${credit_samples}.XXXXXX" 2>/dev/null || printf '%s' "${credit_samples}.$$")"
-  umask 077
-  printf '%s' "$out" > "$tmp" 2>/dev/null || true
-  chmod 600 "$tmp" 2>/dev/null || true
-  mv -f "$tmp" "$f" 2>/dev/null || true
-
-  span=$(( now - ${s_ts[$base_i]} ))
-  # Two guards, both required.
-  # The span guard stops a tiny window from producing a wild rate.
-  # The movement guard is the important one: the usage endpoint doesn't register
-  # credit spend for ~20min after credit mode begins, and during that blackout
-  # "no delta" is indistinguishable from "not spending". Computing a rate then
-  # would print a reassuring 0.00x green while money is genuinely going out -
-  # the exact failure this whole segment exists to remove. Once the value has
-  # moved even once, a later flat stretch really does mean idle, and the rate
-  # correctly decays toward zero.
-  [[ $span -ge $CREDIT_MIN_SECS ]] || return 0
-  [[ ${s_val[$base_i]} -lt $used_minor ]] || return 0
-  awk -v a="${s_val[$base_i]}" -v b="$used_minor" -v s="$span" 'BEGIN{
-    d = (b - a) / 100.0
-    if (d < 0) d = 0
-    printf "%.4f", d / (s / 3600.0)
-  }'
-}
-
 usage_segment=""
 credit_mode=0
 if [[ -f "$usage_cache" ]]; then
@@ -592,6 +492,7 @@ if [[ -f "$usage_cache" ]]; then
   # resets_at - not always the weekly one - is the horizon that matters.
   credit_mode=0
   binding_reset=""
+  binding_window=604800   # length of the binding limit's own cycle, in seconds
   u_all_int=${u_all%.*}
   u_5h_int=${u_5h%.*}
   [[ "$u_all_int" =~ ^[0-9]+$ ]] || u_all_int=-1
@@ -602,19 +503,16 @@ if [[ -f "$usage_cache" ]]; then
       # resets, not just the weekly one.
       all_epoch=$(iso_to_epoch "$u_all_resets")
       h5_epoch=$(iso_to_epoch "$u_5h_resets")
-      credit_mode=1; binding_reset="$u_all_resets"
+      credit_mode=1; binding_reset="$u_all_resets"; binding_window=604800
       if [[ "$all_epoch" =~ ^[0-9]+$ ]] && [[ "$h5_epoch" =~ ^[0-9]+$ ]] && [[ $h5_epoch -gt $all_epoch ]]; then
-        binding_reset="$u_5h_resets"
+        binding_reset="$u_5h_resets"; binding_window=18000
       fi
     elif [[ $u_all_int -ge 100 ]]; then
-      credit_mode=1; binding_reset="$u_all_resets"
+      credit_mode=1; binding_reset="$u_all_resets"; binding_window=604800
     elif [[ $u_5h_int -ge 100 ]]; then
-      credit_mode=1; binding_reset="$u_5h_resets"
+      credit_mode=1; binding_reset="$u_5h_resets"; binding_window=18000
     fi
   fi
-  # Outside credit mode the sample history is meaningless (and would dilute the
-  # rate on the next entry), so drop it.
-  [[ $credit_mode -eq 1 ]] || rm -f "$credit_samples" 2>/dev/null || true
 fi
 
 if [[ -f "$usage_cache" ]] && [[ $credit_mode -eq 1 ]]; then
@@ -635,37 +533,49 @@ if [[ -f "$usage_cache" ]] && [[ $credit_mode -eq 1 ]]; then
     "$(heat_color "$cm_pct")" "$(heat_bar "$cm_pct")" "$cm_pct" "$cm_used_fmt" "$cm_limit_fmt")
 
   now_epoch=$(date -u +%s)
-  cm_rate=$(credit_rate_per_hour "$sp_used" "$now_epoch")
   cm_reset_epoch=$(iso_to_epoch "$binding_reset")
   cm_secs_left=-1
   if [[ "$cm_reset_epoch" =~ ^[0-9]+$ ]]; then cm_secs_left=$(( cm_reset_epoch - now_epoch )); fi
   cm_remaining=$(( sp_limit - sp_used ))
 
-  # Credit burn: will the remaining credits survive until the plan comes back?
-  #   burn = (spend rate x time to the binding reset) / credits remaining
-  #   1.0x = credits run out at the exact moment billing stops.
-  #  >1.0x = hard blocked BEFORE the plan returns - no plan quota, no credits.
-  # Weekly-scoped on purpose: billing stops at the reset, so the money only has
-  # to last until then. It also sidesteps the fact that the API never exposes
-  # when the monthly cap itself rolls over.
-  # Survival tiers - green while a stranding is still comfortably far off:
+  # Credit burn: two percentages, divided.
+  #   time%    = how much of the binding limit's cycle is still to run
+  #   credits% = how much of the spend cap is still unspent
+  #   burn     = time% / credits%
+  #
+  #   1.0x = the money left and the time left line up exactly.
+  #  <1.0x = credits outlast the wait; you coast to the reset.
+  #  >1.0x = more waiting than money; on this footing you run dry before the
+  #          plan returns, which is a hard block - no plan quota, no credits.
+  #
+  # No spend rate anywhere. That's the point: a rate needs sampled history, and
+  # the usage endpoint doesn't register credit spend for ~20min, so any
+  # rate-based figure was either blank or guessing during exactly the stretch
+  # you most want to look at it. These two numbers are both present in the
+  # payload on the very first render, so burn is live the instant credit mode
+  # begins and can't be poisoned by a stale or silent endpoint - if the data
+  # freezes, the clock keeps moving and burn rises, which errs loud, not quiet.
+  #
+  # Scoped to the binding limit's own cycle (7d weekly / 5h session) because
+  # billing stops when that limit refreshes, so that's the only stretch the
+  # money has to cover. It also sidesteps the API never exposing when the
+  # monthly cap itself rolls over.
+  #
+  # Survival tiers - green while running dry is still comfortably far off:
   #   green <0.6 · yellow <0.8 · orange <0.95 · red >=0.95
   # (Classified off the rounded display value, so the colour always matches the
   # number on screen - same rule the plan-mode burn follows.)
   cm_tail=""
   if [[ "$sp_exhausted" == "true" ]]; then
-    # Runway is zero and the ratio can't divide by it - the terminal state is
+    # credits% is zero and the ratio can't divide by it - the terminal state is
     # the message.
     cm_tail=$(printf '\033[31mcredits spent\033[0m')
-  elif [[ $(usage_data_age) -gt $CREDIT_STALE_SECS ]]; then
-    # The endpoint has gone quiet. used_credits is frozen at its last known
-    # value while wall-clock keeps advancing, so continuing to divide by a
-    # growing span would decay the rate and walk burn down to a green that
-    # reflects an outage rather than restraint. Refuse to age it.
-    cm_tail=$(printf 'burn \033[90m--\033[0m')
-  elif [[ -n "$cm_rate" ]] && [[ $cm_secs_left -gt 0 ]] && [[ $cm_remaining -gt 0 ]]; then
-    cm_calc=$(awk -v r="$cm_rate" -v s="$cm_secs_left" -v rem="$cm_remaining" 'BEGIN{
-      b = (r * (s / 3600.0)) / (rem / 100.0)
+  elif [[ $cm_secs_left -gt 0 ]] && [[ $cm_remaining -gt 0 ]] && [[ $sp_limit -gt 0 ]]; then
+    cm_calc=$(awk -v s="$cm_secs_left" -v w="$binding_window" -v rem="$cm_remaining" -v cap="$sp_limit" 'BEGIN{
+      t = s / w            # share of the cycle still to run
+      if (t > 1) t = 1     # clamp: a reset further out than one full cycle is stale data
+      c = rem / cap        # share of the cap still unspent
+      b = t / c
       if (b > 9.9) b = 9.9
       disp = sprintf("%.2f", b) + 0
       if      (disp < 0.6)  tier = "green"
@@ -677,9 +587,7 @@ if [[ -f "$usage_cache" ]] && [[ $credit_mode -eq 1 ]]; then
     IFS=$'\t' read -r cm_burn_val cm_burn_tier <<< "$cm_calc"
     cm_tail=$(printf 'burn %s%sx\033[0m' "$(burn_color "$cm_burn_tier")" "$cm_burn_val")
   else
-    # No trustworthy rate yet - credit mode just began and the usage endpoint
-    # hasn't registered any spend. Held blank rather than filled with a number,
-    # same as plan-mode burn does before its own ratio stabilises.
+    # Unparsable reset, or a cap of zero - nothing to divide.
     cm_tail=$(printf 'burn \033[90m--\033[0m')
   fi
   usage_parts+=" · $cm_tail"
