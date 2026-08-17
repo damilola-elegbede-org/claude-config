@@ -534,13 +534,14 @@ if [[ -f "$usage_cache" ]] && [[ $credit_mode -eq 1 ]]; then
   #   fable - a sub-limit of an already-exhausted weekly quota; moot.
   #   5h    - still meters (it keeps climbing), but can't block anything while
   #           the weekly quota is gone, so it's noise until the weekly reset.
-  # What replaces them: cap utilisation, dollars, and a weekly-scoped burn.
+  # What replaces them: a cycle-scoped burn, then cap utilisation.
+  # Burn leads because it's the number that changes what you do; the cap
+  # percentage behind it is context for that ratio. Reported as a percentage
+  # only - the raw dollar figures added width without adding a decision.
   cm_pct=${sp_percent%.*}
   [[ "$cm_pct" =~ ^[0-9]+$ ]] || cm_pct=0
-  cm_used_fmt=$(awk -v m="$sp_used" 'BEGIN{ printf "%.2f", m/100.0 }')
-  cm_limit_fmt=$(awk -v m="$sp_limit" 'BEGIN{ if (m % 100 == 0) printf "%.0f", m/100.0; else printf "%.2f", m/100.0 }')
-  usage_parts=$(printf '\033[38;5;39m$\033[0m credits %s%s %s%%\033[0m $%s/$%s' \
-    "$(heat_color "$cm_pct")" "$(heat_bar "$cm_pct")" "$cm_pct" "$cm_used_fmt" "$cm_limit_fmt")
+  cm_credits=$(printf 'credits %s%s %s%%\033[0m' \
+    "$(heat_color "$cm_pct")" "$(heat_bar "$cm_pct")" "$cm_pct")
 
   now_epoch=$(date -u +%s)
   cm_reset_epoch=$(iso_to_epoch "$binding_reset")
@@ -577,9 +578,11 @@ if [[ -f "$usage_cache" ]] && [[ $credit_mode -eq 1 ]]; then
   # number on screen - same rule the plan-mode burn follows.)
   cm_tail=""
   if [[ "$sp_exhausted" == "true" ]]; then
-    # credits% is zero and the ratio can't divide by it - the terminal state is
-    # the message.
-    cm_tail=$(printf '\033[31mcredits spent\033[0m')
+    # credits% is zero and the ratio can't divide by it. With the cap gone and
+    # the plan quota still spent, there is nothing left to draw on - which is
+    # what the burn slot says here. "blocked" rather than "credits spent"
+    # because the credits meter sits right beside it already reading 100%.
+    cm_tail=$(printf '\033[31mblocked\033[0m')
   elif [[ $cm_secs_left -gt 0 ]] && [[ $cm_remaining -gt 0 ]] && [[ $sp_limit -gt 0 ]]; then
     cm_calc=$(awk -v s="$cm_secs_left" -v w="$binding_window" -v rem="$cm_remaining" -v cap="$sp_limit" 'BEGIN{
       t = s / w            # share of the cycle still to run
@@ -600,8 +603,9 @@ if [[ -f "$usage_cache" ]] && [[ $credit_mode -eq 1 ]]; then
     # Unparsable reset, or a cap of zero - nothing to divide.
     cm_tail=$(printf 'burn \033[90m--\033[0m')
   fi
-  usage_parts+=" · $cm_tail"
-  usage_segment="$usage_parts"
+  # "$" leads the segment as the credit-mode marker, the job the bolt used to
+  # do - burn and credits then follow in that order.
+  usage_segment=$(printf '\033[38;5;39m$\033[0m %s · %s' "$cm_tail" "$cm_credits")
 
 elif [[ -f "$usage_cache" ]]; then
 

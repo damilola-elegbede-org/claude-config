@@ -118,7 +118,16 @@ echo
 print_info "Credit mode drops every dead plan meter"
 OUT=$(render "$(cache 100 14 true 75160 200000 38 false)")
 assert_contains "$OUT" "credits "      "credit segment rendered"
-assert_contains "$OUT" '$751.60/$2000' "dollars spent against the cap"
+assert_contains "$OUT" "credits "      "cap utilisation shown as a percentage"
+assert_missing  "$OUT" '$751.60'       "raw dollar figures dropped"
+assert_missing  "$OUT" '/$2000'        "cap no longer printed in dollars"
+
+TESTS_RUN=$((TESTS_RUN + 1))
+if printf '%s' "$OUT" | grep -qE 'burn [^·]*· credits'; then
+    TESTS_PASSED=$((TESTS_PASSED + 1)); print_pass "burn is rendered before credits"
+else
+    TESTS_FAILED=$((TESTS_FAILED + 1)); print_fail "burn is rendered before credits (got: $OUT)"
+fi
 assert_missing  "$OUT" "all "          "weekly-all dropped (pinned at 100%)"
 assert_missing  "$OUT" "fable "        "fable dropped (moot sub-limit)"
 assert_missing  "$OUT" "5h "           "5h dropped (non-binding)"
@@ -178,15 +187,16 @@ print_info "Both exhausted with one unreadable reset: no burn rather than a gues
 ONEBAD=$(cache 100 100 true 75160 200000 38 false 3600 10800)
 ONEBAD=${ONEBAD//$(iso_in 10800)/not-a-timestamp}
 OUT=$(render "$ONEBAD")
-assert_contains "$OUT" "credits "      "still in credit mode"
-assert_contains "$OUT" '$751.60/$2000' "spend still shown"
-assert_contains "$OUT" "burn --"       "no burn guessed from a half-known horizon"
+assert_contains "$OUT" "credits "  "still in credit mode"
+assert_contains "$OUT" "38%"       "cap utilisation still shown"
+assert_contains "$OUT" "burn --"   "no burn guessed from a half-known horizon"
 
 echo
 print_info "Exhausted credits are called out as a hard block"
 OUT=$(render "$(cache 100 14 true 200000 200000 100 true)")
-assert_contains "$OUT" "credits spent" "exhaustion flagged"
-assert_missing  "$OUT" "burn"          "no ratio to show once the cap is gone"
+assert_contains "$OUT" "blocked" "exhaustion flagged in the burn slot"
+assert_contains "$OUT" "100%"    "credits meter still shown alongside"
+assert_missing  "$OUT" "burn"    "no ratio to show once the cap is gone"
 
 echo
 print_info "Unparsable reset falls back to a blank burn"
