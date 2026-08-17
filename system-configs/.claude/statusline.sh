@@ -539,7 +539,7 @@ if [[ -f "$usage_cache" ]] && [[ $credit_mode -eq 1 ]]; then
   [[ "$cm_pct" =~ ^[0-9]+$ ]] || cm_pct=0
   cm_used_fmt=$(awk -v m="$sp_used" 'BEGIN{ printf "%.2f", m/100.0 }')
   cm_limit_fmt=$(awk -v m="$sp_limit" 'BEGIN{ if (m % 100 == 0) printf "%.0f", m/100.0; else printf "%.2f", m/100.0 }')
-  usage_parts=$(printf '\033[38;5;39m⚡\033[0m credits %s%s %s%%\033[0m $%s/$%s' \
+  usage_parts=$(printf '\033[38;5;39m$\033[0m credits %s%s %s%%\033[0m $%s/$%s' \
     "$(heat_color "$cm_pct")" "$(heat_bar "$cm_pct")" "$cm_pct" "$cm_used_fmt" "$cm_limit_fmt")
 
   now_epoch=$(date -u +%s)
