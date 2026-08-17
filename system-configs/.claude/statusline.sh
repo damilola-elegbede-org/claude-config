@@ -357,7 +357,10 @@ perform_cleanup() {
 perform_cleanup "$terminal_versions_dir"
 
 # Clean up legacy files from old implementations
-rm -f "$version_dir/acknowledged_version" "$version_dir/notified_session" 2>/dev/null || true
+# .credit_samples / .usage_cache.ok backed an earlier rate-sampling version of
+# the credit burn; it now derives from the payload alone and keeps no state.
+rm -f "$version_dir/acknowledged_version" "$version_dir/notified_session" \
+      "$version_dir/.credit_samples" "$version_dir/.usage_cache.ok" 2>/dev/null || true
 
 # ---- Plan-usage segment: weekly-all / weekly-Fable / 5h-session ----
 # Percentages come from Claude's OAuth usage endpoint (the same numbers /usage
@@ -445,6 +448,7 @@ burn_color() {
 }
 
 usage_segment=""
+credit_mode=0
 if [[ -f "$usage_cache" ]]; then
   # One `read` per line rather than @tsv + a single multi-var `read`: bash
   # always classifies tab (and newline) as "IFS whitespace", so a single
@@ -460,13 +464,150 @@ if [[ -f "$usage_cache" ]]; then
     ([.limits[] | select(.kind == "weekly_all")][0].percent // ""),
     ([.limits[] | select(.kind == "weekly_scoped")][0].percent // ""),
     ([.limits[] | select(.kind == "session")][0].percent // ""),
-    ([.limits[] | select(.kind == "weekly_all")][0].resets_at // "")
+    ([.limits[] | select(.kind == "weekly_all")][0].resets_at // ""),
+    ([.limits[] | select(.kind == "session")][0].resets_at // ""),
+    ((.spend.enabled // false) | tostring),
+    (.spend.used.amount_minor // ""),
+    (.spend.limit.amount_minor // ""),
+    (.spend.percent // ""),
+    ((.extra_usage.spend_limit_reached // false) | tostring)
   ' "$usage_cache" 2>/dev/null)
   u_all="${usage_fields[0]:-}"
   u_fable="${usage_fields[1]:-}"
   u_5h="${usage_fields[2]:-}"
   u_all_resets="${usage_fields[3]:-}"
+  u_5h_resets="${usage_fields[4]:-}"
+  sp_enabled="${usage_fields[5]:-false}"
+  sp_used="${usage_fields[6]:-}"
+  sp_limit="${usage_fields[7]:-}"
+  sp_percent="${usage_fields[8]:-}"
+  sp_exhausted="${usage_fields[9]:-false}"
   usage_parts=""
+
+  # ---- Credit mode detection ----
+  # Usage credits pick up the bill the moment a plan limit is exhausted, so the
+  # switch is "credits are on AND some plan limit is spent", not "which limit is
+  # is_active" (that field just tracks the highest meter, not exhaustion).
+  # Billing stops again when the *exhausted* limit refreshes, so that limit's
+  # resets_at - not always the weekly one - is the horizon that matters.
+  credit_mode=0
+  binding_reset=""
+  binding_window=604800   # length of the binding limit's own cycle, in seconds
+  u_all_int=${u_all%.*}
+  u_5h_int=${u_5h%.*}
+  [[ "$u_all_int" =~ ^[0-9]+$ ]] || u_all_int=-1
+  [[ "$u_5h_int"  =~ ^[0-9]+$ ]] || u_5h_int=-1
+  if [[ "$sp_enabled" == "true" ]] && [[ "$sp_used" =~ ^[0-9]+$ ]] && [[ "$sp_limit" =~ ^[0-9]+$ ]]; then
+    if [[ $u_all_int -ge 100 ]] && [[ $u_5h_int -ge 100 ]]; then
+      # Both exhausted - credits stay necessary until the later of the two
+      # resets, not just the weekly one. Which is later can't be known unless
+      # both timestamps parse: defaulting to the weekly one when the session
+      # timestamp is unreadable would understate burn in exactly the case where
+      # the session reset trails it (weekly less than 5h out), and understating
+      # is the direction that reads falsely calm. Leave binding_reset empty
+      # instead and let burn render "--" - the credits bar and dollars still
+      # show, so the spend is never hidden.
+      all_epoch=$(iso_to_epoch "$u_all_resets")
+      h5_epoch=$(iso_to_epoch "$u_5h_resets")
+      credit_mode=1
+      if [[ "$all_epoch" =~ ^[0-9]+$ ]] && [[ "$h5_epoch" =~ ^[0-9]+$ ]]; then
+        if [[ $h5_epoch -gt $all_epoch ]]; then
+          binding_reset="$u_5h_resets"; binding_window=18000
+        else
+          binding_reset="$u_all_resets"; binding_window=604800
+        fi
+      fi
+    elif [[ $u_all_int -ge 100 ]]; then
+      credit_mode=1; binding_reset="$u_all_resets"; binding_window=604800
+    elif [[ $u_5h_int -ge 100 ]]; then
+      credit_mode=1; binding_reset="$u_5h_resets"; binding_window=18000
+    fi
+  fi
+fi
+
+if [[ -f "$usage_cache" ]] && [[ $credit_mode -eq 1 ]]; then
+  # ---- Credit mode segment ----
+  # The plan meters are all dead here and are deliberately dropped:
+  #   burn  - numerator pinned at 100, so it DECAYS toward 1.0x/green over the
+  #           rest of the week while real money is being spent. Actively lying.
+  #   all   - stuck at 100% until the reset; binary, no information left.
+  #   fable - a sub-limit of an already-exhausted weekly quota; moot.
+  #   5h    - still meters (it keeps climbing), but can't block anything while
+  #           the weekly quota is gone, so it's noise until the weekly reset.
+  # What replaces them: a cycle-scoped burn, then cap utilisation.
+  # Burn leads because it's the number that changes what you do; the cap
+  # percentage behind it is context for that ratio. Reported as a percentage
+  # only - the raw dollar figures added width without adding a decision.
+  cm_pct=${sp_percent%.*}
+  [[ "$cm_pct" =~ ^[0-9]+$ ]] || cm_pct=0
+  cm_credits=$(printf 'credits %s%s %s%%\033[0m' \
+    "$(heat_color "$cm_pct")" "$(heat_bar "$cm_pct")" "$cm_pct")
+
+  now_epoch=$(date -u +%s)
+  cm_reset_epoch=$(iso_to_epoch "$binding_reset")
+  cm_secs_left=-1
+  if [[ "$cm_reset_epoch" =~ ^[0-9]+$ ]]; then cm_secs_left=$(( cm_reset_epoch - now_epoch )); fi
+  cm_remaining=$(( sp_limit - sp_used ))
+
+  # Credit burn: two percentages, divided.
+  #   time%    = how much of the binding limit's cycle is still to run
+  #   credits% = how much of the spend cap is still unspent
+  #   burn     = time% / credits%
+  #
+  #   1.0x = the money left and the time left line up exactly.
+  #  <1.0x = credits outlast the wait; you coast to the reset.
+  #  >1.0x = more waiting than money; on this footing you run dry before the
+  #          plan returns, which is a hard block - no plan quota, no credits.
+  #
+  # No spend rate anywhere. That's the point: a rate needs sampled history, and
+  # the usage endpoint doesn't register credit spend for ~20min, so any
+  # rate-based figure was either blank or guessing during exactly the stretch
+  # you most want to look at it. These two numbers are both present in the
+  # payload on the very first render, so burn is live the instant credit mode
+  # begins and can't be poisoned by a stale or silent endpoint - if the data
+  # freezes, the clock keeps moving and burn rises, which errs loud, not quiet.
+  #
+  # Scoped to the binding limit's own cycle (7d weekly / 5h session) because
+  # billing stops when that limit refreshes, so that's the only stretch the
+  # money has to cover. It also sidesteps the API never exposing when the
+  # monthly cap itself rolls over.
+  #
+  # Survival tiers - green while running dry is still comfortably far off:
+  #   green <0.6 · yellow <0.8 · orange <0.95 · red >=0.95
+  # (Classified off the rounded display value, so the colour always matches the
+  # number on screen - same rule the plan-mode burn follows.)
+  cm_tail=""
+  if [[ "$sp_exhausted" == "true" ]]; then
+    # credits% is zero and the ratio can't divide by it. With the cap gone and
+    # the plan quota still spent, there is nothing left to draw on - which is
+    # what the burn slot says here. "blocked" rather than "credits spent"
+    # because the credits meter sits right beside it already reading 100%.
+    cm_tail=$(printf '\033[31mblocked\033[0m')
+  elif [[ $cm_secs_left -gt 0 ]] && [[ $cm_remaining -gt 0 ]] && [[ $sp_limit -gt 0 ]]; then
+    cm_calc=$(awk -v s="$cm_secs_left" -v w="$binding_window" -v rem="$cm_remaining" -v cap="$sp_limit" 'BEGIN{
+      t = s / w            # share of the cycle still to run
+      if (t > 1) t = 1     # clamp: a reset further out than one full cycle is stale data
+      c = rem / cap        # share of the cap still unspent
+      b = t / c
+      if (b > 9.9) b = 9.9
+      disp = sprintf("%.2f", b) + 0
+      if      (disp < 0.6)  tier = "green"
+      else if (disp < 0.8)  tier = "yellow"
+      else if (disp < 0.95) tier = "orange"
+      else                  tier = "red"
+      printf "%.2f\t%s", disp, tier
+    }')
+    IFS=$'\t' read -r cm_burn_val cm_burn_tier <<< "$cm_calc"
+    cm_tail=$(printf 'burn %s%sx\033[0m' "$(burn_color "$cm_burn_tier")" "$cm_burn_val")
+  else
+    # Unparsable reset, or a cap of zero - nothing to divide.
+    cm_tail=$(printf 'burn \033[90m--\033[0m')
+  fi
+  # "$" leads the segment as the credit-mode marker, the job the bolt used to
+  # do - burn and credits then follow in that order.
+  usage_segment=$(printf '\033[38;5;39m$\033[0m %s · %s' "$cm_tail" "$cm_credits")
+
+elif [[ -f "$usage_cache" ]]; then
 
   # Burn-rate index: pace of weekly-quota consumption vs. pace of the week
   # elapsed since the last reset (Mon 10p MT, per weekly_all.resets_at).
