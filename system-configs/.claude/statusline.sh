@@ -500,12 +500,22 @@ if [[ -f "$usage_cache" ]]; then
   if [[ "$sp_enabled" == "true" ]] && [[ "$sp_used" =~ ^[0-9]+$ ]] && [[ "$sp_limit" =~ ^[0-9]+$ ]]; then
     if [[ $u_all_int -ge 100 ]] && [[ $u_5h_int -ge 100 ]]; then
       # Both exhausted - credits stay necessary until the later of the two
-      # resets, not just the weekly one.
+      # resets, not just the weekly one. Which is later can't be known unless
+      # both timestamps parse: defaulting to the weekly one when the session
+      # timestamp is unreadable would understate burn in exactly the case where
+      # the session reset trails it (weekly less than 5h out), and understating
+      # is the direction that reads falsely calm. Leave binding_reset empty
+      # instead and let burn render "--" - the credits bar and dollars still
+      # show, so the spend is never hidden.
       all_epoch=$(iso_to_epoch "$u_all_resets")
       h5_epoch=$(iso_to_epoch "$u_5h_resets")
-      credit_mode=1; binding_reset="$u_all_resets"; binding_window=604800
-      if [[ "$all_epoch" =~ ^[0-9]+$ ]] && [[ "$h5_epoch" =~ ^[0-9]+$ ]] && [[ $h5_epoch -gt $all_epoch ]]; then
-        binding_reset="$u_5h_resets"; binding_window=18000
+      credit_mode=1
+      if [[ "$all_epoch" =~ ^[0-9]+$ ]] && [[ "$h5_epoch" =~ ^[0-9]+$ ]]; then
+        if [[ $h5_epoch -gt $all_epoch ]]; then
+          binding_reset="$u_5h_resets"; binding_window=18000
+        else
+          binding_reset="$u_all_resets"; binding_window=604800
+        fi
       fi
     elif [[ $u_all_int -ge 100 ]]; then
       credit_mode=1; binding_reset="$u_all_resets"; binding_window=604800

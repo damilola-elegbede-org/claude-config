@@ -171,6 +171,18 @@ assert_contains "$OUT" "burn 0.03" "later (weekly) reset governs"
 assert_missing  "$OUT" "burn 0.96" "session cycle not used when weekly resets later"
 
 echo
+print_info "Both exhausted with one unreadable reset: no burn rather than a guess"
+# Weekly parses, session doesn't. Which reset is later is now unknowable, and
+# defaulting to weekly would understate burn whenever the session reset trails
+# it. The credits bar and dollars still render, so spend is never hidden.
+ONEBAD=$(cache 100 100 true 75160 200000 38 false 3600 10800)
+ONEBAD=${ONEBAD//$(iso_in 10800)/not-a-timestamp}
+OUT=$(render "$ONEBAD")
+assert_contains "$OUT" "credits "      "still in credit mode"
+assert_contains "$OUT" '$751.60/$2000' "spend still shown"
+assert_contains "$OUT" "burn --"       "no burn guessed from a half-known horizon"
+
+echo
 print_info "Exhausted credits are called out as a hard block"
 OUT=$(render "$(cache 100 14 true 200000 200000 100 true)")
 assert_contains "$OUT" "credits spent" "exhaustion flagged"
