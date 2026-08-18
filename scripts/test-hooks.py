@@ -54,6 +54,29 @@ def _with_colocated_tests(tmp):
     (Path(tmp) / "src" / "existing.test.ts").write_text("// marks this dir as colocated-tests\n")
 
 
+def _with_py_underscore_companion(tmp):
+    # ENG-1938: a hyphenated source file's conventional companion uses
+    # underscores (hyphens are illegal in importable module names), so
+    # foo-bar.py's real test is test_foo_bar.py, not test_foo-bar.py.
+    d = Path(tmp) / "scripts" / "work-session"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "test_select_issues.py").write_text("# companion for select-issues.py\n")
+
+
+def _with_py_hyphenated_companion(tmp):
+    d = Path(tmp) / "scripts" / "work-session"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "test_select-issues.py").write_text("# hyphen-preserving companion (legacy form)\n")
+
+
+def _with_py_convention_no_companion(tmp):
+    # Directory uses colocated Python tests (a sibling test_*.py exists), but
+    # NOT for this specific file — the guard must still block.
+    d = Path(tmp) / "scripts" / "work-session"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "test_other_thing.py").write_text("# unrelated companion, establishes convention\n")
+
+
 CASES = [
     # destructive git guard — fires everywhere
     ("commit skipping hooks", "Bash", {"command": "git commit --no-verify -m 'x'"}, DESTRUCTIVE, None),
@@ -85,6 +108,20 @@ CASES = [
      {"file_path": "src/feature.ts", "content": "export const a = 1;"}, TDD, _with_colocated_tests),
     ("new source file, no test convention", "Write",
      {"file_path": "src/feature.ts", "content": "export const a = 1;"}, None, None),
+
+    # TDD guard, Python hyphen/underscore normalisation (ENG-1938) — a
+    # hyphenated source file's companion test conventionally uses
+    # underscores; the guard must match across both directions, not just
+    # a verbatim basename comparison.
+    ("hyphenated .py source matches underscore companion", "Write",
+     {"file_path": "scripts/work-session/select-issues.py", "content": "x = 1\n"},
+     None, _with_py_underscore_companion),
+    ("hyphenated .py source matches hyphenated companion (legacy form)", "Write",
+     {"file_path": "scripts/work-session/select-issues.py", "content": "x = 1\n"},
+     None, _with_py_hyphenated_companion),
+    ("hyphenated .py source, convention established but no companion", "Write",
+     {"file_path": "scripts/work-session/select-issues.py", "content": "x = 1\n"},
+     TDD, _with_py_convention_no_companion),
 ]
 
 
