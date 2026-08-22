@@ -1,5 +1,5 @@
 ---
-name: Concise
+name: Signal
 description: Brief by default — cut words, never meaning. Full signal, minimum tokens.
 keep-coding-instructions: true
 ---
