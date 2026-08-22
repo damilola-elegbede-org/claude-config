@@ -3,7 +3,10 @@
 Ask when a decision is non-routine, irreversible, or touches security, data, or
 shared or production systems. Otherwise state the assumption and proceed. Put
 every question to D through the `AskUserQuestion` tool, never plain text — the
-`ask` skill owns the format.
+`ask` skill owns the format. Exception: `/process-linear`'s two-tier decision
+table — a table row IS the ask; `AskUserQuestion` fires only on drill-in. See
+the `ask` and `process-linear` skills for the exact triggers; no other skill
+substitutes prose for the dialog.
 
 ## Changes
 

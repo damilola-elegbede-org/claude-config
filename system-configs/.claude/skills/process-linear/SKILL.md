@@ -1,6 +1,6 @@
 ---
 name: process-linear
-description: Walk D through the BareClaude Linear triage one decision at a time, driven by Clara's saved workspace views — Needs Unblocking and Needs Your Sign-off. Classifies the queue FIRST (typically only ~1 in 5 tickets truly needs D), walks only the genuine decisions with full context, recommended options, and clickable ticket links, and bulk-handles the rest. Use when D wants to clear the Linear decision/approval queue.
+description: Triage D's BareClaude Linear queue, driven by Clara's saved workspace views — Needs Unblocking and Needs Your Sign-off. Classifies the queue FIRST (typically only ~1 in 5 tickets truly needs D), then presents the genuine decisions in one two-tier table — linked tickets + PR/artifact links, the decision needed, and an up-front recommendation — with AskUserQuestion drill-ins on request, and bulk-handles the rest. Use when D wants to clear the Linear decision/approval queue.
 argument-hint: "[--view signoff|unblock|deadlines|ungroomed|all] [--team ENG|OPS|all]"
 metadata:
   category: workflow
@@ -26,8 +26,9 @@ Interactive triage of D's Linear workspace (`bareclaude`), driven by **Clara's s
 the queues that gate the fleet, then does the thing that matters most: **classifies the queue before walking it.**
 In practice most tickets in the Blocked / In Review states are NOT decisions for D — they are agent-executable work
 mis-parked, tickets blocked on other tickets, shelved projects, or completed deliverables awaiting a rubber-stamp.
-The skill walks only the genuine D-decisions one at a time (full context, recommended options, clickable links),
-and bulk-handles everything else — while emitting a **suppression report** so the filtering itself stays auditable.
+The skill presents the genuine D-decisions in one **two-tier triage table** (linked tickets + PR/artifact links, the
+decision needed, an up-front recommendation, detail blocks below), answers drill-ins via `AskUserQuestion`, and
+bulk-handles everything else — while emitting a **suppression report** so the filtering itself stays auditable.
 
 The fleet's agents (Clara/ops, Dara/eng, TARS) create and work these tickets and delegate decisions back to D. This
 skill is the mechanism for clearing that decision backlog fast — without losing decision quality, and without letting
@@ -41,22 +42,27 @@ Claude: Loading BareClaude triage views…
   🚫 Needs Unblocking (Blocked, OPS+ENG) ...... <N> tickets
   ⏳ Needs Your Sign-off (In Review) .......... <M> tickets
 
-Classified (only the genuine decisions get walked):
-  A  · needs D           <a>   → walk one at a time
-  B  · bounce to agent   <b>   → back to Dara/Clara (Todo)
-  C  · blocked upstream  <c>   → left; not D's
-  D1 · bulk-accept       <d1>  → Done      (confirm IDs first)
-  D2 · cancel / shelved  <d2>  → Canceled  (confirm IDs first)
+Classified (A=needs D, B=bounce to agent, C=blocked upstream, D1=bulk-accept, D2=cancel/shelved), then ONE
+two-tier triage view — table first, dialogs only on drill-in:
 
-[dry-run question] Walk the <a> A-tickets? (B/C handled as above; D1/D2 need a per-cohort confirm — see suppression report)
+  ## Needs Your Sign-off — <M> issues, <a> decisions
 
-User: proceed
-Claude: [<ID>](<linear url>) — keystone: blocks <k> dependents — <2-line context>.
-        (options via AskUserQuestion; one tagged "(Recommended)")
+  | # | Ticket | Link | Decision | Rec |
+  |---|--------|------|----------|-----|
+  | 1 | [ENG-717](<linear url>) | [PR #52](<github url>) | Merge PR #52 (Venmo) | ✅ Merge |
+  | 2 | [OPS-345](<linear url>) [OPS-346](<linear url>) | — | Accept pair as Done | ✅ Accept |
+  | — | [OPS-353](<linear url>) | — | (parked — not D's; exit 8/14) | — |
+
+  ### 1 · ENG-717 — <verbatim title>
+  <2-5 lines: what it is · latest dated activity · why this decision matters · caveats>
+  **Rec: <recommendation>** — <one-line rationale resting on source-verified facts (step 8)>
+
+User: merge 1; more on 2
+Claude: ✓ Recorded [triage-decision] on [ENG-717](<url>), set state → <target state>
+        ✓ Keystone resolved <k> downstream tickets — rows re-derived
+        (#2 drill-in: options via AskUserQuestion in D's ask format; one tagged "(Recommended)")
 User: <picks an option>
 Claude: ✓ Recorded [triage-decision] on [<ID>](<url>), set state → <target state>
-        ✓ Keystone resolved <k> downstream tickets — dropped from the walk
-        Next → [<next ID>](<url>) …
 
 Recap:
   Decided: <a> · Bulk-accepted: <d1> · Bounced: <b> · Cancelled: <d2>
@@ -80,12 +86,12 @@ Suppression report (classified NOT-for-D — reopen anything misclassified; list
 The Linear MCP cannot fetch a saved view object directly, so this skill reproduces each of Clara's views by its
 filter. Keep the names identical to the workspace views so they stay conceptually linked:
 
-| Skill view | Clara's saved view | Filter (`list_issues`) | Mode |
-| --- | --- | --- | --- |
-| `unblock` | **Needs Unblocking** | `state: Blocked` (OPS + ENG) | Interactive decision |
-| `signoff` | **Needs Your Sign-off** | `state: In Review` (OPS + ENG) | Interactive decision |
-| `deadlines` | **Upcoming Deadlines** | issues with a `dueDate`, order by dueDate asc | Risk pass |
-| `ungroomed` | **Ungroomed Backlog** | `state: Backlog` where description lacks `## Acceptance` | Grooming pass |
+| Skill view  | Clara's saved view      | Filter (`list_issues`)                                   | Mode                 |
+| ----------- | ----------------------- | -------------------------------------------------------- | -------------------- |
+| `unblock`   | **Needs Unblocking**    | `state: Blocked` (OPS + ENG)                             | Interactive decision |
+| `signoff`   | **Needs Your Sign-off** | `state: In Review` (OPS + ENG)                           | Interactive decision |
+| `deadlines` | **Upcoming Deadlines**  | issues with a `dueDate`, order by dueDate asc            | Risk pass            |
+| `ungroomed` | **Ungroomed Backlog**   | `state: Backlog` where description lacks `## Acceptance` | Grooming pass        |
 
 Default (`--view all` off) processes the two **decision** views only: **Needs Unblocking**, then **Needs Your
 Sign-off**. Apply `--team` to scope. If the MCP later exposes saved views directly, switch to fetching the view by
@@ -101,13 +107,13 @@ Speed comes from prefetch — not from bundling decisions.
 Do NOT assume every Blocked / In-Review ticket is a decision for D — typically only ~1 in 5 is. Using the prefetched
 context, sort every ticket into exactly one bucket:
 
-| Bucket | Meaning | Disposition |
-| --- | --- | --- |
-| **A — needs D** | A real decision only D can make (policy, irreversible, security, spend, ambiguous product call) | Walk one at a time (steps 6-11) |
-| **B — bounce to agent** | Agent-executable work (bug fix, investigation, implementation) mis-parked as if it were a D-decision | Comment "not a D-decision, execute or re-block with a specific non-D blocker" → set Todo |
-| **C — blocked upstream** | Correctly blocked on ANOTHER ticket / external gate, not on D | Leave as-is; note in the suppression report |
-| **D1 — bulk-accept** | Completed deliverable awaiting acknowledgment | Bulk accept → `Done` |
-| **D2 — cancel / shelved** | A cancelled / superseded / dead-project ticket | Bulk cancel → `Canceled` |
+| Bucket                    | Meaning                                                                                              | Disposition                                                                              |
+| ------------------------- | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| **A — needs D**           | A real decision only D can make (policy, irreversible, security, spend, ambiguous product call)      | One table row + detail block (steps 5-11)                                                |
+| **B — bounce to agent**   | Agent-executable work (bug fix, investigation, implementation) mis-parked as if it were a D-decision | Comment "not a D-decision, execute or re-block with a specific non-D blocker" → set Todo |
+| **C — blocked upstream**  | Correctly blocked on ANOTHER ticket / external gate, not on D                                        | Leave as-is; note in the suppression report                                              |
+| **D1 — bulk-accept**      | Completed deliverable awaiting acknowledgment                                                        | Bulk accept → `Done`                                                                     |
+| **D2 — cancel / shelved** | A cancelled / superseded / dead-project ticket                                                       | Bulk cancel → `Canceled`                                                                 |
 
 Keep D1 and D2 as **separate cohorts** — they trigger different irreversible state changes (`Done` vs `Canceled`),
 so they must be confirmed and executed separately, never merged into one "handle bucket D" instruction.
@@ -125,47 +131,70 @@ Two classification cautions, because this skill filters D's attention using labe
 Process **Needs Unblocking** fully before **Needs Your Sign-off**. Within bucket A, sort by: outgoing `blocks` count
 (most dependents first) → priority → age. For **Upcoming Deadlines**, sort by soonest dueDate. No transitive
 (depth > 1) analysis. **Identify keystones:** where one decision would resolve several queued tickets (shared root
-cause, or a policy that answers N tickets at once), group them so you ask ONCE, not per dependent (see step 7, 11).
+cause, or a policy that answers N tickets at once), group them into ONE table row, not one per dependent (see step
+7, 11).
 
-### 5. Dry-run summary first (one question) + suppression preview
+### 5. Render the two-tier triage view (the decision surface) + suppression preview
 
-Present the classification counts (A / B / C / D1 / D2) and the ordered, hyperlinked list of the **A** tickets with a
-one-line "why it's here" + dependent count each. State how each bucket will be handled. Ask D once: **proceed /
-reorder / drop / reclassify**. This is the sanctioned batching point for scoping. D may pull a ticket up from a
-lower bucket into A, or push one down.
+Render ONE two-tier view per decision view — table first:
 
-Because D1 and D2 apply **irreversible** state changes (`Done` / `Canceled`), do not execute them off the scoping
-answer alone. Before any bulk write, show each cohort's **exact ticket IDs, count, and target state**, and get D's
+- **Tier 1 — compact table.** One row per **decision** (a keystone spanning N tickets = one row), ordered by
+  leverage (step 4). Columns: `#` · `Ticket` (linked ID(s)) · `Link` (the artifact D would open to judge — PR,
+  vault doc, dashboard, preview URL; `—` if none) · `Decision` (short imperative, e.g. "Merge PR #52") · `Rec`
+  (up-front recommendation, e.g. ✅ Merge / ✅ Accept / ⏳ You act / 🚫 Hold). Cells stay short so the table
+  survives terminal width — depth lives in tier 2, not the cells. Parked tickets (B/C/D1/D2) appear as collapsed
+  rows at the bottom with `—` recs and a parenthetical reason, so the table doubles as the suppression preview.
+- **Tier 2 — detail blocks.** Below the table, one `### <n> · <ID> — <verbatim title>` block per decision row:
+  2-5 lines carrying the decision substance (context in plain words / latest dated activity / why it matters /
+  caveats), then an explicit **Rec:** with a one-line rationale. Recommendations rest on step-8 verified facts or
+  are marked **tentative** with an offer to pull the source.
+
+D replies freeform against row numbers ("merge 1 and 4", "skip 3", "more on 2") or drills into a row (step 7).
+A freeform table reply is as binding as a dialog answer and routes through the same recording logic (step 10).
+D may also pull a parked ticket up into the decision rows, or push one down.
+
+Because D1 and D2 apply **irreversible** state changes (`Done` / `Canceled`), do not execute them off the table
+render or a general "proceed" alone. Before any bulk write, show each cohort's **exact ticket IDs, count, and target state**, and get D's
 explicit confirmation **per cohort** (accept-these-N → Done; cancel-these-M → Canceled). Then, **immediately before
 writing each cohort, run a per-ID preflight**: re-fetch state + context for every ticket (and verified source state
 for D2 cancels of code/PR tickets, per step 8), because a ticket can change while confirmation is pending. Drop or
 reclassify any ticket that changed since D confirmed, and report the drop — never apply a bulk `Done`/`Canceled` to a
 ticket you have not re-validated since the confirmation. Bucket B (→ Todo) and C (unchanged) are reversible and need
-no separate confirmation beyond the scoping answer.
+no separate confirmation — execute B bounces once D engages with the table (any reply that doesn't countermand
+them); C stays untouched either way.
 
 Route each surviving ticket's write through the idempotent record-and-repair logic in step 10, applied per ticket —
 a bulk write is N idempotent per-ticket writes, not one opaque atomic operation.
 
-### 6. Just-in-time re-fetch before each ask
+### 6. Just-in-time re-fetch before each record or drill-in
 
-Immediately before asking about a ticket, re-fetch its current **state AND decision context** — not state alone. The
-recommendation rests on the prefetched description, comments, relations, and any PR/source facts, and those can change
-without a state transition (a new comment, a resolved blocker, a diff update). Compare against prefetch (e.g.
-`updatedAt`, comment count, relations, verified source state from step 8). If the decision-relevant context changed,
-refresh the recommendation and re-run classification (step 3) for that ticket before asking. If the state changed, a
-prior `[triage-decision]` marker already exists, or a keystone already resolved it, **skip it with a note**
-(idempotency + race safety).
+Immediately before recording a decision on a ticket — or presenting a drill-in dialog for it — re-fetch its current
+**state AND decision context** — not state alone. The rendered row's recommendation rests on the prefetched
+description, comments, relations, and any PR/source facts, and those can change without a state transition (a new
+comment, a resolved blocker, a diff update); D may also answer the table minutes or hours after it rendered. Compare
+against prefetch (e.g. `updatedAt`, comment count, relations, verified source state from step 8). If the
+decision-relevant context changed, refresh the recommendation, re-run classification (step 3) for that ticket, and
+re-surface the row to D before recording. If the state changed, a prior `[triage-decision]` marker already exists,
+or a keystone already resolved it, **skip it with a note** (idempotency + race safety).
 
-### 7. Ask one question per DECISION (not per ticket)
+### 7. One row per DECISION; AskUserQuestion only on drill-in
 
-- One question per **decision**. A decision may span N homogeneous tickets (a keystone that unblocks several; a
-  bulk-accept of completed briefs) — ask once and record on each affected ticket. Keep it per-ticket only when the
-  stakes genuinely diverge. **Never bundle unrelated decisions into one question.**
-- **All decision-relevant context lives INSIDE the dialog** (D ruling, 2026-07-17): the AskUserQuestion dialog takes
-  focus immediately, so D answers without reading prose above it. Prose around the question carries only the
-  clickable links, the post-decision record, and the standing interaction affordances below (`skip`/`defer`/`show
-  me the source`, which can't be spent as option slots); never park load-bearing recommendation context there.
-- **The question text follows D's ratified ask format** (2026-07-17 feedback; mirrors the OPS-319 framework in
+- One table row per **decision**. A decision may span N homogeneous tickets (a keystone that unblocks several; a
+  bulk-accept of completed briefs) — one row, recorded on each affected ticket. Keep it per-ticket only when the
+  stakes genuinely diverge. **Never merge unrelated decisions into one row or one question.**
+- **The table is the default decision surface.** Do NOT open AskUserQuestion dialogs for rows D hasn't engaged.
+  A dialog fires only when:
+  1. D asks more questions on a row or wants options laid out ("more on 2", "what are my choices here?"),
+  2. a drill-in genuinely needs structured options or artifact previews (exact message copy, diff summary, the
+     dollar math a choice would enact), or
+  3. a D1/D2 cohort needs its per-cohort irreversibility confirm (step 5) and D has not already confirmed the
+     exact IDs in chat.
+- **When a dialog fires, all decision-relevant context lives INSIDE it**: the AskUserQuestion dialog takes focus
+  immediately, so D answers without reading
+  prose above it. Prose around the question carries only the clickable links, the post-decision record, and the
+  standing interaction affordances below (`skip`/`defer`/`show me the source`, which can't be spent as option
+  slots); never park load-bearing recommendation context there.
+- **Dialog question text follows D's ask format** (mirrors the framework in
   `infra/references/d-facing-ask-template.md`). Structured and scannable, in exactly this order, each part 1-2 short
   lines — never a run-on paragraph of inlined figures and ticket IDs (that density is the failure mode this format
   replaced):
@@ -192,15 +221,15 @@ prior `[triage-decision]` marker already exists, or a keystone already resolved 
   Ask: Approve merging PR #249?
   ```
 
-- Put the **full linear.app URL** in prose — use the `url` the MCP returns; never string-build it.
+- Put the **full linear.app URL** in table cells and prose — use the `url` the MCP returns; never string-build it.
 - 2-4 concrete options; tag exactly one **"(Recommended)"** with a one-line rationale in its description.
 - Option `preview` panes carry **artifacts only** — the exact message copy, the diff summary, the dollar math a
   choice would enact. Never restate in a preview the context that belongs in the question text; a preview that
   re-narrates the ticket is noise D has to re-read.
 - If any option's real substance lives outside Linear (a diff, a vault doc, org state), verify it (step 8) or mark
   the recommendation **tentative** and offer to pull it — never a confident rec built on a source you did not read.
-- In prose, state that D can also type **"skip"**, **"defer"**, or **"show me the source"** at any time — do not
-  spend option slots on these.
+- State once, with the table, that D can type **"skip"**, **"defer"**, or **"show me the source"** against any row
+  at any time — do not spend dialog option slots on these.
 
 ### 8. Verify against the source system (mandatory at high-stakes gates)
 
@@ -234,18 +263,60 @@ cohort — **FIRST re-fetch** the ticket's state and scan for an existing `[tria
 preflight) may have taken minutes, and an agent may have moved the ticket meanwhile. Resolve the pre-write check by
 cases, so a partial write from a prior interrupted attempt is repaired rather than orphaned:
 
+Capture the ticket's **pre-decision state** before the first write attempt, so "partial write" and "drift" are
+decided by an actual comparison rather than by a catch-all that swallows both.
+
 - **Marker present AND state already matches this decision** → fully done; skip with a note.
-- **Marker present but state inconsistent** (comment landed, state write did not, on a prior attempt) → this is a
-  partial write, NOT a conflict: skip the comment op and complete only the missing state write.
-- **Marker present for a DIFFERENT decision, or the state drifted to conflict with D's answer** → genuine drift;
-  abort and re-surface the ticket rather than writing stale.
-- **No marker** → proceed with a fresh write.
+- **Marker present for THIS decision AND current state still equals the captured pre-decision state** (comment
+  landed, state write did not, on a prior attempt) → partial write, NOT a conflict: skip the comment op and
+  complete only the missing state write.
+- **Marker present for a DIFFERENT decision, or current state is neither the pre-decision state nor this
+  decision's target** → genuine drift; abort and re-surface the ticket rather than writing stale.
+- **No marker AND current state still equals the captured pre-decision state** → proceed with a fresh write.
+- **No marker but current state has moved** → drift; abort and re-surface. A missing marker is not permission to
+  write: another path may have advanced the ticket without leaving one, and writing here posts a stale comment and
+  sets a target D's answer was never about.
+
+The state check is re-run immediately before the state write as well, not only before the comment — the two ops are
+not atomic, and the window between them is exactly when another path lands.
 
 Then post the decision comment using the template below, THEN set the ticket state. Make both writes **idempotent**:
 before (re)trying either, re-scan for the exact marker/state and treat an existing match as success for that
 operation only — never let a completed comment op suppress a still-missing state op. Verify both writes; retry up to
 3×. On unrecoverable partial failure, report exactly what landed and **halt** — never advance the queue on an
 unverified write. A lost or duplicated decision is worse than a stall.
+
+**Bucket B bounces** get the same record-and-repair contract, keyed on a distinct `[triage-bounce: <ISO-8601
+timestamp>]` marker (never bare `[triage-bounce]`, and never `[triage-decision]` — a ticket can be bounced more than
+once over its life and bounced now / formally decided later, so the marker must identify _this_ bounce operation,
+not just the bucket). Immediately before each bounce write, re-fetch the ticket and scan for `[triage-bounce`,
+since the gap between the table render and D's reply is enough time for another path to touch the ticket:
+
+Capture the ticket's **pre-bounce state** and mint this operation's timestamped marker before the first write
+attempt; the branches below compare against both, so "partial write" and "drift" stay distinguishable rather than
+collapsing into a single catch-all, and a stale marker from an _earlier_ bounce can never be read as this one:
+
+- **Exact marker for THIS operation present AND state already `Todo`** → fully done; skip with a note.
+- **Exact marker for THIS operation present AND current state still equals the captured pre-bounce state** (comment
+  landed, state write did not, on a prior attempt) → partial write; skip the comment op and complete only the
+  missing state write.
+- **Exact marker for THIS operation present AND current state is anything else** (e.g., already moved to
+  `Done`/`Canceled` by another path) → drift; skip the write and report — never force a ticket another path has
+  already advanced back to `Todo`.
+- **No exact marker for THIS operation, AND current state still equals the captured pre-bounce state** (whether or
+  not an _earlier_ `[triage-bounce: ...]` marker exists on the ticket) → proceed with a fresh write: post the "not
+  a D-decision; execute or re-block" note under the new timestamped marker, then set state to `Todo`. An earlier
+  bounce's marker is never read as evidence of a prior attempt for this operation — it is either drift from an
+  unrelated past bounce (leave it, don't touch it) or simply irrelevant history.
+- **No exact marker for THIS operation, but current state has moved off the captured pre-bounce state** → drift;
+  skip and report. A missing marker is not permission to write: another path can advance a ticket without leaving
+  one, and writing here sets `Todo` over a state change someone else made deliberately.
+
+The state comparison is re-run immediately before the state write as well, not only before the comment — the two
+ops are not atomic, and the window between them is exactly when another path lands.
+
+Same write discipline as the A/D1/D2 path: verify each write, retry up to 3×, and on unrecoverable partial failure
+report exactly what landed and halt that ticket rather than guessing.
 
 ### 11. Cascade lightly + collapse keystones
 
@@ -287,16 +358,16 @@ per-ticket record; never leave the rule half-propagated silently.
 
 Every decision path has an explicit outcome — target state and whether a comment is written:
 
-| Path | Target state | Comment |
-| --- | --- | --- |
-| Normal decision | per D's choice | `[triage-decision]` |
-| Skip | unchanged | none |
-| Defer | unchanged (re-queued once, then left for next session) | brief "deferred by D" note |
-| "Show me the source" | unchanged (re-asked after D reads) | none |
-| Mislabeled | corrected state | note explaining the correction; no `[triage-decision]` |
-| Bounce (bucket B) | Todo | "not a D-decision; execute or re-block" note |
-| Bulk-accept (bucket D1) | Done | `[triage-decision]` (acceptance) — after per-cohort confirm |
-| Cancel (bucket D2) | Canceled | `[triage-decision]` (cancellation) — after per-cohort confirm |
+| Path                    | Target state                                           | Comment                                                                                |
+| ----------------------- | ------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| Normal decision         | per D's choice                                         | `[triage-decision]`                                                                    |
+| Skip                    | unchanged                                              | none                                                                                   |
+| Defer                   | unchanged (re-queued once, then left for next session) | brief "deferred by D" note                                                             |
+| "Show me the source"    | unchanged (re-asked after D reads)                     | none                                                                                   |
+| Mislabeled              | corrected state                                        | note explaining the correction; no `[triage-decision]`                                 |
+| Bounce (bucket B)       | Todo                                                   | `[triage-bounce: <ISO-8601 timestamp>]` + "not a D-decision; execute or re-block" note |
+| Bulk-accept (bucket D1) | Done                                                   | `[triage-decision]` (acceptance) — after per-cohort confirm                            |
+| Cancel (bucket D2)      | Canceled                                               | `[triage-decision]` (cancellation) — after per-cohort confirm                          |
 
 End with a recap that carries three things:
 
@@ -338,9 +409,16 @@ All writes stay on the decided ticket, and dependents get comments only. Nothing
 ## Hyperlink rule
 
 Every ticket reference shown to D is a clickable markdown link built from the MCP-returned `url`, e.g.
-`[<ID>](https://linear.app/bareclaude/issue/<ID>/<slug>)`. Never show a bare ID alone. `AskUserQuestion` chips may
-not render links, so the links live in the prose around each question — the prose is load-bearing only for those
-links, the post-decision record, and the `skip`/`defer`/`show me the source` affordance (step 7); all decision
+`[<ID>](https://linear.app/bareclaude/issue/<ID>/<slug>)`. Never show a bare ID alone. The triage table's `Ticket`
+and `Link` columns carry these links (ticket ID + the PR/artifact/issue D would open to judge), and the tier-2
+detail blocks may add more.
+
+**A grouped row links every ticket it covers, individually.** When one decision spans N tickets (step 9's
+grouping rule), the `Ticket` cell carries N separate links — `[OPS-345](<url>) [OPS-346](<url>)`, never a
+collapsed `[OPS-345/6](<url>)` or an abbreviated range. A collapsed form gives the second and later tickets no
+destination, which is the bare-ID failure wearing a link's clothes: D can't open what the row is asking them to
+decide on. `AskUserQuestion` chips may not render links, so when a drill-in dialog fires its links
+live in the prose around it — that prose is load-bearing only for links and the post-decision record; all decision
 context goes inside the dialog.
 
 ## Prerequisites
@@ -353,7 +431,7 @@ context goes inside the dialog.
 
 ## Notes
 
-- Speed comes from parallel prefetch + tight question prose, NOT from bundling.
+- Speed comes from parallel prefetch + a tight table, NOT from bundling unrelated decisions.
 - The classification pass (step 3) is the whole game: it turns a 50-ticket wall into the ~10 that actually need D.
 - Views mirror Clara's saved workspace views (`Needs Unblocking`, `Needs Your Sign-off`, `Upcoming Deadlines`,
   `Ungroomed Backlog`); keep names in sync if she renames them.
