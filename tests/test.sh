@@ -180,6 +180,7 @@ run_test "Command YAML Validation" "validate_command_yaml.sh"
 run_test "Statusline Functionality" "config/test_statusline.sh"
 run_test "Statusline Edge Cases" "config/test_statusline_edge_cases.sh"
 run_test "Statusline Credit Mode" "config/test_statusline_credit_mode.sh"
+run_test "Statusline Keychain Lookup" "config/test_statusline_keychain.sh"
 
 # Run quality tests
 echo "Running Quality Tests..."
