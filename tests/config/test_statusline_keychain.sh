@@ -55,11 +55,19 @@ iso_in() {
 STUB_DIR="$TEST_TEMP_DIR/bin"
 mkdir -p "$STUB_DIR"
 
+# id stub. statusline.sh now shells out to `id -un` unconditionally for the
+# account-scoped lookup, so the effective account is modelled here rather than
+# via $USER.
+cat > "$STUB_DIR/id" <<'EOF'
+#!/bin/bash
+printf '%s\n' "$LOGIN_ACCT"
+EOF
+
 # security stub. KEYCHAIN_LAYOUT selects the machine being modelled:
 #   shadowed — a connector item and the login item share the label, and a
 #              label-only lookup returns the connector item first
 #   single   — only the login item exists, filed under an account name that
-#              doesn't match $USER
+#              doesn't match the effective account from `id -un`
 cat > "$STUB_DIR/security" <<'EOF'
 #!/bin/bash
 acct=""
@@ -98,7 +106,7 @@ done
 [[ "$auth" == "Authorization: Bearer LOGIN-TOKEN" ]] || exit 22
 printf '%s' "$USAGE_JSON" > "$out"
 EOF
-chmod +x "$STUB_DIR/security" "$STUB_DIR/curl"
+chmod +x "$STUB_DIR/id" "$STUB_DIR/security" "$STUB_DIR/curl"
 
 USAGE_JSON=$(cat <<EOF
 {
