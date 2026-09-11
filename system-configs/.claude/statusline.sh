@@ -377,7 +377,14 @@ if [[ -f "$usage_cache" ]]; then
   cache_age=$(( $(date +%s) - cache_mtime ))
 fi
 if [[ $cache_age -gt 60 ]]; then
-  oauth_bearer=$(security find-generic-password -s "Claude Code-credentials" -w 2>/dev/null | jq -r '.claudeAiOauth.accessToken // empty' 2>/dev/null)
+  # Pin the lookup to the login account. Claude Code also files connector (MCP)
+  # OAuth tokens under this service label, and a label-only lookup returns
+  # whichever item macOS finds first — possibly one with no claudeAiOauth at all.
+  oauth_bearer=$(security find-generic-password -s "Claude Code-credentials" -a "$(id -un)" -w 2>/dev/null | jq -r '.claudeAiOauth.accessToken // empty' 2>/dev/null)
+  # Login filed under a different account name: fall back to the label alone.
+  if [[ -z "$oauth_bearer" ]]; then
+    oauth_bearer=$(security find-generic-password -s "Claude Code-credentials" -w 2>/dev/null | jq -r '.claudeAiOauth.accessToken // empty' 2>/dev/null)
+  fi
   # Headless/SSH fallback: machines using file-based credential storage (the
   # Mac Mini fleet node) have no Keychain item, and SSH sessions can't answer
   # a Keychain prompt anyway. Same JSON shape either way.
