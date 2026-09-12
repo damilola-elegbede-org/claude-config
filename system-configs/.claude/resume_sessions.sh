@@ -62,8 +62,8 @@ elif command -v gtimeout >/dev/null 2>&1; then
     gtimeout 60 "$CLAUDE_BIN" update >>"$LOG_FILE" 2>&1
     update_status=$?
 else
-    "$CLAUDE_BIN" update >>"$LOG_FILE" 2>&1
-    update_status=$?
+    log "SKIP_UPDATE no timeout or gtimeout available, refusing to run unbounded"
+    update_status=-1
 fi
 log "UPDATE_CHECK exit=$update_status"
 
