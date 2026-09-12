@@ -1,6 +1,6 @@
 ---
 name: frontend-engineer
-description: MUST BE USED for frontend work, UI components, design systems, or client-side code. Use for ANY browser/UI task. Triggers on "frontend", "ui", "component", "react", "vue", "css", "html", "javascript", "design", "ux", "user experience", "layout", "colors", "design system".
+description: Use for frontend work, UI components, design systems, and client-side/browser code. Triggers on "frontend", "ui", "component", "react", "vue", "css", "html", "javascript", "design", "ux", "user experience", "layout", "colors", "design system".
 tools: Read, Write, Edit, Bash, Grep, Glob
 model: sonnet
 permissionMode: acceptEdits

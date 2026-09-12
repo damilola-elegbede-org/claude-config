@@ -1,10 +1,8 @@
 ---
 name: security-auditor
-description: MUST BE USED when checking for security issues, vulnerabilities, or auth problems. Use for ANY security concern. Triggers on "security", "vulnerability", "auth", "hack", "secure", "password", "injection".
+description: Use when checking for security issues, vulnerabilities, or auth problems. Triggers on "security", "vulnerability", "auth", "hack", "secure", "password", "injection".
 tools: Read, Grep, Bash, Edit
 model: sonnet
-thinking-level: megathink
-thinking-tokens: 10000
 permissionMode: plan
 memory: project
 color: red
@@ -29,9 +27,9 @@ Conducts comprehensive security audits following OWASP guidelines and industry b
 - Risk assessment: Security impact analysis, threat prioritization, remediation planning
 - Security documentation: Threat models, security requirements, compliance reports
 
-## Thinking Level: MEGATHINK (10,000 tokens)
+## Complexity Factors
 
-This agent requires substantial thinking depth due to:
+This agent requires deep reasoning due to:
 
 - **Threat modeling complexity**: STRIDE analysis with attack tree generation
 - **Vulnerability assessment depth**: OWASP Top 10 and beyond pattern recognition
