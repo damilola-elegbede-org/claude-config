@@ -62,8 +62,8 @@ elif command -v gtimeout >/dev/null 2>&1; then
     gtimeout 60 "$CLAUDE_BIN" update >>"$LOG_FILE" 2>&1
     update_status=$?
 else
-    "$CLAUDE_BIN" update >>"$LOG_FILE" 2>&1
-    update_status=$?
+    log "SKIP_UPDATE no timeout or gtimeout available, refusing to run unbounded"
+    update_status=-1
 fi
 log "UPDATE_CHECK exit=$update_status"
 
@@ -94,6 +94,17 @@ for entry_file in "$REGISTRY_DIR"/*.json; do
 
     if printf '%s\n' "$existing_windows" | grep -qxF "$window_name"; then
         skipped=$((skipped + 1))
+        continue
+    fi
+
+    # A session can still be live outside the managed tmux session (e.g. a
+    # terminal window open from before this script's tmux session existed,
+    # or before a machine restart the registry didn't catch). Re-running
+    # this script -- including via RunAtLoad on install/reinstall -- must
+    # not spawn a second `claude --resume` client for the same session_id.
+    if pgrep -f "claude --resume $session_id" >/dev/null 2>&1; then
+        skipped=$((skipped + 1))
+        log "SKIP already running outside tmux id=$session_id name=$window_name"
         continue
     fi
 
