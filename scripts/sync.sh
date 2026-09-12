@@ -67,7 +67,7 @@ settings_mode() {
 # below rely on unquoted word-splitting to iterate this list. If a hook
 # script ever needs a space in its name, switch this to a newline-delimited
 # heredoc and iterate with `while read`.
-RUNTIME_HOOK_SCRIPTS="statusline.sh exit_hook.sh session_start_version_check.sh claude-speak.sh voice-rx.sh"
+RUNTIME_HOOK_SCRIPTS="statusline.sh exit_hook.sh session_start_version_check.sh claude-speak.sh voice-rx.sh session_registry.sh resume_sessions.sh restart_on_update.sh"
 
 # Parse arguments
 DRY_RUN=false

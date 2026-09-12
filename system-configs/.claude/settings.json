@@ -136,6 +136,11 @@
             "type": "command",
             "command": "${HOME}/.claude/session_start_version_check.sh",
             "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/session_registry.sh start",
+            "timeout": 5
           }
         ]
       }
@@ -147,6 +152,11 @@
             "type": "command",
             "command": "${HOME}/.claude/exit_hook.sh",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/session_registry.sh end",
+            "timeout": 5
           }
         ]
       }
