@@ -97,6 +97,17 @@ for entry_file in "$REGISTRY_DIR"/*.json; do
         continue
     fi
 
+    # A session can still be live outside the managed tmux session (e.g. a
+    # terminal window open from before this script's tmux session existed,
+    # or before a machine restart the registry didn't catch). Re-running
+    # this script -- including via RunAtLoad on install/reinstall -- must
+    # not spawn a second `claude --resume` client for the same session_id.
+    if pgrep -f "claude --resume $session_id" >/dev/null 2>&1; then
+        skipped=$((skipped + 1))
+        log "SKIP already running outside tmux id=$session_id name=$window_name"
+        continue
+    fi
+
     if [[ -n "$cwd" && -d "$cwd" ]]; then
         tmux new-window -d -t "$TMUX_SESSION" -n "$window_name" -c "$cwd" \
             "$CLAUDE_BIN --resume $session_id" 2>>"$LOG_FILE"
