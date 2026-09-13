@@ -48,7 +48,7 @@ Choose by the data's dimensions, what D does next, and size.
 - **ASCII diagrams:** fenced, at most 80 columns. Mermaid renders only inside artifacts, never in the terminal.
 - **Tables:** terminals wrap past ~100 columns; keep cells short.
 - **Artifacts:** a report longer than a screen, a plan with sections, the case for a decision. Always give a 1–3 line
-  summary and the link in the reply. Load the `artifact-design` skill before writing one.
+  summary and the link in the reply. Load the `frontend-design` skill before writing one.
 
 ## Emphasis
 
