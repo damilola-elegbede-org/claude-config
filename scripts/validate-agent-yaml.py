@@ -187,7 +187,7 @@ def validate_agent_file(file_path):
 
     # Check for deprecated fields that should not exist in new format
     deprecated_fields = ['specialization_level:', 'domain_expertise:', 'coordination_protocols:',
-                        'knowledge_base:', 'escalation_path:']
+                        'knowledge_base:', 'escalation_path:', 'thinking-level:', 'thinking-tokens:']
     for field in deprecated_fields:
         if field in yaml_section:
             issues.append(f"Contains deprecated field: {field} (not in AGENT_TEMPLATE.md format)")

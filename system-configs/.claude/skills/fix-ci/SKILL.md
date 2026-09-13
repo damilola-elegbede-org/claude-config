@@ -342,9 +342,10 @@ Common Root Causes:
   full inheritance of custom `.claude/agents/` definitions, which would let us
   use the project's domain-specific agents instead of `general-purpose`.
 - Subagent thinking level: spawned subagents inherit Claude Code's session
-  thinking-mode setting. `ultrathink` is a valid keyword and a valid value in
-  this repo's `thinking-level` frontmatter (see
-  `scripts/validate-agent-yaml.py` `THINKING_TOKEN_MAP`); include it in the
+  thinking-mode setting. `ultrathink` is a valid session-level keyword, but
+  there is no per-agent `thinking-level`/`thinking-tokens` frontmatter in this
+  repo anymore (reasoning depth is controlled by model + effort — see
+  `docs/agents/AGENT_TEMPLATE.md`); include `ultrathink` directly in the
   subagent prompt if a specific diagnosis warrants deeper reasoning.
 - Iterates until GitHub shows all checks green
 
