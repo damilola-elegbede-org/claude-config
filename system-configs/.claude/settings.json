@@ -22,7 +22,7 @@
     }
   },
   "autoCompactWindow": "400000",
-  "outputStyle": "Concise",
+  "outputStyle": "Executive",
   "tui": "fullscreen",
   "agentPushNotifEnabled": true,
   "spinnerTipsEnabled": false,
