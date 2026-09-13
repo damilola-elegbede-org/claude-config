@@ -81,13 +81,13 @@ TaskUpdate: "Classify tasks by domain" → in_progress
 
 Assign each task to a domain based on content:
 
-| Domain | Indicators | Prompt Specialization |
-|--------|------------|----------------------|
-| backend | API, endpoint, server, middleware, auth | Server architecture, API patterns, data modeling |
-| frontend | component, UI, page, style, layout | React/Vue patterns, CSS, client-side state |
-| test | test, spec, coverage, mock, fixture | Test strategies, mocking patterns, assertions |
-| data | database, migration, query, schema | SQL patterns, migration strategies, data integrity |
-| devops | CI, deploy, docker, pipeline, config | Infrastructure patterns, deployment strategies |
+| Domain   | Indicators                              | Prompt Specialization                              |
+| -------- | --------------------------------------- | -------------------------------------------------- |
+| backend  | API, endpoint, server, middleware, auth | Server architecture, API patterns, data modeling   |
+| frontend | component, UI, page, style, layout      | React/Vue patterns, CSS, client-side state         |
+| test     | test, spec, coverage, mock, fixture     | Test strategies, mocking patterns, assertions      |
+| data     | database, migration, query, schema      | SQL patterns, migration strategies, data integrity |
+| devops   | CI, deploy, docker, pipeline, config    | Infrastructure patterns, deployment strategies     |
 
 Identify shared files (types, configs, utilities) that span domains. Assign each shared
 file to exactly one domain to prevent conflicts.
@@ -119,7 +119,6 @@ Fan out one subagent per domain **in a SINGLE message with multiple Task tool ca
 Task tool call:
   subagent_type: "general-purpose"
   description: "Implement {domain} tasks"
-  model: "sonnet"
   prompt: |
     You are a {domain} specialist implementing features from a specification.
 
@@ -151,7 +150,6 @@ Wait for all subagents to return.
 ```text
 Task tool:
   subagent_type: "general-purpose"
-  model: "sonnet"
   prompt: |
     Implement the following tasks from specification:
     {all tasks}
@@ -282,7 +280,7 @@ Ready to proceed? Run without --dry-run
 ## Notes
 
 - Parallel subagent fan-out for 2+ domains (multiple Task calls in a single message); single Task for 1 domain
-- All subagents spawned with `model: "sonnet"` to match custom agent cost/behavior
+- Subagents carry no `model:` pin, so they use the settings.json subagent model (`env.CLAUDE_CODE_SUBAGENT_MODEL`) and one settings line moves them all
 - Docs-domain tasks use `model: "haiku"` (template-following, structured output)
 - Well-scoped implementation tasks can be delegated to Codex via `/codex` for cost savings
 - File ownership prevents conflicts between subagents working in parallel

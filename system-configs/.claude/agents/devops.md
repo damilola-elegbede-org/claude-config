@@ -2,7 +2,6 @@
 name: devops
 description: Use for CI/CD, Kubernetes, IaC, and platform engineering, proactively for deployment and reliability issues. Triggers on "deploy", "ci/cd", "pipeline", "docker", "kubernetes", "k8s", "platform".
 tools: Read, Write, Bash
-model: sonnet
 permissionMode: acceptEdits
 memory: local
 color: orange

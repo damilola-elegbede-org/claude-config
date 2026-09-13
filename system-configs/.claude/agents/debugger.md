@@ -2,7 +2,6 @@
 name: debugger
 description: Use when something is broken, buggy, crashing, slow, or not working — from simple errors to complex race conditions. Triggers on "fix", "broken", "bug", "error", "crash", "not working", "slow", "performance", "optimize", "faster", "latency", "memory".
 tools: Read, Grep, Bash, Glob
-model: sonnet
 permissionMode: acceptEdits
 memory: local
 color: orange

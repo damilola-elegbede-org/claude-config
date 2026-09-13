@@ -4,13 +4,16 @@
 # This template matches the pattern used by 15 production agents
 # Target length: 30-50 lines (not 180+)
 #
-# Model selection (Claude Sonnet 4.6 / Opus 4.6 - February 2026):
-# - sonnet: Claude Sonnet 4.6 - Standard development, enhanced reasoning (DEFAULT)
-#   * Most agents use Sonnet 4.6
-# - opus: Complex architecture or orchestration requiring maximum reasoning depth
-#   * architect (system-wide design), feature-agent (deep orchestration)
-# - haiku: Checklist-driven tasks, structured output, template-following
-#   * (rare — reserved for simple rule-based validation)
+# Model selection — `model:` is OPTIONAL. Precedence: model named in the spawn
+# call > agent `model:` > settings.json env.CLAUDE_CODE_SUBAGENT_MODEL > session model.
+# - omit it (DEFAULT): uses the settings.json subagent model (sonnet today), so
+#   one settings line moves every such agent
+#   * code-reviewer, debugger, devops, frontend-engineer, test-engineer
+# - inherit: follows the session's model (opus by default)
+#   * architect (system-wide design), feature-agent (orchestration),
+#     security-auditor (adversarial review)
+# - opus/sonnet/haiku/fable: a fixed pin that ignores settings.json — only for a
+#   deliberate cost or capability pin
 #
 # Reasoning depth is controlled by model + effort now (settings.json
 # modelSettings.<model>.effortLevel, or --effort per session), not per-agent
@@ -21,7 +24,7 @@
 name: agent-name # lowercase-hyphenated
 description: Use for [specific trigger], [domain] tasks. Triggers on "[keyword1]", "[keyword2]", "[keyword3]".
 tools: Read, Write, Edit, Grep, Glob, Bash # Only include what's needed
-model: sonnet # opus/sonnet/haiku - see guide above
+# model: inherit # OPTIONAL: omit for the settings.json subagent model - see guide above
 category: development # development, quality, security, architecture, design, analysis, infrastructure, coordination - See docs/agents/AGENT_CATEGORIES.md for canonical list
 color: blue # Must match category color - see AGENT_CATEGORIES.md
 # permissionMode: plan  # OPTIONAL: plan / acceptEdits / default / dontAsk / bypassPermissions
@@ -84,16 +87,16 @@ This agent cannot invoke other agents or create Task calls. Only Claude has orch
 | `name`        | Lowercase-hyphenated identifier   | `code-reviewer`                       |
 | `description` | Trigger description with keywords | `Use for...`                          |
 | `tools`       | Comma-separated tool list         | `Read, Write, Edit, Grep, Glob, Bash` |
-| `model`       | Model tier                        | `sonnet`, `opus`, `haiku`             |
 | `category`    | Agent category                    | `development`, `quality`, `security`  |
 | `color`       | Category color                    | `blue`, `green`, `red`                |
 
 ### Optional Fields
 
-| Field            | Description             | Values                                                           | Example   |
-| ---------------- | ----------------------- | ---------------------------------------------------------------- | --------- |
-| `permissionMode` | Permission behavior     | `plan`, `acceptEdits`, `default`, `dontAsk`, `bypassPermissions` | `plan`    |
-| `memory`         | Persistent memory scope | `project`, `local`, `user`                                       | `project` |
+| Field            | Description                                          | Values                                                           | Example   |
+| ---------------- | ---------------------------------------------------- | ---------------------------------------------------------------- | --------- |
+| `permissionMode` | Permission behavior                                  | `plan`, `acceptEdits`, `default`, `dontAsk`, `bypassPermissions` | `plan`    |
+| `memory`         | Persistent memory scope                              | `project`, `local`, `user`                                       | `project` |
+| `model`          | Model (omit to use the settings.json subagent model) | `inherit`, `opus`, `sonnet`, `haiku`, `fable`                    | `inherit` |
 
 ### The `skills` Field
 
@@ -131,8 +134,8 @@ skills: feature-lifecycle
 
 ## Production Agents (8)
 
-| Agent             | Model  | Category      | Skills              |
-| ----------------- | ------ | ------------- | ------------------- |
-| debugger          | sonnet | development   | -                   |
-| feature-agent     | opus   | orchestration | `feature-lifecycle` |
-| frontend-engineer | sonnet | development   | -                   |
+| Agent             | Model   | Category      | Skills              |
+| ----------------- | ------- | ------------- | ------------------- |
+| debugger          | default | development   | -                   |
+| feature-agent     | inherit | orchestration | `feature-lifecycle` |
+| frontend-engineer | default | development   | -                   |

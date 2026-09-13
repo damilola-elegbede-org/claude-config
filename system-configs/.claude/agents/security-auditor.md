@@ -2,7 +2,7 @@
 name: security-auditor
 description: Use when checking for security issues, vulnerabilities, or auth problems. Triggers on "security", "vulnerability", "auth", "hack", "secure", "password", "injection".
 tools: Read, Grep, Bash, Edit
-model: sonnet
+model: inherit
 permissionMode: plan
 memory: project
 color: red

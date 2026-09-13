@@ -23,7 +23,8 @@ REQUIRED_FIELDS = [
     'name',
     'description',
     'tools',
-    'model',  # opus/sonnet/haiku
+    # 'model' is optional: omit it to use settings.json's subagent model
+    # (env.CLAUDE_CODE_SUBAGENT_MODEL); a value here overrides that setting.
     'category',  # development/infrastructure/architecture/etc
     'color'
 ]
@@ -105,7 +106,8 @@ def parse_yaml_structure(yaml_text):
                     # silently breaks when the family rolls: the advisor API rejects
                     # an advisor older than the request model, so a Fable 5 pin 400s
                     # every advisor() call once sessions move to Fable 5.1.
-                    valid_models = ['opus', 'sonnet', 'haiku', 'fable']
+                    # 'inherit' follows the session's model.
+                    valid_models = ['inherit', 'opus', 'sonnet', 'haiku', 'fable']
                     if value and value not in valid_models:
                         issues.append(f"Invalid model '{value}'. Must be one of: {', '.join(valid_models)}")
 

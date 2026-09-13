@@ -2,7 +2,6 @@
 name: frontend-engineer
 description: Use for frontend work, UI components, design systems, and client-side/browser code. Triggers on "frontend", "ui", "component", "react", "vue", "css", "html", "javascript", "design", "ux", "user experience", "layout", "colors", "design system".
 tools: Read, Write, Edit, Bash, Grep, Glob
-model: sonnet
 permissionMode: acceptEdits
 color: blue
 category: development

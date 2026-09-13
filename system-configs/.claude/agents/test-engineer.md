@@ -2,7 +2,6 @@
 name: test-engineer
 description: Use when writing tests, improving coverage, or validating code works correctly. Triggers on "test", "spec", "coverage", "unit test", "integration test".
 tools: Read, Write, Edit, Bash, Grep
-model: sonnet
 permissionMode: acceptEdits
 color: green
 category: quality

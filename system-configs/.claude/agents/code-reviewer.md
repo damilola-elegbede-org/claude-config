@@ -2,7 +2,6 @@
 name: code-reviewer
 description: Use for pre-commit reviews and vulnerability detection, proactively after code changes. Triggers on "review", "check", "audit", "quality".
 tools: Read, Grep, Glob, Bash
-model: sonnet
 permissionMode: plan
 memory: local
 color: green

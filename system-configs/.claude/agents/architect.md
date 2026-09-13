@@ -2,7 +2,7 @@
 name: architect
 description: Use for system architecture, technical roadmaps, API design, cloud infrastructure, and major design decisions. Triggers on "architecture", "system design", "roadmap", "api design", "cloud", "infrastructure", "scale", "enterprise".
 tools: Read, Write, Edit, Grep, Glob
-model: sonnet
+model: inherit
 permissionMode: plan
 memory: project
 color: purple

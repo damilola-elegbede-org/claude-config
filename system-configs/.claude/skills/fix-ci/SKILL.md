@@ -125,7 +125,6 @@ unsafe characters from CI job names ending up in filesystem paths.
 Agent tool call 1:
   subagent_type: "general-purpose"
   description: "Diagnose <job-1-name>"
-  model: "sonnet"
   prompt: |
     You are an expert debugging and performance specialist. Your capabilities:
 
@@ -159,7 +158,6 @@ Agent tool call 1:
 Agent tool call 2:
   subagent_type: "general-purpose"
   description: "Diagnose <job-2-name>"
-  model: "sonnet"
   prompt: |
     [Same identity preamble as above]
 
@@ -201,7 +199,6 @@ Group diagnosis results by domain. Fan out one fixer subagent per domain
 Agent tool call:
   subagent_type: "general-purpose"
   description: "Fix {domain} failures"
-  model: "sonnet"
   prompt: |
     You are a {domain} specialist. Fix the following CI failure(s):
 
@@ -330,7 +327,7 @@ Common Root Causes:
 
 - Two-phase architecture separates diagnosis from fixing
 - Parallelism via subagent fan-out (multiple Task calls in a single message) — no team scaffolding
-- All subagents spawned with `model: "sonnet"` to match custom agent cost/behavior
+- Subagents carry no `model:` pin, so they use the settings.json subagent model (`env.CLAUDE_CODE_SUBAGENT_MODEL`) and one settings line moves them all
 - Fixer subagents for simple domains (docs, lint, config) can use `model: "haiku"` for cost savings
 - Debugger identity and capabilities embedded in diagnoser spawn prompts (prompt-based specialization)
 - Domain-specific context embedded in fixer spawn prompts

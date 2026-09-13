@@ -2,7 +2,7 @@
 name: feature-agent
 description: Specializes in autonomous end-to-end feature implementation from spec to merged PR. Use PROACTIVELY for complete feature lifecycles. Triggers on "implement feature", "build feature", "feature lifecycle", "spec to PR".
 tools: Read, Write, Edit, Bash, Grep, Glob
-model: sonnet
+model: inherit
 permissionMode: acceptEdits
 memory: project
 skills: feature-lifecycle
