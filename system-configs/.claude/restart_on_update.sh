@@ -96,6 +96,20 @@ for entry_file in "$REGISTRY_DIR"/*.json; do
         continue
     fi
 
+    # A window existing at tmux_target does not prove it still hosts THIS
+    # session: if the original window closed without firing SessionEnd and
+    # its index was later reused by an unrelated window (move/renumber), this
+    # check alone would let the respawn below destroy that unrelated live
+    # window. session_registry.sh tags the window with @claude_session_id at
+    # start, so confirm that tag matches before respawning -- fail closed
+    # (skip) on any mismatch or missing tag, including windows tagged before
+    # this check existed.
+    window_owner=$(tmux show-window-options -t "$tmux_target" -v @claude_session_id 2>/dev/null)
+    if [[ "$window_owner" != "$session_id" ]]; then
+        log "SKIP identity mismatch tmux_target=$tmux_target id=$session_id owner=${window_owner:-<none>}"
+        continue
+    fi
+
     is_older=$(version_lt "$version" "$latest_version")
     [[ "$is_older" != "1" ]] && continue
 

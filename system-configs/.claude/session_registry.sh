@@ -98,6 +98,13 @@ if [[ "$MODE" == "start" ]]; then
         current_tmux_session=$(tmux display-message -p '#{session_name}' 2>/dev/null)
         if [[ "$current_tmux_session" == "claude-sessions" ]]; then
             tmux_target=$(tmux display-message -p '#{session_name}:#{window_index}' 2>/dev/null)
+            # Tag the window with this session_id so restart_on_update.sh can
+            # verify -- before respawning -- that the window still hosts THIS
+            # session, not a different one that landed at the same
+            # session:index after this window closed and the index was reused.
+            if [[ -n "$tmux_target" ]]; then
+                tmux set-window-option -t "$tmux_target" @claude_session_id "$session_id" 2>/dev/null || true
+            fi
         fi
     fi
 
