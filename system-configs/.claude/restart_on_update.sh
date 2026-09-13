@@ -43,6 +43,10 @@ if ! command -v tmux >/dev/null 2>&1; then
     log "SKIP tmux not available"
     exit 0
 fi
+if [[ ! -x "$CLAUDE_BIN" ]]; then
+    log "ABORT $CLAUDE_BIN not found or not executable"
+    exit 0
+fi
 if [[ ! -d "$REGISTRY_DIR" ]]; then
     exit 0
 fi
