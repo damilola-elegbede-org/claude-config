@@ -280,7 +280,8 @@ Ready to proceed? Run without --dry-run
 ## Notes
 
 - Parallel subagent fan-out for 2+ domains (multiple Task calls in a single message); single Task for 1 domain
-- Subagents carry no `model:` pin, so they use the settings.json subagent model (`env.CLAUDE_CODE_SUBAGENT_MODEL`) and one settings line moves them all
+- Subagents carry no `model:` pin, so they use the settings.json subagent model
+  (`env.CLAUDE_CODE_SUBAGENT_MODEL`) and one settings line moves them all
 - Docs-domain tasks use `model: "haiku"` (template-following, structured output)
 - Well-scoped implementation tasks can be delegated to Codex via `/codex` for cost savings
 - File ownership prevents conflicts between subagents working in parallel

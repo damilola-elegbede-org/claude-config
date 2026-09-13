@@ -327,7 +327,8 @@ Common Root Causes:
 
 - Two-phase architecture separates diagnosis from fixing
 - Parallelism via subagent fan-out (multiple Task calls in a single message) — no team scaffolding
-- Subagents carry no `model:` pin, so they use the settings.json subagent model (`env.CLAUDE_CODE_SUBAGENT_MODEL`) and one settings line moves them all
+- Subagents carry no `model:` pin, so they use the settings.json subagent model
+  (`env.CLAUDE_CODE_SUBAGENT_MODEL`) and one settings line moves them all
 - Fixer subagents for simple domains (docs, lint, config) can use `model: "haiku"` for cost savings
 - Debugger identity and capabilities embedded in diagnoser spawn prompts (prompt-based specialization)
 - Domain-specific context embedded in fixer spawn prompts

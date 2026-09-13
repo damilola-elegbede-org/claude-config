@@ -245,7 +245,8 @@ Launching interactive triage...
 - No auto-fix — all changes require user approval via triage
 - `--full` mode may take longer depending on codebase size
 - `--deep` fans out three subagents in parallel for multi-perspective analysis
-- Code and security reviewers carry no `model:` pin (they use the settings.json subagent model); a11y-reviewer pins `model: "haiku"` (checklist-driven, structured output)
+- Code and security reviewers carry no `model:` pin (they use the settings.json subagent model);
+  a11y-reviewer pins `model: "haiku"` (checklist-driven, structured output)
 - Reviewer prompts carry their own standards inline; the former `git-conventions` and
   `security-checklist` reference skills were removed as general knowledge Claude already has
 - Subagents are ephemeral — no cleanup needed after they return
