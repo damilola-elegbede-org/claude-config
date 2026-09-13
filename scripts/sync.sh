@@ -58,16 +58,18 @@ settings_mode() {
 }
 
 # Declarative map of runtime hook scripts that sync deploys to ~/.claude/.
-# Each entry is a filename under $SOURCE_DIR, referenced from settings.json
-# hooks. To add a new hook script: add its filename here and wire it into
-# settings.json. Both sync_files() and the dry-run preview read from this
-# single source of truth.
+# Each entry is a path relative to $SOURCE_DIR, deployed to the same relative
+# path under ~/.claude/. Scripts that only run as hooks live in hooks/ (the
+# Claude Code docs' convention); statusline, CLI helpers, and LaunchAgent
+# programs stay at the top level. To add a new hook script: add its path here
+# and wire it into settings.json. Both sync_files() and the dry-run preview
+# read from this single source of truth.
 #
 # NOTE: space-delimited. Filenames MUST NOT contain spaces — the loops
 # below rely on unquoted word-splitting to iterate this list. If a hook
 # script ever needs a space in its name, switch this to a newline-delimited
 # heredoc and iterate with `while read`.
-RUNTIME_HOOK_SCRIPTS="statusline.sh exit_hook.sh session_start_version_check.sh claude-speak.sh voice-rx.sh session_registry.sh resume_sessions.sh restart_on_update.sh"
+RUNTIME_HOOK_SCRIPTS="statusline.sh hooks/exit_hook.sh hooks/session_start_version_check.sh claude-speak.sh voice-rx.sh hooks/session_registry.sh resume_sessions.sh restart_on_update.sh"
 
 # Parse arguments
 DRY_RUN=false
@@ -432,8 +434,15 @@ sync_files() {
             printf "    %s\n" "$validation_errors"
             return 1
         }
-        cp "$src" "$TARGET_DIR/"
+        mkdir -p "$TARGET_DIR/$(dirname "$script")"
+        cp "$src" "$TARGET_DIR/$script"
         chmod +x "$TARGET_DIR/$script"
+        # A script that moved into a subdirectory (e.g. hooks/) leaves its
+        # old top-level copy behind in ~/.claude/; remove it so a stale copy
+        # can't be run by an old settings path.
+        case "$script" in
+            */*) rm -f "$TARGET_DIR/$(basename "$script")" ;;
+        esac
     done
 
     # Build synced settings summary line from the same map. Every entry

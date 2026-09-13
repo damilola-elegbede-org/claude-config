@@ -6,7 +6,7 @@ long-running sessions on the newest fetched build.
 
 ## How it works
 
-- **`session_registry.sh`** (SessionStart/SessionEnd hooks, already wired in
+- **`hooks/session_registry.sh`** (SessionStart/SessionEnd hooks, already wired in
   `settings.json`) tracks every session's id, name, cwd, launch version, and
   tmux location in one file per session under `~/.claude/session-registry/`.
   A clean session end stamps `ended_at`; a machine restart kills the process
