@@ -130,7 +130,7 @@ test_statusline_exists() {
 }
 
 test_exit_hook_exists() {
-    local exit_hook_path="../../system-configs/.claude/exit_hook.sh"
+    local exit_hook_path="../../system-configs/.claude/hooks/exit_hook.sh"
 
     if [[ ! -f "$exit_hook_path" ]]; then
         echo "Exit hook script not found at $exit_hook_path"
@@ -515,7 +515,7 @@ test_cleanup_old_files() {
 
 test_exit_hook_functionality() {
     local statusline_path="../../system-configs/.claude/statusline.sh"
-    local exit_hook_path="$(cd ../../system-configs/.claude && pwd)/exit_hook.sh"
+    local exit_hook_path="$(cd ../../system-configs/.claude && pwd)/hooks/exit_hook.sh"
     local test_input='{"model":{"display_name":"Claude"},"version":"8.0.0","workspace":{"current_dir":"/tmp"},"output_style":{"name":"default"}}'
 
     rm -rf "$TEST_HOME/.claude"
@@ -560,7 +560,7 @@ test_exit_hook_functionality() {
 }
 
 test_exit_hook_version_update() {
-    local exit_hook_path="$(cd ../../system-configs/.claude && pwd)/exit_hook.sh"
+    local exit_hook_path="$(cd ../../system-configs/.claude && pwd)/hooks/exit_hook.sh"
 
     rm -rf "$TEST_HOME/.claude"
     mkdir -p ".tmp/terminal_versions"

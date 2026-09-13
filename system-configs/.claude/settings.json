@@ -5,12 +5,24 @@
     "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY": "1",
     "DISABLE_FEEDBACK_COMMAND": "1",
     "CLAUDE_CODE_DISABLE_GROWTHBOOK": "1",
-    "CLAUDE_CODE_ENABLE_EXPERIMENTAL_ADVISOR_TOOL": "1"
+    "CLAUDE_CODE_ENABLE_EXPERIMENTAL_ADVISOR_TOOL": "1",
+    "CLAUDE_CODE_SUBAGENT_MODEL": "sonnet"
   },
-  "model": "sonnet",
+  "model": "opus",
   "advisorModel": "fable",
+  "modelSettings": {
+    "claude-fable-5-1": {
+      "effortLevel": "medium"
+    },
+    "claude-opus-5": {
+      "effortLevel": "high"
+    },
+    "claude-sonnet-5": {
+      "effortLevel": "high"
+    }
+  },
   "autoCompactWindow": "400000",
-  "outputStyle": "Concise",
+  "outputStyle": "Executive",
   "tui": "fullscreen",
   "agentPushNotifEnabled": true,
   "spinnerTipsEnabled": false,
@@ -83,18 +95,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "INPUT=$(cat); command -v jq >/dev/null 2>&1 || { echo 'WARNING: jq missing — Claude Code hook guards are disabled' >&2; exit 0; }; FILE=$(printf '%s' \"$INPUT\" | jq -r '.tool_input.file_path // empty' 2>/dev/null); if [[ -z \"$FILE\" ]]; then exit 0; fi; if [[ \"$FILE\" =~ \\.(js|jsx|ts|tsx|json|css|scss|html|md|yaml|yml)$ ]]; then npx --no-install prettier --write \"$FILE\" 2>/dev/null || true; fi",
-            "timeout": 30
-          },
-          {
-            "type": "command",
-            "command": "INPUT=$(cat); command -v jq >/dev/null 2>&1 || { echo 'WARNING: jq missing — Claude Code hook guards are disabled' >&2; exit 0; }; FILE=$(printf '%s' \"$INPUT\" | jq -r '.tool_input.file_path // empty' 2>/dev/null); if [[ -z \"$FILE\" ]]; then exit 0; fi; if [[ \"$FILE\" =~ \\.(js|jsx|ts|tsx)$ ]]; then npx --no-install eslint --print-config \"$FILE\" >/dev/null 2>&1 || exit 0; npx --no-install eslint --fix \"$FILE\" 2>/dev/null; if ! npx --no-install eslint \"$FILE\" 2>&1; then echo 'ESLint errors remain after auto-fix' >&2; exit 2; fi; fi",
-            "timeout": 30
-          },
-          {
-            "type": "command",
-            "command": "INPUT=$(cat); command -v jq >/dev/null 2>&1 || { echo 'WARNING: jq missing — Claude Code hook guards are disabled' >&2; exit 0; }; FILE=$(printf '%s' \"$INPUT\" | jq -r '.tool_input.file_path // empty' 2>/dev/null); if [[ -z \"$FILE\" ]]; then exit 0; fi; if [[ \"$FILE\" =~ \\.(ts|tsx)$ ]]; then OUT=$(npx --no-install tsc --noEmit 2>&1 || true); if [[ -n \"$OUT\" ]]; then REL=\"${FILE#$PWD/}\"; MINE=$(echo \"$OUT\" | grep -F \"$REL\" || true); if [[ -n \"$MINE\" ]]; then echo \"TypeScript errors in ${REL}:\" >&2; echo \"$MINE\" >&2; exit 2; fi; fi; fi",
-            "timeout": 30
+            "command": "INPUT=$(cat); command -v jq >/dev/null 2>&1 || { echo 'WARNING: jq missing — Claude Code hook guards are disabled' >&2; exit 0; }; FILE=$(printf '%s' \"$INPUT\" | jq -r '.tool_input.file_path // empty' 2>/dev/null); if [[ -z \"$FILE\" ]]; then exit 0; fi; RC=0; if [[ \"$FILE\" =~ \\.(js|jsx|ts|tsx|json|css|scss|html|md|yaml|yml)$ ]]; then npx --no-install prettier --write \"$FILE\" 2>/dev/null || true; fi; if [[ \"$FILE\" =~ \\.(js|jsx|ts|tsx)$ ]] && npx --no-install eslint --print-config \"$FILE\" >/dev/null 2>&1; then npx --no-install eslint --fix \"$FILE\" 2>/dev/null; if ! npx --no-install eslint \"$FILE\" 2>&1; then echo 'ESLint errors remain after auto-fix' >&2; RC=2; fi; fi; if [[ \"$FILE\" =~ \\.(ts|tsx)$ ]]; then OUT=$(npx --no-install tsc --noEmit 2>&1 || true); if [[ -n \"$OUT\" ]]; then REL=\"${FILE#$PWD/}\"; MINE=$(echo \"$OUT\" | grep -F \"$REL\" || true); if [[ -n \"$MINE\" ]]; then echo \"TypeScript errors in ${REL}:\" >&2; echo \"$MINE\" >&2; RC=2; fi; fi; fi; exit $RC",
+            "timeout": 90
           }
         ]
       },
@@ -104,7 +106,8 @@
           {
             "type": "command",
             "command": "INPUT=$(cat); command -v jq >/dev/null 2>&1 || { echo 'WARNING: jq missing — Claude Code hook guards are disabled' >&2; exit 0; }; FILE=$(printf '%s' \"$INPUT\" | jq -r '.tool_input.file_path // empty' 2>/dev/null); if [[ -z \"$FILE\" ]] || [[ \"$FILE\" =~ \\.(test|spec)\\. ]] || [[ \"$FILE\" =~ __tests__/ ]] || [[ \"$FILE\" =~ (^|/)test_[^/]*\\.py$ ]] || [[ \"$FILE\" =~ _test\\.(py|go)$ ]] || [[ ! \"$FILE\" =~ \\.(js|jsx|ts|tsx|py|go)$ ]]; then exit 0; fi; DIR=$(dirname \"$FILE\"); BASE=$(basename \"$FILE\" | sed 's/\\.[^.]*$//'); TESTFILE=\"\"; case \"$FILE\" in *.py) for C in \"${DIR}/test_${BASE}.py\" \"${DIR}/${BASE}_test.py\" \"${DIR}/tests/test_${BASE}.py\"; do [[ -f \"$C\" ]] && TESTFILE=\"$C\" && break; done; [[ -n \"$TESTFILE\" ]] && { python3 -m pytest \"$TESTFILE\" 2>/dev/null || true; };; *.go) [[ -f \"${DIR}/${BASE}_test.go\" ]] && { (cd \"$DIR\" && go test . 2>/dev/null) || true; };; *) TESTFILE=$(ls \"${DIR}/${BASE}\".{test,spec}.{ts,tsx,js,jsx} \"${DIR}/__tests__/${BASE}\".{test,spec}.{ts,tsx,js,jsx} 2>/dev/null | head -1); [[ -n \"$TESTFILE\" ]] && { npx --no-install jest --passWithNoTests \"$TESTFILE\" 2>/dev/null || npx --no-install vitest run \"$TESTFILE\" 2>/dev/null || true; };; esac; exit 0",
-            "timeout": 60
+            "timeout": 60,
+            "async": true
           }
         ]
       }
@@ -114,7 +117,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo '{\"systemMessage\": \"Context compaction in progress. Important: preserve current task context, decisions made, and next steps in your working memory.\"}'"
+            "command": "echo 'Preserve in the summary: the current task and its acceptance criteria, decisions made and why, files changed, open questions, and the exact next steps.'"
           }
         ]
       }
@@ -134,7 +137,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${HOME}/.claude/session_start_version_check.sh",
+            "command": "${HOME}/.claude/hooks/session_start_version_check.sh",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/session_registry.sh start",
             "timeout": 5
           }
         ]
@@ -145,8 +153,13 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${HOME}/.claude/exit_hook.sh",
+            "command": "${HOME}/.claude/hooks/exit_hook.sh",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/session_registry.sh end",
+            "timeout": 5
           }
         ]
       }

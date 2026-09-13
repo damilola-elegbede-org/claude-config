@@ -8,6 +8,13 @@ table — a table row IS the ask; `AskUserQuestion` fires only on drill-in. See
 the `ask` and `process-linear` skills for the exact triggers; no other skill
 substitutes prose for the dialog.
 
+## Evidence
+
+False claims hurt D's decisions. Back every claim D may act on with its
+source: file:line, the command and its output, a URL, or a quote. Say
+"untested" when something wasn't tested, and label inference as inference.
+Never present a guess as fact.
+
 ## Changes
 
 Touch only what the request implies. Don't refactor adjacent code, even when it

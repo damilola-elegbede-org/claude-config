@@ -11,21 +11,21 @@ manual intervention.
 ### Audio Configuration
 
 - **Completion Sound** (PostToolUse):
-`/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Classic/Swish.m4r`
+  `/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Classic/Swish.m4r`
 - **Session Start Sound** (SessionStart):
-`/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Modern/Presto.m4r`
+  `/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Modern/Presto.m4r`
 - **Subagent Start Sound** (SubagentStart):
-`/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Classic/Swish.m4r`
+  `/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Classic/Swish.m4r`
 - **Subagent Stop Sound** (SubagentStop):
-`/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Modern/Chord.m4r`
+  `/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Modern/Chord.m4r`
 - **Pre-Compact Warning** (PreCompact):
-`/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Modern/Aurora.m4r`
+  `/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Modern/Aurora.m4r`
 - **Session End Sound** (SessionEnd):
-`/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Classic/Choo Choo.m4r`
+  `/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Classic/Choo Choo.m4r`
 - **Notification Sound** (Notification):
-`/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Modern/Aurora.m4r`
+  `/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Modern/Aurora.m4r`
 - **Permission Request Sound** (PermissionRequest):
-`/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Modern/Keys.m4r`
+  `/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Modern/Keys.m4r`
 - **Implementation**: Direct afplay commands in Claude Code hooks
 
 ### Quality Gate Hooks
@@ -37,13 +37,13 @@ In addition to audio hooks, `PreToolUse` hooks enforce quality policies:
 
 ### Session Version-Check Hook
 
-A command-based `SessionStart` hook runs `~/.claude/session_start_version_check.sh`
+A command-based `SessionStart` hook runs `~/.claude/hooks/session_start_version_check.sh`
 on every real session startup (source == `startup`; resume/clear/compact are
 skipped). Its job is to detect Claude Code CLI upgrades and persist the
 relevant CHANGELOG slice for the `/changelog` skill to replay on demand.
 
-- **Script**: `system-configs/.claude/session_start_version_check.sh` (synced
-  to `~/.claude/session_start_version_check.sh` by `/sync`)
+- **Script**: `system-configs/.claude/hooks/session_start_version_check.sh` (synced
+  to `~/.claude/hooks/session_start_version_check.sh` by `/sync`)
 - **State file**: `~/.claude/last_seen_claude_version` (plain text, one
   semver line, `chmod 600`)
 - **Cache file**: `~/.claude/cache/claude-code-changelog.md` (full upstream
@@ -56,7 +56,7 @@ relevant CHANGELOG slice for the `/changelog` skill to replay on demand.
 - **First run**: When the state file does not exist, the hook seeds it
   with the currently-resolved `claude --version` and exits **without
   producing a slice**. No `last_upgrade.md` is written on first run.
-  The first real upgrade *after* init is what triggers the first slice,
+  The first real upgrade _after_ init is what triggers the first slice,
   so new installs never see a fabricated "upgrade from arbitrary
   baseline → now" on their first session.
 - **Failure policy**: Every error path exits 0 with no stdout. Session
@@ -65,8 +65,8 @@ relevant CHANGELOG slice for the `/changelog` skill to replay on demand.
 - **Test mode**: Pass `--test` to isolate state under
   `$CLAUDE_TEST_DIR` (defaults to `.tmp/session_start_check/`). To
   verify init on a clean slate: `rm -rf .tmp/session_start_check &&
-  ./session_start_version_check.sh --test && cat
-  .tmp/session_start_check/last_seen_claude_version` — you should see
+./hooks/session_start_version_check.sh --test && cat
+.tmp/session_start_check/last_seen_claude_version` — you should see
   the currently-installed CLI version and no slice file under
   `.tmp/session_start_check/cache/`.
 
@@ -108,7 +108,7 @@ Add to `$HOME/.claude/settings.json`:
         "hooks": [
           {
             "type": "command",
-            "command": "${HOME}/.claude/session_start_version_check.sh",
+            "command": "${HOME}/.claude/hooks/session_start_version_check.sh",
             "timeout": 5
           }
         ]
@@ -124,7 +124,7 @@ Add to `$HOME/.claude/settings.json`:
           },
           {
             "type": "command",
-            "command": "${HOME}/.claude/exit_hook.sh"
+            "command": "${HOME}/.claude/hooks/exit_hook.sh"
           }
         ]
       }
@@ -148,7 +148,7 @@ Add to `$HOME/.claude/settings.json`:
 
 ### PostToolUse Hooks (Swish.m4r)
 
-- Triggers on all tool operations (matcher: "*")
+- Triggers on all tool operations (matcher: "\*")
 - Plays Classic Swish sound for immediate feedback
 
 ### SessionStart Hooks (Presto.m4r)
@@ -189,7 +189,7 @@ Add to `$HOME/.claude/settings.json`:
 
 ## Universal Matching
 
-- All tools trigger PostToolUse notifications (matcher: "*")
+- All tools trigger PostToolUse notifications (matcher: "\*")
 - No tools are excluded from audio feedback
 - Provides consistent auditory feedback for all operations
 
@@ -283,7 +283,7 @@ afplay -v 1.0 '/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/
 
 ### Expected Behavior
 
-- **Swish sound**: Plays after each tool operation (matcher: "*")
+- **Swish sound**: Plays after each tool operation (matcher: "\*")
 - **Choo Choo sound**: Plays when session ends
 - **Aurora sound**: Plays when prompt input has been idle
 - **Keys sound**: Plays when Claude needs permission to use a tool
@@ -293,7 +293,7 @@ afplay -v 1.0 '/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/
 
 ### Test Results Verification
 
-- PostToolUse hooks trigger Swish.m4r audio notifications (matcher: "*")
+- PostToolUse hooks trigger Swish.m4r audio notifications (matcher: "\*")
 - SessionEnd hooks trigger Choo Choo.m4r audio notifications
 - Notification hooks trigger Aurora.m4r for idle events
 - PermissionRequest hooks trigger Keys.m4r when permission is needed

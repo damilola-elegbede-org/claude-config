@@ -75,13 +75,11 @@ Spawn all three reviewers **in a SINGLE message with multiple Task tool calls**:
 Task tool call 1:
   subagent_type: "general-purpose"
   description: "Code-quality review"
-  model: "sonnet"
   prompt: contents of `references/code-review-prompt.md`, with `{file_list}` from Step 2, `{current_branch}`, and `{ISO timestamp}` substituted
 
 Task tool call 2:
   subagent_type: "general-purpose"
   description: "Security review"
-  model: "sonnet"
   prompt: contents of `references/security-review-prompt.md`, with `{file_list}` from Step 2, `{current_branch}`, and `{ISO timestamp}` substituted
 
 Task tool call 3:
@@ -247,7 +245,8 @@ Launching interactive triage...
 - No auto-fix — all changes require user approval via triage
 - `--full` mode may take longer depending on codebase size
 - `--deep` fans out three subagents in parallel for multi-perspective analysis
-- Code and security reviewers use `model: "sonnet"`; a11y-reviewer uses `model: "haiku"` (checklist-driven, structured output)
+- Code and security reviewers carry no `model:` pin (they use the settings.json subagent model);
+  a11y-reviewer pins `model: "haiku"` (checklist-driven, structured output)
 - Reviewer prompts carry their own standards inline; the former `git-conventions` and
   `security-checklist` reference skills were removed as general knowledge Claude already has
 - Subagents are ephemeral — no cleanup needed after they return

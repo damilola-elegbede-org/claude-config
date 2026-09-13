@@ -2,9 +2,7 @@
 name: feature-agent
 description: Specializes in autonomous end-to-end feature implementation from spec to merged PR. Use PROACTIVELY for complete feature lifecycles. Triggers on "implement feature", "build feature", "feature lifecycle", "spec to PR".
 tools: Read, Write, Edit, Bash, Grep, Glob
-model: sonnet
-thinking-level: ultrathink
-thinking-tokens: 31999
+model: inherit
 permissionMode: acceptEdits
 memory: project
 skills: feature-lifecycle
@@ -28,9 +26,9 @@ testing, code review, CI monitoring, and merge.
 - CI/review monitoring: Watches PR checks and review feedback, auto-fixing failures up to 5 iterations
 - Multi-input support: Works from spec files, GitHub issues, inline descriptions, or interactive prompts
 
-## Thinking Level: ULTRATHINK (31,999 tokens)
+## Complexity Factors
 
-This agent requires maximum thinking depth due to:
+This agent requires deep reasoning due to:
 
 - **End-to-end planning**: Must reason about full feature scope, dependencies, and implementation order
 - **Multi-phase coordination**: Orchestrates 6 phases with conditional branching and error recovery
