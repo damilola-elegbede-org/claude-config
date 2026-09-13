@@ -35,8 +35,7 @@ the decision is obvious. You should:
    | File sent to D  | a formal deliverable: docx, pptx, xlsx, pdf        | anything D reads once           |
 
    Tables wrap past ~100 columns, so keep cells short. Diagrams stay fenced and under 80 columns; mermaid renders only
-   inside artifacts. An artifact always comes with a 1–3 line summary and the link; load the `artifact-design` skill
-   before writing one.
+   inside artifacts. An artifact always comes with a 1–3 line summary and the link.
 
 5. **Emoji mark surprises, not status** — Usually 0–2 per message: 🔴 problem or risk, ⚠️ caveat or untested (always
    mark these), ✅ only to close a flagged 🔴 / ⚠️, ⭐ the recommendation inside tables. Bold one phrase per bullet at
