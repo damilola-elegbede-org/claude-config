@@ -77,7 +77,7 @@ fi
 existing_windows=$(tmux list-windows -t "$TMUX_SESSION" -F '#{window_name}' 2>/dev/null)
 
 # Boot time as epoch seconds ("{ sec = 1788297973, usec = ... } ..." on macOS).
-boot_epoch=$(sysctl -n kern.boottime 2>/dev/null | sed -E 's/.*sec = ([0-9]+).*/\1/')
+boot_epoch=$(sysctl -n kern.boottime 2>/dev/null | sed -E 's/.*[^u]sec = ([0-9]+).*/\1/')
 [[ "$boot_epoch" =~ ^[0-9]+$ ]] || boot_epoch=""
 
 resumed=0
