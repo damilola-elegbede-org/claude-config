@@ -36,15 +36,15 @@ Fan out debugger subagents in parallel to investigate each failure. Each debugge
 
 Route fixes to domain experts based on diagnosis:
 
-| Domain | Fix Agent | Examples |
-|--------|-----------|----------|
-| test | test-engineer | Test failures, missing mocks, assertion errors |
-| security | security-auditor | Auth issues, credential problems, vulnerability fixes |
-| frontend | frontend-engineer | React/Vue errors, CSS issues, client-side bugs |
-| backend | backend-engineer | API errors, server logic, microservice issues |
-| data | data-engineer | Database errors, migration issues, query problems |
-| pipeline | devops | Workflow syntax, CI config, deployment issues |
-| architecture | architect | Design issues, unclear domains, cross-cutting concerns |
+| Domain       | Fix Agent         | Examples                                               |
+| ------------ | ----------------- | ------------------------------------------------------ |
+| test         | test-engineer     | Test failures, missing mocks, assertion errors         |
+| security     | security-auditor  | Auth issues, credential problems, vulnerability fixes  |
+| frontend     | frontend-engineer | React/Vue errors, CSS issues, client-side bugs         |
+| backend      | backend-engineer  | API errors, server logic, microservice issues          |
+| data         | data-engineer     | Database errors, migration issues, query problems      |
+| pipeline     | devops            | Workflow syntax, CI config, deployment issues          |
+| architecture | architect         | Design issues, unclear domains, cross-cutting concerns |
 
 ## Workflow
 
@@ -83,10 +83,13 @@ Route fixes to domain experts based on diagnosis:
 ### Step 1: Create Task Plan
 
 ```text
-TaskCreate: "Fetch CI failure details" (no blockers)
-TaskCreate: "Diagnose failures" (blockedBy: fetch)
-TaskCreate: "Fix failures" (blockedBy: diagnose)
-TaskCreate: "Verify CI passes" (blockedBy: fix)
+TaskCreate: "Fetch CI failure details"
+TaskCreate: "Diagnose failures"
+TaskCreate: "Fix failures"
+TaskCreate: "Verify CI passes"
+TaskUpdate: "Diagnose failures" → blockedBy: fetch
+TaskUpdate: "Fix failures" → blockedBy: diagnose
+TaskUpdate: "Verify CI passes" → blockedBy: fix
 ```
 
 ### Step 2: Fetch CI Failures
@@ -114,12 +117,12 @@ TaskUpdate: "Diagnose failures" → in_progress
 ```
 
 Fan out one diagnoser subagent per failure **in a SINGLE message with multiple
-Task tool calls**. Assign each failure a sequential index (1..N) and pass it to
+Agent tool calls**. Assign each failure a sequential index (1..N) and pass it to
 the subagent so its output file is `.tmp/diagnosis-<index>.json` — avoids
 unsafe characters from CI job names ending up in filesystem paths.
 
 ```text
-Task tool call 1:
+Agent tool call 1:
   subagent_type: "general-purpose"
   description: "Diagnose <job-1-name>"
   model: "sonnet"
@@ -153,7 +156,7 @@ Task tool call 1:
       "fix_approach": "How to fix this issue"
     }
 
-Task tool call 2:
+Agent tool call 2:
   subagent_type: "general-purpose"
   description: "Diagnose <job-2-name>"
   model: "sonnet"
@@ -182,20 +185,20 @@ TaskUpdate: "Fix failures" → in_progress
 ```
 
 Group diagnosis results by domain. Fan out one fixer subagent per domain
-**in a SINGLE message with multiple Task tool calls**:
+**in a SINGLE message with multiple Agent tool calls**:
 
-| Diagnosis Domain | Subagent Description | Prompt Specialization |
-|------------------|----------------------|----------------------|
-| test | fixer-test | Test patterns, mock strategies, assertion fixes |
-| security | fixer-security | Auth fixes, credential handling, vulnerability remediation |
-| frontend | fixer-frontend | React/Vue patterns, CSS fixes, client-side debugging |
-| backend | fixer-backend | API logic, server patterns, microservice fixes |
-| data | fixer-data | Database queries, migration fixes, data integrity |
-| pipeline | fixer-pipeline | Workflow syntax, CI config, deployment fixes |
-| architecture | fixer-architecture | Design patterns, cross-cutting concerns |
+| Diagnosis Domain | Subagent Description | Prompt Specialization                                      |
+| ---------------- | -------------------- | ---------------------------------------------------------- |
+| test             | fixer-test           | Test patterns, mock strategies, assertion fixes            |
+| security         | fixer-security       | Auth fixes, credential handling, vulnerability remediation |
+| frontend         | fixer-frontend       | React/Vue patterns, CSS fixes, client-side debugging       |
+| backend          | fixer-backend        | API logic, server patterns, microservice fixes             |
+| data             | fixer-data           | Database queries, migration fixes, data integrity          |
+| pipeline         | fixer-pipeline       | Workflow syntax, CI config, deployment fixes               |
+| architecture     | fixer-architecture   | Design patterns, cross-cutting concerns                    |
 
 ```text
-Task tool call:
+Agent tool call:
   subagent_type: "general-purpose"
   description: "Fix {domain} failures"
   model: "sonnet"
