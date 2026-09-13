@@ -1,10 +1,8 @@
 ---
 name: architect
-description: MUST BE USED for system architecture, technical roadmaps, API design, cloud infrastructure, or major design decisions. Use for ANY architecture task. Triggers on "architecture", "system design", "roadmap", "api design", "cloud", "infrastructure", "scale", "enterprise".
+description: Use for system architecture, technical roadmaps, API design, cloud infrastructure, and major design decisions. Triggers on "architecture", "system design", "roadmap", "api design", "cloud", "infrastructure", "scale", "enterprise".
 tools: Read, Write, Edit, Grep, Glob
 model: sonnet
-thinking-level: ultrathink
-thinking-tokens: 31999
 permissionMode: plan
 memory: project
 color: purple

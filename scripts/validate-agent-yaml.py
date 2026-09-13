@@ -68,14 +68,6 @@ def extract_yaml_section(file_path):
         return match.group(1)
     return None
 
-# Thinking level to token count mapping
-THINKING_TOKEN_MAP = {
-    'ultrathink': 31999,
-    'megathink': 10000,
-    'think harder': 8000,
-    'think': 4000
-}
-
 
 def parse_yaml_structure(yaml_text):
     """Parse YAML structure to check for required fields."""
@@ -117,12 +109,6 @@ def parse_yaml_structure(yaml_text):
                     if value and value not in valid_models:
                         issues.append(f"Invalid model '{value}'. Must be one of: {', '.join(valid_models)}")
 
-                # Check for valid thinking-level values
-                if field == 'thinking-level':
-                    valid_thinking = ['ultrathink', 'megathink', 'think harder', 'think']
-                    if value and value not in valid_thinking:
-                        issues.append(f"Invalid thinking-level '{value}'. Must be one of: {', '.join(valid_thinking)}")
-
                 # Check for valid permissionMode values
                 if field == 'permissionMode':
                     if value and value not in VALID_PERMISSION_MODES:
@@ -151,21 +137,6 @@ def parse_yaml_structure(yaml_text):
                         f"Invalid skill name '{skill_name}' in skills list. "
                         "Must be lowercase-hyphenated (e.g., 'feature-lifecycle')"
                     )
-
-    # Validate thinking-level and thinking-tokens consistency
-    if 'thinking-level' in field_values and 'thinking-tokens' in field_values:
-        level = field_values['thinking-level']
-        try:
-            tokens = int(field_values['thinking-tokens'])
-            expected = THINKING_TOKEN_MAP.get(level)
-            if expected and tokens != expected:
-                issues.append(f"thinking-tokens mismatch: '{level}' expects {expected}, got {tokens}")
-        except ValueError:
-            issues.append(f"Invalid thinking-tokens value: '{field_values['thinking-tokens']}' (must be integer)")
-    elif 'thinking-level' in field_values and 'thinking-tokens' not in field_values:
-        issues.append("thinking-level specified but thinking-tokens is missing")
-    elif 'thinking-tokens' in field_values and 'thinking-level' not in field_values:
-        issues.append("thinking-tokens specified but thinking-level is missing")
 
     return fields_found, issues
 
@@ -207,8 +178,8 @@ def validate_agent_file(file_path):
         if len(description) > 350:
             issues.append(f"Description too long ({len(description)} chars). Should be under 350.")
         # Check for proper trigger phrases as per AGENT_TEMPLATE.md
-        if not any(phrase in description for phrase in ['MUST BE USED', 'Use PROACTIVELY', 'Expert', 'Specializes']):
-            issues.append("Description should include trigger phrase (MUST BE USED, Use PROACTIVELY, Expert, Specializes)")
+        if not any(phrase in description for phrase in ['Use for', 'Use PROACTIVELY', 'Use when', 'Expert', 'Specializes']):
+            issues.append("Description should include trigger phrase (Use for, Use when, Use PROACTIVELY, Expert, Specializes)")
 
         # Check for natural language trigger pattern
         if 'Triggers on' not in description and 'MUST BE USED' in description:

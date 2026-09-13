@@ -1,6 +1,6 @@
 ---
 name: test-engineer
-description: MUST BE USED when writing tests, improving coverage, or validating code works correctly. Use for ANY testing task. Triggers on "test", "spec", "coverage", "unit test", "integration test".
+description: Use when writing tests, improving coverage, or validating code works correctly. Triggers on "test", "spec", "coverage", "unit test", "integration test".
 tools: Read, Write, Edit, Bash, Grep
 model: sonnet
 permissionMode: acceptEdits
