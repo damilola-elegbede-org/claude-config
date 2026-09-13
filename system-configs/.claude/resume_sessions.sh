@@ -10,9 +10,10 @@
 # empirical basis).
 #
 # All resumed sessions land in one tmux session named "claude-sessions", one
-# window per Claude session, titled with its display name (or a short id
-# fallback). Idempotent: re-running skips any session_id that already has a
-# window in "claude-sessions".
+# window per Claude session, titled "<display name>-<short id>" (or just the
+# short id). Idempotent: re-running skips any session that already has a
+# window in "claude-sessions", that started after the current boot (so it is
+# still running somewhere), or that is running as `claude --resume <id>`.
 #
 # Runs `claude update` once, synchronously, before reopening anything, so
 # every resumed session launches on the newest fetched build (the stable
@@ -75,6 +76,10 @@ fi
 
 existing_windows=$(tmux list-windows -t "$TMUX_SESSION" -F '#{window_name}' 2>/dev/null)
 
+# Boot time as epoch seconds ("{ sec = 1788297973, usec = ... } ..." on macOS).
+boot_epoch=$(sysctl -n kern.boottime 2>/dev/null | sed -E 's/.*sec = ([0-9]+).*/\1/')
+[[ "$boot_epoch" =~ ^[0-9]+$ ]] || boot_epoch=""
+
 resumed=0
 skipped=0
 
@@ -90,11 +95,27 @@ for entry_file in "$REGISTRY_DIR"/*.json; do
     cwd=$(jq -r '.cwd // empty' "$entry_file" 2>/dev/null)
     name=$(jq -r '.name // empty' "$entry_file" 2>/dev/null)
     short_id="${session_id:0:8}"
-    window_name="${name:-$short_id}"
+    # Display names aren't unique, so the short id is always part of the
+    # window name -- two sessions titled the same never shadow each other.
+    window_name="${name:+${name}-}${short_id}"
 
     if printf '%s\n' "$existing_windows" | grep -qxF "$window_name"; then
         skipped=$((skipped + 1))
         continue
+    fi
+
+    # An open entry that started after the current boot is not a restart
+    # casualty: it is still running (or died this boot). This also covers a
+    # session launched as plain `claude`, whose command line never carries
+    # the session id the pgrep check below looks for.
+    started_at=$(jq -r '.started_at // empty' "$entry_file" 2>/dev/null)
+    if [[ -n "$started_at" && -n "$boot_epoch" ]]; then
+        started_epoch=$(date -j -u -f '%Y-%m-%dT%H:%M:%SZ' "$started_at" '+%s' 2>/dev/null)
+        if [[ -n "$started_epoch" && "$started_epoch" -ge "$boot_epoch" ]]; then
+            skipped=$((skipped + 1))
+            log "SKIP started after boot id=$session_id name=$window_name"
+            continue
+        fi
     fi
 
     # A session can still be live outside the managed tmux session (e.g. a

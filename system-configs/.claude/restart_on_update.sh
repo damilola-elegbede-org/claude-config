@@ -50,15 +50,9 @@ if ! tmux has-session -t "$TMUX_SESSION" 2>/dev/null; then
     exit 0
 fi
 
-latest_version=$(ls -1 "$VERSIONS_DIR" 2>/dev/null | sort -V | tail -1)
-if [[ -z "$latest_version" ]]; then
-    log "SKIP no builds found in $VERSIONS_DIR"
-    exit 0
-fi
-
-# Portable semver comparison (see session_start_version_check.sh for why not
-# `sort -V` for the actual compare -- macOS sort has no -V behavior we can
-# rely on for a strict less-than check here).
+# Portable semver comparison, used both to pick the newest build and to
+# compare each session against it -- no `sort -V`, whose support varies
+# across macOS releases.
 version_lt() {
     awk -v a="$1" -v b="$2" '
     BEGIN {
@@ -74,6 +68,20 @@ version_lt() {
         print "0"
     }'
 }
+
+latest_version=""
+for build_path in "$VERSIONS_DIR"/*; do
+    [[ -e "$build_path" ]] || continue
+    candidate=$(basename "$build_path")
+    [[ "$candidate" =~ ^[0-9]+(\.[0-9]+)*$ ]] || continue
+    if [[ -z "$latest_version" || "$(version_lt "$latest_version" "$candidate")" == "1" ]]; then
+        latest_version="$candidate"
+    fi
+done
+if [[ -z "$latest_version" ]]; then
+    log "SKIP no builds found in $VERSIONS_DIR"
+    exit 0
+fi
 
 restarted=0
 

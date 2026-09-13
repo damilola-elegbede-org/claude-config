@@ -72,28 +72,13 @@ if [[ "$MODE" == "start" ]]; then
     name=$(printf '%s' "$input" | jq -r '.session_title // empty' 2>/dev/null)
     now=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
 
-    # Version this session actually launched with. Used by
-    # restart_on_update.sh to tell whether a tmux-hosted session is behind
-    # the latest fetched build. Bounded lookup so a slow/hung `claude
-    # --version` never delays session start.
-    version=""
-    if command -v claude >/dev/null 2>&1; then
-        if command -v timeout >/dev/null 2>&1; then
-            raw=$(timeout 2 claude --version 2>/dev/null)
-        elif command -v gtimeout >/dev/null 2>&1; then
-            raw=$(gtimeout 2 claude --version 2>/dev/null)
-        else
-            raw=$(claude --version 2>/dev/null)
-        fi
-        version=$(printf '%s' "$raw" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n1)
-    fi
-
     # Only sessions living in our managed tmux session ("claude-sessions",
     # created by resume_sessions.sh) are eligible for the update-triggered
     # restart in restart_on_update.sh -- we can safely send keystrokes into
     # a tmux pane we manage, but never into an ad hoc terminal/iTerm window
     # opened outside that session, where there's no safe way to signal it.
     tmux_target=""
+    previous_owner=""
     if [[ -n "$TMUX" ]] && command -v tmux >/dev/null 2>&1; then
         current_tmux_session=$(tmux display-message -p '#{session_name}' 2>/dev/null)
         if [[ "$current_tmux_session" == "claude-sessions" ]]; then
@@ -102,10 +87,43 @@ if [[ "$MODE" == "start" ]]; then
             # verify -- before respawning -- that the window still hosts THIS
             # session, not a different one that landed at the same
             # session:index after this window closed and the index was reused.
+            # Read the previous tag first: after /clear it names the session
+            # this same process was running a moment ago.
             if [[ -n "$tmux_target" ]]; then
+                previous_owner=$(tmux show-window-options -t "$tmux_target" -v @claude_session_id 2>/dev/null)
                 tmux set-window-option -t "$tmux_target" @claude_session_id "$session_id" 2>/dev/null || true
             fi
         fi
+    fi
+
+    # Version of the build this process is actually running. Used by
+    # restart_on_update.sh to tell whether a tmux-hosted session is behind
+    # the latest fetched build. The SessionStart payload carries no version,
+    # and `claude --version` reports the newest fetched build, not the one
+    # already running -- so compact/clear (same process, no relaunch) keep the
+    # version recorded when the process started: from this session's own
+    # entry, or after /clear from the window's previous owner. Only a fresh
+    # launch (startup/resume) resolves it anew, with a bounded lookup so a
+    # slow/hung `claude --version` never delays session start.
+    version=""
+    if [[ "$source_val" == "compact" || "$source_val" == "clear" ]]; then
+        if [[ -f "$entry_file" ]]; then
+            version=$(jq -r '.version // empty' "$entry_file" 2>/dev/null)
+        fi
+        if [[ -z "$version" && -n "$previous_owner" && "$previous_owner" != "$session_id" \
+            && -f "$REGISTRY_DIR/$previous_owner.json" ]]; then
+            version=$(jq -r '.version // empty' "$REGISTRY_DIR/$previous_owner.json" 2>/dev/null)
+        fi
+    fi
+    if [[ -z "$version" ]] && command -v claude >/dev/null 2>&1; then
+        if command -v timeout >/dev/null 2>&1; then
+            raw=$(timeout 2 claude --version 2>/dev/null)
+        elif command -v gtimeout >/dev/null 2>&1; then
+            raw=$(gtimeout 2 claude --version 2>/dev/null)
+        else
+            raw=$(claude --version 2>/dev/null)
+        fi
+        version=$(printf '%s' "$raw" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n1)
     fi
 
     content=$(jq -n \

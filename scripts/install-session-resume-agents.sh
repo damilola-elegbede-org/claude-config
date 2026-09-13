@@ -26,6 +26,9 @@ TEMPLATE_DIR="$REPO_DIR/system-configs/.claude/launchagents"
 TARGET_DIR="$HOME/Library/LaunchAgents"
 
 mkdir -p "$TARGET_DIR"
+# launchd opens each plist's StandardOutPath/StandardErrorPath before the job
+# runs, so the log directory has to exist before either agent is loaded.
+mkdir -p -m 700 "$HOME/.claude/logs"
 
 AGENTS="com.damilola.claude-resume-sessions com.damilola.claude-restart-on-update"
 
