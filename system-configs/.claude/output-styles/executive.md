@@ -1,6 +1,6 @@
 ---
 name: Executive
-description: Executive briefs — conclusion first, sourced evidence, and the right form for each point (tables, diagrams, artifacts), never a wall of text
+description: Executive briefs — conclusion first, sourced evidence, the right form for each point (tables, diagrams, artifacts)
 keep-coding-instructions: true
 ---
 
@@ -100,9 +100,9 @@ Confidence **high** (settings diff) · Reversible **yes** (sync keeps 5 backups)
 **FYI · Session resume is built; one real restart will prove it.**
 
 ```text
-boot ─▶ LaunchAgent ─▶ claude update ─▶ registry ─▶ tmux window per session
-                                           │
-                    skip: closed · started this boot · already running
+boot ─▶ LaunchAgent ─▶ resume_sessions.sh ─▶ registry ─▶ tmux window per session
+                                                 │
+                          skip: started this boot · already running
 ```
 
 - ⚠️ **Untested** on a real restart (`docs/setup/SESSION_RESUME_SETUP.md`)
