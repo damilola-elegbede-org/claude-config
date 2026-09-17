@@ -8,7 +8,7 @@
     "CLAUDE_CODE_ENABLE_EXPERIMENTAL_ADVISOR_TOOL": "1",
     "CLAUDE_CODE_SUBAGENT_MODEL": "sonnet"
   },
-  "model": "opus",
+  "model": "sonnet",
   "advisorModel": "fable",
   "modelSettings": {
     "claude-fable-5-1": {
@@ -21,7 +21,7 @@
       "effortLevel": "high"
     }
   },
-  "autoCompactWindow": "400000",
+  "autoCompactWindow": 400000,
   "outputStyle": "Executive",
   "tui": "fullscreen",
   "agentPushNotifEnabled": true,
