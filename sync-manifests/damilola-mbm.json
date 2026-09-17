@@ -1,5 +1,5 @@
 {
-  "_comment": "Per-station sync manifest for the Mac Mini (fleet production node). Station is resolved via `scutil --get LocalHostName`; a machine with NO manifest file gets the default full sync (laptops: damilola-mba, damilola-mbp). settings 'merge' mode: repo wins ONLY on settings_owned_keys — every other live key survives untouched, so fleet-local settings can never be clobbered by a sync. To hand a drifted key to repo control, add it to settings_owned_keys deliberately (that is the ratification step). hooks_owned_events does the same thing one level down, for settings.hooks: repo wins only on the listed event names, so an event left off (Notification, PermissionRequest — D removed the afplay sound hooks on this headless node 2026-09-17) keeps whatever is live and is never read or written by sync.",
+  "_comment": "Per-station sync manifest for the Mac Mini (fleet production node). Station is resolved via `scutil --get LocalHostName`; a machine with NO manifest file gets the default full sync (laptops: damilola-mba, damilola-mbp). settings 'merge' mode: repo wins ONLY on settings_owned_keys — every other live key survives untouched, so fleet-local settings can never be clobbered by a sync. To hand a drifted key to repo control, add it to settings_owned_keys deliberately (that is the ratification step). \"hooks\" is an owned key like any other, EXCEPT its value is filtered before being applied: any hook entry whose command matches a hooks_silence_command_contains substring is stripped first (D, 2026-09-17 — this headless node must never make sound, matched to what a hook actually does rather than which event it's attached to, so a future sound hook lands wherever it's added and a future non-sound hook on Notification/PermissionRequest still syncs).",
   "mode": "scoped",
   "sync": {
     "agents": true,
@@ -25,15 +25,9 @@
       "theme",
       "teammateMode",
       "skipDangerousModePermissionPrompt",
-      "trustedDirectories"
+      "trustedDirectories",
+      "hooks"
     ],
-    "hooks_owned_events": [
-      "PreToolUse",
-      "PostToolUse",
-      "PreCompact",
-      "SessionStart",
-      "SessionEnd",
-      "Stop"
-    ]
+    "hooks_silence_command_contains": ["afplay", "osascript", "say "]
   }
 }

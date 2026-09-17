@@ -244,31 +244,53 @@ check_tree_freshness() {
     return 0
 }
 
+# jq def shared by merge_settings' merge path and its no-live-file init path:
+# strips any hook entry whose command matches a hooks_silence_command_contains
+# substring (content-matched, not event-matched — a future sound hook is
+# caught wherever it's added, and a future non-sound hook on an otherwise-
+# silenced event still syncs), then drops matcher blocks and event keys left
+# empty by the filter.
+JQ_SILENCE_HOOKS_DEF=$(cat <<'JQ'
+def silence_hooks(patterns):
+    if (patterns | length) == 0 then . else
+        to_entries
+        | map(.value |= (
+            map(.hooks |= map(select(((.command // "") as $c | patterns | any(. as $p | $c | contains($p))) | not)))
+            | map(select((.hooks | length) > 0))
+          ))
+        | map(select((.value | length) > 0))
+        | from_entries
+    end;
+JQ
+)
+
 # Key-scoped settings merge: live settings.json keeps every key it has, except
 # the manifest's settings_owned_keys, where the repo wins — including deletion
-# (repo dropped an owned key → it is removed live). hooks_owned_events does the
-# same thing one level down inside the "hooks" object, so a station can own
-# some hook events and leave others (e.g. sound hooks it deleted by hand)
-# permanently live-only, without "hooks" itself being an owned key. Falls back
-# to replace when there is no live settings.json to merge into.
+# (repo dropped an owned key → it is removed live). "hooks" is an owned key
+# like any other, except its value is passed through silence_hooks() first,
+# so a station can be denylisted off sound-producing hooks specifically,
+# rather than off whole hook events. Falls back to replace-from-repo (still
+# filtered — a missing/invalid live file must not bypass the denylist) when
+# there is no live settings.json to merge into.
 merge_settings() {
     live="$TARGET_DIR/settings.json"
     src="$SOURCE_DIR/settings.json"
+    silence=$(jq -c '.sync.hooks_silence_command_contains // []' "$MANIFEST")
     if [ ! -f "$live" ] || ! jq empty "$live" 2>/dev/null; then
-        cp "$src" "$live"
+        init=$(jq --argjson silence "$silence" "$JQ_SILENCE_HOOKS_DEF"'
+            if has("hooks") then .hooks |= silence_hooks($silence) else . end
+        ' "$src") || return 1
+        [ -n "$init" ] || return 1
+        printf '%s\n' "$init" > "$live"
         return 0
     fi
     owned=$(jq -c '.sync.settings_owned_keys // []' "$MANIFEST")
-    hook_events=$(jq -c '.sync.hooks_owned_events // []' "$MANIFEST")
-    merged=$(jq --argjson owned "$owned" --argjson hookEvents "$hook_events" --slurpfile repo "$src" '
+    merged=$(jq --argjson owned "$owned" --argjson silence "$silence" --slurpfile repo "$src" "$JQ_SILENCE_HOOKS_DEF"'
         reduce $owned[] as $k (.;
-            if ($repo[0] | has($k)) then .[$k] = $repo[0][$k] else del(.[$k]) end)
-        | if ($hookEvents | length) > 0 then
-            .hooks = (
-                reduce $hookEvents[] as $e (.hooks // {};
-                    if ($repo[0].hooks // {} | has($e)) then .[$e] = $repo[0].hooks[$e] else del(.[$e]) end)
-            )
-          else . end
+            if $k == "hooks" then
+                if ($repo[0] | has("hooks")) then .hooks = ($repo[0].hooks | silence_hooks($silence)) else del(.hooks) end
+            elif ($repo[0] | has($k)) then .[$k] = $repo[0][$k]
+            else del(.[$k]) end)
     ' "$live") || return 1
     [ -n "$merged" ] || return 1
     printf '%s\n' "$merged" > "$live"
@@ -532,28 +554,36 @@ main() {
         echo "  - settings.json → ~/.claude/settings.json (mode: $SETTINGS_MODE)"
         if [ "$SETTINGS_MODE" = "merge" ] && [ -f "$TARGET_DIR/settings.json" ] && command -v jq >/dev/null 2>&1; then
             owned=$(jq -c '.sync.settings_owned_keys // []' "$MANIFEST")
+            silence=$(jq -c '.sync.hooks_silence_command_contains // []' "$MANIFEST")
+            # "hooks" is compared separately below (its live value is filtered,
+            # so a naive raw comparison against unfiltered repo hooks would
+            # falsely report a change whenever a silenced entry exists at all).
             changed=$(jq -r --argjson owned "$owned" --slurpfile repo "$SOURCE_DIR/settings.json" '
-                [ $owned[] as $k | select((.[$k] // null) != ($repo[0][$k] // null)) | $k ] | join(", ")
+                [ ($owned - ["hooks"])[] as $k | select((.[$k] // null) != ($repo[0][$k] // null)) | $k ] | join(", ")
             ' "$TARGET_DIR/settings.json" 2>/dev/null || echo "?")
             if [ -n "$changed" ]; then
                 echo "      owned keys that would change: $changed"
             else
                 echo "      owned keys already in sync"
             fi
-            hook_events=$(jq -c '.sync.hooks_owned_events // []' "$MANIFEST")
-            if [ "$(echo "$hook_events" | jq 'length')" -gt 0 ]; then
-                hook_changed=$(jq -r --argjson events "$hook_events" --slurpfile repo "$SOURCE_DIR/settings.json" '
-                    [ $events[] as $e | select((.hooks[$e] // null) != ($repo[0].hooks[$e] // null)) | $e ] | join(", ")
+            if echo "$owned" | jq -e 'index("hooks") != null' >/dev/null 2>&1; then
+                hook_diff=$(jq -r --argjson silence "$silence" --slurpfile repo "$SOURCE_DIR/settings.json" "$JQ_SILENCE_HOOKS_DEF"'
+                    (($repo[0].hooks // {}) | silence_hooks($silence)) as $filtered
+                    | if $filtered == (.hooks // {}) then "in_sync" else "changed" end
                 ' "$TARGET_DIR/settings.json" 2>/dev/null || echo "?")
-                if [ -n "$hook_changed" ]; then
-                    echo "      hook events that would change: $hook_changed"
-                else
-                    echo "      hook events already in sync"
+                case "$hook_diff" in
+                    in_sync) echo "      hooks (after silencing): already in sync" ;;
+                    changed) echo "      hooks (after silencing): would change" ;;
+                    *) echo "      hooks (after silencing): could not compare" ;;
+                esac
+                silenced_events=$(jq -r --argjson silence "$silence" "$JQ_SILENCE_HOOKS_DEF"'
+                    (.hooks // {}) as $before
+                    | ($before | silence_hooks($silence)) as $after
+                    | [ $before | keys[] as $k | select(($after | has($k)) | not) | $k ] | join(", ")
+                ' "$SOURCE_DIR/settings.json" 2>/dev/null || echo "")
+                if [ -n "$silenced_events" ]; then
+                    echo "      hook events silenced by content, never synced to $STATION: $silenced_events"
                 fi
-                not_owned=$(jq -r --argjson events "$hook_events" '
-                    [ (.hooks // {} | keys[]) as $k | select(($events | index($k)) == null) | $k ] | join(", ")
-                ' "$TARGET_DIR/settings.json" 2>/dev/null || echo "")
-                [ -n "$not_owned" ] && echo "      hook events left untouched (station-local): $not_owned"
             fi
         fi
         for script in $RUNTIME_HOOK_SCRIPTS; do
