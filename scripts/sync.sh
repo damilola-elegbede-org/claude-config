@@ -246,8 +246,11 @@ check_tree_freshness() {
 
 # Key-scoped settings merge: live settings.json keeps every key it has, except
 # the manifest's settings_owned_keys, where the repo wins — including deletion
-# (repo dropped an owned key → it is removed live). Falls back to replace when
-# there is no live settings.json to merge into.
+# (repo dropped an owned key → it is removed live). hooks_owned_events does the
+# same thing one level down inside the "hooks" object, so a station can own
+# some hook events and leave others (e.g. sound hooks it deleted by hand)
+# permanently live-only, without "hooks" itself being an owned key. Falls back
+# to replace when there is no live settings.json to merge into.
 merge_settings() {
     live="$TARGET_DIR/settings.json"
     src="$SOURCE_DIR/settings.json"
@@ -256,9 +259,16 @@ merge_settings() {
         return 0
     fi
     owned=$(jq -c '.sync.settings_owned_keys // []' "$MANIFEST")
-    merged=$(jq --argjson owned "$owned" --slurpfile repo "$src" '
+    hook_events=$(jq -c '.sync.hooks_owned_events // []' "$MANIFEST")
+    merged=$(jq --argjson owned "$owned" --argjson hookEvents "$hook_events" --slurpfile repo "$src" '
         reduce $owned[] as $k (.;
             if ($repo[0] | has($k)) then .[$k] = $repo[0][$k] else del(.[$k]) end)
+        | if ($hookEvents | length) > 0 then
+            .hooks = (
+                reduce $hookEvents[] as $e (.hooks // {};
+                    if ($repo[0].hooks // {} | has($e)) then .[$e] = $repo[0].hooks[$e] else del(.[$e]) end)
+            )
+          else . end
     ' "$live") || return 1
     [ -n "$merged" ] || return 1
     printf '%s\n' "$merged" > "$live"
@@ -529,6 +539,21 @@ main() {
                 echo "      owned keys that would change: $changed"
             else
                 echo "      owned keys already in sync"
+            fi
+            hook_events=$(jq -c '.sync.hooks_owned_events // []' "$MANIFEST")
+            if [ "$(echo "$hook_events" | jq 'length')" -gt 0 ]; then
+                hook_changed=$(jq -r --argjson events "$hook_events" --slurpfile repo "$SOURCE_DIR/settings.json" '
+                    [ $events[] as $e | select((.hooks[$e] // null) != ($repo[0].hooks[$e] // null)) | $e ] | join(", ")
+                ' "$TARGET_DIR/settings.json" 2>/dev/null || echo "?")
+                if [ -n "$hook_changed" ]; then
+                    echo "      hook events that would change: $hook_changed"
+                else
+                    echo "      hook events already in sync"
+                fi
+                not_owned=$(jq -r --argjson events "$hook_events" '
+                    [ (.hooks // {} | keys[]) as $k | select(($events | index($k)) == null) | $k ] | join(", ")
+                ' "$TARGET_DIR/settings.json" 2>/dev/null || echo "")
+                [ -n "$not_owned" ] && echo "      hook events left untouched (station-local): $not_owned"
             fi
         fi
         for script in $RUNTIME_HOOK_SCRIPTS; do
