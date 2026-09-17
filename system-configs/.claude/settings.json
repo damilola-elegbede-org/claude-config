@@ -21,7 +21,7 @@
       "effortLevel": "high"
     }
   },
-  "autoCompactWindow": "400000",
+  "autoCompactWindow": 400000,
   "outputStyle": "Executive",
   "tui": "fullscreen",
   "agentPushNotifEnabled": true,
