@@ -9,7 +9,7 @@
 # - omit it (DEFAULT): uses the settings.json subagent model (sonnet today), so
 #   one settings line moves every such agent
 #   * code-reviewer, debugger, devops, frontend-engineer, test-engineer
-# - inherit: follows the session's model (opus by default)
+# - inherit: follows the session's model (sonnet by default)
 #   * architect (system-wide design), feature-agent (orchestration),
 #     security-auditor (adversarial review)
 # - opus/sonnet/haiku/fable: a fixed pin that ignores settings.json — only for a
