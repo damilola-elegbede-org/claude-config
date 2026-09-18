@@ -495,39 +495,14 @@ if [[ -f "$usage_cache" ]]; then
   # Usage credits pick up the bill the moment a plan limit is exhausted, so the
   # switch is "credits are on AND some plan limit is spent", not "which limit is
   # is_active" (that field just tracks the highest meter, not exhaustion).
-  # Billing stops again when the *exhausted* limit refreshes, so that limit's
-  # resets_at - not always the weekly one - is the horizon that matters.
   credit_mode=0
-  binding_reset=""
-  binding_window=604800   # length of the binding limit's own cycle, in seconds
   u_all_int=${u_all%.*}
   u_5h_int=${u_5h%.*}
   [[ "$u_all_int" =~ ^[0-9]+$ ]] || u_all_int=-1
   [[ "$u_5h_int"  =~ ^[0-9]+$ ]] || u_5h_int=-1
   if [[ "$sp_enabled" == "true" ]] && [[ "$sp_used" =~ ^[0-9]+$ ]] && [[ "$sp_limit" =~ ^[0-9]+$ ]]; then
-    if [[ $u_all_int -ge 100 ]] && [[ $u_5h_int -ge 100 ]]; then
-      # Both exhausted - credits stay necessary until the later of the two
-      # resets, not just the weekly one. Which is later can't be known unless
-      # both timestamps parse: defaulting to the weekly one when the session
-      # timestamp is unreadable would understate burn in exactly the case where
-      # the session reset trails it (weekly less than 5h out), and understating
-      # is the direction that reads falsely calm. Leave binding_reset empty
-      # instead and let burn render "--" - the credits bar and dollars still
-      # show, so the spend is never hidden.
-      all_epoch=$(iso_to_epoch "$u_all_resets")
-      h5_epoch=$(iso_to_epoch "$u_5h_resets")
+    if [[ $u_all_int -ge 100 ]] || [[ $u_5h_int -ge 100 ]]; then
       credit_mode=1
-      if [[ "$all_epoch" =~ ^[0-9]+$ ]] && [[ "$h5_epoch" =~ ^[0-9]+$ ]]; then
-        if [[ $h5_epoch -gt $all_epoch ]]; then
-          binding_reset="$u_5h_resets"; binding_window=18000
-        else
-          binding_reset="$u_all_resets"; binding_window=604800
-        fi
-      fi
-    elif [[ $u_all_int -ge 100 ]]; then
-      credit_mode=1; binding_reset="$u_all_resets"; binding_window=604800
-    elif [[ $u_5h_int -ge 100 ]]; then
-      credit_mode=1; binding_reset="$u_5h_resets"; binding_window=18000
     fi
   fi
 fi
@@ -541,7 +516,7 @@ if [[ -f "$usage_cache" ]] && [[ $credit_mode -eq 1 ]]; then
   #   fable - a sub-limit of an already-exhausted weekly quota; moot.
   #   5h    - still meters (it keeps climbing), but can't block anything while
   #           the weekly quota is gone, so it's noise until the weekly reset.
-  # What replaces them: a cycle-scoped burn, then cap utilisation.
+  # What replaces them: a month-scoped burn, then cap utilisation.
   # Burn leads because it's the number that changes what you do; the cap
   # percentage behind it is context for that ratio. Reported as a percentage
   # only - the raw dollar figures added width without adding a decision.
@@ -550,14 +525,30 @@ if [[ -f "$usage_cache" ]] && [[ $credit_mode -eq 1 ]]; then
   cm_credits=$(printf 'credits %s%s %s%%\033[0m' \
     "$(heat_color "$cm_pct")" "$(heat_bar "$cm_pct")" "$cm_pct")
 
-  now_epoch=$(date -u +%s)
-  cm_reset_epoch=$(iso_to_epoch "$binding_reset")
+  # The spend cap is monthly, so burn measures the calendar month (UTC). The
+  # API doesn't expose the cap's rollover date; a calendar month is an
+  # assumption. STATUSLINE_NOW_EPOCH exists so tests can pin the clock.
+  now_epoch="${STATUSLINE_NOW_EPOCH:-$(date -u +%s)}"
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    read -r cm_y cm_m <<< "$(date -u -r "$now_epoch" +'%Y %m')"
+  else
+    read -r cm_y cm_m <<< "$(date -u -d "@$now_epoch" +'%Y %m')"
+  fi
+  cm_m=$((10#$cm_m))
+  cm_ny=$cm_y; cm_nm=$((cm_m + 1))
+  if [[ $cm_nm -gt 12 ]]; then cm_nm=1; cm_ny=$((cm_y + 1)); fi
+  cm_start_epoch=$(iso_to_epoch "$(printf '%04d-%02d-01T00:00:00' "$cm_y" "$cm_m")")
+  cm_end_epoch=$(iso_to_epoch "$(printf '%04d-%02d-01T00:00:00' "$cm_ny" "$cm_nm")")
   cm_secs_left=-1
-  if [[ "$cm_reset_epoch" =~ ^[0-9]+$ ]]; then cm_secs_left=$(( cm_reset_epoch - now_epoch )); fi
+  cm_window=0
+  if [[ "$cm_start_epoch" =~ ^[0-9]+$ ]] && [[ "$cm_end_epoch" =~ ^[0-9]+$ ]]; then
+    cm_secs_left=$(( cm_end_epoch - now_epoch ))
+    cm_window=$(( cm_end_epoch - cm_start_epoch ))
+  fi
   cm_remaining=$(( sp_limit - sp_used ))
 
   # Credit burn: two percentages, divided.
-  #   time%    = how much of the binding limit's cycle is still to run
+  #   time%    = how much of the calendar month is still to run
   #   credits% = how much of the spend cap is still unspent
   #   burn     = time% / credits%
   #
@@ -574,10 +565,10 @@ if [[ -f "$usage_cache" ]] && [[ $credit_mode -eq 1 ]]; then
   # begins and can't be poisoned by a stale or silent endpoint - if the data
   # freezes, the clock keeps moving and burn rises, which errs loud, not quiet.
   #
-  # Scoped to the binding limit's own cycle (7d weekly / 5h session) because
-  # billing stops when that limit refreshes, so that's the only stretch the
-  # money has to cover. It also sidesteps the API never exposing when the
-  # monthly cap itself rolls over.
+  # Scoped to the month because the cap is monthly: the same pool of money has
+  # to cover every week left in it, not just the wait for the plan to refresh.
+  # The API never exposes when the cap rolls over, so a UTC calendar month is
+  # assumed.
   #
   # Survival tiers - green while running dry is still comfortably far off:
   #   green <0.6 · yellow <0.8 · orange <0.95 · red >=0.95
@@ -590,10 +581,10 @@ if [[ -f "$usage_cache" ]] && [[ $credit_mode -eq 1 ]]; then
     # what the burn slot says here. "blocked" rather than "credits spent"
     # because the credits meter sits right beside it already reading 100%.
     cm_tail=$(printf '\033[31mblocked\033[0m')
-  elif [[ $cm_secs_left -gt 0 ]] && [[ $cm_remaining -gt 0 ]] && [[ $sp_limit -gt 0 ]]; then
-    cm_calc=$(awk -v s="$cm_secs_left" -v w="$binding_window" -v rem="$cm_remaining" -v cap="$sp_limit" 'BEGIN{
-      t = s / w            # share of the cycle still to run
-      if (t > 1) t = 1     # clamp: a reset further out than one full cycle is stale data
+  elif [[ $cm_secs_left -gt 0 ]] && [[ $cm_window -gt 0 ]] && [[ $cm_remaining -gt 0 ]] && [[ $sp_limit -gt 0 ]]; then
+    cm_calc=$(awk -v s="$cm_secs_left" -v w="$cm_window" -v rem="$cm_remaining" -v cap="$sp_limit" 'BEGIN{
+      t = s / w            # share of the month still to run
+      if (t > 1) t = 1     # clamp: a clock behind the month start
       c = rem / cap        # share of the cap still unspent
       b = t / c
       if (b > 9.9) b = 9.9
@@ -607,7 +598,7 @@ if [[ -f "$usage_cache" ]] && [[ $credit_mode -eq 1 ]]; then
     IFS=$'\t' read -r cm_burn_val cm_burn_tier <<< "$cm_calc"
     cm_tail=$(printf 'burn %s%sx\033[0m' "$(burn_color "$cm_burn_tier")" "$cm_burn_val")
   else
-    # Unparsable reset, or a cap of zero - nothing to divide.
+    # Unreadable month bounds, or a cap of zero - nothing to divide.
     cm_tail=$(printf 'burn \033[90m--\033[0m')
   fi
   # "$" leads the segment as the credit-mode marker, the job the bolt used to
