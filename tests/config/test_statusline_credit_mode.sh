@@ -7,7 +7,7 @@
 # replacement instrument: cap utilisation, dollars, and a burn that is simply
 # two percentages divided —
 #
-#   burn = (share of the binding limit's cycle still to run)
+#   burn = (share of the calendar month still to run, UTC)
 #          / (share of the spend cap still unspent)
 #
 # Both terms come straight from the usage payload, so burn is live on the first
@@ -71,13 +71,19 @@ cache() {
 EOF
 }
 
-# render <cache-json> -> plain (ANSI-stripped) statusline
+# Pinned clocks (UTC midnight) so month math is deterministic.
+# Sep 16: 15 of 30 days left (50%). Sep 30: 1 of 30 left. Dec 16: 16 of 31 left.
+NOW_SEP16=1789516800
+NOW_SEP30=1790726400
+NOW_DEC16=1797379200
+
+# render <cache-json> [now_epoch] -> plain (ANSI-stripped) statusline
 render() {
     local h="$TEST_TEMP_DIR/home_$RANDOM$RANDOM"
     mkdir -p "$h/.claude"
     printf '%s' "$1" > "$h/.claude/.usage_cache.json"
     LAST_HOME="$h"
-    printf '%s' "$STDIN_JSON" | HOME="$h" bash "$STATUSLINE_PATH" 2>/dev/null \
+    printf '%s' "$STDIN_JSON" | STATUSLINE_NOW_EPOCH="${2:-$NOW_SEP16}" HOME="$h" bash "$STATUSLINE_PATH" 2>/dev/null \
         | sed $'s/\033\\[[0-9;]*m//g'
 }
 
@@ -134,9 +140,9 @@ assert_missing  "$OUT" "5h "           "5h dropped (non-binding)"
 
 echo
 print_info "Burn is live on the very first render, with no stored state"
-# 36.5h of a 7d weekly cycle still to run = 21.7%; $1248.40 of $2000 unspent
-# = 62.4%. 0.217 / 0.624 = 0.35. Nothing sampled, nothing remembered.
-assert_contains "$OUT" "burn 0.35" "burn computed from the payload alone"
+# 15 of 30 days of the month still to run = 50%; $1248.40 of $2000 unspent
+# = 62.4%. 0.50 / 0.624 = 0.80. Nothing sampled, nothing remembered.
+assert_contains "$OUT" "burn 0.80" "burn computed from the payload alone"
 assert_missing  "$OUT" "burn --"   "no warm-up period"
 TESTS_RUN=$((TESTS_RUN + 1))
 if [[ -e "$LAST_HOME/.claude/.credit_samples" ]]; then
@@ -147,49 +153,42 @@ fi
 
 echo
 print_info "More waiting than money reads red"
-# Only $100 of $2000 left (5%) with 36.5h (21.7%) still to wait -> 4.35x.
-OUT=$(render "$(cache 100 14 true 190000 200000 95 false)")
-assert_contains "$OUT" "burn 4.35" "credits far too thin for the remaining wait"
+# $500 of $2000 left (25%) with half the month (50%) still to run -> 2.00x.
+OUT=$(render "$(cache 100 14 true 150000 200000 75 false)")
+assert_contains "$OUT" "burn 2.00" "credits far too thin for the rest of the month"
 
 echo
 print_info "More money than waiting reads green"
-# $1900 of $2000 left (95%) and only 1h of the week (0.6%) to wait -> 0.01x.
-OUT=$(render "$(cache 100 14 true 10000 200000 5 false 3600)")
-assert_contains "$OUT" "burn 0.01" "plenty of credits for a short wait"
+# $1900 of $2000 left (95%) and 1 of 30 days (3.3%) to run -> 0.04x.
+OUT=$(render "$(cache 100 14 true 10000 200000 5 false)" "$NOW_SEP30")
+assert_contains "$OUT" "burn 0.04" "plenty of credits for a short wait"
 
 echo
-print_info "Session exhaustion scopes burn to the 5h cycle, not the week"
-# 1.5h of a 5h session cycle = 30%; 62.4% of the cap unspent -> 0.48x.
+print_info "Burn is month-scoped whichever plan limit is exhausted"
+# Session exhaustion engages credit mode but no longer changes the horizon.
 OUT=$(render "$(cache 40 100 true 75160 200000 38 false)")
 assert_contains "$OUT" "credits "   "5h exhaustion engages credit mode"
-assert_contains "$OUT" "burn 0.48"  "burn uses the 5h window as the denominator"
-
-echo
-print_info "Both limits exhausted: binding reset is the later of the two"
-# Weekly resets in 1h, session in 3h. Billing continues until both refresh, so
-# the session reset governs: 3h of a 5h cycle = 60%, over 62.4% -> 0.96x.
+assert_contains "$OUT" "burn 0.80"  "burn uses the month, not the 5h window"
 OUT=$(render "$(cache 100 100 true 75160 200000 38 false 3600 10800)")
-assert_contains "$OUT" "burn 0.96" "later (session) reset governs"
-
-echo
-print_info "Both limits exhausted, reversed: later reset chosen by time, not kind"
-# Mirror: session in 1h, weekly in 3h -> weekly governs, and 3h of a 7d cycle is
-# a very different figure. Guards against the choice being positional.
+assert_contains "$OUT" "burn 0.80"  "both exhausted: reset times don't move burn"
 OUT=$(render "$(cache 100 100 true 75160 200000 38 false 10800 3600)")
-assert_contains "$OUT" "burn 0.03" "later (weekly) reset governs"
-assert_missing  "$OUT" "burn 0.96" "session cycle not used when weekly resets later"
+assert_contains "$OUT" "burn 0.80"  "both exhausted, reversed: same month burn"
 
 echo
-print_info "Both exhausted with one unreadable reset: no burn rather than a guess"
-# Weekly parses, session doesn't. Which reset is later is now unknowable, and
-# defaulting to weekly would understate burn whenever the session reset trails
-# it. The credits bar and dollars still render, so spend is never hidden.
+print_info "Month math rolls over the year and honours month length"
+# Dec 16, 31-day month: 16/31 = 51.6% over 62.4% -> 0.83x.
+OUT=$(render "$(cache 100 14 true 75160 200000 38 false)" "$NOW_DEC16")
+assert_contains "$OUT" "burn 0.83" "December uses 31 days and rolls to January"
+
+echo
+print_info "An unreadable plan reset no longer blanks burn"
+# Burn no longer reads the plan resets at all, so a bad timestamp is harmless.
 ONEBAD=$(cache 100 100 true 75160 200000 38 false 3600 10800)
 ONEBAD=${ONEBAD//$(iso_in 10800)/not-a-timestamp}
 OUT=$(render "$ONEBAD")
 assert_contains "$OUT" "credits "  "still in credit mode"
 assert_contains "$OUT" "38%"       "cap utilisation still shown"
-assert_contains "$OUT" "burn --"   "no burn guessed from a half-known horizon"
+assert_contains "$OUT" "burn 0.80" "burn unaffected by a bad plan reset"
 
 echo
 print_info "Exhausted credits are called out as a hard block"
@@ -197,13 +196,6 @@ OUT=$(render "$(cache 100 14 true 200000 200000 100 true)")
 assert_contains "$OUT" "blocked" "exhaustion flagged in the burn slot"
 assert_contains "$OUT" "100%"    "credits meter still shown alongside"
 assert_missing  "$OUT" "burn"    "no ratio to show once the cap is gone"
-
-echo
-print_info "Unparsable reset falls back to a blank burn"
-BAD=$(cache 100 14 true 75160 200000 38 false)
-BAD=${BAD//$(iso_in 131400)/not-a-timestamp}
-OUT=$(render "$BAD")
-assert_contains "$OUT" "burn --" "no number invented from an unreadable reset"
 
 echo
 print_info "Credits disabled keeps plan mode even at 100%"
