@@ -12,7 +12,7 @@ The Agent Specification API defines the interface and capabilities for Claude Co
 ---
 name: "agent-name"
 category: "development|infrastructure|architecture|design|quality|security|analysis|operations"
-model: "claude-sonnet-5|claude-haiku-4-5|claude-opus-5"
+model: "claude-sonnet-5|claude-haiku-4-5|claude-opus-5-5"
 capabilities:
   - "Primary capability"
   - "Secondary capability"
@@ -266,10 +266,10 @@ coordination: "Incident response and operational support"
 
 ## Model Selection Guidelines
 
-### Claude Opus 5 (Strategic & Complex)
+### Claude Opus 5.5 (Strategic & Complex)
 
 ```yaml
-model: "claude-opus-5"
+model: "claude-opus-5-5"
 use_cases:
   - Strategic architecture decisions
   - Complex system design
