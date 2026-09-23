@@ -1,8 +1,11 @@
 #!/bin/sh
-# Installs the two LaunchAgents that power session resume-after-restart:
+# Installs the LaunchAgents that power session resume-after-restart and
+# monthly papercut archiving:
 #   - com.damilola.claude-resume-sessions   (RunAtLoad: reopen open sessions)
 #   - com.damilola.claude-restart-on-update (StartInterval: restart
 #     tmux-hosted sessions when a newer Claude Code build has been fetched)
+#   - com.damilola.claude-archive-papercuts (monthly: archive non-recurring
+#     prior-month papercuts)
 #
 # Run this ONCE after `/sync` has deployed system-configs/.claude/*.sh to
 # ~/.claude/ (this script depends on resume_sessions.sh and
@@ -30,7 +33,7 @@ mkdir -p "$TARGET_DIR"
 # runs, so the log directory has to exist before either agent is loaded.
 mkdir -p -m 700 "$HOME/.claude/logs"
 
-AGENTS="com.damilola.claude-resume-sessions com.damilola.claude-restart-on-update"
+AGENTS="com.damilola.claude-resume-sessions com.damilola.claude-restart-on-update com.damilola.claude-archive-papercuts"
 
 for agent in $AGENTS; do
     template="$TEMPLATE_DIR/$agent.plist.template"

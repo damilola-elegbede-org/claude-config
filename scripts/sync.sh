@@ -69,7 +69,7 @@ settings_mode() {
 # below rely on unquoted word-splitting to iterate this list. If a hook
 # script ever needs a space in its name, switch this to a newline-delimited
 # heredoc and iterate with `while read`.
-RUNTIME_HOOK_SCRIPTS="statusline.sh hooks/exit_hook.sh hooks/session_start_version_check.sh claude-speak.sh voice-rx.sh hooks/session_registry.sh resume_sessions.sh restart_on_update.sh"
+RUNTIME_HOOK_SCRIPTS="statusline.sh hooks/exit_hook.sh hooks/session_start_version_check.sh claude-speak.sh voice-rx.sh hooks/session_registry.sh resume_sessions.sh restart_on_update.sh papercut.sh archive-papercuts.sh"
 
 # Parse arguments
 DRY_RUN=false
@@ -109,6 +109,152 @@ print_error() {
 
 print_warning() {
     printf "${YELLOW}⚠${NC} %s\n" "$1"
+}
+
+# papercuts.md is runtime data, not configuration.  It deliberately does not
+# exist in system-configs/.claude, so none of the scoped rsync --delete calls
+# can own it.  Initialising it still shares papercut.sh's directory lock: an
+# append that races the first /sync must not be replaced by the header.
+initialize_papercut_log() {
+    papercut_log="$TARGET_DIR/papercuts.md"
+    papercut_lock="$TARGET_DIR/.papercuts.md.papercut.lock"
+    PAPERCUT_LOCK_STALE_SECONDS="${PAPERCUT_LOCK_STALE_SECONDS:-300}"
+    PAPERCUT_LOCK_ATTEMPTS="${PAPERCUT_LOCK_ATTEMPTS:-3000}"
+    papercut_tmp=''
+    papercut_lock_held=0
+
+    [ -e "$papercut_log" ] || [ -L "$papercut_log" ] && return 0
+
+    papercut_lock_directory_mtime() {
+        /usr/bin/perl -e 'my @stat = stat $ARGV[0]; exit 1 unless @stat; print "$stat[9]\n"' "$1"
+    }
+
+    papercut_lock_is_reclaimable() {
+        papercut_now="$(date -u +%s)"
+        if [ ! -f "$papercut_lock/owner" ]; then
+            papercut_mtime="$(papercut_lock_directory_mtime "$papercut_lock")" || return 1
+            [ "$((papercut_now - papercut_mtime))" -ge "$PAPERCUT_LOCK_STALE_SECONDS" ]
+            return
+        fi
+        papercut_pid=''; papercut_acquired=''
+        if ! { read -r papercut_pid && read -r papercut_acquired; } 2>/dev/null <"$papercut_lock/owner"; then
+            papercut_invalid_owner=1
+        else
+            case "${papercut_pid:-}:${papercut_acquired:-}" in
+                *[!0-9:]*|:*|*:) papercut_invalid_owner=1 ;;
+                *) papercut_invalid_owner=0 ;;
+            esac
+        fi
+        if [ "$papercut_invalid_owner" -eq 1 ]; then
+            papercut_mtime="$(papercut_lock_directory_mtime "$papercut_lock")" || return 1
+            [ "$((papercut_now - papercut_mtime))" -ge "$PAPERCUT_LOCK_STALE_SECONDS" ]
+            return
+        fi
+        if ! kill -0 "$papercut_pid" 2>/dev/null; then
+            return 0
+        fi
+        # An old acquisition time alone cannot expire a live owner: macOS can sleep
+        # longer than the stale bound. Compare the PID's actual start time instead,
+        # so only a PID recycled after this lock was acquired is reclaimable.
+        papercut_etime="$(ps -o etime= -p "$papercut_pid" 2>/dev/null | /usr/bin/tr -d '[:space:]')"
+        [ -n "$papercut_etime" ] || return 1
+        papercut_elapsed="$(/usr/bin/perl -e '
+            my $etime = shift;
+            if ($etime =~ /^(?:(\d+)-)?(\d+):(\d\d):(\d\d)$/) {
+              print (($1 // 0) * 86400 + $2 * 3600 + $3 * 60 + $4), qq{\n};
+            } elsif ($etime =~ /^(\d+):(\d\d)$/) {
+              print ($1 * 60 + $2), qq{\n};
+            } else {
+              exit 1;
+            }
+          ' "$papercut_etime")" || return 1
+        papercut_process_started=$((papercut_now - papercut_elapsed))
+        [ "$papercut_process_started" -gt "$((papercut_acquired + 2))" ]
+    }
+
+    papercut_reclaim_marker_is_stale() {
+        papercut_now="$(date -u +%s)"
+        papercut_mtime="$(papercut_lock_directory_mtime "$papercut_lock.reclaiming")" || return 1
+        [ "$((papercut_now - papercut_mtime))" -ge 60 ]
+    }
+
+    for papercut_attempt in $(seq 1 "$PAPERCUT_LOCK_ATTEMPTS"); do
+        if mkdir "$papercut_lock" 2>/dev/null; then
+            papercut_lock_held=1
+            printf '%s\n%s\n' "$$" "$(date -u +%s)" >"$papercut_lock/owner"
+            break
+        fi
+        if papercut_lock_is_reclaimable; then
+            { read -r papercut_pid && read -r papercut_acquired; } 2>/dev/null <"$papercut_lock/owner" || true
+            case "${papercut_pid:-}:${papercut_acquired:-}" in
+                *[!0-9:]*|:*|*:)
+                    reclaim_marker="$papercut_lock.reclaiming"
+                    if [ -d "$reclaim_marker" ] && papercut_reclaim_marker_is_stale; then
+                        rmdir "$reclaim_marker" 2>/dev/null || true
+                        continue
+                    fi
+                    if mkdir "$reclaim_marker" 2>/dev/null; then
+                        if papercut_lock_is_reclaimable; then
+                            rm -rf "$papercut_lock"
+                        fi
+                        rmdir "$reclaim_marker" 2>/dev/null || true
+                    fi
+                    ;;
+                *)
+                    if papercut_lock_is_reclaimable; then
+                        reclaim_marker="$papercut_lock.reclaiming"
+                        if [ -d "$reclaim_marker" ] && papercut_reclaim_marker_is_stale; then
+                            rmdir "$reclaim_marker" 2>/dev/null || true
+                            continue
+                        fi
+                        if mkdir "$reclaim_marker" 2>/dev/null; then
+                            # Re-read the CURRENT owner inside the gate: another waiter may
+                            # have reclaimed and re-acquired since the cached read above.
+                            papercut_pid=''; papercut_acquired=''
+                            { read -r papercut_pid && read -r papercut_acquired; } 2>/dev/null <"$papercut_lock/owner" || true
+                            case "${papercut_pid:-}:${papercut_acquired:-}" in
+                                *[!0-9:]*|:*|*:)
+                                    if papercut_lock_is_reclaimable; then
+                                        rm -rf "$papercut_lock"
+                                    fi
+                                    ;;
+                                *)
+                                    if papercut_lock_is_reclaimable; then
+                                        rm -rf "$papercut_lock"
+                                    fi
+                                    ;;
+                            esac
+                            rmdir "$reclaim_marker" 2>/dev/null || true
+                        fi
+                    fi
+                    ;;
+            esac
+        fi
+        sleep 0.01
+    done
+    if [ "$papercut_lock_held" -ne 1 ]; then
+        print_error "Timed out waiting to initialise $papercut_log"
+        return 1
+    fi
+
+    # Recheck inside the shared lock.  The helper may have created and
+    # appended the log just before this process acquired the lock.
+    if [ ! -e "$papercut_log" ] && [ ! -L "$papercut_log" ]; then
+        papercut_tmp=$(mktemp "$TARGET_DIR/.papercuts.md.sync.XXXXXX") || return 1
+        {
+            printf '%s\n' '# Papercuts'
+            printf '%s\n' 'A factual log of small tooling failures and their fixes.'
+            printf '%s\n' 'Format: date (UTC) · source · symptom · fix · project/path'
+            printf '%s\n' 'Append via ~/.claude/papercut.sh; never edit or reorder entries.'
+        } >"$papercut_tmp"
+        mv -f "$papercut_tmp" "$papercut_log"
+        papercut_tmp=''
+        echo "  ✅ Papercuts log initialised at ~/.claude/papercuts.md"
+    fi
+
+    rm -f "$papercut_lock/owner"
+    rmdir "$papercut_lock" 2>/dev/null || true
+    return 0
 }
 
 # Function to create backup
@@ -349,6 +495,13 @@ sync_files() {
     mkdir -p "$TARGET_DIR/agents"
     mkdir -p "$TARGET_DIR/skills"
     mkdir -p "$TARGET_DIR/output-styles"
+
+    # This is intentionally the only operation that names papercuts.md.
+    # The log and papercuts/ archive are otherwise outside every sync,
+    # delete, backup-restore, and cleanup path in this script.
+    if ! initialize_papercut_log; then
+        return 1
+    fi
 
     # Sync agents using rsync (use if-then pattern to work with set -e)
     if [ "$(manifest_flag agents)" != "true" ]; then
