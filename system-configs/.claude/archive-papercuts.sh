@@ -54,7 +54,7 @@ lock_directory_mtime() {
 }
 
 lock_is_reclaimable() {
-  local owner_file="$lock_dir/owner" pid acquired_at now mtime
+  local owner_file="$lock_dir/owner" pid="" acquired_at="" now mtime
   now="$(/bin/date -u +%s)"
   if [ ! -f "$owner_file" ]; then
     mtime="$(lock_directory_mtime "$lock_dir")" || return 1
@@ -150,6 +150,12 @@ while IFS= read -r line || [ -n "$line" ]; do
   entry_date="${BASH_REMATCH[1]}"
   symptom="$(trim "${BASH_REMATCH[3]}")"
   entry_month="${entry_date:0:7}"
+  # A line its month archive already holds was moved by an interrupted run;
+  # drop the live copy even if the symptom recurs, or it would persist forever.
+  if [ "$entry_month" != "$CURRENT_MONTH" ] && [ -f "$ARCHIVE_DIR/$entry_month.md" ] \
+    && grep -F -x -q -- "$line" "$ARCHIVE_DIR/$entry_month.md"; then
+    continue
+  fi
   if [ "$entry_month" = "$CURRENT_MONTH" ] || grep -F -x -- "$symptom" "$work_dir/repeated" >/dev/null; then
     printf '%s\n' "$line" >>"$live_tmp"
   else

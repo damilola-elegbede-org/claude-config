@@ -136,11 +136,27 @@ test_archive_recovers_interrupted_run() {
     assert_equals 1 "$(grep -c -F -x -- "$line" "$archive_dir/2000-02.md" | tr -d ' ')" 'interrupted entry must appear once in its archive'
 }
 
+test_archive_drops_archived_duplicate_of_recurring() {
+    local home="$TEST_DIR/archive-dup-recurring"
+    local log="$home/.claude/papercuts.md"
+    local archive_dir="$home/.claude/papercuts/archive"
+    local old='2000-03-02 · old-agent · recurring half-moved · fixed · project/a'
+    local current_month; current_month="$(date -u +%Y-%m)"
+    mkdir -p "$archive_dir"
+    header >"$log"
+    printf '%s\n' "$old" "$current_month-01 · new-agent · recurring half-moved · fixed · project/b" >>"$log"
+    header >"$archive_dir/2000-03.md"
+    printf '%s\n' "$old" >>"$archive_dir/2000-03.md"
+    PAPERCUT_LOG="$log" PAPERCUT_ARCHIVE_DIR="$archive_dir" "$ARCHIVER"
+    assert_equals 0 "$(grep -c -F -x -- "$old" "$log" | tr -d ' ')" 'an already-archived line must leave the live log even when its symptom recurs'
+    assert_equals 1 "$(grep -c -F -x -- "$old" "$archive_dir/2000-03.md" | tr -d ' ')" 'archived line must stay exactly once'
+}
+
 test_monthly_launchagent_wiring() {
     local template="$ORIGINAL_DIR/system-configs/.claude/launchagents/com.damilola.claude-archive-papercuts.plist.template"
     [ -f "$template" ] || { echo 'papercut LaunchAgent template is missing' >&2; exit 1; }
     assert_contains "$template" '__HOME__/.claude/archive-papercuts.sh' 'LaunchAgent must invoke the deployed archiver'
-    assert_contains "$template" '<key>Day</key>' 'LaunchAgent must schedule the first day of the month'
+    assert_contains "$template" '<key>Day</key>' 'LaunchAgent must schedule a day of the month'
     assert_contains "$template" '<integer>17</integer>' 'LaunchAgent must schedule minute 17'
     assert_contains "$ORIGINAL_DIR/scripts/install-session-resume-agents.sh" 'com.damilola.claude-archive-papercuts' 'installer must install the papercut LaunchAgent'
 }
@@ -217,6 +233,7 @@ echo 'Testing papercut monthly archive...'
 test_archive_partition_and_idempotence
 echo 'Testing papercut interrupted-archive recovery...'
 test_archive_recovers_interrupted_run
+test_archive_drops_archived_duplicate_of_recurring
 echo 'Testing papercut monthly LaunchAgent wiring...'
 test_monthly_launchagent_wiring
 echo 'Testing stale live-owner lock recovery...'

@@ -87,7 +87,7 @@ lock_directory_mtime() {
 }
 
 lock_is_reclaimable() {
-  local owner_file="$lock_dir/owner" pid acquired_at now mtime
+  local owner_file="$lock_dir/owner" pid="" acquired_at="" now mtime
   now="$(/bin/date -u +%s)"
   if [ ! -f "$owner_file" ]; then
     mtime="$(lock_directory_mtime "$lock_dir")" || return 1

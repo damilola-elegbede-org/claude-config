@@ -37,7 +37,7 @@ This installs three LaunchAgents:
 | --------------------------------------- | ------------------------------ | ----------------------------------------------------------- |
 | `com.damilola.claude-resume-sessions`   | login (`RunAtLoad`)            | `claude update`, then reopen every open session in tmux     |
 | `com.damilola.claude-restart-on-update` | every 30 min (`StartInterval`) | restart `claude-sessions`-hosted windows onto a newer build |
-| `com.damilola.claude-archive-papercuts` | monthly (first day, 03:17 local time) | archive prior-month papercuts that are not recurring |
+| `com.damilola.claude-archive-papercuts` | monthly (2nd, 03:17 local — past the UTC month boundary in every timezone) | archive prior-month papercuts that are not recurring |
 
 ## Verify
 
