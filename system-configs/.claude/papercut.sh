@@ -11,6 +11,13 @@
 set -euo pipefail
 
 LOG="${PAPERCUT_LOG:-$HOME/.claude/papercuts.md}"
+# A symlinked log (sync preserves one) must be updated at its target: the
+# atomic rename below would otherwise replace the link and sever it.
+if [ -L "$LOG" ]; then
+  resolved="$(/usr/bin/perl -MCwd -e 'my $p = Cwd::abs_path($ARGV[0]); print $p if defined $p' "$LOG")"
+  [ -n "$resolved" ] || { printf 'papercut: cannot resolve symlinked log %s\n' "$LOG" >&2; exit 2; }
+  LOG="$resolved"
+fi
 DATE_UTC="${PAPERCUT_DATE:-$(/bin/date -u +%F)}"
 SEPARATOR=' · '
 

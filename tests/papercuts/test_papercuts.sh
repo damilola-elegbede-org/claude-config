@@ -152,6 +152,18 @@ test_archive_drops_archived_duplicate_of_recurring() {
     assert_equals 1 "$(grep -c -F -x -- "$old" "$archive_dir/2000-03.md" | tr -d ' ')" 'archived line must stay exactly once'
 }
 
+test_symlinked_log_is_preserved() {
+    local home="$TEST_DIR/symlink-home"
+    mkdir -p "$home/.claude" "$home/shared"
+    header >"$home/shared/papercuts.md"
+    ln -s "$home/shared/papercuts.md" "$home/.claude/papercuts.md"
+    HOME="$home" PAPERCUT_LOG="$home/.claude/papercuts.md" "$HELPER" linktest 'symlink symptom' 'symlink fix' 'project/link' >/dev/null
+    [ -L "$home/.claude/papercuts.md" ] || { echo 'append replaced the symlinked log' >&2; exit 1; }
+    assert_contains "$home/shared/papercuts.md" 'symlink symptom' 'append must land in the symlink target'
+    PAPERCUT_LOG="$home/.claude/papercuts.md" PAPERCUT_ARCHIVE_DIR="$home/.claude/papercuts/archive" "$ARCHIVER"
+    [ -L "$home/.claude/papercuts.md" ] || { echo 'archive replaced the symlinked log' >&2; exit 1; }
+}
+
 test_monthly_launchagent_wiring() {
     local template="$ORIGINAL_DIR/system-configs/.claude/launchagents/com.damilola.claude-archive-papercuts.plist.template"
     [ -f "$template" ] || { echo 'papercut LaunchAgent template is missing' >&2; exit 1; }
@@ -234,6 +246,7 @@ test_archive_partition_and_idempotence
 echo 'Testing papercut interrupted-archive recovery...'
 test_archive_recovers_interrupted_run
 test_archive_drops_archived_duplicate_of_recurring
+test_symlinked_log_is_preserved
 echo 'Testing papercut monthly LaunchAgent wiring...'
 test_monthly_launchagent_wiring
 echo 'Testing stale live-owner lock recovery...'
