@@ -69,7 +69,7 @@ settings_mode() {
 # below rely on unquoted word-splitting to iterate this list. If a hook
 # script ever needs a space in its name, switch this to a newline-delimited
 # heredoc and iterate with `while read`.
-RUNTIME_HOOK_SCRIPTS="statusline.sh hooks/exit_hook.sh hooks/session_start_version_check.sh claude-speak.sh voice-rx.sh hooks/session_registry.sh resume_sessions.sh restart_on_update.sh"
+RUNTIME_HOOK_SCRIPTS="statusline.sh hooks/exit_hook.sh hooks/session_start_version_check.sh claude-speak.sh voice-rx.sh hooks/session_registry.sh resume_sessions.sh restart_on_update.sh papercut.sh archive-papercuts.sh"
 
 # Parse arguments
 DRY_RUN=false
@@ -109,6 +109,70 @@ print_error() {
 
 print_warning() {
     printf "${YELLOW}⚠${NC} %s\n" "$1"
+}
+
+# papercuts.md is runtime data, not configuration.  It deliberately does not
+# exist in system-configs/.claude, so none of the scoped rsync --delete calls
+# can own it.  Initialising it still shares papercut.sh's directory lock: an
+# append that races the first /sync must not be replaced by the header.
+initialize_papercut_log() {
+    papercut_log="$TARGET_DIR/papercuts.md"
+    papercut_lock="$TARGET_DIR/.papercuts.md.papercut.lock"
+    papercut_tmp=''
+    papercut_lock_held=0
+
+    [ -e "$papercut_log" ] || [ -L "$papercut_log" ] && return 0
+
+    for papercut_attempt in $(seq 1 3000); do
+        if mkdir "$papercut_lock" 2>/dev/null; then
+            papercut_lock_held=1
+            printf '%s\n%s\n' "$$" "$(date -u +%s)" >"$papercut_lock/owner"
+            break
+        fi
+        # Match the helper's dead-owner rule. A live helper owns the file;
+        # wait rather than manufacture a second initialisation snapshot.
+        if [ -f "$papercut_lock/owner" ]; then
+            { read -r papercut_pid && read -r papercut_acquired; } 2>/dev/null <"$papercut_lock/owner" || true
+            case "${papercut_pid:-}:${papercut_acquired:-}" in
+                *[!0-9:]*|:*|*:) ;;
+                *)
+                    if ! kill -0 "$papercut_pid" 2>/dev/null; then
+                        reclaim_marker="$papercut_lock.reclaiming"
+                        if mkdir "$reclaim_marker" 2>/dev/null; then
+                            if [ -f "$papercut_lock/owner" ] && ! kill -0 "$papercut_pid" 2>/dev/null; then
+                                rm -rf "$papercut_lock"
+                            fi
+                            rmdir "$reclaim_marker" 2>/dev/null || true
+                        fi
+                    fi
+                    ;;
+            esac
+        fi
+        sleep 0.01
+    done
+    if [ "$papercut_lock_held" -ne 1 ]; then
+        print_error "Timed out waiting to initialise $papercut_log"
+        return 1
+    fi
+
+    # Recheck inside the shared lock.  The helper may have created and
+    # appended the log just before this process acquired the lock.
+    if [ ! -e "$papercut_log" ] && [ ! -L "$papercut_log" ]; then
+        papercut_tmp=$(mktemp "$TARGET_DIR/.papercuts.md.sync.XXXXXX") || return 1
+        {
+            printf '%s\n' '# Papercuts'
+            printf '%s\n' 'A factual log of small tooling failures and their fixes.'
+            printf '%s\n' 'Format: date (UTC) · source · symptom · fix · project/path'
+            printf '%s\n' 'Append via ~/.claude/papercut.sh; never edit or reorder entries.'
+        } >"$papercut_tmp"
+        mv -f "$papercut_tmp" "$papercut_log"
+        papercut_tmp=''
+        echo "  ✅ Papercuts log initialised at ~/.claude/papercuts.md"
+    fi
+
+    rm -f "$papercut_lock/owner"
+    rmdir "$papercut_lock" 2>/dev/null || true
+    return 0
 }
 
 # Function to create backup
@@ -349,6 +413,13 @@ sync_files() {
     mkdir -p "$TARGET_DIR/agents"
     mkdir -p "$TARGET_DIR/skills"
     mkdir -p "$TARGET_DIR/output-styles"
+
+    # This is intentionally the only operation that names papercuts.md.
+    # The log and papercuts/ archive are otherwise outside every sync,
+    # delete, backup-restore, and cleanup path in this script.
+    if ! initialize_papercut_log; then
+        return 1
+    fi
 
     # Sync agents using rsync (use if-then pattern to work with set -e)
     if [ "$(manifest_flag agents)" != "true" ]; then

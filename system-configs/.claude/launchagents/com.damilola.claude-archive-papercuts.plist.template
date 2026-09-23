@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.damilola.claude-archive-papercuts</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>__HOME__/.claude/archive-papercuts.sh</string>
+    </array>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>__HOME__/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>HOME</key>
+        <string>__HOME__</string>
+    </dict>
+
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Day</key>
+        <integer>1</integer>
+        <key>Hour</key>
+        <integer>3</integer>
+        <key>Minute</key>
+        <integer>17</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>__HOME__/.claude/logs/archive_papercuts.launchd.log</string>
+    <key>StandardErrorPath</key>
+    <string>__HOME__/.claude/logs/archive_papercuts.launchd.log</string>
+</dict>
+</plist>

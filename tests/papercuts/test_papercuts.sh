@@ -1,0 +1,137 @@
+#!/usr/bin/env bash
+# Hermetic coverage for the runtime papercut log, its concurrent writer, and
+# the monthly retention policy. Nothing here addresses the caller's real HOME.
+set -euo pipefail
+
+ORIGINAL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+SYNC_SCRIPT="${PAPERCUT_SYNC_SCRIPT:-$ORIGINAL_DIR/scripts/sync.sh}"
+HELPER="${PAPERCUT_HELPER:-$ORIGINAL_DIR/system-configs/.claude/papercut.sh}"
+ARCHIVER="${PAPERCUT_ARCHIVER:-$ORIGINAL_DIR/system-configs/.claude/archive-papercuts.sh}"
+TEST_DIR="$(mktemp -d /tmp/claude-config-papercuts.XXXXXX)"
+
+cleanup() {
+    rm -rf "$TEST_DIR"
+}
+trap cleanup EXIT
+
+hash_file() {
+    shasum -a 256 "$1" | awk '{print $1}'
+}
+
+assert_equals() {
+    if [ "$1" != "$2" ]; then
+        printf 'assertion failed: %s\nexpected: %s\nactual: %s\n' "$3" "$1" "$2" >&2
+        exit 1
+    fi
+}
+
+assert_contains() {
+    if ! grep -F -q -- "$2" "$1"; then
+        printf 'assertion failed: %s\nmissing: %s\n' "$3" "$2" >&2
+        exit 1
+    fi
+}
+
+header() {
+    printf '%s\n' '# Papercuts'
+    printf '%s\n' 'A factual log of small tooling failures and their fixes.'
+    printf '%s\n' 'Format: date (UTC) · source · symptom · fix · project/path'
+    printf '%s\n' 'Append via ~/.claude/papercut.sh; never edit or reorder entries.'
+}
+
+test_sync_preserves_runtime_data() {
+    local home="$TEST_DIR/sync-home"
+    local log="$home/.claude/papercuts.md"
+    local archive="$home/.claude/papercuts/archive/2000-01.md"
+    mkdir -p "$(dirname "$archive")"
+    header >"$log"
+    printf '%s\n' '2000-01-02 · test-agent · existing symptom · fixed · project/path' >>"$log"
+    header >"$archive"
+    printf '%s\n' '1999-12-02 · test-agent · archived symptom · fixed · project/path' >>"$archive"
+    local log_before archive_before
+    log_before="$(hash_file "$log")"
+    archive_before="$(hash_file "$archive")"
+
+    HOME="$home" "$SYNC_SCRIPT" --force >/dev/null
+    assert_equals "$log_before" "$(hash_file "$log")" 'sync must not overwrite papercuts.md'
+    assert_equals "$archive_before" "$(hash_file "$archive")" 'sync must not alter papercuts archives'
+
+    local fresh_home="$TEST_DIR/fresh-home"
+    mkdir -p "$fresh_home"
+    HOME="$fresh_home" "$SYNC_SCRIPT" --force >/dev/null
+    [ -f "$fresh_home/.claude/papercuts.md" ] || { echo 'sync did not initialise papercuts.md' >&2; exit 1; }
+    assert_equals "$(header)" "$(cat "$fresh_home/.claude/papercuts.md")" 'new sync log must contain only the required header'
+}
+
+test_helper_concurrent_append() {
+    local log="$TEST_DIR/concurrent/.claude/papercuts.md"
+    local i
+    local -a pids=()
+    for i in $(seq 1 20); do
+        PAPERCUT_LOG="$log" PAPERCUT_DATE=2026-09-22 "$HELPER" "writer-$i" "symptom-$i" fixed "project/$i" &
+        pids+=("$!")
+    done
+    for pid in "${pids[@]}"; do
+        wait "$pid"
+    done
+    assert_equals 20 "$(grep -c '^2026-09-22 · writer-' "$log")" 'twenty concurrent writers must retain every entry'
+    assert_equals 1 "$(grep -c '^# Papercuts$' "$log")" 'the helper creates one header before its first entry'
+    for i in $(seq 1 20); do
+        assert_contains "$log" "2026-09-22 · writer-$i · symptom-$i · fixed · project/$i" "missing writer $i"
+    done
+}
+
+test_archive_partition_and_idempotence() {
+    local home="$TEST_DIR/archive-home"
+    local log="$home/.claude/papercuts.md"
+    local archive_dir="$home/.claude/papercuts/archive"
+    local current_month
+    current_month="$(date -u +%Y-%m)"
+    mkdir -p "$archive_dir"
+    header >"$log"
+    printf '%s\n' 'this is a non-entry line and must remain live' >>"$log"
+    printf '%s\n' '2000-01-02 · old-agent · rare old symptom · fixed · project/rare' >>"$log"
+    printf '%s\n' '2000-01-03 · old-agent · recurring symptom · fixed · project/repeated-old' >>"$log"
+    printf '%s\n' "$current_month-01 · current-agent · recurring symptom · fixed · project/repeated-current" >>"$log"
+    header >"$archive_dir/1999-12.md"
+    printf '%s\n' '1999-12-02 · archive-agent · archive recurring symptom · fixed · project/archive-old' >>"$archive_dir/1999-12.md"
+    printf '%s\n' '2000-01-04 · old-agent · archive recurring symptom · fixed · project/archive-live' >>"$log"
+
+    PAPERCUT_LOG="$log" PAPERCUT_ARCHIVE_DIR="$archive_dir" "$ARCHIVER"
+    local january="$archive_dir/2000-01.md"
+    [ -f "$january" ] || { echo 'prior-month archive was not created' >&2; exit 1; }
+    assert_contains "$january" '2000-01-02 · old-agent · rare old symptom · fixed · project/rare' 'unique old entry must move to its month archive'
+    assert_contains "$log" '2000-01-03 · old-agent · recurring symptom · fixed · project/repeated-old' 'repeated live symptom must remain live'
+    assert_contains "$log" "$current_month-01 · current-agent · recurring symptom · fixed · project/repeated-current" 'current-month entry must remain live'
+    assert_contains "$log" '2000-01-04 · old-agent · archive recurring symptom · fixed · project/archive-live' 'symptom repeated across an archive must remain live'
+    assert_contains "$log" 'this is a non-entry line and must remain live' 'non-entry line must remain live'
+    assert_equals 1 "$(grep -R -F -h -- '2000-01-02 · old-agent · rare old symptom · fixed · project/rare' "$home/.claude" | wc -l | tr -d ' ')" 'moved entry must appear exactly once'
+    assert_equals 1 "$(grep -R -F -h -- '2000-01-03 · old-agent · recurring symptom · fixed · project/repeated-old' "$home/.claude" | wc -l | tr -d ' ')" 'retained entry must appear exactly once'
+
+    local log_after archive_after
+    log_after="$(hash_file "$log")"
+    archive_after="$(hash_file "$january")"
+    PAPERCUT_LOG="$log" PAPERCUT_ARCHIVE_DIR="$archive_dir" "$ARCHIVER"
+    assert_equals "$log_after" "$(hash_file "$log")" 'a second archive run must not change the live log'
+    assert_equals "$archive_after" "$(hash_file "$january")" 'a second archive run must not duplicate the month archive'
+    assert_equals "$(header)" "$(head -n 4 "$january")" 'archive must begin with the standard header'
+}
+
+test_monthly_launchagent_wiring() {
+    local template="$ORIGINAL_DIR/system-configs/.claude/launchagents/com.damilola.claude-archive-papercuts.plist.template"
+    [ -f "$template" ] || { echo 'papercut LaunchAgent template is missing' >&2; exit 1; }
+    assert_contains "$template" '__HOME__/.claude/archive-papercuts.sh' 'LaunchAgent must invoke the deployed archiver'
+    assert_contains "$template" '<key>Day</key>' 'LaunchAgent must schedule the first day of the month'
+    assert_contains "$template" '<integer>17</integer>' 'LaunchAgent must schedule minute 17'
+    assert_contains "$ORIGINAL_DIR/scripts/install-session-resume-agents.sh" 'com.damilola.claude-archive-papercuts' 'installer must install the papercut LaunchAgent'
+}
+
+echo 'Testing papercut sync preservation...'
+test_sync_preserves_runtime_data
+echo 'Testing papercut concurrent append...'
+test_helper_concurrent_append
+echo 'Testing papercut monthly archive...'
+test_archive_partition_and_idempotence
+echo 'Testing papercut monthly LaunchAgent wiring...'
+test_monthly_launchagent_wiring
+echo 'Papercut tests passed.'

@@ -198,6 +198,7 @@ run_test "File Organization" "config/test_file_org.sh"
 echo "Running Sync Tests..."
 echo "--------------------"
 run_test "Sync Functionality" "sync/test_sync_functionality.sh"
+run_test "Papercut Runtime Data" "papercuts/test_papercuts.sh"
 
 # Run script health tests
 echo "Running Script Health Tests..."
