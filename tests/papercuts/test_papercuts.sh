@@ -117,6 +117,25 @@ test_archive_partition_and_idempotence() {
     assert_equals "$(header)" "$(head -n 4 "$january")" 'archive must begin with the standard header'
 }
 
+test_archive_recovers_interrupted_run() {
+    # A run killed between an archive rename and the live-log rename leaves
+    # the same line in both files. The retry must count it once, drop it from
+    # the live log, and not append it to the archive a second time.
+    local home="$TEST_DIR/archive-interrupted"
+    local log="$home/.claude/papercuts.md"
+    local archive_dir="$home/.claude/papercuts/archive"
+    local line='2000-02-02 · old-agent · half-moved symptom · fixed · project/interrupted'
+    mkdir -p "$archive_dir"
+    header >"$log"
+    printf '%s\n' "$line" >>"$log"
+    header >"$archive_dir/2000-02.md"
+    printf '%s\n' "$line" >>"$archive_dir/2000-02.md"
+
+    PAPERCUT_LOG="$log" PAPERCUT_ARCHIVE_DIR="$archive_dir" "$ARCHIVER"
+    assert_equals 0 "$(grep -c -F -x -- "$line" "$log" | tr -d ' ')" 'interrupted entry must leave the live log on retry'
+    assert_equals 1 "$(grep -c -F -x -- "$line" "$archive_dir/2000-02.md" | tr -d ' ')" 'interrupted entry must appear once in its archive'
+}
+
 test_monthly_launchagent_wiring() {
     local template="$ORIGINAL_DIR/system-configs/.claude/launchagents/com.damilola.claude-archive-papercuts.plist.template"
     [ -f "$template" ] || { echo 'papercut LaunchAgent template is missing' >&2; exit 1; }
@@ -132,6 +151,8 @@ echo 'Testing papercut concurrent append...'
 test_helper_concurrent_append
 echo 'Testing papercut monthly archive...'
 test_archive_partition_and_idempotence
+echo 'Testing papercut interrupted-archive recovery...'
+test_archive_recovers_interrupted_run
 echo 'Testing papercut monthly LaunchAgent wiring...'
 test_monthly_launchagent_wiring
 echo 'Papercut tests passed.'

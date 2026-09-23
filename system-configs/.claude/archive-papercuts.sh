@@ -93,19 +93,24 @@ symptoms="$work_dir/symptoms"
 # Repetition is deliberately measured across the live log and every archive,
 # after trimming the symptom field. This preserves recurring historical
 # papercuts where they remain visible to the next session.
+# An identical entry line counts once: a run interrupted between an archive
+# rename and the live-log rename leaves the same line in both places, and
+# counting it twice would misclassify it as recurring forever.
+entries_seen="$work_dir/entries"
+: >"$entries_seen"
 collect_symptoms() {
   collect_file="$1"
   while IFS= read -r line || [ -n "$line" ]; do
-    if parse_entry "$line"; then
-      trim "${BASH_REMATCH[3]}" >>"$symptoms"
-      printf '\n' >>"$symptoms"
-    fi
+    parse_entry "$line" && printf '%s\n' "$line" >>"$entries_seen"
   done <"$collect_file"
 }
 collect_symptoms "$input"
 for archive in "$ARCHIVE_DIR"/*.md; do
   [ -f "$archive" ] && collect_symptoms "$archive"
 done
+sort -u "$entries_seen" | while IFS= read -r line; do
+  parse_entry "$line" && trim "${BASH_REMATCH[3]}" && printf '\n'
+done >"$symptoms"
 sort "$symptoms" | uniq -d >"$work_dir/repeated"
 
 live_tmp="$(/usr/bin/mktemp "$log_dir/.${log_name}.archive.XXXXXX")"
@@ -137,7 +142,10 @@ for entries in "$work_dir"/*.entries; do
   else
     write_header >"$archive_tmp"
   fi
-  /bin/cat "$entries" >>"$archive_tmp"
+  # Skip lines a previous interrupted run already archived.
+  while IFS= read -r line; do
+    grep -F -x -q -- "$line" "$archive_tmp" || printf '%s\n' "$line" >>"$archive_tmp"
+  done <"$entries"
   /bin/mv -f "$archive_tmp" "$archive"
 done
 
