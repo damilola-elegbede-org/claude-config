@@ -139,9 +139,18 @@ initialize_papercut_log() {
                     if ! kill -0 "$papercut_pid" 2>/dev/null; then
                         reclaim_marker="$papercut_lock.reclaiming"
                         if mkdir "$reclaim_marker" 2>/dev/null; then
-                            if [ -f "$papercut_lock/owner" ] && ! kill -0 "$papercut_pid" 2>/dev/null; then
-                                rm -rf "$papercut_lock"
-                            fi
+                            # Re-read the CURRENT owner inside the gate: another waiter may
+                            # have reclaimed and re-acquired since the cached read above.
+                            papercut_pid=''; papercut_acquired=''
+                            { read -r papercut_pid && read -r papercut_acquired; } 2>/dev/null <"$papercut_lock/owner" || true
+                            case "${papercut_pid:-}:${papercut_acquired:-}" in
+                                *[!0-9:]*|:*|*:) ;;
+                                *)
+                                    if ! kill -0 "$papercut_pid" 2>/dev/null; then
+                                        rm -rf "$papercut_lock"
+                                    fi
+                                    ;;
+                            esac
                             rmdir "$reclaim_marker" 2>/dev/null || true
                         fi
                     fi
