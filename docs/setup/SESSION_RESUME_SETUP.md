@@ -31,12 +31,13 @@ long-running sessions on the newest fetched build.
 ./scripts/install-session-resume-agents.sh     # installs + loads the LaunchAgents
 ```
 
-This installs two LaunchAgents:
+This installs three LaunchAgents:
 
 | Label                                   | Trigger                        | Does                                                        |
 | --------------------------------------- | ------------------------------ | ----------------------------------------------------------- |
 | `com.damilola.claude-resume-sessions`   | login (`RunAtLoad`)            | `claude update`, then reopen every open session in tmux     |
 | `com.damilola.claude-restart-on-update` | every 30 min (`StartInterval`) | restart `claude-sessions`-hosted windows onto a newer build |
+| `com.damilola.claude-archive-papercuts` | monthly (first day, 03:17 local time) | archive prior-month papercuts that are not recurring |
 
 ## Verify
 
@@ -44,6 +45,7 @@ This installs two LaunchAgents:
 launchctl list | grep com.damilola.claude-
 tail -f ~/.claude/logs/resume_sessions.log
 tail -f ~/.claude/logs/restart_on_update.log
+tail -f ~/.claude/logs/archive_papercuts.launchd.log
 tmux attach -t claude-sessions
 ```
 
@@ -54,8 +56,10 @@ tmux attach -t claude-sessions
 launchctl unload ~/Library/LaunchAgents/com.damilola.claude-restart-on-update.plist
 
 # Disable everything:
+# These unload jobs only; they do not modify papercuts.md or its archive.
 launchctl unload ~/Library/LaunchAgents/com.damilola.claude-resume-sessions.plist
 launchctl unload ~/Library/LaunchAgents/com.damilola.claude-restart-on-update.plist
+launchctl unload ~/Library/LaunchAgents/com.damilola.claude-archive-papercuts.plist
 
 # Re-enable:
 ./scripts/install-session-resume-agents.sh

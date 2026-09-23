@@ -118,35 +118,93 @@ print_warning() {
 initialize_papercut_log() {
     papercut_log="$TARGET_DIR/papercuts.md"
     papercut_lock="$TARGET_DIR/.papercuts.md.papercut.lock"
+    PAPERCUT_LOCK_STALE_SECONDS="${PAPERCUT_LOCK_STALE_SECONDS:-300}"
+    PAPERCUT_LOCK_ATTEMPTS="${PAPERCUT_LOCK_ATTEMPTS:-3000}"
     papercut_tmp=''
     papercut_lock_held=0
 
     [ -e "$papercut_log" ] || [ -L "$papercut_log" ] && return 0
 
-    for papercut_attempt in $(seq 1 3000); do
+    papercut_lock_directory_mtime() {
+        /usr/bin/perl -e 'my @stat = stat $ARGV[0]; exit 1 unless @stat; print "$stat[9]\n"' "$1"
+    }
+
+    papercut_lock_is_reclaimable() {
+        papercut_now="$(date -u +%s)"
+        if [ ! -f "$papercut_lock/owner" ]; then
+            papercut_mtime="$(papercut_lock_directory_mtime "$papercut_lock")" || return 1
+            [ "$((papercut_now - papercut_mtime))" -ge "$PAPERCUT_LOCK_STALE_SECONDS" ]
+            return
+        fi
+        papercut_pid=''; papercut_acquired=''
+        if ! { read -r papercut_pid && read -r papercut_acquired; } 2>/dev/null <"$papercut_lock/owner"; then
+            papercut_invalid_owner=1
+        else
+            case "${papercut_pid:-}:${papercut_acquired:-}" in
+                *[!0-9:]*|:*|*:) papercut_invalid_owner=1 ;;
+                *) papercut_invalid_owner=0 ;;
+            esac
+        fi
+        if [ "$papercut_invalid_owner" -eq 1 ]; then
+            papercut_mtime="$(papercut_lock_directory_mtime "$papercut_lock")" || return 1
+            [ "$((papercut_now - papercut_mtime))" -ge "$PAPERCUT_LOCK_STALE_SECONDS" ]
+            return
+        fi
+        # A reused PID can be alive even though its short-lived former owner is not.
+        if [ "$((papercut_now - papercut_acquired))" -ge "$PAPERCUT_LOCK_STALE_SECONDS" ]; then
+            return 0
+        fi
+        ! kill -0 "$papercut_pid" 2>/dev/null
+    }
+
+    papercut_reclaim_marker_is_stale() {
+        papercut_now="$(date -u +%s)"
+        papercut_mtime="$(papercut_lock_directory_mtime "$papercut_lock.reclaiming")" || return 1
+        [ "$((papercut_now - papercut_mtime))" -ge 60 ]
+    }
+
+    for papercut_attempt in $(seq 1 "$PAPERCUT_LOCK_ATTEMPTS"); do
         if mkdir "$papercut_lock" 2>/dev/null; then
             papercut_lock_held=1
             printf '%s\n%s\n' "$$" "$(date -u +%s)" >"$papercut_lock/owner"
             break
         fi
-        # Match the helper's dead-owner rule. A live helper owns the file;
-        # wait rather than manufacture a second initialisation snapshot.
-        if [ -f "$papercut_lock/owner" ]; then
+        if papercut_lock_is_reclaimable; then
             { read -r papercut_pid && read -r papercut_acquired; } 2>/dev/null <"$papercut_lock/owner" || true
             case "${papercut_pid:-}:${papercut_acquired:-}" in
-                *[!0-9:]*|:*|*:) ;;
+                *[!0-9:]*|:*|*:)
+                    reclaim_marker="$papercut_lock.reclaiming"
+                    if [ -d "$reclaim_marker" ] && papercut_reclaim_marker_is_stale; then
+                        rmdir "$reclaim_marker" 2>/dev/null || true
+                        continue
+                    fi
+                    if mkdir "$reclaim_marker" 2>/dev/null; then
+                        if papercut_lock_is_reclaimable; then
+                            rm -rf "$papercut_lock"
+                        fi
+                        rmdir "$reclaim_marker" 2>/dev/null || true
+                    fi
+                    ;;
                 *)
-                    if ! kill -0 "$papercut_pid" 2>/dev/null; then
+                    if papercut_lock_is_reclaimable; then
                         reclaim_marker="$papercut_lock.reclaiming"
+                        if [ -d "$reclaim_marker" ] && papercut_reclaim_marker_is_stale; then
+                            rmdir "$reclaim_marker" 2>/dev/null || true
+                            continue
+                        fi
                         if mkdir "$reclaim_marker" 2>/dev/null; then
                             # Re-read the CURRENT owner inside the gate: another waiter may
                             # have reclaimed and re-acquired since the cached read above.
                             papercut_pid=''; papercut_acquired=''
                             { read -r papercut_pid && read -r papercut_acquired; } 2>/dev/null <"$papercut_lock/owner" || true
                             case "${papercut_pid:-}:${papercut_acquired:-}" in
-                                *[!0-9:]*|:*|*:) ;;
+                                *[!0-9:]*|:*|*:)
+                                    if papercut_lock_is_reclaimable; then
+                                        rm -rf "$papercut_lock"
+                                    fi
+                                    ;;
                                 *)
-                                    if ! kill -0 "$papercut_pid" 2>/dev/null; then
+                                    if papercut_lock_is_reclaimable; then
                                         rm -rf "$papercut_lock"
                                     fi
                                     ;;

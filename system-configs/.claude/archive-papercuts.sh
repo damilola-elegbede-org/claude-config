@@ -30,6 +30,8 @@ log_parent="$(dirname "$LOG")"
 log_dir="$(cd "$log_parent" && pwd)"
 log_name="$(basename "$LOG")"
 lock_dir="$log_dir/.${log_name}.papercut.lock"
+PAPERCUT_LOCK_STALE_SECONDS="${PAPERCUT_LOCK_STALE_SECONDS:-300}"
+PAPERCUT_LOCK_ATTEMPTS="${PAPERCUT_LOCK_ATTEMPTS:-3000}"
 tmp=''
 work_dir=''
 lock_held=0
@@ -47,16 +49,39 @@ trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
+lock_directory_mtime() {
+  /usr/bin/perl -e 'my @stat = stat $ARGV[0]; exit 1 unless @stat; print "$stat[9]\n"' "$1"
+}
+
 lock_is_reclaimable() {
-  local owner_file="$lock_dir/owner" pid acquired_at
-  [ -f "$owner_file" ] || return 1
-  { read -r pid && read -r acquired_at; } 2>/dev/null <"$owner_file" || return 1
-  [[ "$pid" =~ ^[0-9]+$ ]] || return 1
-  [[ "$acquired_at" =~ ^[0-9]+$ ]] || return 1
+  local owner_file="$lock_dir/owner" pid acquired_at now mtime
+  now="$(/bin/date -u +%s)"
+  if [ ! -f "$owner_file" ]; then
+    mtime="$(lock_directory_mtime "$lock_dir")" || return 1
+    [ "$((now - mtime))" -ge "$PAPERCUT_LOCK_STALE_SECONDS" ]
+    return
+  fi
+  if ! { read -r pid && read -r acquired_at; } 2>/dev/null <"$owner_file" \
+    || ! [[ "$pid" =~ ^[0-9]+$ ]] || ! [[ "$acquired_at" =~ ^[0-9]+$ ]]; then
+    mtime="$(lock_directory_mtime "$lock_dir")" || return 1
+    [ "$((now - mtime))" -ge "$PAPERCUT_LOCK_STALE_SECONDS" ]
+    return
+  fi
+  # A reused PID can be alive even though its short-lived former owner is not.
+  if [ "$((now - acquired_at))" -ge "$PAPERCUT_LOCK_STALE_SECONDS" ]; then
+    return 0
+  fi
   ! /bin/kill -0 "$pid" 2>/dev/null
 }
 
-for attempt in $(/usr/bin/seq 1 3000); do
+reclaim_marker_is_stale() {
+  local now mtime
+  now="$(/bin/date -u +%s)"
+  mtime="$(lock_directory_mtime "$lock_dir.reclaiming")" || return 1
+  [ "$((now - mtime))" -ge 60 ]
+}
+
+for attempt in $(/usr/bin/seq 1 "$PAPERCUT_LOCK_ATTEMPTS"); do
   if /bin/mkdir "$lock_dir" 2>/dev/null; then
     lock_held=1
     printf '%s\n%s\n' "$$" "$(/bin/date -u +%s)" >"$lock_dir/owner"
@@ -64,13 +89,16 @@ for attempt in $(/usr/bin/seq 1 3000); do
   fi
   if lock_is_reclaimable; then
     reclaim_marker="$lock_dir.reclaiming"
+    if [ -d "$reclaim_marker" ] && reclaim_marker_is_stale; then
+      /bin/rmdir "$reclaim_marker" 2>/dev/null || true
+      continue
+    fi
     if /bin/mkdir "$reclaim_marker" 2>/dev/null; then
       if lock_is_reclaimable; then
         /bin/rm -rf "$lock_dir"
       fi
       /bin/rmdir "$reclaim_marker" 2>/dev/null || true
     fi
-    continue
   fi
   /bin/sleep 0.01
 done

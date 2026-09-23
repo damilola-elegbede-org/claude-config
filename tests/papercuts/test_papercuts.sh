@@ -145,6 +145,70 @@ test_monthly_launchagent_wiring() {
     assert_contains "$ORIGINAL_DIR/scripts/install-session-resume-agents.sh" 'com.damilola.claude-archive-papercuts' 'installer must install the papercut LaunchAgent'
 }
 
+make_lock() {
+    local log="$1"
+    mkdir -p "$(dirname "$log")"
+    printf '%s\n%s\n' "$$" "$2" >"$(dirname "$log")/.papercuts.md.papercut.lock/owner"
+}
+
+test_stale_live_owner_recovery() {
+    local home="$TEST_DIR/stale-live-owner"
+    local log="$home/.claude/papercuts.md"
+    local lock="$home/.claude/.papercuts.md.papercut.lock"
+    mkdir -p "$lock"
+    make_lock "$log" "$(( $(date -u +%s) - 120 ))"
+    PAPERCUT_LOG="$log" PAPERCUT_DATE=2026-09-22 PAPERCUT_LOCK_STALE_SECONDS=60 "$HELPER" stale-owner symptom fixed project/stale
+    assert_contains "$log" '2026-09-22 · stale-owner · symptom · fixed · project/stale' 'old owner timestamp with a live PID must be reclaimed'
+}
+
+test_fresh_live_owner_is_not_reclaimed() {
+    local home="$TEST_DIR/fresh-live-owner"
+    local log="$home/.claude/papercuts.md"
+    local lock="$home/.claude/.papercuts.md.papercut.lock"
+    mkdir -p "$lock"
+    make_lock "$log" "$(date -u +%s)"
+    if PAPERCUT_LOG="$log" PAPERCUT_DATE=2026-09-22 PAPERCUT_LOCK_STALE_SECONDS=60 PAPERCUT_LOCK_ATTEMPTS=3 "$HELPER" fresh-owner symptom fixed project/fresh >/dev/null 2>&1; then
+        echo 'fresh live owner was incorrectly reclaimed' >&2
+        exit 1
+    fi
+}
+
+test_stale_reclaim_marker_recovery() {
+    local home="$TEST_DIR/stale-reclaim-marker"
+    local log="$home/.claude/papercuts.md"
+    local lock="$home/.claude/.papercuts.md.papercut.lock"
+    mkdir -p "$lock" "$lock.reclaiming"
+    make_lock "$log" "$(( $(date -u +%s) - 120 ))"
+    touch -t 200001010000 "$lock.reclaiming"
+    PAPERCUT_LOG="$log" PAPERCUT_DATE=2026-09-22 PAPERCUT_LOCK_STALE_SECONDS=60 "$HELPER" stale-marker symptom fixed project/marker
+    assert_contains "$log" '2026-09-22 · stale-marker · symptom · fixed · project/marker' 'a stale reclaim marker must be removed'
+}
+
+test_ownerless_lock_recovery() {
+    local home="$TEST_DIR/ownerless-lock"
+    local log="$home/.claude/papercuts.md"
+    local lock="$home/.claude/.papercuts.md.papercut.lock"
+    mkdir -p "$lock"
+    touch -t 200001010000 "$lock"
+    PAPERCUT_LOG="$log" PAPERCUT_DATE=2026-09-22 PAPERCUT_LOCK_STALE_SECONDS=60 "$HELPER" ownerless symptom fixed project/ownerless
+    assert_contains "$log" '2026-09-22 · ownerless · symptom · fixed · project/ownerless' 'an old ownerless lock directory must be reclaimed'
+}
+
+test_age_check_mutation_fails() {
+    local home="$TEST_DIR/age-check-mutation"
+    local log="$home/.claude/papercuts.md"
+    local lock="$home/.claude/.papercuts.md.papercut.lock"
+    local mutant="$TEST_DIR/papercut-without-age-check.sh"
+    mkdir -p "$lock"
+    make_lock "$log" "$(( $(date -u +%s) - 120 ))"
+    cp "$HELPER" "$mutant"
+    /usr/bin/perl -0pi -e 's/if \[ "\$\(\(now - acquired_at\)\)" -ge "\$PAPERCUT_LOCK_STALE_SECONDS" \]; then\n    return 0\n  fi\n//' "$mutant"
+    if PAPERCUT_LOG="$log" PAPERCUT_DATE=2026-09-22 PAPERCUT_LOCK_STALE_SECONDS=60 PAPERCUT_LOCK_ATTEMPTS=3 "$mutant" mutated symptom fixed project/mutated >/dev/null 2>&1; then
+        echo 'removing the age check unexpectedly reclaimed a live PID lock' >&2
+        exit 1
+    fi
+}
+
 echo 'Testing papercut sync preservation...'
 test_sync_preserves_runtime_data
 echo 'Testing papercut concurrent append...'
@@ -155,4 +219,14 @@ echo 'Testing papercut interrupted-archive recovery...'
 test_archive_recovers_interrupted_run
 echo 'Testing papercut monthly LaunchAgent wiring...'
 test_monthly_launchagent_wiring
+echo 'Testing stale live-owner lock recovery...'
+test_stale_live_owner_recovery
+echo 'Testing fresh live-owner lock safety...'
+test_fresh_live_owner_is_not_reclaimed
+echo 'Testing stale reclaim-marker recovery...'
+test_stale_reclaim_marker_recovery
+echo 'Testing ownerless lock recovery...'
+test_ownerless_lock_recovery
+echo 'Testing age-check mutation...'
+test_age_check_mutation_fails
 echo 'Papercut tests passed.'
