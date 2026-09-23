@@ -12,7 +12,7 @@ The Agent Specification API defines the interface and capabilities for Claude Co
 ---
 name: "agent-name"
 category: "development|infrastructure|architecture|design|quality|security|analysis|operations"
-model: "claude-sonnet-4-6|claude-haiku-4-5-20251001|claude-opus-4-6"
+model: "claude-sonnet-5|claude-haiku-4-5|claude-opus-5-5"
 capabilities:
   - "Primary capability"
   - "Secondary capability"
@@ -34,25 +34,25 @@ performance_tier: "Standard|Premium|Critical"
 
 ### Required Fields
 
-| Field | Type | Description | Example |
-|-------|------|-------------|---------|
-| `name` | string | Unique agent identifier | "backend-engineer" |
-| `category` | string | Functional domain | "development" |
-| `model` | string | Claude model version | "claude-sonnet-4-6" |
-| `capabilities` | array | Core competencies | ["API development", "Database design"] |
-| `tools` | array | Allowed tool access | ["Read", "Write", "Bash"] |
-| `description` | string | Agent purpose and context | "Server-side development specialist" |
-| `system_boundary` | string | Security boundary statement | Required exact text |
+| Field             | Type   | Description                 | Example                                |
+| ----------------- | ------ | --------------------------- | -------------------------------------- |
+| `name`            | string | Unique agent identifier     | "backend-engineer"                     |
+| `category`        | string | Functional domain           | "development"                          |
+| `model`           | string | Claude model version        | "claude-sonnet-5"                      |
+| `capabilities`    | array  | Core competencies           | ["API development", "Database design"] |
+| `tools`           | array  | Allowed tool access         | ["Read", "Write", "Bash"]              |
+| `description`     | string | Agent purpose and context   | "Server-side development specialist"   |
+| `system_boundary` | string | Security boundary statement | Required exact text                    |
 
 ### Optional Fields
 
-| Field | Type | Description | Default |
-|-------|------|-------------|---------|
-| `coordination_notes` | string | Multi-agent patterns | Empty |
-| `quality_gates` | array | Quality requirements | Empty |
-| `performance_tier` | string | Performance classification | "Standard" |
-| `specializations` | array | Domain-specific expertise | Empty |
-| `dependencies` | array | Required external tools | Empty |
+| Field                | Type   | Description                | Default    |
+| -------------------- | ------ | -------------------------- | ---------- |
+| `coordination_notes` | string | Multi-agent patterns       | Empty      |
+| `quality_gates`      | array  | Quality requirements       | Empty      |
+| `performance_tier`   | string | Performance classification | "Standard" |
+| `specializations`    | array  | Domain-specific expertise  | Empty      |
+| `dependencies`       | array  | Required external tools    | Empty      |
 
 ## Tool Access Levels
 
@@ -266,10 +266,10 @@ coordination: "Incident response and operational support"
 
 ## Model Selection Guidelines
 
-### Claude Opus 4.6 (Strategic & Complex)
+### Claude Opus 5.5 (Strategic & Complex)
 
 ```yaml
-model: "claude-opus-4-6"
+model: "claude-opus-5-5"
 use_cases:
   - Strategic architecture decisions
   - Complex system design
@@ -283,10 +283,10 @@ agents:
 cost: "High - use for strategic decisions"
 ```
 
-### Claude Sonnet 4.6 (Standard Implementation)
+### Claude Sonnet 5 (Standard Implementation)
 
 ```yaml
-model: "claude-sonnet-4-6"
+model: "claude-sonnet-5"
 use_cases:
   - Standard development tasks
   - Code review and analysis
@@ -299,7 +299,7 @@ cost: "Balanced - standard choice"
 ### Claude Haiku 4.5 (Simple & Fast)
 
 ```yaml
-model: "claude-haiku-4-5-20251001"
+model: "claude-haiku-4-5"
 use_cases:
   - Simple validation tasks
   - Quick analysis
@@ -326,6 +326,7 @@ coordination_method: "Result aggregation after completion"
 ```
 
 **Implementation**:
+
 ```yaml
 agents:
   - name: backend-engineer
@@ -353,6 +354,7 @@ coordination_method: "Hand-off between stages"
 ```
 
 **Implementation**:
+
 ```yaml
 pipeline:
   stage_1:
@@ -384,6 +386,7 @@ spoke_agents:
 ```
 
 **Implementation**:
+
 ```yaml
 coordinator: project-orchestrator
 agents:
