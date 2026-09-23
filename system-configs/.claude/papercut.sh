@@ -94,7 +94,7 @@ lock_directory_mtime() {
 }
 
 lock_is_reclaimable() {
-  local owner_file="$lock_dir/owner" pid="" acquired_at="" now mtime
+  local owner_file="$lock_dir/owner" pid="" acquired_at="" now mtime etime="" elapsed="" process_started=""
   now="$(/bin/date -u +%s)"
   if [ ! -f "$owner_file" ]; then
     mtime="$(lock_directory_mtime "$lock_dir")" || return 1
@@ -109,14 +109,26 @@ lock_is_reclaimable() {
     [ "$((now - mtime))" -ge "$PAPERCUT_LOCK_STALE_SECONDS" ]
     return
   fi
-  # A reused PID can be alive even though its short-lived former owner is not.
-  if [ "$((now - acquired_at))" -ge "$PAPERCUT_LOCK_STALE_SECONDS" ]; then
+  if ! /bin/kill -0 "$pid" 2>/dev/null; then
     return 0
   fi
-  if /bin/kill -0 "$pid" 2>/dev/null; then
-    return 1
-  fi
-  return 0
+  # An old acquisition time alone cannot expire a live owner: macOS can sleep
+  # longer than the stale bound. Compare the PID's actual start time instead,
+  # so only a PID recycled after this lock was acquired is reclaimable.
+  etime="$(ps -o etime= -p "$pid" 2>/dev/null | /usr/bin/tr -d '[:space:]')"
+  [ -n "$etime" ] || return 1
+  elapsed="$(/usr/bin/perl -e '
+    my $etime = shift;
+    if ($etime =~ /^(?:(\d+)-)?(\d+):(\d\d):(\d\d)$/) {
+      print (($1 // 0) * 86400 + $2 * 3600 + $3 * 60 + $4), qq{\n};
+    } elsif ($etime =~ /^(\d+):(\d\d)$/) {
+      print ($1 * 60 + $2), qq{\n};
+    } else {
+      exit 1;
+    }
+  ' "$etime")" || return 1
+  process_started=$((now - elapsed))
+  [ "$process_started" -gt "$((acquired_at + 2))" ]
 }
 
 reclaim_marker_is_stale() {

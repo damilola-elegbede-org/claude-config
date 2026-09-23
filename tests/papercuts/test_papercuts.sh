@@ -8,6 +8,14 @@ SYNC_SCRIPT="${PAPERCUT_SYNC_SCRIPT:-$ORIGINAL_DIR/scripts/sync.sh}"
 HELPER="${PAPERCUT_HELPER:-$ORIGINAL_DIR/system-configs/.claude/papercut.sh}"
 ARCHIVER="${PAPERCUT_ARCHIVER:-$ORIGINAL_DIR/system-configs/.claude/archive-papercuts.sh}"
 TEST_DIR="$(mktemp -d /tmp/claude-config-papercuts.XXXXXX)"
+TEST_BIN="$TEST_DIR/bin"
+TEST_PS_START_DIR="$TEST_DIR/ps-starts"
+mkdir -p "$TEST_BIN"
+mkdir -p "$TEST_PS_START_DIR"
+export PAPERCUT_TEST_PS_START_DIR="$TEST_PS_START_DIR"
+printf '%s\n' '#!/bin/sh' 'pid="$4"' 'if [ -f "$PAPERCUT_TEST_PS_START_DIR/$pid" ]; then' '  started="$(cat "$PAPERCUT_TEST_PS_START_DIR/$pid")"' '  elapsed=$(( $(date -u +%s) - started ))' '  printf " %02d:%02d\\n" $((elapsed / 60)) $((elapsed % 60))' 'else' '  printf " 00:00\\n"' 'fi' >"$TEST_BIN/ps"
+chmod +x "$TEST_BIN/ps"
+PATH="$TEST_BIN:$PATH"
 
 cleanup() {
     rm -rf "$TEST_DIR"
@@ -175,18 +183,66 @@ test_monthly_launchagent_wiring() {
 
 make_lock() {
     local log="$1"
+    local pid="${3:-$$}"
     mkdir -p "$(dirname "$log")"
-    printf '%s\n%s\n' "$$" "$2" >"$(dirname "$log")/.papercuts.md.papercut.lock/owner"
+    printf '%s\n%s\n' "$pid" "$2" >"$(dirname "$log")/.papercuts.md.papercut.lock/owner"
 }
 
-test_stale_live_owner_recovery() {
-    local home="$TEST_DIR/stale-live-owner"
+run_live_sleeping_owner_case() {
+    local helper="$1"
+    local home="$2"
     local log="$home/.claude/papercuts.md"
     local lock="$home/.claude/.papercuts.md.papercut.lock"
+    local sleeper now rc
+    /bin/sleep 60 &
+    sleeper=$!
     mkdir -p "$lock"
-    make_lock "$log" "$(( $(date -u +%s) - 120 ))"
-    PAPERCUT_LOG="$log" PAPERCUT_DATE=2026-09-22 PAPERCUT_LOCK_STALE_SECONDS=60 "$HELPER" stale-owner symptom fixed project/stale
-    assert_contains "$log" '2026-09-22 · stale-owner · symptom · fixed · project/stale' 'old owner timestamp with a live PID must be reclaimed'
+    now="$(date -u +%s)"
+    printf '%s\n' "$now" >"$TEST_PS_START_DIR/$sleeper"
+    make_lock "$log" "$now" "$sleeper"
+    /bin/sleep 2
+    if PAPERCUT_LOG="$log" PAPERCUT_DATE=2026-09-22 PAPERCUT_LOCK_STALE_SECONDS=1 PAPERCUT_LOCK_ATTEMPTS=3 "$helper" live-owner symptom fixed project/live >/dev/null 2>&1; then
+        rc=0
+    else
+        rc=$?
+    fi
+    kill "$sleeper" 2>/dev/null || true
+    wait "$sleeper" 2>/dev/null || true
+    return "$rc"
+}
+
+test_live_sleeping_owner_is_not_reclaimed() {
+    if run_live_sleeping_owner_case "$HELPER" "$TEST_DIR/live-sleeping-owner"; then
+        echo 'a live original owner was incorrectly reclaimed after the stale bound' >&2
+        exit 1
+    fi
+}
+
+test_recycled_pid_owner_recovery() {
+    local home="$TEST_DIR/recycled-pid-owner"
+    local log="$home/.claude/papercuts.md"
+    local lock="$home/.claude/.papercuts.md.papercut.lock"
+    local sleeper etime elapsed now acquired
+    /bin/sleep 60 &
+    sleeper=$!
+    mkdir -p "$lock"
+    now="$(date -u +%s)"
+    printf '%s\n' "$now" >"$TEST_PS_START_DIR/$sleeper"
+    for _ in $(seq 1 100); do
+        etime="$(ps -o etime= -p "$sleeper" 2>/dev/null | tr -d '[:space:]')"
+        [ -n "$etime" ] && break
+        /bin/sleep 0.01
+    done
+    case "$etime" in
+        [0-9][0-9]:[0-9][0-9]) elapsed=$(( ${etime%:*} * 60 + ${etime#*:} )) ;;
+        *) echo "unexpected short-lived sleep etime: $etime" >&2; kill "$sleeper" 2>/dev/null || true; wait "$sleeper" 2>/dev/null || true; exit 1 ;;
+    esac
+    acquired=$((now - elapsed - 600))
+    make_lock "$log" "$acquired" "$sleeper"
+    PAPERCUT_LOG="$log" PAPERCUT_DATE=2026-09-22 PAPERCUT_LOCK_STALE_SECONDS=1 "$HELPER" recycled-owner symptom fixed project/recycled
+    kill "$sleeper" 2>/dev/null || true
+    wait "$sleeper" 2>/dev/null || true
+    assert_contains "$log" '2026-09-22 · recycled-owner · symptom · fixed · project/recycled' 'a PID that started after the recorded lock owner must be reclaimed'
 }
 
 test_fresh_live_owner_is_not_reclaimed() {
@@ -206,7 +262,7 @@ test_stale_reclaim_marker_recovery() {
     local log="$home/.claude/papercuts.md"
     local lock="$home/.claude/.papercuts.md.papercut.lock"
     mkdir -p "$lock" "$lock.reclaiming"
-    make_lock "$log" "$(( $(date -u +%s) - 120 ))"
+    make_lock "$log" "$(( $(date -u +%s) - 120 ))" 99999999
     touch -t 200001010000 "$lock.reclaiming"
     PAPERCUT_LOG="$log" PAPERCUT_DATE=2026-09-22 PAPERCUT_LOCK_STALE_SECONDS=60 "$HELPER" stale-marker symptom fixed project/marker
     assert_contains "$log" '2026-09-22 · stale-marker · symptom · fixed · project/marker' 'a stale reclaim marker must be removed'
@@ -222,7 +278,7 @@ test_ownerless_lock_recovery() {
     assert_contains "$log" '2026-09-22 · ownerless · symptom · fixed · project/ownerless' 'an old ownerless lock directory must be reclaimed'
 }
 
-test_age_check_mutation_fails() {
+test_old_age_expiry_mutation_fails() {
     local home="$TEST_DIR/age-check-mutation"
     local log="$home/.claude/papercuts.md"
     local lock="$home/.claude/.papercuts.md.papercut.lock"
@@ -230,7 +286,11 @@ test_age_check_mutation_fails() {
     mkdir -p "$lock"
     make_lock "$log" "$(( $(date -u +%s) - 120 ))"
     cp "$HELPER" "$mutant"
-    /usr/bin/perl -0pi -e 's/if \[ "\$\(\(now - acquired_at\)\)" -ge "\$PAPERCUT_LOCK_STALE_SECONDS" \]; then\n    return 0\n  fi\n//' "$mutant"
+    /usr/bin/perl -0pi -e 's/  process_started=\$\(\(now - elapsed\)\)\n  \[ "\$process_started" -gt "\$\(\(acquired_at \+ 2\)\)" \]\n}/  if [ "\$((now - acquired_at))" -ge "\$PAPERCUT_LOCK_STALE_SECONDS" ]; then\n    return 0\n  fi\n  return 1\n}/' "$mutant"
+    if run_live_sleeping_owner_case "$mutant" "$TEST_DIR/old-age-expiry-mutation"; then
+        echo 'mutation detected: restoring age expiry makes the live-owner safety assertion fail (rc=1)'
+        return
+    fi
     if PAPERCUT_LOG="$log" PAPERCUT_DATE=2026-09-22 PAPERCUT_LOCK_STALE_SECONDS=60 PAPERCUT_LOCK_ATTEMPTS=3 "$mutant" mutated symptom fixed project/mutated >/dev/null 2>&1; then
         echo 'removing the age check unexpectedly reclaimed a live PID lock' >&2
         exit 1
@@ -249,14 +309,16 @@ test_archive_drops_archived_duplicate_of_recurring
 test_symlinked_log_is_preserved
 echo 'Testing papercut monthly LaunchAgent wiring...'
 test_monthly_launchagent_wiring
-echo 'Testing stale live-owner lock recovery...'
-test_stale_live_owner_recovery
+echo 'Testing live sleeping-owner lock safety...'
+test_live_sleeping_owner_is_not_reclaimed
+echo 'Testing recycled PID owner recovery...'
+test_recycled_pid_owner_recovery
 echo 'Testing fresh live-owner lock safety...'
 test_fresh_live_owner_is_not_reclaimed
 echo 'Testing stale reclaim-marker recovery...'
 test_stale_reclaim_marker_recovery
 echo 'Testing ownerless lock recovery...'
 test_ownerless_lock_recovery
-echo 'Testing age-check mutation...'
-test_age_check_mutation_fails
+echo 'Testing old age-expiry mutation...'
+test_old_age_expiry_mutation_fails
 echo 'Papercut tests passed.'

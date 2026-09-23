@@ -150,11 +150,26 @@ initialize_papercut_log() {
             [ "$((papercut_now - papercut_mtime))" -ge "$PAPERCUT_LOCK_STALE_SECONDS" ]
             return
         fi
-        # A reused PID can be alive even though its short-lived former owner is not.
-        if [ "$((papercut_now - papercut_acquired))" -ge "$PAPERCUT_LOCK_STALE_SECONDS" ]; then
+        if ! kill -0 "$papercut_pid" 2>/dev/null; then
             return 0
         fi
-        ! kill -0 "$papercut_pid" 2>/dev/null
+        # An old acquisition time alone cannot expire a live owner: macOS can sleep
+        # longer than the stale bound. Compare the PID's actual start time instead,
+        # so only a PID recycled after this lock was acquired is reclaimable.
+        papercut_etime="$(ps -o etime= -p "$papercut_pid" 2>/dev/null | /usr/bin/tr -d '[:space:]')"
+        [ -n "$papercut_etime" ] || return 1
+        papercut_elapsed="$(/usr/bin/perl -e '
+            my $etime = shift;
+            if ($etime =~ /^(?:(\d+)-)?(\d+):(\d\d):(\d\d)$/) {
+              print (($1 // 0) * 86400 + $2 * 3600 + $3 * 60 + $4), qq{\n};
+            } elsif ($etime =~ /^(\d+):(\d\d)$/) {
+              print ($1 * 60 + $2), qq{\n};
+            } else {
+              exit 1;
+            }
+          ' "$papercut_etime")" || return 1
+        papercut_process_started=$((papercut_now - papercut_elapsed))
+        [ "$papercut_process_started" -gt "$((papercut_acquired + 2))" ]
     }
 
     papercut_reclaim_marker_is_stale() {
