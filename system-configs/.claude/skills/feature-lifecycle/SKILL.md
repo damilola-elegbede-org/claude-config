@@ -235,7 +235,7 @@ import anthropic
 
 client = anthropic.Anthropic()
 message = client.messages.create(
-    model="claude-sonnet-5",
+    model="claude-sonnet-5-5",
     max_tokens=16384,
     messages=[{
         "role": "user",
@@ -251,7 +251,7 @@ import Anthropic from "@anthropic-ai/sdk";
 
 const client = new Anthropic();
 const message = await client.messages.create({
-  model: "claude-sonnet-5",
+  model: "claude-sonnet-5-5",
   max_tokens: 16384,
   messages: [
     {
