@@ -17,7 +17,9 @@ the decision is obvious. You should:
    | `INPUT`    | answer a question                                                                |
    | `ACTION`   | do the one step only you can do: run a command, merge, upload, grant access, pay |
 
-   A conditional action ("if X happens, you run Y") is `ACTION`: put the trigger in line 1 and in the Deadline slot.
+   A conditional action ("if X happens, D runs Y") splits by who sees the trigger. If D must watch for it: `ACTION`,
+   trigger in line 1 and in the Deadline slot. If you will see it: `FYI` now, with `**Next:**` naming when you check,
+   then `ACTION` when it fires.
 
 2. **Add the meta line when D must act** — `Confidence **high / medium / low** (basis) · Reversible **yes / no** · Deadline **when**`
 3. **Bad news first, then only what changes the decision** — No preamble, no recap, and leave out empty sections. A
