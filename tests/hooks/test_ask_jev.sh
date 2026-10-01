@@ -194,6 +194,15 @@ OUT=$(cd "$HOME/ok" && JEV_MOCK="$T/fix3.json" "$RANK" "retry" "$HOME/work/proj"
 lacks "an excluded path is dropped from the output" "$OUT" "/work/proj/retry.ts"
 lacks "an excluded path is never sent" "$(cat "$JEV_STUB_LOG")" "work repo"
 has "an ordinary path is kept" "$OUT" "/ok/retry.ts"
+# relative paths into an excluded tree (the normal way to call this script)
+: >"$JEV_STUB_LOG"
+OUT=$(cd "$HOME/ok" && JEV_MOCK="$T/fix3.json" "$RANK" "retry" ../work/proj . 2>/dev/null)
+lacks "a RELATIVE path into an excluded tree is dropped from the output" "$OUT" "work/proj/retry.ts"
+lacks "a RELATIVE path into an excluded tree is never sent" "$(cat "$JEV_STUB_LOG")" "work repo"
+has "the ordinary relative path is still ranked" "$OUT" "retry.ts"
+: >"$JEV_STUB_LOG"
+OUT=$(cd "$HOME" && JEV_MOCK="$T/fix3.json" "$RANK" "retry" work 2>/dev/null)
+lacks "a relative directory that IS an excluded tree sends nothing" "$(cat "$JEV_STUB_LOG")" "work repo"
 
 echo "== the real client redacts before anything leaves"
 if command -v node >/dev/null 2>&1; then

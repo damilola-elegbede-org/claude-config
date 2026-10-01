@@ -63,7 +63,10 @@ if [ -r "$JEV_DIR/ctx-lib.sh" ] && [ -r "$JEV_DIR/registry.sh" ]; then
 fi
 excluded() { # egress: a path inside an excluded (work) tree never goes anywhere
   [ "$HAVE_JEV" = 1 ] || return 1
-  ctx_path_excluded "$1"
+  local p="$1"
+  # ctx_path_excluded never matches a relative path, and relative paths are this script's normal input.
+  case "$p" in /*) ;; *) p="$PWD/$p" ;; esac
+  ctx_path_excluded "$p"
 }
 cfg() { # key default
   if [ "$HAVE_JEV" = 1 ]; then jev_reg_value "$RULE" "$1" "$2"; else printf '%s' "$2"; fi
