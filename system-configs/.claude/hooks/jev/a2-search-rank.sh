@@ -31,7 +31,14 @@ main() {
   fi
   # ... and every returned path is checked too: a search of a clean ancestor ($HOME) can return hits from an
   # excluded descendant (~/work). Grep content lines are "path:line:text"; files modes are bare paths.
+  # Every distinct path is checked; past max_hit_paths (500) nothing is sent rather than checking a prefix.
   local hit
+  sed -E 's/^([^:]+):[0-9]+[:-].*/\1/; s/^([^:]+)-[0-9]+-.*/\1/' "${WORK}/text.txt" | awk '!seen[$0]++' >"${WORK}/hits.txt"
+  if [ "$(wc -l <"${WORK}/hits.txt")" -gt "$(ctx_cfg max_hit_paths 500)" ]; then
+    jq -cn --argjson n "$n" '{decision:"keep-full", why:"too-many-hit-paths", lines:$n}' >"${WORK}/detail.json"
+    ctx_log skip "${WORK}/detail.json"
+    return 0
+  fi
   while IFS= read -r hit; do
     [ -n "$hit" ] || continue
     if ctx_target_excluded "$hit"; then
@@ -39,7 +46,7 @@ main() {
       ctx_log skip "${WORK}/detail.json"
       return 0
     fi
-  done < <(sed -E 's/^([^:]+):[0-9]+[:-].*/\1/; s/^([^:]+)-[0-9]+-.*/\1/' "${WORK}/text.txt" | awk '!seen[$0]++' | head -500)
+  done <"${WORK}/hits.txt"
 
   task="$(ctx_task "$(ctx_in .transcript_path)")"
   state="$(jq -cn --arg task "$task" --arg tool "$tool" --arg pat "$(ctx_in .tool_input.pattern | cut -c1-200)" --argjson n "$n" \

@@ -297,14 +297,14 @@ def sq: "'[^']*'";
 # so redirections stay visible to the rules.
 def tok: "(?:" + dq + "|" + sq + "|[^[:space:];&|<>\"'`()]+(?![^[:space:];&|\"'`()]))";
 # Quoted text that is DATA, not a command, is blanked: values of --body/--title/--message/-m/-f body=,
-# and every argument of echo/printf/grep/rg/ag. Skipped entirely when the text could be executed
+# and every argument of echo/printf/grep/rg/ag (not `printf -v NAME`, which assigns a variable). Skipped entirely when the text could be executed
 # (piped into a shell, eval, xargs) and for strings containing $( or a backtick.
 def blank_data:
   if test("\\|[[:space:]]*(?:sudo[[:space:]]+)?(?:(?:ba|z|da|k)?sh|xargs)(?:[[:space:]]|$)|(?:^|[^A-Za-z0-9_])eval[[:space:]]") then .
   else
     gsub("(?<f>(?:--body|--title|--message|--notes|--subject|--description|--comment|-m|-b|-t)(?:[[:space:]]+|=))(?:" + dq + "|" + sq + ")"; "\(.f)\"\"")
     | gsub("(?<f>(?:-f|-F|--field|--raw-field)[[:space:]]+(?:body|title|message|comment|commit_message|description|text)=)(?:" + dq + "|" + sq + ")"; "\(.f)\"\"")
-    | gsub("(?<h>(?:^|[;&|(\\n`])[[:space:]]*(?:(?:/usr)?/bin/)?(?:echo|printf|grep|egrep|fgrep|rg|ag)(?:[[:space:]]+-[A-Za-z-]+)*)(?:[[:space:]]+" + tok + ")+"; "\(.h) \"\"")
+    | gsub("(?<h>(?:^|[;&|(\\n`])[[:space:]]*(?:(?:/usr)?/bin/)?(?:echo|printf(?![[:space:]]+-v)|grep|egrep|fgrep|rg|ag)(?:[[:space:]]+-[A-Za-z-]+)*)(?:[[:space:]]+" + tok + ")+"; "\(.h) \"\"")
   end;
 $rules[0] as $R
 | (($R.macros // {}) + {

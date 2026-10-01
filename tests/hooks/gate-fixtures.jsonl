@@ -376,6 +376,14 @@
 {"rule": "G10-identity", "expect": "allow", "tool": "Bash", "input": {"command": "env -u BARECLAUDE_AGENT_SLUG claude -p hi"}}
 {"rule": "G10-identity", "expect": "allow", "tool": "Bash", "input": {"command": "[ -n \"$BARECLAUDE_AGENT_SLUG\" ] && echo fleet"}}
 {"rule": "G10-identity", "expect": "allow", "tool": "Bash", "input": {"command": "unset BARECLAUDE_AGENT_SLUG"}}
+{"rule": "G10-identity", "expect": "deny", "tool": "Bash", "input": {"command": "env BARECLAUDE_AGENT_SLUG\\=dara claude -p hi"}}
+{"rule": "G10-identity", "expect": "deny", "tool": "Bash", "input": {"command": "env 'BARECLAUDE_AGENT_SLUG'=dara claude -p hi"}}
+{"rule": "G10-identity", "expect": "deny", "tool": "Bash", "input": {"command": "env \"BARECLAUDE_AGENT_SLUG\"=\"dara\" claude -p hi"}}
+{"rule": "G10-identity", "expect": "deny", "tool": "Bash", "input": {"command": "printf -v BARECLAUDE_AGENT_SLUG dara; claude -p hi"}}
+{"rule": "G10-identity", "expect": "deny", "tool": "Bash", "input": {"command": "read BARECLAUDE_AGENT_SLUG <<< dara"}}
+{"rule": "G10-identity", "expect": "deny", "tool": "Bash", "input": {"command": "setenv BARECLAUDE_AGENT_SLUG dara"}}
+{"rule": "G10-identity", "expect": "allow", "tool": "Bash", "input": {"command": "echo ${BARECLAUDE_AGENT_SLUG:-none}"}}
+{"rule": "G10-identity", "expect": "allow", "tool": "Bash", "input": {"command": "env --unset=BARECLAUDE_AGENT_SLUG claude -p hi"}}
 {"rule": "G10-jevsock", "expect": "deny", "tool": "Bash", "input": {"command": "printf '%s\\n' '{\"op\":\"evaluate\"}' | nc -U ~/.claude/hooks/jev/jev.sock"}}
 {"rule": "G10-jevsock", "expect": "deny", "tool": "Bash", "input": {"command": "socat - UNIX-CONNECT:/var/folders/x/T/jev-501-ab12cd.sock < req.json"}}
 {"rule": "G10-jevsock", "expect": "deny", "tool": "Bash", "input": {"command": "ls /tmp/jev-*.sock"}}

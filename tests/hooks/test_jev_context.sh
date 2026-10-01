@@ -346,6 +346,12 @@ mkdir -p "$TEST_HOME/other"
 jq -cn --rawfile c "$TEST_HOME/mixed-hits.txt" --arg p "$TEST_HOME" --arg cwd "$TEST_HOME/other" '{tool_name:"Grep", cwd:$cwd, tool_input:{pattern:"line", path:$p}, tool_response:{content:$c}}' >"$IN"
 JEV_MOCK="$FIX" run_hook a2-search-rank.sh "$IN"
 check "Grep of a clean ancestor with ONE hit inside an excluded tree: untouched, no call" bash -c "[ ! -s '$OUTF' ] && [ \"\$(wc -l <'$STUB_COUNT' | tr -d ' ')\" = '$B' ]"
+# the excluded hit sits after 600 distinct clean paths: no prefix check, nothing is sent
+{ for i in $(seq 1 600); do printf '%s/other/f%s.txt:1:clean line\n' "$TEST_HOME" "$i"; done
+  printf '%s/visa-repo/secret.ts:7:CONFIDENTIAL work line\n' "$TEST_HOME"; } >"$TEST_HOME/many-hits.txt"
+jq -cn --rawfile c "$TEST_HOME/many-hits.txt" --arg p "$TEST_HOME" --arg cwd "$TEST_HOME/other" '{tool_name:"Grep", cwd:$cwd, tool_input:{pattern:"line", path:$p}, tool_response:{content:$c}}' >"$IN"
+JEV_MOCK="$FIX" run_hook a2-search-rank.sh "$IN"
+check "Grep with an excluded hit past 500 distinct paths: untouched, no call" bash -c "[ ! -s '$OUTF' ] && [ \"\$(wc -l <'$STUB_COUNT' | tr -d ' ')\" = '$B' ]"
 grep -v visa-repo "$TEST_HOME/mixed-hits.txt" >"$TEST_HOME/clean-hits.txt"
 jq -cn --rawfile c "$TEST_HOME/clean-hits.txt" --arg p "$TEST_HOME" --arg cwd "$TEST_HOME/other" '{tool_name:"Grep", cwd:$cwd, tool_input:{pattern:"line", path:$p}, tool_response:{content:$c}}' >"$IN"
 JEV_MOCK="$FIX" run_hook a2-search-rank.sh "$IN"
