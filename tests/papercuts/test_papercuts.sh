@@ -5,6 +5,7 @@ set -euo pipefail
 
 ORIGINAL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SYNC_SCRIPT="${PAPERCUT_SYNC_SCRIPT:-$ORIGINAL_DIR/scripts/sync.sh}"
+export JEV_SYNC_SKIP_NPM=1 # these tests run a real sync into a temp HOME; never hit the npm registry
 HELPER="${PAPERCUT_HELPER:-$ORIGINAL_DIR/system-configs/.claude/papercut.sh}"
 ARCHIVER="${PAPERCUT_ARCHIVER:-$ORIGINAL_DIR/system-configs/.claude/archive-papercuts.sh}"
 TEST_DIR="$(mktemp -d /tmp/claude-config-papercuts.XXXXXX)"

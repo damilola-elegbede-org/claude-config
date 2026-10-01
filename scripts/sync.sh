@@ -492,6 +492,79 @@ validate_configs() {
     return 0
 }
 
+# Deploy hooks/jev/ (Jev client: shim, node client, configs, session check).
+# Unlike RUNTIME_HOOK_SCRIPTS this is a directory with a node dependency, so
+# it gets its own step: validate, rsync (runtime state and node_modules are
+# excluded, so --delete never touches them), then `npm ci --omit=dev` ONLY when
+# package.json / package-lock.json changed or node_modules is missing.
+# JEV_SYNC_SKIP_NPM=1 skips the install (tests run sync against a temp HOME).
+# An install failure warns but does not fail sync: Jev degrades to regex and
+# the SessionStart check says so.
+sync_jev_hooks() {
+    jev_src="$SOURCE_DIR/hooks/jev"
+    jev_dst="$TARGET_DIR/hooks/jev"
+    if [ ! -d "$jev_src" ]; then
+        print_error "Jev hooks missing from source tree: hooks/jev"
+        return 1
+    fi
+    for jev_script in jev-ask session-check.sh; do
+        if [ ! -f "$jev_src/$jev_script" ]; then
+            print_error "Jev hook script missing from source tree: hooks/jev/$jev_script"
+            return 1
+        fi
+        jev_err=$(bash -n "$jev_src/$jev_script" 2>&1) || {
+            print_error "Invalid shell script: hooks/jev/$jev_script"
+            printf "    %s\n" "$jev_err"
+            return 1
+        }
+    done
+    if command -v node >/dev/null 2>&1; then
+        jev_err=$(node --check "$jev_src/client.mjs" 2>&1) || {
+            print_error "Invalid JavaScript: hooks/jev/client.mjs"
+            printf "    %s\n" "$jev_err"
+            return 1
+        }
+    fi
+
+    jev_install=false
+    if [ ! -d "$jev_dst/node_modules" ] \
+        || ! cmp -s "$jev_src/package.json" "$jev_dst/package.json" 2>/dev/null \
+        || ! cmp -s "$jev_src/package-lock.json" "$jev_dst/package-lock.json" 2>/dev/null; then
+        jev_install=true
+    fi
+
+    mkdir -p "$jev_dst"
+    if ! jev_out=$(rsync -a --delete --exclude='node_modules' --exclude='jev.sock' --exclude='jev.sock.spawn' "$jev_src/" "$jev_dst/" 2>&1); then
+        print_error "Failed to sync hooks/jev"
+        printf "    %s\n" "$jev_out"
+        return 1
+    fi
+    chmod +x "$jev_dst/jev-ask" "$jev_dst/session-check.sh"
+
+    if [ "$jev_install" = "true" ]; then
+        if [ -n "${JEV_SYNC_SKIP_NPM:-}" ]; then
+            echo "  ⏭  Jev deps: npm ci skipped (JEV_SYNC_SKIP_NPM)"
+        elif ! command -v npm >/dev/null 2>&1; then
+            print_warning "npm not found - Jev client has no SDK; checkpoints fall back to regex"
+        elif jev_out=$(cd "$jev_dst" && npm ci --omit=dev --no-audit --no-fund 2>&1); then
+            echo "  ✅ Jev deps: npm ci --omit=dev in ~/.claude/hooks/jev"
+        else
+            print_warning "npm ci failed in ~/.claude/hooks/jev - Jev falls back to regex until it succeeds"
+            printf "    %s\n" "$jev_out"
+        fi
+    else
+        echo "  ✅ Jev deps: unchanged (npm ci not needed)"
+    fi
+
+    # A running daemon holds the old client and SDK in memory; stop it so the
+    # next call starts a fresh one. Harmless when none is running.
+    if command -v node >/dev/null 2>&1; then
+        "$jev_dst/jev-ask" --stop >/dev/null 2>&1 || true
+    fi
+    echo "  ✅ Jev hooks → ~/.claude/hooks/jev/"
+    return 0
+}
+
 # Function to sync files
 sync_files() {
     echo "🔄 Synchronizing files:"
@@ -657,6 +730,9 @@ sync_files() {
         mkdir -p "$TARGET_DIR/$(dirname "$datafile")"
         cp "$src" "$TARGET_DIR/$datafile"
     done
+    if [ "$(manifest_flag hook_scripts)" = "true" ]; then
+        sync_jev_hooks || return 1
+    fi
 
     # Build synced settings summary line from the same map. Every entry
     # is guaranteed to exist at this point (the loop above would have
@@ -774,6 +850,7 @@ main() {
                 echo "  - $script ⚠️  MISSING from source tree (real sync would fail)"
             fi
         done
+        echo "  - hooks/jev/ → ~/.claude/hooks/jev/ (npm ci --omit=dev only when package.json changed)"
         echo ""
         echo "📊 Preview summary:"
         echo "  Total files: $(find "$SOURCE_DIR" -name "*.md" -o -name "*.json" -o -name "*.sh" 2>/dev/null | wc -l | tr -d ' ') configurations ready"

@@ -1,0 +1,12 @@
+{
+  "name": "claude-jev-client",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Jev client for Claude Code hooks. Deployed to ~/.claude/hooks/jev by scripts/sync.sh.",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "ai": "7.0.126"
+  }
+}

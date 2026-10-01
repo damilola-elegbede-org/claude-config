@@ -152,6 +152,11 @@
             "type": "command",
             "command": "${HOME}/.claude/hooks/session_registry.sh start",
             "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/session-check.sh",
+            "timeout": 5
           }
         ]
       }

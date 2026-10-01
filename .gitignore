@@ -107,3 +107,7 @@ docs/api/*_GENERATION_*.md
 PERFORMANCE_*.md
 *_OPTIMIZATION_*.md
 USAGE_EXAMPLES.md
+
+# Jev client runtime state (the deployed dir gets these; never track them)
+system-configs/.claude/hooks/jev/node_modules/
+system-configs/.claude/hooks/jev/jev.sock*
