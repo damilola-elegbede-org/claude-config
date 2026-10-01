@@ -83,16 +83,25 @@ payload() { # payload <tool> <input-json>
 }
 write_payload() { payload Write "$(jq -nc --arg p "$1" --arg c "$2" '{file_path:$p,content:$c}')"; }
 bash_payload() { payload Bash "$(jq -nc --arg c "$1" '{command:$c}')"; }
-# mk_ask <transcript> <tool_use id> <offset-secs-from-now> <answer|NONE>: append an AskUserQuestion and (unless
-# NONE) its answered tool_result, in the shape Claude Code writes (toolUseResult.answers).
-mk_ask() {
+# mk_ask_q <transcript> <tool_use id> <offset-secs-from-now> <answer|NONE> <question text>: append an
+# AskUserQuestion and (unless NONE) its answered tool_result, in the shape Claude Code writes
+# (toolUseResult.answers).
+mk_ask_q() {
     local ts=$(($(date +%s) + $3))
-    jq -nc --arg id "$2" --argjson e "$ts" \
-        '{type:"assistant",timestamp:($e|todate),message:{content:[{type:"tool_use",id:$id,name:"AskUserQuestion",input:{questions:[{question:"Approve this action?"}]}}]}}' >>"$1"
+    jq -nc --arg id "$2" --argjson e "$ts" --arg q "$5" \
+        '{type:"assistant",timestamp:($e|todate),message:{content:[{type:"tool_use",id:$id,name:"AskUserQuestion",input:{questions:[{question:$q}]}}]}}' >>"$1"
     if [[ "$4" != "NONE" ]]; then
-        jq -nc --arg id "$2" --arg a "$4" --argjson e "$((ts + 1))" \
-            '{type:"user",timestamp:($e|todate),toolUseResult:{answers:{"Approve this action?":$a}},message:{content:[{type:"tool_result",tool_use_id:$id,content:("User has answered your questions: \"Approve this action?\"=\"" + $a + "\".")}]}}' >>"$1"
+        jq -nc --arg id "$2" --arg a "$4" --arg q "$5" --argjson e "$((ts + 1))" \
+            '{type:"user",timestamp:($e|todate),toolUseResult:{answers:{($q):$a}},message:{content:[{type:"tool_result",tool_use_id:$id,content:("User has answered your questions: \"" + $q + "\"=\"" + $a + "\".")}]}}' >>"$1"
     fi
+}
+# mk_ask <transcript> <id> <offset> <answer|NONE> <hash>...: the same, the question carrying each hash's
+# checkpoint code (its first 12 hex), the way the CHECKPOINT reason tells Claude to write it.
+mk_ask() {
+    local tx="$1" id="$2" off="$3" ans="$4" q="Approve this action?" h
+    shift 4
+    for h in "$@"; do q="$q checkpoint ${h:0:12}"; done
+    mk_ask_q "$tx" "$id" "$off" "$ans" "$q"
 }
 # deny_hash <home> <payload>: run the gate (expected to deny) and print the approval hash.
 deny_hash() { run_gate "$1" "$2"; hash_from_reason; }
@@ -253,25 +262,34 @@ check "approval: same action hashes the same" "$HASH" "$(hash_from_reason)"
 # D never answered: approve must refuse.
 approve_rc "$H_AP" "$HASH"
 check "approval: refused when no AskUserQuestion happened" "1" "$?"
-check_contains "approval: refusal says what is missing" "$AOUT" "no AskUserQuestion answered"
+check_contains "approval: refusal says what is missing" "$AOUT" "no unspent AskUserQuestion answered"
 if [[ -f "$H_AP/.claude/gate-pending/$HASH" && ! -e "$H_AP/.claude/gate-approved/$HASH" ]]; then pass; else fail "approval: a refused approve leaves the pending file alone"; fi
-mk_ask "$TX_AP" ask-old -120 Approve
+mk_ask "$TX_AP" ask-old -120 Approve "$HASH"
 approve_rc "$H_AP" "$HASH"
 check "approval: an AskUserQuestion from BEFORE the deny does not count" "1" "$?"
-mk_ask "$TX_AP" ask-nores 2 NONE
+mk_ask "$TX_AP" ask-nores 2 NONE "$HASH"
 approve_rc "$H_AP" "$HASH"
 check "approval: a question with no answer (dismissed) does not count" "1" "$?"
-mk_ask "$TX_AP" ask-deny 3 "Deny"
+mk_ask "$TX_AP" ask-deny 3 "Deny" "$HASH"
 approve_rc "$H_AP" "$HASH"
 check "approval: a Deny answer does not count" "1" "$?"
-mk_ask "$TX_AP" ask-no 4 "No, do not run it"
+mk_ask "$TX_AP" ask-no 4 "No, do not run it" "$HASH"
 approve_rc "$H_AP" "$HASH"
 check "approval: a No answer does not count" "1" "$?"
-mk_ask "$TX_AP" ask-yes 5 "Approve"
+mk_ask_q "$TX_AP" ask-unrelated 5 "Yes" "May I run the unit tests?"
+approve_rc "$H_AP" "$HASH"
+check "approval: an unrelated question answered Yes does not approve (Codex repro)" "1" "$?"
+check_contains "approval: the refusal names the checkpoint code" "$AOUT" "${HASH:0:12}"
+mk_ask_q "$TX_AP" ask-wrongcode 5 "Yes" "Approve rm -rf other? checkpoint 000000000000"
+approve_rc "$H_AP" "$HASH"
+check "approval: a question carrying another checkpoint's code does not approve" "1" "$?"
+if [[ ! -e "$H_AP/.claude/gate-asks-used.d/ask-unrelated" && ! -e "$H_AP/.claude/gate-asks-used.d/ask-wrongcode" ]]; then pass; else fail "approval: an unrelated question is never claimed"; fi
+mk_ask "$TX_AP" ask-yes 5 "Approve" "$HASH"
 approve_rc "$H_AP" "$HASH"
 check "approval: approve exits 0 after a real Approve" "0" "$?"
 check_contains "approval: approve says approved" "$AOUT" "approved"
 check_contains "approval: the spent question is recorded" "$(cat "$H_AP/.claude/gate-asks-used")" "ask-yes"
+if [[ -d "$H_AP/.claude/gate-asks-used.d/ask-yes" ]]; then pass; else fail "approval: the spent question is claimed atomically (mkdir marker)"; fi
 if [[ -f "$H_AP/.claude/gate-approved/$HASH" && ! -f "$H_AP/.claude/gate-pending/$HASH" ]]; then pass; else fail "approval: pending moved to approved"; fi
 run_gate "$H_AP" "$(bash_payload 'rm -rf bar')"
 check "approval: a different command is not approved" "deny" "$(decision)"
@@ -289,12 +307,12 @@ TX_ONE="$SANDBOX/tx-one.jsonl"
 GATE_TP="$TX_ONE"
 H1=$(deny_hash "$H_ONE" "$(bash_payload 'rm -rf one')")
 H2=$(deny_hash "$H_ONE" "$(bash_payload 'rm -rf two')")
-mk_ask "$TX_ONE" ask-a 2 "Approve"
+mk_ask "$TX_ONE" ask-a 2 "Approve" "$H1" "$H2"
 approve_rc "$H_ONE" "$H1"
 check "one question: first approve works" "0" "$?"
 approve_rc "$H_ONE" "$H2"
 check "one question: the same question cannot approve a second action" "1" "$?"
-mk_ask "$TX_ONE" ask-b 3 "Approve"
+mk_ask "$TX_ONE" ask-b 3 "Approve" "$H2"
 approve_rc "$H_ONE" "$H2"
 check "one question: a second question approves the second action" "0" "$?"
 
@@ -305,7 +323,7 @@ TX_B="$SANDBOX/tx-bind.jsonl"
 GATE_TP="$TX_B"
 GATE_CWD="/work/a"
 HB=$(deny_hash "$H_BIND" "$(bash_payload 'rm -rf foo')")
-mk_ask "$TX_B" ask-c 2 "Approve"
+mk_ask "$TX_B" ask-c 2 "Approve" "$HB"
 approve_rc "$H_BIND" "$HB"
 GATE_CWD="/work/b"
 run_gate "$H_BIND" "$(bash_payload 'rm -rf foo')"
@@ -316,7 +334,7 @@ run_gate "$H_BIND" "$(bash_payload 'rm -rf foo')"
 check "binding: the approved cwd still works" "" "$GOUT"
 # Write/Edit: the written content is part of the identity.
 HW=$(deny_hash "$H_BIND" "$(write_payload "$H_BIND/.claude/hooks/x.sh" "echo A")")
-mk_ask "$TX_B" ask-d 4 "Approve"
+mk_ask "$TX_B" ask-d 4 "Approve" "$HW"
 approve_rc "$H_BIND" "$HW"
 run_gate "$H_BIND" "$(write_payload "$H_BIND/.claude/hooks/x.sh" "echo EVIL")"
 check "binding: different Write content is NOT approved" "deny" "$(decision)"
@@ -336,7 +354,7 @@ check_contains "multi-rule: the reason names the first rule" "$(reason)" "CHECKP
 check_contains "multi-rule: the reason names the other matched rule" "$(reason)" "Also matched "
 check "multi-rule: ONE pending file for the action" "1" "$(find "$H_MR/.claude/gate-pending" -type f | wc -l | tr -d ' ')"
 check "multi-rule: the pending file lists every rule" "true" "$(jq '.rules | length >= 2' "$H_MR/.claude/gate-pending/$HM")"
-mk_ask "$TX_MR" ask-m 2 "Approve"
+mk_ask "$TX_MR" ask-m 2 "Approve" "$HM"
 approve_rc "$H_MR" "$HM"
 check "multi-rule: a single approve succeeds" "0" "$?"
 run_gate "$H_MR" "$(bash_payload "$MR_CMD")"
@@ -349,7 +367,7 @@ TX_CC="$SANDBOX/tx-cc.jsonl"
 GATE_TP="$TX_CC"
 CCP=$(bash_payload 'rm -rf foo')
 HC=$(deny_hash "$H_CC" "$CCP")
-mk_ask "$TX_CC" ask-cc 2 "Approve"
+mk_ask "$TX_CC" ask-cc 2 "Approve" "$HC"
 approve_rc "$H_CC" "$HC"
 rm -f "$SANDBOX"/cc-out.*
 for n in 1 2 3 4 5 6; do
@@ -389,7 +407,7 @@ GATE_TP="$TX_EXP"
 EXP_P=$(bash_payload 'rm -rf foo')
 run_gate "$H_EXP" "$EXP_P"
 HASH=$(hash_from_reason)
-mk_ask "$TX_EXP" ask-e1 2 "Approve"
+mk_ask "$TX_EXP" ask-e1 2 "Approve" "$HASH"
 approve_rc "$H_EXP" "$HASH"
 check "expiry: approve succeeds while fresh" "0" "$?"
 touch -t 200001010000 "$H_EXP/.claude/gate-approved/$HASH"
@@ -398,7 +416,7 @@ check "expiry: stale approval no longer allows" "deny" "$(decision)"
 if [[ ! -e "$H_EXP/.claude/gate-approved/$HASH" ]]; then pass; else fail "expiry: stale approval removed"; fi
 HASH=$(hash_from_reason)
 touch -t 200001010000 "$H_EXP/.claude/gate-pending/$HASH"
-mk_ask "$TX_EXP" ask-e2 4 "Approve"
+mk_ask "$TX_EXP" ask-e2 4 "Approve" "$HASH"
 approve_rc "$H_EXP" "$HASH"
 check "expiry: stale pending cannot be approved" "1" "$?"
 GATE_TP=""
@@ -514,6 +532,43 @@ done
 for t in Read Grep Glob ScheduleWakeup; do
     check "matcher skips $t" "false" "$(jq -n --arg m "$MATCHER" --arg t "$t" '$t | test($m)')"
 done
+
+echo "== approval: an already-claimed question is not reusable =="
+H_CL=$(make_home claimed)
+TX_CL="$SANDBOX/tx-claimed.jsonl"
+: >"$TX_CL"
+GATE_TP="$TX_CL"
+HCL=$(deny_hash "$H_CL" "$(bash_payload 'rm -rf claimed')")
+mk_ask "$TX_CL" ask-raced 2 "Approve" "$HCL"
+mkdir -p "$H_CL/.claude/gate-asks-used.d/ask-raced" # a concurrent approve already won the claim
+approve_rc "$H_CL" "$HCL"
+check "claim: a question another approve already claimed cannot approve" "1" "$?"
+if [[ -f "$H_CL/.claude/gate-pending/$HCL" && ! -e "$H_CL/.claude/gate-approved/$HCL" ]]; then pass; else fail "claim: the refused approve leaves the pending file alone"; fi
+run_gate "$H_CL" "$(write_payload "$H_CL/.claude/gate-asks-used.d/x" "x")"
+check "claim: the claim directory is guarded like gate-asks-used" "deny" "$(decision)"
+
+echo "== symlinked paths are matched by their physical path =="
+H_SY=$(make_home symlink)
+mkdir -p "$SANDBOX/sy-plain"
+ln -s "$H_SY/.claude" "$SANDBOX/sy-live"
+ln -s "$H_SY/.claude/settings.json" "$SANDBOX/sy-settings.json"
+GATE_TP=""
+run_gate "$H_SY" "$(write_payload "$SANDBOX/sy-live/settings.json" "x")"
+check "symlink: Write through a symlinked parent onto live settings.json is denied" "deny" "$(decision)"
+check_contains "symlink: names the rule" "$(reason)" "CHECKPOINT G10-file:"
+run_gate "$H_SY" "$(write_payload "$SANDBOX/sy-live/hooks/new.sh" "x")"
+check "symlink: Write into live hooks/ through a symlinked parent is denied" "deny" "$(decision)"
+run_gate "$H_SY" "$(write_payload "$SANDBOX/sy-live/../.claude/hooks/x.sh" "x")"
+check "symlink: .. after a symlinked parent resolves physically" "deny" "$(decision)"
+run_gate "$H_SY" "$(write_payload "$SANDBOX/sy-settings.json" "x")"
+check "symlink: Write onto a symlink that points at live settings.json is denied" "deny" "$(decision)"
+run_gate "$H_SY" "$(write_payload "$SANDBOX/sy-plain/notes.txt" "x")"
+check "symlink: an ordinary path is still allowed" "" "$GOUT"
+run_gate "$H_SY" "$(write_payload "$H_SY/.claude/settings.json" "x")"
+check "symlink: the direct path is still denied" "deny" "$(decision)"
+HLEX=$(deny_hash "$H_SY" "$(write_payload "$SANDBOX/sy-live/settings.json" "x")")
+run_gate "$H_SY" "$(write_payload "$H_SY/.claude/settings.json" "x")"
+check "symlink: the approval identity keeps the lexical path (a different path is a different action)" "1" "$([[ "$(hash_from_reason)" == "$HLEX" ]] && echo 0 || echo 1)"
 
 echo ""
 echo "gate tests: $PASS passed, $FAIL failed"

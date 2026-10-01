@@ -14,8 +14,12 @@
 #                       risk) but verified: it refuses unless the session
 #                       transcript shows an AskUserQuestion issued AFTER the
 #                       deny whose answer is present and is not a no/deny/
-#                       cancel, and each such question can approve only one
-#                       action. The approval is bound to the action itself
+#                       cancel, whose question text carries this checkpoint's
+#                       code (first 12 hex of the hash, printed in the
+#                       CHECKPOINT reason: an unrelated "Continue?" prompt can
+#                       never approve it), and each such question can approve
+#                       only one action (claimed atomically with mkdir). The
+#                       approval is bound to the action itself
 #                       (tool + command/path + written content + cwd + scope),
 #                       not to a rule: one approval covers every rule the
 #                       action matches. A single-use approval is claimed with
@@ -43,7 +47,7 @@
 #                name only, and anything that looks like a secret is never logged.
 # State        : ~/.claude/gate-pending/<hash>   written on deny (interactive)
 #                ~/.claude/gate-approved/<hash>  written by `gate.sh approve`
-#                ~/.claude/gate-asks-used        AskUserQuestion ids already spent
+#                ~/.claude/gate-asks-used(.d/)   AskUserQuestion ids already spent (.d/ = atomic claims)
 #
 # Matching text: heredoc bodies and quoted DATA (echo/printf/grep arguments,
 # --body/--title/-m/-f body= values) are blanked before rules run, so prose
@@ -61,6 +65,7 @@ CLAUDE_DIR="${HOME:-}/.claude"
 PENDING_DIR="$CLAUDE_DIR/gate-pending"
 APPROVED_DIR="$CLAUDE_DIR/gate-approved"
 ASKS_USED="$CLAUDE_DIR/gate-asks-used"
+ASKS_CLAIM_DIR="$ASKS_USED.d"
 LOG_FILE="$CLAUDE_DIR/gate-log.jsonl"
 KILL_SWITCH="$CLAUDE_DIR/gate.off"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
@@ -88,6 +93,38 @@ hash_str() {
     printf '%s' "${out%% *}"
 }
 
+# phys_path <path> <cwd>: the physical form of <path>: the deepest existing ancestor is resolved
+# (cd && pwd -P, which also collapses `..` through symlinks), the not-yet-existing tail is kept, and a final
+# symlink is followed (up to 10 hops). Relative paths resolve against <cwd>. Prints nothing on failure.
+phys_path() {
+    local p="$1" d tail t hops=0
+    # shellcheck disable=SC2088 # a literal "~/" prefix in the tool input, not a tilde to expand
+    case "$p" in
+        "~/"*) p="$HOME/${p#\~/}" ;;
+        /*) ;;
+        *) p="${2:-$PWD}/$p" ;;
+    esac
+    while [[ $hops -lt 10 ]]; do
+        d="$p"
+        tail=""
+        while [[ -n "$d" && "$d" != "/" && ! -d "$d" ]]; do
+            tail="/$(basename "$d")$tail"
+            d=$(dirname "$d")
+        done
+        d=$(cd "$d" 2>/dev/null && pwd -P) || return 1
+        [[ "$d" == "/" ]] && d=""
+        p="$d$tail"
+        [[ -L "$p" ]] || break
+        t=$(readlink "$p") || break
+        case "$t" in
+            /*) p="$t" ;;
+            *) p="$(dirname "$p")/$t" ;;
+        esac
+        hops=$((hops + 1))
+    done
+    printf '%s' "$p"
+}
+
 # expired <file>: succeeds when the file is older than the approval TTL.
 expired() {
     [[ -n "$(find "$1" -mmin +"$APPROVAL_TTL_MIN" 2>/dev/null)" ]]
@@ -106,19 +143,24 @@ log_decision() {
     fi
 }
 
-# ask_ids_after <transcript> <since-epoch>: prints the tool_use id of every AskUserQuestion issued at or
-# after <since> whose tool_result carries at least one answer and no answer is a refusal. The answers
+# ask_code <hash>: the short checkpoint code D's question must carry (first 12 hex of the action hash).
+ask_code() { printf '%s' "${1:0:12}"; }
+
+# ask_ids_after <transcript> <since-epoch> <code>: prints the tool_use id of every AskUserQuestion issued at or
+# after <since> whose question (every string of its input: question, header, option labels) contains <code>
+# and whose tool_result carries at least one answer and no answer is a refusal. The answers
 # come from toolUseResult.answers (the structured form Claude Code writes) or, failing that, from the
 # "question"="answer" pairs in the result text. A dismissed question has no answers and never counts.
 ask_ids_after() {
-    tail -c 4000000 "$1" 2>/dev/null | jq -R -n -r --argjson since "$2" '
+    tail -c 4000000 "$1" 2>/dev/null | jq -R -n -r --argjson since "$2" --arg code "$3" '
         def arr: if type == "array" then .[] else empty end;
         def secs: (. // "" | sub("\\.[0-9]+Z$"; "Z") | (try fromdateiso8601 catch 0));
         def refusal: test("\\b(deny|denied|no|nope|reject|rejected|cancel|cancelled|canceled|stop|abort|decline|declined|do not|don.?t|not now)\\b"; "i");
         [inputs | fromjson? | select(type == "object")] as $all
         | [$all[] | select(.type == "assistant") | . as $m | (.message.content | arr)
            | select(type == "object" and .type == "tool_use" and .name == "AskUserQuestion")
-           | {id: .id, ts: ($m.timestamp | secs)} | select(.ts >= $since)] as $asks
+           | {id: .id, ts: ($m.timestamp | secs), text: ([.input | .. | strings] | join("\n") | ascii_downcase)}
+           | select(.ts >= $since and ($code | length) > 0 and (.text | contains($code | ascii_downcase)))] as $asks
         | [$all[] | select(.type == "user") | . as $m | (.message.content | arr)
            | select(type == "object" and .type == "tool_result")
            | . as $r
@@ -154,21 +196,27 @@ cmd_approve() {
     fi
 
     # Verify D actually answered: an AskUserQuestion after the deny with a non-refusal answer, unspent.
-    local tp since ask spent=""
+    local tp since ask spent="" claim code
     tp=$(jq -r '.transcript_path // empty' "$pending" 2>/dev/null)
     since=$(jq -r '.ts_epoch // empty' "$pending" 2>/dev/null)
     if [[ -z "$tp" || ! -r "$tp" || ! "$since" =~ ^[0-9]+$ ]]; then
         warn "cannot verify D's answer (no readable session transcript recorded with this checkpoint): ask D with AskUserQuestion, then retry the action to get a fresh checkpoint"
         return 1
     fi
+    code=$(ask_code "$h")
+    mkdir -p "$ASKS_CLAIM_DIR" 2>/dev/null
     while IFS= read -r ask; do
         [[ -n "$ask" ]] || continue
         if [[ -f "$ASKS_USED" ]] && grep -qxF -- "$ask" "$ASKS_USED"; then continue; fi
-        spent="$ask"
-        break
-    done < <(ask_ids_after "$tp" "$since")
+        # The claim is a mkdir: of two concurrent approves reading the same unspent question only one wins it.
+        claim="$ASKS_CLAIM_DIR/$(printf '%s' "$ask" | tr -c 'A-Za-z0-9_-' '_')"
+        if mkdir "$claim" 2>/dev/null; then
+            spent="$ask"
+            break
+        fi
+    done < <(ask_ids_after "$tp" "$since" "$code")
     if [[ -z "$spent" ]]; then
-        warn "refused: no AskUserQuestion answered by D after this checkpoint (or its answer was a no/deny/cancel, or it already approved another action). Put the exact action to D with AskUserQuestion first."
+        warn "refused: no unspent AskUserQuestion answered by D after this checkpoint names its code $code (or its answer was a no/deny/cancel, or it already approved another action). Put the exact action to D with AskUserQuestion, include the code $code in the question text, then approve."
         return 1
     fi
 
@@ -180,6 +228,7 @@ cmd_approve() {
         printf 'approved: retry the exact same action within %s minutes (single use)\n' "$APPROVAL_TTL_MIN"
         return 0
     fi
+    rmdir "$claim" 2>/dev/null # not approved after all: give the question back
     warn "could not record the approval"
     return 1
 }
@@ -258,7 +307,7 @@ def blank_data:
   end;
 $rules[0] as $R
 | (($R.macros // {}) + {
-    HOME: ($home | esc),
+    HOME: (if $home_phys != "" and $home_phys != $home then "(?:" + ($home | esc) + "|" + ($home_phys | esc) + ")" else ($home | esc) end),
     TMPDIR: (if $tmpdir == "" then never else ($tmpdir | rtrimstr("/") | esc) end),
     JOBDIR: (if $jobdir == "" then never else ($jobdir | rtrimstr("/") | esc) end)
   }) as $M
@@ -331,12 +380,32 @@ def action_id: $tn + "\u001f" + subject + "\u001f" + $cwd + "\u001f" + $scope;
   end
 JQEOF
 
-RESULT=$(printf '%s' "$INPUT" | jq -c --slurpfile rules "$RULES_FILE" \
-    --arg home "$HOME" --arg tmpdir "${TMPDIR:-}" --arg jobdir "${CLAUDE_JOB_DIR:-}" \
-    --arg scope "$SCOPE" --arg slug "${BARECLAUDE_AGENT_SLUG:-}" "$JQ_PROG" 2>&1)
+HOME_PHYS=$(cd "$HOME" 2>/dev/null && pwd -P)
+
+eval_rules() { # <input json> -> the matches JSON on stdout
+    printf '%s' "$1" | jq -c --slurpfile rules "$RULES_FILE" \
+        --arg home "$HOME" --arg home_phys "${HOME_PHYS:-}" --arg tmpdir "${TMPDIR:-}" --arg jobdir "${CLAUDE_JOB_DIR:-}" \
+        --arg scope "$SCOPE" --arg slug "${BARECLAUDE_AGENT_SLUG:-}" "$JQ_PROG" 2>&1
+}
+
+RESULT=$(eval_rules "$INPUT")
 if [[ $? -ne 0 ]]; then
     warn "rule evaluation failed — decision gates skipped for this call: ${RESULT:0:200}"
     exit 0
+fi
+
+# A Write/Edit through a symlinked parent (or onto a symlink) changes the file the link points at, so the
+# path rules also run against the PHYSICAL path; the approval identity and the log keep the lexical form.
+FILE_PATH=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path? // empty | strings' 2>/dev/null)
+if [[ -n "$FILE_PATH" ]]; then
+    PHYS=$(phys_path "$FILE_PATH" "$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null)")
+    if [[ -n "$PHYS" && "$PHYS" != "$FILE_PATH" ]]; then
+        RESULT2=$(eval_rules "$(printf '%s' "$INPUT" | jq -c --arg p "$PHYS" '.tool_input.file_path = $p' 2>/dev/null)")
+        if [[ $? -eq 0 ]] && MERGED=$(printf '%s' "$RESULT" | jq -c --argjson b "$RESULT2" \
+            '. as $a | .matches += [$b.matches[] | select(.id as $i | ($a.matches | map(.id) | index($i)) == null)] | .errors += $b.errors' 2>/dev/null); then
+            RESULT="$MERGED"
+        fi
+    fi
 fi
 
 while IFS= read -r bad; do
@@ -421,7 +490,7 @@ if [[ "$SCOPE" == "interactive" ]]; then
         jq -nc --argjson rules "${IDS_JSON:-[]}" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --argjson te "$(date +%s)" \
             --arg sid "$SESSION_ID" --arg tp "$TRANSCRIPT" --arg cwd "$CWD" --arg scope "$SCOPE" \
             '{rules:$rules,ts:$ts,ts_epoch:$te,session_id:$sid,transcript_path:$tp,cwd:$cwd,scope:$scope}' >"$PENDING_DIR/$HASH" 2>/dev/null
-        REASON="CHECKPOINT ${BLOCK_IDS[0]}: $MESSAGE.$ALSO Put this action to D via AskUserQuestion; if D approves, run \`~/.claude/hooks/gate.sh approve $HASH\` and retry with the exact same command."
+        REASON="CHECKPOINT ${BLOCK_IDS[0]}: $MESSAGE.$ALSO Put this action to D via AskUserQuestion: quote the exact action and put the checkpoint code $(ask_code "$HASH") in the question text (approve refuses any question without it). If D approves, run \`~/.claude/hooks/gate.sh approve $HASH\` and retry with the exact same command."
     else
         REASON="CHECKPOINT ${BLOCK_IDS[0]}: $MESSAGE.$ALSO Put this action to D via AskUserQuestion; if D approves, retry with the exact same command."
     fi

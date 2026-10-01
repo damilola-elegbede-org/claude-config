@@ -414,7 +414,7 @@
       "description": "Write/Edit to live ~/.claude/hooks/, settings.json, gate state (anchored on $HOME)",
       "tools": "^(?:Write|Edit|MultiEdit)$",
       "field": "file_path",
-      "pattern": "^{{HOME}}/\\.claude/(?:hooks/|settings\\.json$|gate\\.off$|jev\\.off$|gate-approved/|gate-pending/|gate-asks-used$|gate-log\\.jsonl$|jev/decisions\\.jsonl$)",
+      "pattern": "^{{HOME}}/\\.claude/(?:hooks/|settings\\.json$|gate\\.off$|jev\\.off$|gate-approved/|gate-pending/|gate-asks-used(?:\\.d/|$)|gate-log\\.jsonl$|jev/decisions\\.jsonl$)",
       "action": "deny",
       "message": "live hooks/settings are edited through claude-config (branch, PR, sync) and the gate state is off limits to agents",
       "scope": ["interactive", "bgjob", "fleet"],
