@@ -404,8 +404,23 @@ B="$(calls)"
 JEV_MOCK="$FIX" run_hook a3-bash-trim.sh "$IN"
 check "cwd under exclude_paths: untouched, no Jev call (output of an excluded tree never leaves)" no_new_calls "$B"
 check "cwd under exclude_paths: silent" out_empty
+# provenance: the cwd is NOT excluded, but the command reads an excluded tree
+mkdir -p "$TEST_HOME/visa-repo/app" "$TEST_HOME/other/sub"
+for c in "git -C $TEST_HOME/visa-repo/app test" "cd $TEST_HOME/visa-repo && npm test" "$TEST_HOME/visa-repo/run.sh --all" \
+  "FOO=1 make -C '$TEST_HOME/visa-repo/app'" 'cd ~/visa-repo/app && make' 'cd $HOME/visa-repo && make' "npm test --prefix=$TEST_HOME/visa-repo" "cd ../visa-repo/app && make" 'cd "$VISA_DIR/app" && make'; do
+  bash_input "$c" "$LOG"
+  case "$c" in "cd ../visa-repo"*) jq -c --arg c "$TEST_HOME/other" '.cwd=$c' "$IN" >"$IN.x" && mv "$IN.x" "$IN" ;; esac
+  B="$(calls)"
+  JEV_MOCK="$FIX" run_hook a3-bash-trim.sh "$IN"
+  check "command naming an excluded tree (cwd elsewhere): untouched, no Jev call: $c" no_new_calls "$B"
+done
+bash_input "cd $TEST_HOME/other && make" "$LOG"
+B="$(calls)"
+JEV_MOCK="$FIX" run_hook a3-bash-trim.sh "$IN"
+check "command naming only a non-excluded path is still trimmed (control)" bash -c "! [[ \"\$(wc -l <'$STUB_COUNT' | tr -d ' ')\" == '$B' ]]"
 rm -f "$HOME/.claude/hooks/jev/jev-config.json"
 bash_input "npm run build" "$LOG"
+B="$(calls)"
 set_rule A3-bash-trim '{"max_lines":400}'
 JEV_MOCK="$FIX" run_hook a3-bash-trim.sh "$IN"
 check "over max_lines ceiling: untouched, no Jev call" no_new_calls "$B"

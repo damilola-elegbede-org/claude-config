@@ -245,6 +245,50 @@ ctx_target_excluded() {
   ctx_path_excluded "$p"
 }
 
+# ctx_cmd_touches_excluded <command>: 0 when a Bash command could produce output from an excluded (work) tree
+# even though the session cwd is outside it (`git -C ~/Visa/app test`, `cd ../work && make`, `~/Visa/x/run.sh`).
+# Every path-like word of the command is checked (quotes stripped; ~, $HOME and ${HOME} expanded; relative
+# words resolved against the hook input's .cwd; a bare word counts when it names something in the cwd). A word
+# with another $VARIABLE inside a path cannot be resolved, so it counts as touching, and so does a command with
+# more than 16 candidate words (fail closed on egress). Residual: a script outside the tree that itself reads an
+# excluded tree at run time cannot be seen from the command text.
+ctx_cmd_touches_excluded() {
+  local cmd="${1:-}" cwd tok p n=0
+  cwd="$(ctx_in .cwd)"
+  [ -n "$cwd" ] || cwd="$PWD"
+  while IFS= read -r tok; do
+    [ -n "$tok" ] || continue
+    case "$tok" in
+      -*) tok="${tok#"${tok%%[!-]*}"}" ;; # --dir=... arrives split on "=": drop leading dashes only
+    esac
+    [ -n "$tok" ] || continue
+    # shellcheck disable=SC2088 # literal "~" in the command text, expanded here on purpose
+    case "$tok" in
+      "~") tok="$HOME" ;;
+      "~/"*) tok="$HOME/${tok#\~/}" ;;
+      '$HOME') tok="$HOME" ;;
+      '$HOME/'*) tok="$HOME/${tok#\$HOME/}" ;;
+      '${HOME}') tok="$HOME" ;;
+      '${HOME}/'*) tok="$HOME/${tok#\$\{HOME\}/}" ;;
+    esac
+    case "$tok" in
+      *'$'*)
+        case "$tok" in */*) return 0 ;; esac # an unresolvable variable inside a path
+        continue
+        ;;
+    esac
+    case "$tok" in
+      /*) p="$tok" ;;
+      */* | .*) p="${cwd%/}/$tok" ;;
+      *) [ -e "${cwd%/}/$tok" ] || continue; p="${cwd%/}/$tok" ;;
+    esac
+    n=$((n + 1))
+    [ "$n" -le 16 ] || return 0
+    ctx_path_excluded "$p" && return 0
+  done < <(printf '%s' "$cmd" | tr -d "\"'" | tr '[:space:];&|()<>=`{}' '\n' | sed '/^$/d' | sort -u | head -80)
+  return 1
+}
+
 # ctx_hash: sha256 prefix of stdin (sha256sum on Linux; openssl before shasum on macOS because
 # shasum is a perl script that costs ~100ms to start).
 ctx_hash() {

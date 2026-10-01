@@ -3,8 +3,9 @@
 # scores as holding the cause of an error, plus always the last `tail_lines` (40) lines. The full
 # output is saved under ~/.claude/jev-cache/ and cited in every marker.
 #
-# Not touched: background commands, and commands whose output IS the content Claude may need
-# verbatim or edit against (cat/sed/head/tail/git diff|show|blame/diff/jq/nl/bat/less).
+# Not touched: background commands, commands whose output IS the content Claude may need
+# verbatim or edit against (cat/sed/head/tail/git diff|show|blame/diff/jq/nl/bat/less), and commands
+# that name a path inside an excluded (work) tree or run with such a cwd (egress ruling).
 # Fail OPEN: any problem or exit-3 from jev-ask -> no output, output untouched.
 # shellcheck disable=SC2154 # WORK, RULE*, JEV_* are globals set by ctx-lib.sh
 # shellcheck source=ctx-lib.sh
@@ -31,6 +32,11 @@ main() {
   n="$(ctx_line_count "${WORK}/text.txt")"
   min="$(ctx_cfg min_lines 300)"
   [ "$n" -gt "$min" ] || return 0
+  # Egress, provenance: the session cwd is clean, but the command may still have read an excluded tree
+  # (`git -C ~/Visa/app test`, `cd ../work && make`). Checked only for outputs that would be sent.
+  if ctx_cmd_touches_excluded "$cmd"; then
+    return 0
+  fi
 
   task="$(ctx_task "$(ctx_in .transcript_path)")"
   state="$(jq -cn --arg task "$task" --arg cmd "$(printf '%s' "$cmd" | cut -c1-200)" --argjson n "$n" \
