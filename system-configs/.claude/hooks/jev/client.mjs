@@ -431,17 +431,30 @@ function readStdin(cap = 16 * 1024 * 1024) {
   });
 }
 
-// Append one line to a log, rotating it to <name>.YYYYMM.jsonl past 10 MB.
+// Append one line to a log, rotating it to <name>.YYYYMM.jsonl past 10 MB (JEV_LOG_MAX_BYTES overrides the
+// size, for tests). A second rotation in the same month goes to <name>.YYYYMM.1.jsonl, then .2, ...: an earlier
+// archive is never replaced. link() fails with EEXIST instead of overwriting, so even concurrent rotations
+// cannot clobber an archive.
+const LOG_MAX_BYTES = Number(process.env.JEV_LOG_MAX_BYTES) > 0 ? Number(process.env.JEV_LOG_MAX_BYTES) : 10 * 1024 * 1024;
 function appendLog(dir, name, line) {
   fs.mkdirSync(dir, { recursive: true });
   const file = path.join(dir, `${name}.jsonl`);
   try {
-    if (fs.statSync(file).size > 10 * 1024 * 1024) {
+    if (fs.statSync(file).size > LOG_MAX_BYTES) {
       const ym = new Date().toISOString().slice(0, 7).replace("-", "");
-      fs.renameSync(file, path.join(dir, `${name}.${ym}.jsonl`));
+      for (let n = 0; n < 10000; n++) {
+        const dest = path.join(dir, n === 0 ? `${name}.${ym}.jsonl` : `${name}.${ym}.${n}.jsonl`);
+        try {
+          fs.linkSync(file, dest);
+          fs.unlinkSync(file);
+          break;
+        } catch (e) {
+          if (e.code !== "EEXIST") throw e;
+        }
+      }
     }
   } catch {
-    /* no file yet */
+    /* no file yet, or another process rotated it first */
   }
   fs.appendFileSync(file, line + "\n", { mode: 0o600 });
 }

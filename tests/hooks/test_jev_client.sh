@@ -337,6 +337,17 @@ has "kill switch noted" "$OUT" "kill switch"
 rm -f "$T/.claude/jev.off" "$T/.zshrc"
 rm -rf "$J/node_modules"
 
+echo "== log rotation keeps every archive"
+: >"$SHADOW"
+rm -f "$T"/.claude/jev-shadow.*.jsonl
+for i in 1 2 3 4 5; do
+  run_ask "$(mkin "t-rot$i" '{"command":"ls"}')" JEV_MOCK="$FIX" JEV_LOG_MAX_BYTES=1
+done
+YM=$(date -u +%Y%m)
+eq "the first rotation of the month takes the plain archive name" "$([[ -f "$T/.claude/jev-shadow.$YM.jsonl" ]] && echo yes || echo no)" "yes"
+eq "a later rotation in the same month gets a numbered archive instead of replacing it" "$([[ -f "$T/.claude/jev-shadow.$YM.1.jsonl" ]] && echo yes || echo no)" "yes"
+eq "no line is lost across rotations (5 calls, 5 lines over the live log and the archives)" "$(cat "$SHADOW" "$T"/.claude/jev-shadow.*.jsonl | grep -c '"rule":"t-rot')" "5"
+
 echo
 echo "Jev client tests: $PASS passed, $FAIL failed"
 [[ "$FAIL" -eq 0 ]]
