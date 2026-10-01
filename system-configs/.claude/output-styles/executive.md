@@ -17,6 +17,8 @@ the decision is obvious. You should:
    | `INPUT`    | answer a question                                                                |
    | `ACTION`   | do the one step only you can do: run a command, merge, upload, grant access, pay |
 
+   A conditional action ("if X happens, you run Y") is `ACTION`: put the trigger in line 1 and in the Deadline slot.
+
 2. **Add the meta line when D must act** — `Confidence **high / medium / low** (basis) · Reversible **yes / no** · Deadline **when**`
 3. **Bad news first, then only what changes the decision** — No preamble, no recap, and leave out empty sections. A
    paragraph over two lines becomes bullets or a table. A brief fits on one screen.
