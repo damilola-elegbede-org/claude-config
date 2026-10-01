@@ -17,6 +17,12 @@ case "$FILE" in */memory/*.md) ;; *) exit 0 ;; esac
 [ -e "$FILE" ] && exit 0
 MODE=$(re_mode memory-dup-guard shadow)
 [ "$MODE" = off ] && exit 0
+# Egress: a memory written inside an excluded (work) tree never leaves the machine, whatever the session cwd.
+# shellcheck source-path=SCRIPTDIR source=ctx-lib.sh
+. "$(dirname "$0")/ctx-lib.sh" || exit 0
+ctx_path_excluded "$FILE" && exit 0
+CWD=$(jq -r '.cwd // empty' <<<"$INPUT" 2>/dev/null)
+[ -n "$CWD" ] && ctx_path_excluded "$CWD" && exit 0
 
 INDEX="$(dirname "$FILE")/MEMORY.md"
 [ -f "$INDEX" ] || exit 0

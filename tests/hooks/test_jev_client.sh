@@ -175,6 +175,14 @@ eq "absolute prefix entry refuses /srv/clients/acme" "$RC" "3"
 run_ask "{\"rule\":\"t-egress\",\"cwd\":\"$T/clients/a\",\"state\":{\"a\":1},\"questions\":$Q}" JEV_MOCK="$FIX" JEV_MOCK_CHECK_EGRESS=1
 # shellcheck disable=SC2088 # literal tilde in a test description
 eq "~/clients/** entry refuses ~/clients/a" "$RC" "3"
+printf '{"exclude_paths":["~/work"' >"$J/jev-config.json" # truncated mid-write
+OUT=$(cd "$T/personal/proj" && printf '%s' "$(mkin t-egress '{"a":1}')" | env JEV_MOCK="$FIX" JEV_MOCK_CHECK_EGRESS=1 "$ASK" 2>"$T/stderr")
+RC=$?
+eq "malformed jev-config.json fails closed even from a personal cwd" "$RC" "3"
+has "malformed config says why" "$(cat "$T/stderr")" "egress_config_unreadable"
+rm -f "$J/jev-config.json"
+run_ask "$(mkin t-egress '{"a":1}')" JEV_MOCK="$FIX" JEV_MOCK_CHECK_EGRESS=1
+eq "missing jev-config.json is not an error (no exclusions configured)" "$RC" "0"
 cp "$SRC/jev-config.json" "$J/jev-config.json"
 
 echo "== redaction"

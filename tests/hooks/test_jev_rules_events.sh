@@ -372,6 +372,17 @@ printf x >"$RE_MEMORY_DIR/existing.md"
 eq "update of an existing memory ignored" "$(run memory-dup-guard.sh "$(mw "$RE_MEMORY_DIR/existing.md" "$NEWMEM")")" ""
 out=$(JEV_MOCK=unavailable run memory-dup-guard.sh "$(mw "$RE_MEMORY_DIR/prs-not-drafts.md" "$NEWMEM")")
 eq "Jev unavailable fails open (enforce mode)" "$out" ""
+# egress: a memory inside an excluded (work) tree, or written from an excluded cwd, is never sent
+mkdir -p "$HOME/work/acme/memory" "$HOME/Visa/app"
+cp "$RE_MEMORY_DIR/MEMORY.md" "$HOME/work/acme/memory/MEMORY.md"
+export JEV_MOCK_CAPTURE="$T/capture"
+rm -f "$T/capture"
+eq "memory under ~/work: no output" "$(run memory-dup-guard.sh "$(mw "$HOME/work/acme/memory/client-fact.md" "$NEWMEM")")" ""
+[[ ! -s "$T/capture" ]] && ok || bad "memory under ~/work: Jev not called (egress)"
+rm -f "$T/capture"
+run memory-dup-guard.sh "$(jq -c --arg c "$HOME/Visa/app" '.cwd=$c' <<<"$(mw "$RE_MEMORY_DIR/prs-not-drafts.md" "$NEWMEM")")" >/dev/null
+[[ ! -s "$T/capture" ]] && ok || bad "cwd under ~/Visa: Jev not called (egress)"
+unset JEV_MOCK_CAPTURE
 
 echo "== stopfailure-hint + session-start-project =="
 reset

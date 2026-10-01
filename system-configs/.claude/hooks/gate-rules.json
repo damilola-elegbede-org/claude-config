@@ -10,7 +10,7 @@
     "GIT": "(?:git|(?:[^[:space:]]*/)?git-agent\\.sh[[:space:]]+[A-Za-z0-9_-]+)(?:[[:space:]]+-{1,2}[A-Za-z][^[:space:]]*(?:[[:space:]]+[^[:space:]-][^[:space:]]*)?)*[[:space:]]+",
     "EXTOK": "[\\\"']?(?![^[:space:]]*\\.\\.)(?:(?:{{TMPDIR}}|{{JOBDIR}}|/private/tmp|/tmp|\\$TMPDIR|\\$\\{TMPDIR\\}|\\$CLAUDE_JOB_DIR|\\$\\{CLAUDE_JOB_DIR\\})(?:/[^[:space:]]*)?|(?:[^[:space:]]*/)?(?:\\.tmp|node_modules|dist|build|__pycache__|\\.pytest_cache)(?:/[^[:space:]]*)?)[\\\"']?(?=[[:space:]]|$)",
     "LIVE": "(?:~|\\\"?\\$\\{?HOME\\}?\\\"?|{{HOME}})/\\.claude/",
-    "LIVEGUARDED": "{{LIVE}}(?:gate\\.off|jev\\.off|gate-approved|gate-pending|gate-asks-used|gate-log\\.jsonl|jev/decisions\\.jsonl|settings\\.json|hooks(?:/|(?=[[:space:]]|$)))",
+    "LIVEGUARDED": "{{LIVE}}(?:projects/[^[:space:]\\\"';&|]*\\.jsonl(?=[[:space:]\\\"';&|)]|$)|gate\\.off|jev\\.off|gate-approved|gate-pending|gate-asks-used|gate-log\\.jsonl|jev/decisions\\.jsonl|settings\\.json|hooks(?:/|(?=[[:space:]]|$)))",
     "GATESTATE": "(?:gate\\.off|jev\\.off|gate-approved|gate-pending|gate-asks-used|gate-log\\.jsonl|jev/decisions\\.jsonl)"
   },
   "rules": [
@@ -543,10 +543,10 @@
     {
       "id": "G10-file",
       "class": "G10",
-      "description": "Write/Edit to live ~/.claude/hooks/, settings.json, gate state (anchored on $HOME)",
+      "description": "Write/Edit to live ~/.claude/hooks/, settings.json, gate state (anchored on $HOME); session transcripts (~/.claude/projects/**/*.jsonl), which gate.sh approve reads as approval evidence",
       "tools": "^(?:Write|Edit|MultiEdit)$",
       "field": "file_path",
-      "pattern": "^{{HOME}}/\\.claude/(?:hooks/|settings\\.json$|gate\\.off$|jev\\.off$|gate-approved/|gate-pending/|gate-asks-used(?:\\.d/|$)|gate-log\\.jsonl$|jev/decisions\\.jsonl$)",
+      "pattern": "^{{HOME}}/\\.claude/(?:hooks/|projects/.*\\.jsonl$|settings\\.json$|gate\\.off$|jev\\.off$|gate-approved/|gate-pending/|gate-asks-used(?:\\.d/|$)|gate-log\\.jsonl$|jev/decisions\\.jsonl$)",
       "action": "deny",
       "message": "live hooks/settings are edited through claude-config (branch, PR, sync) and the gate state is off limits to agents",
       "scope": [
@@ -560,7 +560,7 @@
     {
       "id": "G10-tamper",
       "class": "G10",
-      "description": "Bash that creates, edits, moves or removes live hooks/settings.json or the gate's own state (gate.off, jev.off, approvals, log): any verb incl. mkdir; cp/rsync/install only when the guarded path is the DESTINATION; bare names (cd ~/.claude && touch gate.off) when the command mentions .claude; kill switches (gate.off, jev.off) are protected under any path spelling (./, ../, ~/.claude/./) even when the command does not mention .claude; inline interpreter code (python -c, node -e, perl -e, ruby -e, php -r, heredocs) that names approval or kill-switch state",
+      "description": "Bash that creates, edits, moves or removes live hooks/settings.json or the gate's own state (gate.off, jev.off, approvals, log): any verb incl. mkdir; cp/rsync/install only when the guarded path is the DESTINATION; bare names (cd ~/.claude && touch gate.off) when the command mentions .claude; kill switches (gate.off, jev.off) are protected under any path spelling (./, ../, ~/.claude/./) even when the command does not mention .claude; inline interpreter code (python -c, node -e, perl -e, ruby -e, php -r, heredocs) that names approval or kill-switch state; Bash writes to session transcripts (~/.claude/projects/**/*.jsonl), the approval evidence",
       "tools": "^Bash$",
       "field": "command",
       "pattern": "(?:^|[^A-Za-z0-9_])(?:touch|tee|mv|rm|ln|mkdir|truncate|dd|chmod|chown|sed[[:space:]]+-i[^[:space:]]*|perl[[:space:]]+-[a-z]*i[^[:space:]]*)(?=[[:space:]])[^;&|\\n]*{{LIVEGUARDED}}|(?:^|[^A-Za-z0-9_])(?:cp|rsync|install)(?=[[:space:]])[^;&|\\n]*[[:space:]\\\"']{{LIVEGUARDED}}[^[:space:];&|\\n]*[\\\"']?(?:[[:space:]]+[0-9]?>>?&?[^[:space:];&|]*)*[[:space:]]*(?=$|[;&|\\n])|>>?[^;&|\\n]*{{LIVEGUARDED}}|\\.claude[^\\n]*[^A-Za-z0-9_](?:touch|tee|mv|rm|ln|mkdir|truncate|chmod|chown|cp|install|rsync)(?=[[:space:]])[^;&|\\n]*[[:space:]\\\"'](?:[^[:space:];&|\\\"']*/)?{{GATESTATE}}(?=[[:space:]\\\"'/;&|]|$)|\\.claude[^\\n]*>>?[[:space:]]*[\\\"']?(?:[^[:space:];&|\\\"']*/)?{{GATESTATE}}(?=[[:space:]\\\"'/;&|]|$)|(?:^|[^A-Za-z0-9_])(?:touch|tee|mv|rm|ln|mkdir|truncate|dd|chmod|chown|cp|install|rsync)(?=[[:space:]])[^;&|\\n]*[[:space:]\\\"'=](?:[^[:space:];&|\\\"']*/)?(?:gate|jev)\\.off(?=[[:space:]\\\"';&|)]|$)|>>?[[:space:]]*[\\\"']?(?:[^[:space:];&|\\\"']*/)?(?:gate|jev)\\.off(?=[[:space:]\\\"';&|)]|$)|(?<![A-Za-z0-9_.-])(?:python[0-9.]*|node(?:js)?|deno|bun|perl|ruby|php)(?:(?:[[:space:]]+-[^[:space:]]+)*[[:space:]]+(?:-[A-Za-z]*[cepEr][A-Za-z]*|--eval|--print)|(?:[[:space:]]+-)?[[:space:]]*<<-?)(?=[[:space:]\\\"'])(?:.|\\n){0,800}?(?:gate\\.off|jev\\.off|gate-approved|gate-pending|gate-asks-used)",

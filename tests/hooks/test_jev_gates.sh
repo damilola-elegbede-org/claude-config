@@ -79,9 +79,9 @@ mock() {
   jq -nc --argjson p "$1" --slurpfile q "$SRC/jev/gate-questions.json" '
     $q[0].gates as $g
     | ($p | to_entries) as $e
-    | [$e[] | select($g[.key].expects != null) | {cls: $g[.key].expects.risk_class[0], p: .value, sc: ($g[.key].expects.scope != null)}] as $cls
+    | [$e[] | select($g[.key].expects != null) | {cls: $g[.key].expects.risk_class[0], p: .value, sc: ($g[.key].expects.scope // null)}] as $cls
     | ($cls | map({key: .cls, value: .p}) | from_entries) as $rp
-    | (if any($cls[]; .sc) then "shared_remote" else "local" end) as $sc
+    | (first($cls[] | .sc | select(. != null) | .[0]) // "local") as $sc
     | {answers:
         (($e | map(select($g[.key].expects == null) | {key, value: {type: "boolean", probability: .value}}) | from_entries)
          + (if ($cls | length) > 0

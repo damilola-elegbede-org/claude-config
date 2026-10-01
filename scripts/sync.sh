@@ -562,6 +562,9 @@ sync_jev_hooks() {
             # npm treats engines as advisory (engine-strict is off by default): without this check a Node 20
             # workstation would install the SDK with warnings and then be reported as healthy.
             print_warning "Node ${jev_node_major} is older than the Node ${jev_node_min} the Jev SDK needs - skipping npm ci; Jev falls back to regex until Node >= ${jev_node_min}"
+            # The manifests were just updated but node_modules was not: drop the marker so the next sync on a
+            # new-enough Node reinstalls instead of trusting a stale install.
+            rm -f "$jev_dst/node_modules/.jev-installed"
         elif jev_out=$(cd "$jev_dst" && npm ci --omit=dev --no-audit --no-fund --engine-strict 2>&1); then
             : >"$jev_dst/node_modules/.jev-installed"
             echo "  ✅ Jev deps: npm ci --omit=dev in ~/.claude/hooks/jev"

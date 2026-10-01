@@ -79,7 +79,16 @@ function readJson(file, fallback) {
     return fallback;
   }
 }
-const config = () => readJson(process.env.JEV_CONFIG || path.join(HERE, "jev-config.json"), {});
+const CONFIG_FILE = () => process.env.JEV_CONFIG || path.join(HERE, "jev-config.json");
+const CONFIG_INVALID = Symbol("config_invalid");
+// A MISSING config means no exclusions were configured; a config that exists but cannot be read or parsed
+// is invalid, and egressReason() then refuses every request (the exclusions it holds cannot be honored).
+const config = () => {
+  if (!fs.existsSync(CONFIG_FILE())) return {};
+  const c = readJson(CONFIG_FILE(), CONFIG_INVALID);
+  return c && typeof c === "object" && !Array.isArray(c) ? c : { [CONFIG_INVALID]: true };
+};
+const configInvalid = () => Boolean(config()[CONFIG_INVALID]);
 
 // Rule registry: ONE reader semantics shared with registry.sh (jev_reg_json), which gate.sh, jev-gate-lib.sh,
 // ctx-lib.sh and rules-events-lib.sh all use; tests/hooks/test_jev_registry.sh compares the two on the same
@@ -374,6 +383,7 @@ function egressReason(input) {
     Array.isArray(v) ? v : typeof v === "string" ? [v] : [],
   );
   if (srcs.some((s) => /gmail|slack/i.test(String(s)))) return "egress_untrusted_source";
+  if (configInvalid()) return "egress_config_unreadable"; // fail closed: the exclusion list is unknown
   const cwds = new Set();
   for (const c of [input.cwd, process.cwd()]) {
     if (typeof c !== "string" || !c) continue;

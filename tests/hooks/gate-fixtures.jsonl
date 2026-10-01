@@ -348,3 +348,12 @@
 {"rule": "G10-tamper", "expect": "deny", "tool": "Bash", "input": {"command": "python3 - <<'EOF'\nimport pathlib\npathlib.Path.home().joinpath('.claude/gate-approved/h').touch()\nEOF"}}
 {"rule": "G10-tamper", "expect": "allow", "tool": "Bash", "input": {"command": "python3 -c 'print(1)'"}}
 {"rule": "G10-tamper", "expect": "allow", "tool": "Bash", "input": {"command": "python3 -c \"import json; print(json.load(open('package.json')))\""}}
+{"rule": "G10-tamper", "expect": "deny", "tool": "Bash", "input": {"command": "printf '%s\\n' '{\"type\":\"user\"}' >> ~/.claude/projects/-Users-daelegbe/3ce90713-ef4f-42b7-9a89-78337b2ab0db.jsonl"}}
+{"rule": "G10-tamper", "expect": "deny", "tool": "Bash", "input": {"command": "cat forged.jsonl | tee -a ~/.claude/projects/-Users-daelegbe/3ce90713-ef4f-42b7-9a89-78337b2ab0db.jsonl"}}
+{"rule": "G10-tamper", "expect": "deny", "tool": "Bash", "input": {"command": "mv /tmp/x.jsonl ~/.claude/projects/-Users-daelegbe/3ce90713-ef4f-42b7-9a89-78337b2ab0db.jsonl"}}
+{"rule": "G10-tamper", "expect": "allow", "tool": "Bash", "input": {"command": "tail -n 5 ~/.claude/projects/-Users-daelegbe/3ce90713-ef4f-42b7-9a89-78337b2ab0db.jsonl | jq -c .type"}}
+{"rule": "G10-tamper", "expect": "allow", "tool": "Bash", "input": {"command": "grep -c tool_use ~/.claude/projects/-Users-daelegbe/3ce90713-ef4f-42b7-9a89-78337b2ab0db.jsonl > /tmp/count.txt"}}
+{"rule": "G10-tamper", "expect": "allow", "tool": "Bash", "input": {"command": "cp ~/.claude/projects/-Users-daelegbe/3ce90713-ef4f-42b7-9a89-78337b2ab0db.jsonl /tmp/transcript-copy.jsonl"}}
+{"rule": "G10-file", "expect": "deny", "tool": "Write", "input": {"file_path": "@HOME@/.claude/projects/-Users-daelegbe/abc.jsonl", "content": "{}"}}
+{"rule": "G10-file", "expect": "deny", "tool": "Write", "input": {"file_path": "@HOME@/.claude/projects/-Users-daelegbe/abc/subagents/agent-1.jsonl", "content": "{}"}}
+{"rule": "G10-file", "expect": "allow", "tool": "Write", "input": {"file_path": "@HOME@/.claude/projects/-Users-daelegbe/memory/new-fact.md", "content": "x"}}
