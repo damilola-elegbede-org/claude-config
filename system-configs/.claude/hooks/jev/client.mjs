@@ -695,7 +695,11 @@ async function daemonMain() {
       try {
         // Same-user callers can reach this socket directly, so policy is enforced HERE too, not only in the CLI.
         if (killSwitchOn()) throw unavailable("kill_switch");
-        validate({ rule: "daemon", state: msg.state, questions: msg.questions });
+        // The CLI forwards untrusted text merged into state.untrusted (its own redacted copy), so that key is
+        // legitimate on this hop; every other shape check is the CLI's.
+        const st = msg.state && typeof msg.state === "object" && !Array.isArray(msg.state) ? { ...msg.state } : msg.state;
+        if (st && typeof st === "object") delete st.untrusted;
+        validate({ rule: "daemon", state: st, questions: msg.questions });
         if (msg.timeout_ms !== undefined && !(Number.isFinite(msg.timeout_ms) && msg.timeout_ms >= 50 && msg.timeout_ms <= 60000))
           throw badInput("timeout_ms: number 50..60000");
         const out = await callGateway({ model: msg.model, state: redactValue(msg.state, { count: 0 }), questions: msg.questions, timeout_ms: msg.timeout_ms });
