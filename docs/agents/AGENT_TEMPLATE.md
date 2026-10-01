@@ -15,9 +15,11 @@
 # - opus/sonnet/haiku/fable: a fixed pin that ignores settings.json — only for a
 #   deliberate cost or capability pin
 #
-# Reasoning depth is controlled by model + effort now (settings.json
-# modelSettings.<model>.effortLevel, or --effort per session), not per-agent
-# frontmatter. There is no per-agent thinking-level/thinking-tokens field.
+# Reasoning depth is controlled by model + effort now (settings.json top-level
+# effortLevel as the default for every model, modelSettings.<model>.effortLevel
+# for an exception, which overrides the top-level one, or --effort per session),
+# not per-agent frontmatter. There is no per-agent thinking-level/thinking-tokens
+# field.
 #
 # Fill in ALL placeholders. Delete these comments before use.
 #

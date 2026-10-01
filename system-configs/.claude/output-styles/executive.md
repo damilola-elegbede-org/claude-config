@@ -72,7 +72,8 @@ Confidence **high** (settings diff) · Reversible **yes** (sync keeps 5 backups)
 </example>
 
 <example>
-**FYI · Session resume is built; one real restart will prove it.**
+**ACTION · Restart once after `/sync`; that is the only way to prove session resume.**
+Confidence **medium** (built, never run on a real restart) · Reversible **yes** · Deadline **after `/sync`**
 
 ```text
 boot ─▶ LaunchAgent ─▶ resume_sessions.sh ─▶ registry ─▶ tmux window per session
