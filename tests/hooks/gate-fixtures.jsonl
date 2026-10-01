@@ -303,3 +303,6 @@
 {"rule":"G10-tamper","expect":"allow","tool":"Bash","input":{"command":"cp ~/.claude/settings.json /tmp/settings.bak"}}
 {"rule":"G10-tamper","expect":"allow","tool":"Bash","input":{"command":"ls ~/.claude/gate.off"}}
 {"rule":"G10-file","expect":"deny","tool":"Write","input":{"file_path":"@HOME@/.claude/jev.off"}}
+{"rule":"G1-rm","expect":"deny","tool":"Bash","input":{"command":"cat <<'EOF' | bash\nrm -rf data\nEOF"}}
+{"rule":"G1-rm","expect":"deny","tool":"Bash","input":{"command":"cat <<'EOF' | sudo sh\nrm -rf data\nEOF"}}
+{"rule":"G1-rm","expect":"allow","tool":"Bash","input":{"command":"cat <<'EOF' > setup.sh\nrm -rf data\nEOF"}}

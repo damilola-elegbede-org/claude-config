@@ -217,7 +217,7 @@ def strip_heredocs:
       else
         .out += [$l]
         | (if ($l | test("(?<!<)<<(?!<)-?[[:space:]]*[\"']?[A-Za-z_][A-Za-z0-9_]*"))
-              and (($l | test("(?:^|[^A-Za-z0-9_./-])(?:(?:ba|z|da|k)?sh|ssh|eval|source)[[:space:]]")) | not)
+              and (($l | test("(?:^|[^A-Za-z0-9_./-])(?:(?:ba|z|da|k)?sh|ssh|eval|source)(?:[[:space:]]|$)")) | not)
            then .hd = ($l | capture("(?<!<)<<(?!<)-?[[:space:]]*[\"']?(?<w>[A-Za-z_][A-Za-z0-9_]*)").w)
            else . end)
       end)
