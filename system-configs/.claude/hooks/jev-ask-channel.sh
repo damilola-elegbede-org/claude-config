@@ -14,8 +14,8 @@ HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 command -v jq >/dev/null 2>&1 || exit 0
 command -v perl >/dev/null 2>&1 || exit 0
-[ -f "$JEV_CLAUDE_DIR/jev.off" ] && [ ! -L "$JEV_CLAUDE_DIR/jev.off" ] && exit 0 # regular file only (mkdir is not the kill switch)
-[ -f "$JEV_QUESTIONS" ] || exit 0
+jev_gates_off && exit 0 # gate.off (master) or jev.off; regular files only (mkdir is not a kill switch)
+JEV_HOOK_NAME=jev-ask-channel
 
 INPUT=$(cat)
 [ -n "$INPUT" ] || exit 0
@@ -65,6 +65,7 @@ ACTION_SHA=$(jev_sha "$ENDING")
 Q=$(jev_bool_questions '["G16-ask-channel"]')
 REQ=$(jev_build_request "G16-ask-channel" "$STATE" '{}' "$Q")
 RESP=$(jev_call "$REQ") || { jev_log G16-ask-channel unavailable "$MODE" ""; exit 0; }
+jev_note "$RESP"
 P=$(jev_prob "$RESP" G16-ask-channel)
 
 if [ -n "$P" ] && jev_ge "$P" "$THR"; then

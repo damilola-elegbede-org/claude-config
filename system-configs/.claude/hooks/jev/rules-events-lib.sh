@@ -16,7 +16,13 @@
 RE_HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RE_CLAUDE_DIR="${HOME}/.claude"
 RE_STATE_DIR="${RE_CLAUDE_DIR}/jev/state"
+# Legacy event log, kept as an ALIAS for one release; decisions.jsonl (registry.sh) is the log to read.
 RE_EVENT_LOG="${RE_CLAUDE_DIR}/jev/rules-events.jsonl"
+
+# The ONE registry reader, decision log and kill-switch rules (registry.sh).
+JEV_DIR="${JEV_DIR:-$RE_HERE}"
+# shellcheck source=registry.sh
+. "$RE_HERE/registry.sh" || return 1
 
 re_need_jq() { command -v jq >/dev/null 2>&1; }
 
@@ -31,34 +37,30 @@ re_scope() {
   fi
 }
 
-# Dara and Clara are fully exempt from every gate (D, 2026-09-30): log only.
+# Dara and Clara are fully exempt from every gate (D, 2026-09-30): log only. The list is the registry's
+# exempt_agents (default dara, clara), the same one gate.sh and the Jev gates read.
 re_is_exempt_agent() {
-  case "${BARECLAUDE_AGENT_SLUG:-}" in dara | clara) return 0 ;; esac
-  return 1
+  [ -n "${BARECLAUDE_AGENT_SLUG:-}" ] || return 1
+  re_need_jq || {
+    case "${BARECLAUDE_AGENT_SLUG:-}" in dara | clara) return 0 ;; esac
+    return 1
+  }
+  jev_reg_exempt "$BARECLAUDE_AGENT_SLUG"
 }
 
-# re_cfg <rule> <key> <default> — value of rules[<rule>][<key>] from the rule
-# files (later files override earlier ones), else <default>.
+# re_cfg <rule> <key> <default> — value of rules[<rule>][<key>] from the ONE registry reader
+# (registry.sh: questions layer, rules.d/*.json, jev-rules.json last; JEV_RULES_FILE = a single file),
+# else <default>.
 re_cfg() {
-  local rule="$1" key="$2" def="$3" f out
-  local -a files=() existing=()
-  if [ -n "${JEV_RULES_FILE:-}" ]; then
-    files=("$JEV_RULES_FILE")
-  else
-    files=("$RE_HERE/rules.d/rules-events.json"
-      "$RE_CLAUDE_DIR/hooks/jev/rules.d/rules-events.json"
-      "$RE_CLAUDE_DIR/hooks/jev/jev-rules.json")
-  fi
-  for f in "${files[@]}"; do [ -f "$f" ] && existing+=("$f"); done
-  if [ "${#existing[@]}" -gt 0 ] && re_need_jq; then
-    out=$(jq -rs --arg r "$rule" --arg k "$key" \
-      'reduce .[] as $o ({}; . * ($o.rules // $o)) | .[$r][$k] // empty' "${existing[@]}" 2>/dev/null)
+  local out
+  if re_need_jq; then
+    out=$(jev_reg_value "$1" "$2" "")
     if [ -n "$out" ]; then
       printf '%s' "$out"
       return 0
     fi
   fi
-  printf '%s' "$def"
+  printf '%s' "$3"
 }
 
 # re_mode <rule> <default> — off | shadow | enforce (anything else → default).
@@ -71,6 +73,8 @@ re_mode() {
 # re_log <rule> <verdict> [detail] — one JSON line per decision. No prompt text.
 re_log() {
   re_need_jq || return 0
+  jev_decision_log "$1" "" "$2" "" "" "" "" "hook:rules-events" \
+    "$(jq -nc --arg detail "${3:-}" --arg scope "$(re_scope)" '{detail:$detail, scope:$scope}' 2>/dev/null)"
   mkdir -p "$(dirname "$RE_EVENT_LOG")" 2>/dev/null || return 0
   jq -nc --arg ts "$(date -u +%FT%TZ)" --arg rule "$1" --arg verdict "$2" \
     --arg detail "${3:-}" --arg scope "$(re_scope)" \
@@ -85,7 +89,7 @@ re_log() {
 # JEV_MOCK_CAPTURE=<file> records the request (tests assert on minimal state).
 re_jev_call() {
   local req bin
-  [ -e "$RE_CLAUDE_DIR/jev.off" ] && return 3
+  jev_kill_switch jev.off && return 3
   req=$(cat)
   [ -n "${JEV_MOCK_CAPTURE:-}" ] && printf '%s\n' "$req" >>"$JEV_MOCK_CAPTURE"
   case "${JEV_MOCK:-}" in

@@ -20,9 +20,10 @@ HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 command -v jq >/dev/null 2>&1 || exit 0
 command -v perl >/dev/null 2>&1 || exit 0
-# The kill switch is a regular file: `mkdir ~/.claude/jev.off` must not disable the gates.
-[ -f "$JEV_CLAUDE_DIR/jev.off" ] && [ ! -L "$JEV_CLAUDE_DIR/jev.off" ] && exit 0
-[ -f "$JEV_QUESTIONS" ] || exit 0
+# Kill switches (registry.sh header): gate.off is the master switch for all decision gates, jev.off stops
+# Jev. Both are regular files only: `mkdir ~/.claude/jev.off` must not disable the gates.
+jev_gates_off && exit 0
+JEV_HOOK_NAME=jev-gate
 
 INPUT=$(cat)
 [ -n "$INPUT" ] || exit 0
@@ -62,13 +63,21 @@ hit_label() { # ID
     mcp-classifier:outward) echo "outward-facing action as D (send, publish, invite, share)" ;;
     mcp-classifier:spend) echo "spends money" ;;
     mcp-classifier:delete) echo "deletes data in an external tool" ;;
-    *) jq -r --arg id "$1" '.gates[$id].label // $id' "$JEV_QUESTIONS" ;;
+    *) printf '%s' "$RULES" | jq -r --arg id "$1" '.[$id].label // $id' ;;
   esac
 }
 
 # check_approval DRY -> sets APPROVED (1 only when D explicitly approved exactly this action and the
 # approval has not been consumed). Untrusted text is never part of this call.
 check_approval() {
+  # The approval call has its own answers/model/latency; restore the gate call's for the lines logged after it.
+  local keep_a="${JEV_LAST_ANSWERS:-}" keep_m="${JEV_LAST_MODEL:-}" keep_l="${JEV_LAST_LATENCY:-}"
+  check_approval_call "$1"
+  JEV_LAST_ANSWERS="$keep_a" JEV_LAST_MODEL="$keep_m" JEV_LAST_LATENCY="$keep_l"
+  return 0
+}
+
+check_approval_call() {
   local dry="$1" ap thr state q req resp p key duuid
   APPROVED=0
   ap=$(jev_resolve_rules "$RULES" approval-detector)
@@ -76,9 +85,10 @@ check_approval() {
   thr=$(printf '%s' "$ap" | cut -f3)
   [ "$(printf '%s' "$TAILJSON" | jq -r '.has_d')" = "true" ] || { jev_log approval-detector "no-d-turn" "" ""; return 0; }
   state=$(jq -nc --arg tool "$TOOL" --arg action "$ACTION" --argjson t "$TAILJSON" '{tool:$tool, action:$action, turns:$t.turns}')
-  q=$(jq -c '{d_approved_exact_action: {type:"boolean", instructions:.approval.instructions, criteria:.approval.criteria}}' "$JEV_QUESTIONS")
+  q=$(printf '%s' "$RULES" | jq -c '{d_approved_exact_action: {type:"boolean", instructions:.["approval-detector"].instructions, criteria:.["approval-detector"].criteria}}')
   req=$(jev_build_request approval-detector "$state" '{}' "$q")
   resp=$(jev_call "$req") || { jev_log approval-detector "unavailable" "" ""; return 0; }
+  jev_note "$resp"
   p=$(jev_prob "$resp" d_approved_exact_action)
   if ! jev_ge "${p:-0}" "$thr"; then
     jev_log approval-detector "not-approved" "" "$p"
@@ -132,6 +142,7 @@ run_gates() {
   q=$(jev_gate_questions "$ids")
   req=$(jev_build_request "gates/$TOOL" "$state" "$un" "$q")
   resp=$(jev_call "$req") || unavailable "gates/$TOOL"
+  jev_note "$resp"
   scores=$(jev_gate_scores "$resp" "$ids")
   HIT_LINES=""
   while IFS=$'\t' read -r id mode thr; do
@@ -150,9 +161,9 @@ run_gates() {
 
 # candidates_for SUBJECT -> gate ids whose regex candidate matches for $TOOL
 candidates_for() {
-  jq -nr --slurpfile q "$JEV_QUESTIONS" --arg tool "$TOOL" --arg s "$1" '
-    $q[0].gates | to_entries[]
-    | select(.value.candidates[$tool] != null)
+  printf '%s' "$RULES" | jq -r --arg tool "$TOOL" --arg s "$1" '
+    to_entries[]
+    | select((.value | type) == "object" and .value.candidates[$tool] != null)
     | select(.value.candidates[$tool] as $re | $s | test($re))
     | .key'
 }
@@ -178,6 +189,7 @@ handle_ask() {
   q=$(jev_bool_questions '["G16-ask-bundled"]')
   req=$(jev_build_request "gates/AskUserQuestion" "$state" '{}' "$q")
   resp=$(jev_call "$req") || { jev_log G16-ask-bundled unavailable "$mode" ""; exit 0; } # quality hook fails open
+  jev_note "$resp"
   p=$(jev_prob "$resp" G16-ask-bundled)
   if [ -n "$p" ] && jev_ge "$p" "$thr"; then
     if [ "$mode" = "enforce" ]; then
@@ -219,9 +231,9 @@ mcp_cache_store() { # class p
 
 # Name-keyword fallback used when Jev is unavailable. First known verb token decides.
 mcp_heuristic() { # OP -> read|write|spend|delete|outward|unknown
-  jq -nr --slurpfile d "$JEV_QUESTIONS" --arg op "$1" '
+  printf '%s' "$RULES" | jq -r --arg op "$1" '
     ($op | ascii_downcase | gsub("-"; "_") | split("_")) as $tk
-    | $d[0].mcp.heuristics as $h
+    | .["mcp-classifier"].heuristics as $h
     | ["read","write","spend","delete","outward"] as $order
     | [ $tk[] as $w | $order[] as $c | select(($h[$c] | split("|") | index($w)) != null) | $c ] | (.[0] // "unknown")'
 }
@@ -248,11 +260,12 @@ mcp_prod_check() {
   op_name="${TOOL#mcp__}"
   server_name="${op_name%%__*}"
   op_name="${op_name#*__}"
-  q=$(jq -c '{prod_infra: {type:"boolean", instructions:.mcp.prod_instructions, criteria:{true:"Changes a live production or shared deployed system.", false:"Does not affect production or shared infrastructure."}}}' "$JEV_QUESTIONS")
+  q=$(printf '%s' "$RULES" | jq -c '{prod_infra: {type:"boolean", instructions:.["mcp-classifier"].prod_instructions, criteria:{true:"Changes a live production or shared deployed system.", false:"Does not affect production or shared infrastructure."}}}')
   state=$(jq -nc --arg tool "$TOOL" --arg server "$server_name" --arg op "$op_name" --argjson args "$args" --arg ctx "$JEV_CTX" \
     '{tool_name:$tool, server:$server, operation:$op, arguments:$args, context:$ctx}')
   req=$(jev_build_request "mcp-classifier" "$state" '{}' "$q")
   resp=$(jev_call "$req") || return 0
+  jev_note "$resp"
   pp=$(printf '%s' "$resp" | jq -r '.answers.prod_infra.probability // 0')
   if jev_ge "$pp" "$(printf '%s' "$g4" | cut -f3)"; then prod=true; fi
 }
@@ -287,11 +300,12 @@ handle_mcp() {
     desc=$(printf '%s' "$INPUT" | jq -r '.tool_description // .tool_input.description // empty' | head -c 300 | jev_redact)
     state=$(jq -nc --arg tool "$TOOL" --arg server "$server" --arg op "$op" --argjson args "$args" --arg desc "$desc" --arg ctx "$JEV_CTX" \
       '{tool_name:$tool, server:$server, operation:$op, arguments:$args, context:$ctx} + (if $desc != "" then {description:$desc} else {} end)')
-    q=$(jq -c '{
-      class: {type:"choice", instructions:.mcp.class_instructions, criteria:.mcp.class_criteria},
-      prod_infra: {type:"boolean", instructions:.mcp.prod_instructions, criteria:{true:"Changes a live production or shared deployed system.", false:"Does not affect production or shared infrastructure."}}}' "$JEV_QUESTIONS")
+    q=$(printf '%s' "$RULES" | jq -c '.["mcp-classifier"] as $m | {
+      class: {type:"choice", instructions:$m.class_instructions, criteria:$m.class_criteria},
+      prod_infra: {type:"boolean", instructions:$m.prod_instructions, criteria:{true:"Changes a live production or shared deployed system.", false:"Does not affect production or shared infrastructure."}}}')
     req=$(jev_build_request "mcp-classifier" "$state" '{}' "$q")
     if resp=$(jev_call "$req"); then
+      jev_note "$resp"
       class=$(printf '%s' "$resp" | jq -r '.answers.class.choice // empty')
       p=$(printf '%s' "$resp" | jq -r --arg c "$class" '.answers.class.probabilities[$c] // 1')
       prod_p=$(printf '%s' "$resp" | jq -r '.answers.prod_infra.probability // 0')

@@ -18,9 +18,14 @@
 JEV_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 JEV_CLAUDE_DIR="${HOME}/.claude"
 JEV_ASK="${JEV_DIR}/jev-ask"
+# Legacy hook-verdict log, kept as an ALIAS for one release; decisions.jsonl (registry.sh) is the log to read.
 JEV_SHADOW_LOG="${JEV_CLAUDE_DIR}/jev-shadow.jsonl"
 JEV_CACHE_DIR="${JEV_CLAUDE_DIR}/jev-cache"
 JEV_STATE_DIR="${JEV_CACHE_DIR}/state"
+
+# The ONE registry reader, decision log and kill-switch rules (registry.sh).
+# shellcheck source=registry.sh
+. "${JEV_DIR}/registry.sh" || return 1
 
 # ---------------------------------------------------------------- bootstrap
 
@@ -55,8 +60,9 @@ ctx_prepare() {
   INPUT_FILE="${WORK}/in.json"
   cat >"$INPUT_FILE" 2>/dev/null
   [ -s "$INPUT_FILE" ] || return 1
-  # The kill switch is a regular file; `mkdir ~/.claude/jev.off` must not disable the hooks.
-  [ -f "${JEV_CLAUDE_DIR}/jev.off" ] && [ ! -L "${JEV_CLAUDE_DIR}/jev.off" ] && return 1
+  # The kill switch is a regular file; `mkdir ~/.claude/jev.off` must not disable the hooks. (gate.off is
+  # the decision gates' master switch and does not touch these quality hooks: see registry.sh.)
+  jev_kill_switch jev.off && return 1
   return 0
 }
 
@@ -64,13 +70,9 @@ ctx_prepare() {
 # unregistered or out of scope for this kind of session.
 ctx_rule_load() {
   RULE="$1"
-  local files=() f kind
-  for f in "${JEV_DIR}"/rules.d/*.json "${JEV_DIR}/jev-rules.json"; do
-    [ -f "$f" ] && files+=("$f")
-  done
-  [ "${#files[@]}" -gt 0 ] || return 1
-  # Registry files hold {"rules": {"<rule>": {...}}} (a flat {"<rule>": {...}} is tolerated too).
-  RULE_JSON="$(jq -cs --arg r "$1" '[.[] | ((.rules // .) | .[$r]? // empty)] | add // {}' "${files[@]}" 2>/dev/null)" || return 1
+  local kind
+  # One reader (registry.sh jev_reg_json): questions layer, rules.d/*.json, then jev-rules.json LAST.
+  RULE_JSON="$(jev_reg_rule "$1")" || return 1
   [ -n "$RULE_JSON" ] || return 1
   kind="$(ctx_session_kind)"
   # Flatten once to key<TAB>value lines so ctx_cfg is a pure-bash lookup (no jq spawn per read).
@@ -142,6 +144,7 @@ ctx_jev() {
 # ctx_log <event> <detail-json-file>: one hook-verdict line in the shared shadow log.
 # NEVER logs prompt/file content: callers pass counts, ranges, names and probabilities only.
 ctx_log() {
+  local row ans="" model="" lat=""
   (
     umask 077
     mkdir -p "$JEV_CLAUDE_DIR" 2>/dev/null
@@ -150,6 +153,18 @@ ctx_log() {
       '{ts:$ts, rule:$rule, kind:"hook_verdict", mode:$mode, event:$ev, cwd:$cwd, detail:$d[0]}' \
       >>"$JEV_SHADOW_LOG" 2>/dev/null
   )
+  # The decision line carries the Jev reply of this hook run when there was one (answers, model, latency).
+  if [ -s "${WORK:-/nonexistent}/jev-out.json" ]; then
+    row="$(jq -r '[(.answers | tojson), (.model // "-"), ((.latency_ms // "-") | tostring)] | @tsv' "${WORK}/jev-out.json" 2>/dev/null)" || row=""
+    if [ -n "$row" ]; then
+      IFS=$'\t' read -r ans model lat <<<"$row"
+      [ "$model" = "-" ] && model=""
+      [ "$lat" = "-" ] && lat=""
+    fi
+  fi
+  jev_decision_log "$RULE" "$RULE_MODE" "$1" "" "$ans" "$model" "$lat" "hook:ctx" \
+    "$(jq -cn --slurpfile d "$2" '{detail:$d[0]}' 2>/dev/null)"
+  return 0
 }
 
 # ctx_realpath <abs path>: best-effort physical path (symlinks resolved) even when the leaf does not

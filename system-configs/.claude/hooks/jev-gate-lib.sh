@@ -1,5 +1,6 @@
 #!/bin/bash
 # shellcheck shell=bash
+# shellcheck disable=SC2154 # RULES is the global the caller (jev-gate.sh) sets (RULES=$(jev_rules_json))
 # Shared helpers for the Jev decision-gate hooks (jev-gate.sh, jev-ask-channel.sh).
 # Sourced, never executed. Bash 3.2 compatible (macOS /bin/bash).
 #
@@ -11,10 +12,15 @@
 JEV_CLAUDE_DIR="${JEV_CLAUDE_DIR:-$HOME/.claude}"
 JEV_DIR="${JEV_DIR:-$JEV_CLAUDE_DIR/hooks/jev}"
 JEV_ASK="${JEV_ASK:-$JEV_DIR/jev-ask}"
-JEV_QUESTIONS="${JEV_QUESTIONS:-$JEV_DIR/gate-questions.json}"
 JEV_STATE_DIR="${JEV_STATE_DIR:-$JEV_CLAUDE_DIR/jev-state}"
+# Legacy per-hook log, kept as an ALIAS for one release; decisions.jsonl (registry.sh) is the log to read.
 JEV_GATE_LOG="${JEV_GATE_LOG:-$JEV_CLAUDE_DIR/jev-gates.jsonl}"
 JEV_APPROVAL_LOG="$JEV_STATE_DIR/approvals.log"
+
+# The ONE registry reader, the decision log and the kill-switch rules (jev/registry.sh). Sourcing it can
+# fail on a partial deploy: the callers' `|| exit 0` then fail open, like every other missing dependency.
+# shellcheck source=jev/registry.sh
+. "$JEV_DIR/registry.sh" || return 1
 
 # ---------------------------------------------------------------- context --
 
@@ -30,33 +36,16 @@ jev_init_context() {
   fi
 }
 
-# Merged rules registry. ONE reader semantics, shared with client.mjs rulesRegistry() and ctx-lib.sh
-# ctx_rule_load: files = rules.d/*.json in lexical order, then jev-rules.json LAST (the user's file
-# wins). Each file is {"exempt_agents":[...], "rules":{"<id>":{...}}}; a flat {"<id>":{...}} is
-# tolerated. Entries deep-merge (later wins); exempt_agents comes from the last file that sets it.
-# Output: {"<id>":{mode,threshold,scope}, ..., "exempt_agents":[...]} (flat, what the helpers below read).
+# Merged registry (rules + questions): jev_reg_json in registry.sh is the one reader. Callers keep the
+# result in the global RULES; the question helpers below read the questions out of it.
 jev_rules_json() {
-  local files=() f
-  if [ -d "$JEV_DIR/rules.d" ]; then
-    for f in "$JEV_DIR"/rules.d/*.json; do
-      [ -f "$f" ] && files+=("$f")
-    done
-  fi
-  [ -f "$JEV_DIR/jev-rules.json" ] && files+=("$JEV_DIR/jev-rules.json")
-  if [ "${#files[@]}" -eq 0 ]; then
-    echo '{}'
-    return 0
-  fi
-  jq -s 'reduce .[] as $o ({};
-    . * (($o.rules // ($o | del(.exempt_agents)))
-         + (if $o.exempt_agents then {exempt_agents: $o.exempt_agents} else {} end)))' \
-    "${files[@]}" 2>/dev/null || echo '{}'
+  jev_reg_json
 }
 
 # jev_is_exempt RULES_JSON -> 0 when the fleet agent is on the exempt list (default dara, clara).
 jev_is_exempt() {
   [ -n "$JEV_SLUG" ] || return 1
-  printf '%s' "$1" | jq -e --arg s "$JEV_SLUG" '(.exempt_agents // ["dara","clara"]) | map(ascii_downcase) | index($s) != null' >/dev/null 2>&1
+  jev_reg_exempt "$JEV_SLUG" "$1"
 }
 
 # jev_resolve_rules RULES_JSON ID... -> TSV lines "id<TAB>mode<TAB>threshold" for rules that are
@@ -181,7 +170,8 @@ jev_tail() {
 
 # ---------------------------------------------------------------- Jev calls --
 
-# jev_call REQUEST_JSON -> response JSON on stdout; returns 3 when Jev is unavailable.
+# jev_call REQUEST_JSON -> response JSON on stdout; returns 3 when Jev is unavailable. Callers run it in a
+# command substitution, so they pass a good response to jev_note in their own shell afterwards.
 jev_call() {
   local out
   [ -x "$JEV_ASK" ] || return 3
@@ -190,16 +180,30 @@ jev_call() {
   printf '%s' "$out"
 }
 
+# jev_note RESPONSE -> remembers the response's answers, model and latency (JEV_LAST_*) so the decision
+# lines logged after this call carry them. One jq spawn.
+jev_note() {
+  local row
+  # "-" stands for an absent field: a tab-separated read would collapse an empty one and shift the rest.
+  row=$(printf '%s' "$1" | jq -r '[(.answers | tojson), (.model // "-"), ((.latency_ms // "-") | tostring)] | @tsv' 2>/dev/null) || return 0
+  IFS=$'\t' read -r JEV_LAST_ANSWERS JEV_LAST_MODEL JEV_LAST_LATENCY <<<"$row"
+  [ "$JEV_LAST_MODEL" = "-" ] && JEV_LAST_MODEL=""
+  [ "$JEV_LAST_LATENCY" = "-" ] && JEV_LAST_LATENCY=""
+  return 0
+}
+
 # jev_build_request RULE STATE_JSON UNTRUSTED_JSON QUESTIONS_JSON -> request JSON
 jev_build_request() {
   jq -nc --arg rule "$1" --argjson state "$2" --argjson un "$3" --argjson q "$4" '
     {rule:$rule, state:$state, questions:$q} + (if ($un | length) > 0 then {untrusted:$un} else {} end)'
 }
 
-# jev_bool_questions IDS_JSON -> {id: {type:"boolean", instructions, criteria}} from gate-questions.json
+# The question helpers read the merged registry (registry.sh) out of the global RULES the caller set.
+
+# jev_bool_questions IDS_JSON -> {id: {type:"boolean", instructions, criteria}}
 jev_bool_questions() {
-  jq -c --argjson ids "$1" '
-    . as $d | $ids | map({key: ., value: {type:"boolean", instructions: $d.gates[.].instructions, criteria: $d.gates[.].criteria}}) | from_entries' "$JEV_QUESTIONS"
+  printf '%s' "$RULES" | jq -c --argjson ids "$1" '
+    . as $d | $ids | map({key: ., value: {type:"boolean", instructions: $d[.].instructions, criteria: $d[.].criteria}}) | from_entries'
 }
 
 # jev_gate_questions IDS_JSON -> the questions object for ONE call covering every candidate gate.
@@ -207,25 +211,24 @@ jev_bool_questions() {
 # however many of those gates are candidates (choice probabilities are calibrated; a boolean's |2p-1| is not).
 # Gates without `expects` (G14, G15, ...) keep their own boolean question in the same call.
 jev_gate_questions() {
-  jq -c --argjson ids "$1" '
+  printf '%s' "$RULES" | jq -c --argjson ids "$1" '
     . as $d
-    | ($ids | map(select($d.gates[.].expects != null))) as $cls
-    | ($ids | map(select($d.gates[.].expects == null))) as $bools
+    | ($ids | map(select($d[.].expects != null))) as $cls
+    | ($ids | map(select($d[.].expects == null))) as $bools
     | (if ($cls | length) > 0
        then ($d.choice_questions | map_values({type: "choice", instructions, criteria}))
        else {} end)
-      + ($bools | map({key: ., value: {type: "boolean", instructions: $d.gates[.].instructions, criteria: $d.gates[.].criteria}}) | from_entries)' "$JEV_QUESTIONS"
+      + ($bools | map({key: ., value: {type: "boolean", instructions: $d[.].instructions, criteria: $d[.].criteria}}) | from_entries)'
 }
 
 # jev_gate_scores RESPONSE IDS_JSON -> one TSV line per gate: "id<TAB>p<TAB>scope_ok" (p is "-" when the answer is
 # absent). A choice gate's p is the summed probability of its expected risk classes; scope_ok is 0 only when the
 # gate names expected scopes, the scope answer is present, and their summed probability is below 0.5.
 jev_gate_scores() {
-  printf '%s' "$1" | jq -r --slurpfile q "$JEV_QUESTIONS" --argjson ids "$2" '
-    . as $r | $q[0] as $d
-    | def probs: (.probabilities // (if .choice then {(.choice): 1} else {} end));
-      def psum($a; $opts): ($a | probs) as $p | [$opts[] | ($p[.] // 0)] | add // 0;
-    $ids[] as $id | ($d.gates[$id].expects) as $e
+  jq -nr --argjson reg "$RULES" --argjson r "$1" --argjson ids "$2" '
+    def probs: (.probabilities // (if .choice then {(.choice): 1} else {} end));
+    def psum($a; $opts): ($a | probs) as $p | [$opts[] | ($p[.] // 0)] | add // 0;
+    $ids[] as $id | ($reg[$id].expects) as $e
     | if $e == null then [$id, ($r.answers[$id].probability // "-" | tostring), 1]
       else
         [$id,
@@ -246,8 +249,11 @@ jev_ge() {
 
 # ------------------------------------------------------------------ logging --
 
-# jev_log RULE VERDICT [MODE] [PROB] -- never records command text, only a sha.
+# jev_log RULE VERDICT [MODE] [PROB] -- never records command text, only a sha. Writes the decision line
+# (decisions.jsonl, the log to read) and the legacy jev-gates.jsonl alias.
 jev_log() {
+  jev_decision_log "$1" "${3:-}" "$2" "${4:-}" "${JEV_LAST_ANSWERS:-}" "${JEV_LAST_MODEL:-}" "${JEV_LAST_LATENCY:-}" "hook:${JEV_HOOK_NAME:-jev-gate}" \
+    "$(jq -nc --arg tool "${TOOL:-}" --arg ctx "${JEV_CTX:-}" --arg act "${ACTION_SHA:-}" --arg slug "${JEV_SLUG:-}" '{tool:$tool, ctx:$ctx, agent:$slug, action_sha:$act}' 2>/dev/null)"
   mkdir -p "$(dirname "$JEV_GATE_LOG")" 2>/dev/null || return 0
   jq -nc --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg rule "$1" --arg v "$2" --arg mode "${3:-}" \
     --arg p "${4:-}" --arg tool "${TOOL:-}" --arg ctx "${JEV_CTX:-}" --arg act "${ACTION_SHA:-}" \

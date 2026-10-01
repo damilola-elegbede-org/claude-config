@@ -48,7 +48,7 @@ new_home() { # fresh HOME with hooks + data + stub; echoes nothing
   rm -rf "${T:?}/home" "${T:?}/stub.log" "${T:?}/mock.json"
   mkdir -p "$T/home/.claude/hooks/jev/rules.d"
   cp "$SRC/jev-gate.sh" "$SRC/jev-gate-lib.sh" "$SRC/jev-ask-channel.sh" "$T/home/.claude/hooks/"
-  cp "$SRC/jev/gate-questions.json" "$T/home/.claude/hooks/jev/"
+  cp "$SRC/jev/gate-questions.json" "$SRC/jev/registry.sh" "$T/home/.claude/hooks/jev/"
   cp "$SRC/jev/rules.d/gates.json" "$T/home/.claude/hooks/jev/rules.d/"
   cp "$STUB" "$T/home/.claude/hooks/jev/jev-ask"
   chmod +x "$T/home/.claude/hooks/jev/jev-ask"

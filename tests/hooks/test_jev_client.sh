@@ -246,6 +246,16 @@ has "shadow line has cwd" "$SH" '"cwd":'
 has "shadow line has answers" "$SH" '"probability":0.82'
 has "shadow records unavailable calls too" "$SH" '"outcome":"unavailable"'
 
+echo "== the one decision log (decisions.jsonl) mirrors the shadow log"
+DEC="$T/.claude/jev/decisions.jsonl"
+DL=$(grep -F '"gate":"t-shadow"' "$DEC" | head -1)
+eq "decision line carries every documented field" "true" "$(jq -r '[has("ts","gate","mode","answers","confidence","model","latencyMs","outcome")] | all' <<<"$DL" 2>/dev/null)"
+eq "decision line src is the client" "client" "$(jq -r .src <<<"$DL")"
+eq "decision line carries the model (mock mode reports mock)" "mock" "$(jq -r .model <<<"$DL")"
+eq "decision line carries latencyMs" "140" "$(jq -r .latencyMs <<<"$DL")"
+eq "decision line carries confidence" "0.82" "$(jq -r .confidence <<<"$DL")"
+lacks "decision log has no state" "$(cat "$DEC")" "STATE-MARKER-98765"
+
 echo "== daemon lifecycle (backend fixture, no network)"
 export JEV_BACKEND_FIXTURE="$FIX" JEV_IDLE_MS=1500 AI_GATEWAY_API_KEY=test-key-not-real
 IN="$(mkin t-daemon '{"command":"echo hi"}' | sed 's/}$/,"timeout_ms":4000}/')"

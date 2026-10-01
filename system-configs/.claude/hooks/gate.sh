@@ -31,9 +31,16 @@
 # Kill switch  : touch ~/.claude/gate.off (D only; agents are denied from it).
 #                Only a REGULAR FILE counts: `mkdir ~/.claude/gate.off` or a
 #                symlink does nothing, and G10-tamper denies creating one.
-# Log          : ~/.claude/gate-log.jsonl, one line per decision. Write/Edit log
-#                file_path only, MCP tools log the tool name only, and anything
-#                that looks like a secret is never logged.
+#                gate.off is the MASTER switch for every decision gate, the Jev
+#                gates included (jev-gate.sh); jev.off only stops Jev. See
+#                hooks/jev/registry.sh for the precedence.
+# Registry     : the regex rules live in gate-rules.json (data). Mode overrides
+#                (off|shadow|enforce per rule id) and exempt_agents come from the
+#                ONE Jev registry (hooks/jev/registry.sh) when it is deployed.
+# Log          : ~/.claude/jev/decisions.jsonl (the one decision log) and, as an
+#                alias for one release, ~/.claude/gate-log.jsonl. One line per
+#                decision. Write/Edit log file_path only, MCP tools log the tool
+#                name only, and anything that looks like a secret is never logged.
 # State        : ~/.claude/gate-pending/<hash>   written on deny (interactive)
 #                ~/.claude/gate-approved/<hash>  written by `gate.sh approve`
 #                ~/.claude/gate-asks-used        AskUserQuestion ids already spent
@@ -59,6 +66,13 @@ KILL_SWITCH="$CLAUDE_DIR/gate.off"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
 RULES_FILE="$SCRIPT_DIR/gate-rules.json"
 APPROVAL_TTL_MIN=30
+# The ONE registry reader / decision log (deployed next to the Jev hooks). Missing = the file-local behavior.
+REGISTRY_LIB="$SCRIPT_DIR/jev/registry.sh"
+HAVE_REGISTRY=0
+if [[ -r "$REGISTRY_LIB" ]]; then
+    # shellcheck source=jev/registry.sh
+    . "$REGISTRY_LIB" 2>/dev/null && HAVE_REGISTRY=1
+fi
 
 warn() { printf 'gate.sh: %s\n' "$1" >&2; }
 
@@ -86,6 +100,10 @@ log_decision() {
         --arg tool "$3" --arg scope "$4" --arg cwd "$5" --arg target "$6" \
         '{ts:$ts,rule:$rule,tool:$tool,decision:$decision,scope:$scope,cwd:$cwd,target:$target}' \
         >>"$LOG_FILE" 2>/dev/null || true
+    if [[ "$HAVE_REGISTRY" == 1 ]]; then
+        jev_decision_log "$1" regex "$2" "" "" "" "" "hook:gate.sh" \
+            "$(jq -nc --arg tool "$3" --arg scope "$4" --arg cwd "$5" --arg target "$6" '{tool:$tool,scope:$scope,cwd:$cwd,target:$target}' 2>/dev/null)"
+    fi
 }
 
 # ask_ids_after <transcript> <since-epoch>: prints the tool_use id of every AskUserQuestion issued at or
@@ -331,6 +349,13 @@ CWD="${CWD:-$PWD}"
 SESSION_ID=$(printf '%s' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null)
 TRANSCRIPT=$(printf '%s' "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null)
 EXEMPT_AGENT=$(printf '%s' "$RESULT" | jq -r '.exempt_agent' 2>/dev/null)
+# A registry layer that sets exempt_agents (rules.d or jev-rules.json) wins over the shipped gate-rules.json list.
+if [[ "$HAVE_REGISTRY" == 1 && -n "${BARECLAUDE_AGENT_SLUG:-}" ]]; then
+    REG_JSON=$(jev_reg_json)
+    if [[ "$(printf '%s' "$REG_JSON" | jq -r '(.exempt_agents | type)' 2>/dev/null)" == "array" ]]; then
+        if jev_reg_exempt "$BARECLAUDE_AGENT_SLUG" "$REG_JSON"; then EXEMPT_AGENT=true; else EXEMPT_AGENT=false; fi
+    fi
+fi
 
 # Pass 1: log shadow / exempt / lane matches, collect the ENFORCED ones. Approvals are per action, so a
 # command matching several rules is decided once (no approve-A / approve-B / approve-A deadlock).
@@ -341,6 +366,15 @@ while IFS= read -r M; do
     [[ -z "$M" ]] && continue
     read -r ID ENFORCE LANE < <(printf '%s' "$M" | jq -r '[.id, (.enforce | tostring), (.lane_allowed | tostring)] | join(" ")')
     TARGET=$(printf '%s' "$M" | jq -r '.target')
+
+    # A registry entry with this rule id overrides the rule's own enforce flag: off | shadow | enforce.
+    if [[ "$HAVE_REGISTRY" == 1 ]]; then
+        case "$(jev_reg_value "$ID" mode "")" in
+            off) continue ;;
+            shadow) ENFORCE=false ;;
+            enforce) ENFORCE=true ;;
+        esac
+    fi
 
     if [[ "$ENFORCE" != "true" ]]; then
         log_decision "$ID" "shadow" "$TOOL" "$SCOPE" "$CWD" "$TARGET"

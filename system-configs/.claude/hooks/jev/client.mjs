@@ -81,38 +81,75 @@ function readJson(file, fallback) {
 }
 const config = () => readJson(process.env.JEV_CONFIG || path.join(HERE, "jev-config.json"), {});
 
-// Rule registry: ONE reader semantics shared with jev-gate-lib.sh, ctx-lib.sh and rules-events-lib.sh.
-// Files: rules.d/*.json in lexical order, then jev-rules.json LAST (the user's file wins). Each file
-// holds {"exempt_agents": [...], "rules": {"<id>": {...}}}; a flat {"<id>": {...}} is tolerated.
-// Objects deep-merge, arrays/scalars are replaced; exempt_agents comes from the last file that sets it.
-// JEV_RULES points at a single file (tests) and skips the rules.d merge.
+// Rule registry: ONE reader semantics shared with registry.sh (jev_reg_json), which gate.sh, jev-gate-lib.sh,
+// ctx-lib.sh and rules-events-lib.sh all use; tests/hooks/test_jev_registry.sh compares the two on the same
+// fixtures (`jev-ask --registry` prints this merge). Layers, later wins: gate-questions.json (folded in as
+// rules "<gate id>", "approval-detector", "mcp-classifier"), rules.d/*.json in lexical order, then
+// jev-rules.json LAST (the user's file wins). Each file holds {"exempt_agents": [...], "rules": {"<id>": {...}}};
+// a flat {"<id>": {...}} is tolerated. Objects deep-merge, arrays/scalars are replaced; exempt_agents comes
+// from the last file that sets it. When this code runs from a checkout, the deployed ~/.claude/hooks/jev
+// layers go on top (same as the shell reader; in production both are one directory).
+// JEV_RULES (alias JEV_RULES_FILE) points at a single file (tests) and skips the layering.
 function deepMerge(a, b) {
   if (!b || typeof b !== "object" || Array.isArray(b)) return b;
   const out = a && typeof a === "object" && !Array.isArray(a) ? { ...a } : {};
   for (const [k, v] of Object.entries(b)) out[k] = deepMerge(out[k], v);
   return out;
 }
-function rulesRegistry() {
+// gate-questions.json keeps its own shape; every other layer is already {rules|flat, exempt_agents}.
+function registryLayer(o) {
+  if (o && typeof o === "object" && !Array.isArray(o) && "gates" in o) {
+    const rules = { ...(o.gates || {}) };
+    if (o.approval) rules["approval-detector"] = o.approval;
+    if (o.mcp) rules["mcp-classifier"] = o.mcp;
+    return { rules, choice_questions: o.choice_questions };
+  }
+  return o;
+}
+function registryFiles() {
+  const single = process.env.JEV_RULES_FILE || process.env.JEV_RULES;
+  if (single) return [single];
   const files = [];
-  if (process.env.JEV_RULES) files.push(process.env.JEV_RULES);
-  else {
+  const seen = new Set();
+  for (const dir of [HERE, path.join(home(), ".claude", "hooks", "jev")]) {
+    let real;
     try {
-      const dir = path.join(HERE, "rules.d");
-      for (const f of fs.readdirSync(dir).sort()) if (f.endsWith(".json")) files.push(path.join(dir, f));
+      real = fs.realpathSync(dir);
+    } catch {
+      continue;
+    }
+    if (seen.has(real)) continue;
+    seen.add(real);
+    files.push(path.join(dir, "gate-questions.json"));
+    try {
+      for (const f of fs.readdirSync(path.join(dir, "rules.d")).sort()) if (f.endsWith(".json")) files.push(path.join(dir, "rules.d", f));
     } catch {
       /* no rules.d */
     }
-    files.push(path.join(HERE, "jev-rules.json"));
+    files.push(path.join(dir, "jev-rules.json"));
   }
-  const reg = { exempt_agents: undefined, rules: {} };
-  for (const f of files) {
-    const o = readJson(f, null);
+  return files;
+}
+function rulesRegistry() {
+  const reg = { exempt_agents: undefined, choice_questions: undefined, rules: {} };
+  for (const f of registryFiles()) {
+    const raw = readJson(f, null);
+    const o = registryLayer(raw);
     if (!o || typeof o !== "object" || Array.isArray(o)) continue;
-    const { exempt_agents: ex, rules: wrapped, ...flat } = o;
+    const { exempt_agents: ex, choice_questions: cq, rules: wrapped, ...flat } = o;
     if (ex !== undefined) reg.exempt_agents = ex;
+    if (cq !== undefined && cq !== null) reg.choice_questions = deepMerge(reg.choice_questions, cq);
     reg.rules = deepMerge(reg.rules, wrapped && typeof wrapped === "object" ? wrapped : flat);
   }
   return reg;
+}
+// The flat form registry.sh prints: {"<id>": {...}, "exempt_agents": [...], "choice_questions": {...}}.
+function flatRegistry() {
+  const reg = rulesRegistry();
+  const out = { ...reg.rules };
+  if (reg.exempt_agents !== undefined) out.exempt_agents = reg.exempt_agents;
+  if (reg.choice_questions !== undefined) out.choice_questions = reg.choice_questions;
+  return out;
 }
 
 function sockPath() {
@@ -394,20 +431,58 @@ function readStdin(cap = 16 * 1024 * 1024) {
   });
 }
 
-function shadowLog(entry) {
+// Append one line to a log, rotating it to <name>.YYYYMM.jsonl past 10 MB.
+function appendLog(dir, name, line) {
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, `${name}.jsonl`);
   try {
-    const dir = stateDir();
-    fs.mkdirSync(dir, { recursive: true });
-    const file = path.join(dir, "jev-shadow.jsonl");
-    try {
-      if (fs.statSync(file).size > 10 * 1024 * 1024) {
-        const ym = new Date().toISOString().slice(0, 7).replace("-", "");
-        fs.renameSync(file, path.join(dir, `jev-shadow.${ym}.jsonl`));
-      }
-    } catch {
-      /* no file yet */
+    if (fs.statSync(file).size > 10 * 1024 * 1024) {
+      const ym = new Date().toISOString().slice(0, 7).replace("-", "");
+      fs.renameSync(file, path.join(dir, `${name}.${ym}.jsonl`));
     }
-    fs.appendFileSync(file, JSON.stringify({ ts: new Date().toISOString(), ...entry }) + "\n", { mode: 0o600 });
+  } catch {
+    /* no file yet */
+  }
+  fs.appendFileSync(file, line + "\n", { mode: 0o600 });
+}
+
+// The probability the first question's answer carries (boolean: probability; choice: that of the chosen
+// option); null for score answers or no answer. Shown as `confidence` in decisions.jsonl.
+function confidenceOf(answers) {
+  const first = answers && typeof answers === "object" ? Object.values(answers)[0] : null;
+  if (!first || typeof first !== "object") return null;
+  if (typeof first.probability === "number") return first.probability;
+  if (first.probabilities && typeof first.probabilities === "object" && first.choice in first.probabilities) return first.probabilities[first.choice];
+  return null;
+}
+
+function shadowLog(entry) {
+  const ts = new Date().toISOString();
+  try {
+    // Legacy per-call log, kept as an ALIAS for one release; decisions.jsonl below is the log to read.
+    appendLog(stateDir(), "jev-shadow", JSON.stringify({ ts, ...entry }));
+  } catch {
+    /* logging must never fail the call */
+  }
+  try {
+    // The ONE decision log (same file registry.sh jev_decision_log appends to): ~/.claude/jev/decisions.jsonl.
+    const { rule, cwd: _cwd, model, outcome, answers, latency_ms, mode, ...rest } = entry;
+    appendLog(
+      path.join(stateDir(), "jev"),
+      "decisions",
+      JSON.stringify({
+        ts,
+        gate: rule,
+        mode: mode ?? null,
+        answers: answers ?? null,
+        confidence: confidenceOf(answers),
+        model: model ?? null,
+        latencyMs: latency_ms ?? null,
+        outcome,
+        src: "client",
+        ...rest,
+      }),
+    );
   } catch {
     /* logging must never fail the call */
   }
@@ -675,7 +750,8 @@ async function ask() {
   const mock = process.env.JEV_MOCK || "";
   const model = cfg.model || "typesafe-ai/jev";
   const cwd = typeof input.cwd === "string" && input.cwd ? input.cwd : process.cwd();
-  const meta = { rule: input.rule, cwd, model: mock ? "mock" : model };
+  const thisRule = rulesRegistry().rules[input.rule];
+  const meta = { rule: input.rule, cwd, model: mock ? "mock" : model, mode: thisRule?.mode };
   const t0 = T_START;
   const fail = (reason) => {
     shadowLog({ ...meta, outcome: "unavailable", reason, wall_ms: Date.now() - t0 });
@@ -685,7 +761,6 @@ async function ask() {
 
   if (mock === "unavailable") return fail("mock_unavailable");
   if (killSwitchOn()) return fail("kill_switch");
-  const thisRule = rulesRegistry().rules[input.rule];
   if (thisRule?.mode === "off") return fail("rule_off");
   if (!mock || process.env.JEV_MOCK_CHECK_EGRESS === "1") {
     const why = egressReason(input);
@@ -770,6 +845,7 @@ async function ask() {
 async function main() {
   const flag = process.argv[2];
   if (flag === "--daemon") return daemonMain();
+  if (flag === "--registry") return finish(EXIT_OK, JSON.stringify(flatRegistry()) + "\n"); // merged registry (parity test, debugging)
   if (flag === "--check") {
     // Prints one token and exits 3 when Jev gates are degraded to regex; silent exit 0 when healthy.
     let reason = null;
