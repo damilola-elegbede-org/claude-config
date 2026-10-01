@@ -57,6 +57,25 @@
 {"rule":"G1-trunc","expect":"allow","tool":"Bash","input":{"command":"dd if=a.img of=/dev/null"}}
 {"rule":"G1-trunc","expect":"allow","tool":"Bash","input":{"command":"truncate -s 0 /tmp/x.log"}}
 {"rule":"G1-trunc","expect":"allow","tool":"Bash","input":{"command":"ls -ld foo"}}
+{"rule":"G1-interp","expect":"deny","tool":"Bash","input":{"command":"python3 -c 'import shutil; shutil.rmtree(\"valuable-data\")'"}}
+{"rule":"G1-interp","expect":"deny","tool":"Bash","input":{"command":"python -c \"import os; os.remove('notes.db')\""}}
+{"rule":"G1-interp","expect":"deny","tool":"Bash","input":{"command":"python3 -c \"from pathlib import Path; Path('x').unlink()\""}}
+{"rule":"G1-interp","expect":"deny","tool":"Bash","input":{"command":"python3 -c \"import os; os.system('rm -rf data')\""}}
+{"rule":"G1-interp","expect":"deny","tool":"Bash","input":{"command":"cd app && node -e \"require('fs').rmSync('data', {recursive: true})\""}}
+{"rule":"G1-interp","expect":"deny","tool":"Bash","input":{"command":"node --eval \"require('rimraf').sync('build2')\""}}
+{"rule":"G1-interp","expect":"deny","tool":"Bash","input":{"command":"perl -e 'unlink \"important.txt\"'"}}
+{"rule":"G1-interp","expect":"deny","tool":"Bash","input":{"command":"ruby -e 'require \"fileutils\"; FileUtils.rm_rf(\"data\")'"}}
+{"rule":"G1-interp","expect":"deny","tool":"Bash","input":{"command":"php -r 'unlink(\"a.txt\");'"}}
+{"rule":"G1-interp","expect":"deny","tool":"Bash","input":{"command":"python3 - <<'EOF'\nimport shutil\nshutil.rmtree('data')\nEOF"}}
+{"rule":"G1-interp","expect":"deny","tool":"Bash","input":{"command":"/usr/bin/python3 -c 'import shutil; shutil.rmtree(\"d\")'"}}
+{"rule":"G1-interp","expect":"allow","tool":"Bash","input":{"command":"python3 script.py"}}
+{"rule":"G1-interp","expect":"allow","tool":"Bash","input":{"command":"python3 -m pytest tests/ -k unlink"}}
+{"rule":"G1-interp","expect":"allow","tool":"Bash","input":{"command":"python3 -c \"print('hello')\""}}
+{"rule":"G1-interp","expect":"allow","tool":"Bash","input":{"command":"node -e \"console.log(process.version)\""}}
+{"rule":"G1-interp","expect":"allow","tool":"Bash","input":{"command":"echo \"python3 -c shutil.rmtree is how to delete\""}}
+{"rule":"G1-interp","expect":"allow","tool":"Bash","input":{"command":"git commit -m \"drop shutil.rmtree from python -c helper\""}}
+{"rule":"G1-interp","expect":"allow","tool":"Bash","input":{"command":"grep -rn \"os.remove\" src"}}
+{"rule":"G1-interp","expect":"allow","tool":"Bash","input":{"command":"cat <<'EOF' > clean.py\nimport shutil\nshutil.rmtree('x')\nEOF"}}
 {"rule":"G2-push-main","expect":"deny","tool":"Bash","input":{"command":"git push origin main"}}
 {"rule":"G2-push-main","expect":"deny","tool":"Bash","input":{"command":"git push -u origin HEAD:main"}}
 {"rule":"G2-push-main","expect":"deny","tool":"Bash","input":{"command":"git -C /repo push origin master"}}

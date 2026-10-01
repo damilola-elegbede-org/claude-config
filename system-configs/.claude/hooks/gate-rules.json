@@ -130,6 +130,19 @@
       "enforce": true
     },
     {
+      "id": "G1-interp",
+      "class": "G1",
+      "description": "inline interpreter code that deletes files (python -c, node -e, perl -e, ruby -e, php -r, or a heredoc fed to one)",
+      "tools": "^Bash$",
+      "field": "command",
+      "pattern": "(?<![A-Za-z0-9_.-])(?:python[0-9.]*|node(?:js)?|deno|bun|perl|ruby|php)(?:(?:[[:space:]]+-[^[:space:]]+)*[[:space:]]+(?:-[A-Za-z]*[cepEr][A-Za-z]*|--eval|--print)|(?:[[:space:]]+-)?[[:space:]]*<<-?)(?=[[:space:]\\\"'])(?:.|\\n){0,800}?(?:shutil\\.rmtree|\\brmtree\\b|\\bremove_tree\\b|\\bos\\.(?:remove|unlink|rmdir|removedirs)\\b|\\.(?:unlink|rmdir)\\(|\\b(?:rmSync|rmdirSync|unlinkSync|rimraf)\\b|\\bfs\\.(?:promises\\.)?(?:rm|rmdir|unlink)\\(|\\bFileUtils\\.(?:rm_rf?|rm_r|remove_entry(?:_secure)?)\\b|\\bFile\\.delete\\b|\\bDir\\.rmdir\\b|\\bunlink[[:space:]]*\\(?[[:space:]]*[\\\"'$]|(?<![A-Za-z0-9_-])rm[[:space:]]+-[A-Za-z]*[rR])",
+      "action": "deny",
+      "message": "inline interpreter code deletes files (rmtree/os.remove/fs.rmSync/unlink/...), the same irreversible class as rm -rf; script FILES that delete are not inspected",
+      "scope": ["interactive", "bgjob", "fleet"],
+      "lanes": {},
+      "enforce": true
+    },
+    {
       "id": "G2-push-main",
       "class": "G2",
       "description": "git push to main/master (incl. HEAD:main)",

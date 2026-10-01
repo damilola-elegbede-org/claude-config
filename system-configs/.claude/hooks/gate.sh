@@ -275,7 +275,8 @@ SCOPE="interactive"
 read -r -d '' JQ_PROG <<'JQEOF'
 def esc: gsub("(?<x>[.\\[\\]\\\\^$*+?(){}|/-])"; "\\\(.x)");
 def never: "@@NEVER@@";
-# Heredoc bodies are data, unless the heredoc feeds a shell (bash/sh <<EOF, ssh host <<EOF, eval, source).
+# Heredoc bodies are data, unless the heredoc feeds a shell or an interpreter (bash/sh <<EOF, ssh host <<EOF,
+# eval, source, python/node/perl/ruby/deno/bun/php <<EOF): that body is code.
 def strip_heredocs:
   split("\n")
   | reduce .[] as $l ({out: [], hd: null};
@@ -284,7 +285,7 @@ def strip_heredocs:
       else
         .out += [$l]
         | (if ($l | test("(?<!<)<<(?!<)-?[[:space:]]*[\"']?[A-Za-z_][A-Za-z0-9_]*"))
-              and (($l | test("(?:^|[^A-Za-z0-9_./-])(?:(?:ba|z|da|k)?sh|ssh|eval|source)(?:[[:space:]]|$)")) | not)
+              and (($l | test("(?:^|[^A-Za-z0-9_./-])(?:(?:ba|z|da|k)?sh|ssh|eval|source|python[0-9.]*|node(?:js)?|perl|ruby|deno|bun|php)(?:[[:space:]]|$)")) | not)
            then .hd = ($l | capture("(?<!<)<<(?!<)-?[[:space:]]*[\"']?(?<w>[A-Za-z_][A-Za-z0-9_]*)").w)
            else . end)
       end)
