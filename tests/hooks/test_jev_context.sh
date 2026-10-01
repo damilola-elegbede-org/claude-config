@@ -111,7 +111,8 @@ shadow_lacks() { ! grep -q -- "$1" "$SHADOW" 2>/dev/null; }
 no_new_calls() { [[ "$(calls)" == "$1" ]]; }
 has_fixed() { grep -qF -- "$2" "$1"; }
 lacks_fixed() { ! grep -qF -- "$2" "$1"; }
-file_mode() { stat -f %Lp "$1" 2>/dev/null || stat -c %a "$1"; }
+# GNU stat first: on Linux `stat -f` prints file-system info and succeeds, so the BSD form must be the fallback.
+file_mode() { stat -c %a "$1" 2>/dev/null || stat -f %Lp "$1"; }
 
 read_input() { # read_input <file> <transcript> [tool_input-extras]  (content = the file itself)
   local extras="${3:-}"
@@ -226,6 +227,29 @@ check "file under exclude_paths: reason logged" shadow_jq '.detail.why=="exclude
 read_input "$BIG" "$TR"
 JEV_MOCK="$FIX" run_hook a1-read-trim.sh "$IN"
 check "file outside exclude_paths still trimmed" out_jq '.hookSpecificOutput.updatedToolOutput.file.content | test("trimmed")'
+# same semantics as the client: HOME-anchored, case-insensitive, segment boundary, symlinks resolved
+mkdir -p "$TEST_HOME/visa" "$TEST_HOME/proj/work/x" "$TEST_HOME/visaform"
+numbered_lines 600 secret >"$TEST_HOME/visa/s.txt"
+numbered_lines 600 plain >"$TEST_HOME/proj/work/x/ok.txt"
+numbered_lines 600 plain >"$TEST_HOME/visaform/ok.txt"
+ln -sfn "$TEST_HOME/visa" "$TEST_HOME/linked-visa"
+printf '{"exclude_paths":["~/Visa","/work/"]}' >"$HOME/.claude/hooks/jev/jev-config.json"
+B="$(calls)"
+read_input "$TEST_HOME/visa/s.txt" "$TR"
+JEV_MOCK="$FIX" run_hook a1-read-trim.sh "$IN"
+# shellcheck disable=SC2088 # literal tilde in a test description
+check "~/Visa entry excludes ~/visa/... (case-insensitive)" no_new_calls "$B"
+read_input "$TEST_HOME/linked-visa/s.txt" "$TR"
+JEV_MOCK="$FIX" run_hook a1-read-trim.sh "$IN"
+check "a symlink into an excluded tree is excluded (realpath)" no_new_calls "$B"
+read_input "$TEST_HOME/proj/work/x/ok.txt" "$TR"
+JEV_MOCK="$FIX" run_hook a1-read-trim.sh "$IN"
+check "a bare /work/ substring no longer excludes an unrelated path" bash -c "! [[ \"\$(wc -l <'$STUB_COUNT' | tr -d ' ')\" == '$B' ]]"
+B="$(calls)"
+read_input "$TEST_HOME/visaform/ok.txt" "$TR"
+JEV_MOCK="$FIX" run_hook a1-read-trim.sh "$IN"
+# shellcheck disable=SC2088 # literal tilde in a test description
+check "~/Visa does not exclude the sibling ~/visaform (segment boundary)" bash -c "! [[ \"\$(wc -l <'$STUB_COUNT' | tr -d ' ')\" == '$B' ]]"
 printf '{not json' >"$HOME/.claude/hooks/jev/jev-config.json"
 B="$(calls)"
 JEV_MOCK="$FIX" run_hook a1-read-trim.sh "$IN"
@@ -309,6 +333,12 @@ printf '{"exclude_paths":["%s/visa-repo"]}' "$TEST_HOME" >"$HOME/.claude/hooks/j
 jq -cn --rawfile c "$HITS" --arg p "$TEST_HOME/visa-repo/src" '{tool_name:"Grep", tool_input:{pattern:"x", path:$p}, tool_response:{content:$c}}' >"$IN"
 JEV_MOCK="$FIX" run_hook a2-search-rank.sh "$IN"
 check "Grep path under exclude_paths: untouched, no call" bash -c "[ ! -s '$OUTF' ] && [ \"\$(wc -l <'$STUB_COUNT' | tr -d ' ')\" = '$B' ]"
+jq -cn --rawfile c "$HITS" --arg cwd "$TEST_HOME/visa-repo" '{tool_name:"Grep", cwd:$cwd, tool_input:{pattern:"x"}, tool_response:{content:$c}}' >"$IN"
+JEV_MOCK="$FIX" run_hook a2-search-rank.sh "$IN"
+check "Grep with NO path in an excluded cwd: untouched, no call" bash -c "[ ! -s '$OUTF' ] && [ \"\$(wc -l <'$STUB_COUNT' | tr -d ' ')\" = '$B' ]"
+jq -cn --rawfile c "$HITS" --arg cwd "$TEST_HOME/visa-repo" '{tool_name:"Grep", cwd:$cwd, tool_input:{pattern:"x", path:"src"}, tool_response:{content:$c}}' >"$IN"
+JEV_MOCK="$FIX" run_hook a2-search-rank.sh "$IN"
+check "Grep with a RELATIVE path resolved against an excluded cwd: untouched, no call" bash -c "[ ! -s '$OUTF' ] && [ \"\$(wc -l <'$STUB_COUNT' | tr -d ' ')\" = '$B' ]"
 rm -f "$HOME/.claude/hooks/jev/jev-config.json"
 
 # ------------------------------------------------------------------ A3: Bash log trim
@@ -367,6 +397,14 @@ jq -cn --rawfile c "$LOG" '{tool_name:"Bash", tool_input:{command:"npm run build
 JEV_MOCK="$FIX" run_hook a3-bash-trim.sh "$IN"
 check "tool_response that is a bare string (shape the harness would drop): untouched, no call" no_new_calls "$B"
 check "bare-string tool_response: silent" out_empty
+printf '{"exclude_paths":["%s/visa-repo"]}' "$TEST_HOME" >"$HOME/.claude/hooks/jev/jev-config.json"
+bash_input "npm run build" "$LOG"
+jq -c --arg c "$TEST_HOME/visa-repo" '.cwd=$c' "$IN" >"$IN.x" && mv "$IN.x" "$IN"
+B="$(calls)"
+JEV_MOCK="$FIX" run_hook a3-bash-trim.sh "$IN"
+check "cwd under exclude_paths: untouched, no Jev call (output of an excluded tree never leaves)" no_new_calls "$B"
+check "cwd under exclude_paths: silent" out_empty
+rm -f "$HOME/.claude/hooks/jev/jev-config.json"
 bash_input "npm run build" "$LOG"
 set_rule A3-bash-trim '{"max_lines":400}'
 JEV_MOCK="$FIX" run_hook a3-bash-trim.sh "$IN"
@@ -379,7 +417,8 @@ setup_home
 big_transcript() { # big_transcript <file> <bytes>
   {
     jq -cn '{type:"user", message:{role:"user", content:"ship the feature"}}'
-    jq -cn --arg pad "$(head -c "$2" /dev/zero | tr '\0' a)" '{type:"assistant", message:{role:"assistant", content:[{type:"text", text:$pad}]}}'
+    # Pad inside jq: a 700 KB --arg exceeds Linux's per-argument limit (MAX_ARG_STRLEN, 128 KB).
+    jq -cn --argjson n "$2" '{type:"assistant", message:{role:"assistant", content:[{type:"text", text:("a" * $n)}]}}'
     jq -cn '{type:"assistant", message:{role:"assistant", content:[{type:"text", text:"Shipped. All checks pass."}]}}'
   } >"$1"
 }
@@ -504,6 +543,15 @@ check "enforce: top-ranked rule section injected" out_jq '.hookSpecificOutput.ad
 check "enforce: top-ranked memory entry injected" out_jq '.hookSpecificOutput.additionalContext | test("Merge policy")'
 check "enforce: candidates under threshold left out" out_jq '.hookSpecificOutput.additionalContext | (test("Decisions|Vercel pin") | not)'
 check "enforce: rank order r2 before m0" out_jq '.hookSpecificOutput.additionalContext | (index("Verification")) < (index("Merge policy"))'
+printf '## Repo rule\nProject specific standing rule text.\n' >"$REPO/CLAUDE.md"
+compact_input "$REPO"
+PATH="$STUBBIN:$PATH" JEV_MOCK="$FIX" run_hook a5-compact-reinject.sh "$IN"
+check "project CLAUDE.md is a candidate when the repo is not excluded" jq -e '.state.candidates | to_entries | any(.value | test("Project specific standing rule"))' "$STUB_LAST"
+printf '{"exclude_paths":["%s"]}' "$REPO" >"$HOME/.claude/hooks/jev/jev-config.json"
+PATH="$STUBBIN:$PATH" JEV_MOCK="$FIX" run_hook a5-compact-reinject.sh "$IN"
+check "project CLAUDE.md of an excluded repo is never sent" jq -e '.state.candidates | to_entries | any(.value | test("Project specific standing rule")) | not' "$STUB_LAST"
+check "the global CLAUDE.md is still ranked for an excluded repo" jq -e '.state.candidates | to_entries | any(.value | test("Back every claim"))' "$STUB_LAST"
+rm -f "$HOME/.claude/hooks/jev/jev-config.json" "$REPO/CLAUDE.md"
 compact_input "$TEST_HOME/wt5"
 PATH="$STUBBIN:$PATH" JEV_MOCK="$FIX" run_hook a5-compact-reinject.sh "$IN"
 check "linked worktree is flagged" out_jq '.hookSpecificOutput.additionalContext | test("branch feat/linked") and test("linked git worktree")'

@@ -22,8 +22,9 @@ main() {
   min="$(ctx_cfg min_hits 100)"
   [ "$n" -gt "$min" ] || return 0
 
-  # Egress: never send digests of hits from an excluded (work) tree (see ctx_path_excluded).
-  if ctx_path_excluded "$(ctx_in .tool_input.path)"; then
+  # Egress: never send digests of hits from an excluded (work) tree. No path = the cwd; a relative
+  # path is resolved against the cwd (see ctx_target_excluded).
+  if ctx_target_excluded "$(ctx_in .tool_input.path)"; then
     jq -cn --argjson n "$n" '{decision:"keep-full", why:"excluded-path", lines:$n}' >"${WORK}/detail.json"
     ctx_log skip "${WORK}/detail.json"
     return 0

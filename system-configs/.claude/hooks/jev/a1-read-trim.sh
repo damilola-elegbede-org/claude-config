@@ -57,7 +57,7 @@ main() {
   task="$(ctx_task "$(ctx_in .transcript_path)")"
 
   # Egress: never send digests of a file under an excluded (work) tree, wherever the session runs.
-  if ctx_path_excluded "$file"; then
+  if ctx_target_excluded "$file"; then
     jq -cn --argjson n "$n" '{decision:"keep-full", why:"excluded-path", lines:$n}' >"${WORK}/detail.json"
     ctx_log skip "${WORK}/detail.json"
     return 0

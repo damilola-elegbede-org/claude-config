@@ -45,6 +45,8 @@ a5_rank() {
   top="$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null)"
   printf '%s' "$task" >"${WORK}/task.txt"
 
+  # Egress: an excluded (work) repo's CLAUDE.md is never sent; the global one still is.
+  if [ -n "$top" ] && ctx_path_excluded "$top"; then top=""; fi
   ctx_rule_candidates "${WORK}/rules.json" "$HOME/CLAUDE.md" ${top:+"$top/CLAUDE.md"} || return 0
   mem="$(ctx_memory_index)"
   if [ -n "$mem" ]; then

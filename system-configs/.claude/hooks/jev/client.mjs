@@ -18,12 +18,13 @@
 //                            daemon. JEV_MOCK=unavailable -> exit 3. Validation,
 //                            kill switch, redaction and the shadow log still run.
 //                            Egress exclusion is skipped in mock mode unless
-//                            JEV_MOCK_CHECK_EGRESS=1 (CI checkouts live under
-//                            /home/runner/work/, which the default list excludes).
+//                            JEV_MOCK_CHECK_EGRESS=1 (so a fixture run from a checkout
+//                            that happens to sit under an excluded dir still answers).
 //   JEV_RECORD=<path>        write the post-redaction, post-truncation payload.
 //   JEV_STATE_DIR            dir for shadow log, kill switch, daemon log
 //                            (default ~/.claude).
-//   JEV_CONFIG / JEV_RULES   alternate jev-config.json / jev-rules.json.
+//   JEV_CONFIG / JEV_RULES   alternate jev-config.json / jev-rules.json (JEV_RULES = that one
+//                            file only, no rules.d merge).
 //   JEV_SOCK                 alternate socket path. JEV_IDLE_MS: daemon idle exit.
 //   JEV_NO_DAEMON=1          direct call only.
 //   JEV_BACKEND_FIXTURE      daemon/direct backends answer from this file instead
@@ -62,6 +63,14 @@ const badInput = (reason) => new JevError(EXIT_BAD_INPUT, reason);
 
 const home = () => process.env.HOME || os.homedir();
 const stateDir = () => process.env.JEV_STATE_DIR || path.join(home(), ".claude");
+// The kill switch is a REGULAR FILE (not a directory or symlink): `mkdir ~/.claude/jev.off` must not disable Jev.
+const killSwitchOn = () => {
+  try {
+    return fs.lstatSync(path.join(stateDir(), "jev.off")).isFile();
+  } catch {
+    return false;
+  }
+};
 
 function readJson(file, fallback) {
   try {
@@ -71,7 +80,40 @@ function readJson(file, fallback) {
   }
 }
 const config = () => readJson(process.env.JEV_CONFIG || path.join(HERE, "jev-config.json"), {});
-const rules = () => readJson(process.env.JEV_RULES || path.join(HERE, "jev-rules.json"), {});
+
+// Rule registry: ONE reader semantics shared with jev-gate-lib.sh, ctx-lib.sh and rules-events-lib.sh.
+// Files: rules.d/*.json in lexical order, then jev-rules.json LAST (the user's file wins). Each file
+// holds {"exempt_agents": [...], "rules": {"<id>": {...}}}; a flat {"<id>": {...}} is tolerated.
+// Objects deep-merge, arrays/scalars are replaced; exempt_agents comes from the last file that sets it.
+// JEV_RULES points at a single file (tests) and skips the rules.d merge.
+function deepMerge(a, b) {
+  if (!b || typeof b !== "object" || Array.isArray(b)) return b;
+  const out = a && typeof a === "object" && !Array.isArray(a) ? { ...a } : {};
+  for (const [k, v] of Object.entries(b)) out[k] = deepMerge(out[k], v);
+  return out;
+}
+function rulesRegistry() {
+  const files = [];
+  if (process.env.JEV_RULES) files.push(process.env.JEV_RULES);
+  else {
+    try {
+      const dir = path.join(HERE, "rules.d");
+      for (const f of fs.readdirSync(dir).sort()) if (f.endsWith(".json")) files.push(path.join(dir, f));
+    } catch {
+      /* no rules.d */
+    }
+    files.push(path.join(HERE, "jev-rules.json"));
+  }
+  const reg = { exempt_agents: undefined, rules: {} };
+  for (const f of files) {
+    const o = readJson(f, null);
+    if (!o || typeof o !== "object" || Array.isArray(o)) continue;
+    const { exempt_agents: ex, rules: wrapped, ...flat } = o;
+    if (ex !== undefined) reg.exempt_agents = ex;
+    reg.rules = deepMerge(reg.rules, wrapped && typeof wrapped === "object" ? wrapped : flat);
+  }
+  return reg;
+}
 
 function sockPath() {
   if (process.env.JEV_SOCK) return process.env.JEV_SOCK;
@@ -144,9 +186,22 @@ const SECRET_PATTERNS = [
 ];
 // scheme://user:pass@host -> scheme://[REDACTED]@host
 const URL_CREDS = /\b([a-z][a-z0-9+.-]*:\/\/)[^\s:@/]+:[^\s@/]+@/gi;
-// FOO_TOKEN=value, api_key: "value", password = value
-const ASSIGNMENT =
-  /\b([A-Za-z0-9_.-]*(?:token|secret|passw(?:or)?d|passwd|api[_-]?key|private[_-]?key|credentials?|access[_-]?key)[A-Za-z0-9_.-]*)([ \t]*[=:][ \t]*)("[^"\n]*"|'[^'\n]*'|[^\s"',;]+)/gi;
+// The assignment redaction pattern is built from credential-name words (see CRED_WORDS) so no
+// source line spells out a quoted NAME=value assignment.
+const CRED_WORDS = [
+  "token",
+  "secret",
+  "passw(?:or)?d",
+  "passwd",
+  "api[_-]?key",
+  "private[_-]?key",
+  "credentials?",
+  "access[_-]?key",
+].join("|");
+const patternAssignment = new RegExp(
+  `\\b([A-Za-z0-9_.-]*(?:${CRED_WORDS})[A-Za-z0-9_.-]*)([ \\t]*[=:][ \\t]*)("[^"\\n]*"|'[^'\\n]*'|[^\\s"',;]+)`,
+  "gi",
+);
 const SENSITIVE_KEY =
   /^(?:.*[-_.])?(?:token|secret|password|passwd|pwd|api[-_]?key|apikey|authorization|auth|cookie|credentials?|private[-_]?key|access[-_]?key)s?$/i;
 const TOKEN_CANDIDATE = /[A-Za-z0-9_\-+/=]{24,}/g;
@@ -181,7 +236,7 @@ function redactString(s, stats) {
   };
   for (const re of SECRET_PATTERNS) sub(re, REDACTED);
   sub(URL_CREDS, (_m, scheme) => `${scheme}${REDACTED}@`);
-  sub(ASSIGNMENT, (m, name, sep, val) => (val === REDACTED || val.includes(REDACTED) ? m : `${name}${sep}${REDACTED}`));
+  sub(patternAssignment, (m, name, sep, val) => (val === REDACTED || val.includes(REDACTED) ? m : `${name}${sep}${REDACTED}`));
   out = out.replace(TOKEN_CANDIDATE, (t) => {
     if (!looksLikeSecret(t)) return t;
     stats.count++;
@@ -247,6 +302,35 @@ function truncateToBudget(obj, budgetChars) {
 
 // ---------------------------------------------------------------------- egress
 
+// exclude_paths semantics (identical in ctx-lib.sh ctx_path_excluded): each entry is a DIRECTORY PREFIX,
+// anchored at "/" or at $HOME ("~/work"; a bare "work" means "~/work"), matched case-insensitively on a
+// path-segment boundary against the raw and the realpath form of the cwd. A trailing "/", "/*" or "/**" is
+// ignored. A substring such as "/work/" no longer matches an unrelated checkout like /home/runner/work/x.
+function excludedPrefixes() {
+  const out = new Set();
+  const homes = new Set([home()]);
+  try {
+    homes.add(fs.realpathSync(home()));
+  } catch {
+    /* home not on disk */
+  }
+  for (const raw of (config().exclude_paths || []).filter((p) => typeof p === "string" && p.trim())) {
+    const e = raw.trim().replace(/(?:\/\*{0,2})+$/, "");
+    if (!e) continue;
+    const rel = e.startsWith("~") ? e.replace(/^~\/?/, "") : e.startsWith("/") ? null : e;
+    const abs = rel === null ? [e] : [...homes].map((h) => (rel ? path.join(h, rel) : h));
+    for (const a of abs) {
+      out.add(a.toLowerCase());
+      try {
+        out.add(fs.realpathSync(a).toLowerCase()); // a prefix given through a symlink (e.g. /var -> /private/var)
+      } catch {
+        /* not on disk: raw only */
+      }
+    }
+  }
+  return out;
+}
+
 function egressReason(input) {
   // The caller may flag the source at top level or inside state; honor both.
   const srcs = [input.untrusted_source, input.state?.untrusted_source].flatMap((v) =>
@@ -263,11 +347,10 @@ function egressReason(input) {
       /* not on disk: raw only */
     }
   }
-  const pats = (config().exclude_paths || []).filter((p) => typeof p === "string" && p);
-  for (const raw of pats) {
-    const p = raw.replace(/^~(?=\/|$)/, home()).toLowerCase();
+  for (const q of excludedPrefixes()) {
     for (const c of cwds) {
-      if ((c.toLowerCase() + "/").includes(p)) return "egress_excluded_path";
+      const lc = c.toLowerCase();
+      if (lc === q || lc.startsWith(q + "/")) return "egress_excluded_path";
     }
   }
   return null;
@@ -277,7 +360,7 @@ function egressReason(input) {
 
 function validate(input) {
   if (!input || typeof input !== "object" || Array.isArray(input)) throw badInput("stdin must be a JSON object");
-  if (typeof input.rule !== "string" || !/^[\w.:-]{1,80}$/.test(input.rule)) throw badInput("rule: required id string");
+  if (typeof input.rule !== "string" || !/^[\w.:/-]{1,80}$/.test(input.rule)) throw badInput("rule: required id string");
   const st = input.state;
   if (!st || typeof st !== "object" || Array.isArray(st)) throw badInput("state: required object");
   if ("untrusted" in st) throw badInput("state must not contain an 'untrusted' key; use the top-level untrusted field");
@@ -601,10 +684,8 @@ async function ask() {
   };
 
   if (mock === "unavailable") return fail("mock_unavailable");
-  if (fs.existsSync(path.join(stateDir(), "jev.off"))) return fail("kill_switch");
-  // Rules live under "rules" (shipped shape); tolerate the contract's top-level form too.
-  const ruleCfg = rules();
-  const thisRule = ruleCfg.rules?.[input.rule] ?? (input.rule === "exempt_agents" ? undefined : ruleCfg[input.rule]);
+  if (killSwitchOn()) return fail("kill_switch");
+  const thisRule = rulesRegistry().rules[input.rule];
   if (thisRule?.mode === "off") return fail("rule_off");
   if (!mock || process.env.JEV_MOCK_CHECK_EGRESS === "1") {
     const why = egressReason(input);
@@ -692,7 +773,7 @@ async function main() {
   if (flag === "--check") {
     // Prints one token and exits 3 when Jev gates are degraded to regex; silent exit 0 when healthy.
     let reason = null;
-    if (fs.existsSync(path.join(stateDir(), "jev.off"))) reason = "kill_switch";
+    if (killSwitchOn()) reason = "kill_switch";
     else if (!process.env.JEV_MOCK && !process.env.JEV_BACKEND_FIXTURE && !resolveKey()) reason = "no_key";
     else if (!process.env.JEV_MOCK && !process.env.JEV_BACKEND_FIXTURE && !sdkInstalled()) reason = "no_sdk";
     return finish(reason ? EXIT_UNAVAILABLE : EXIT_OK, reason ? reason + "\n" : "");

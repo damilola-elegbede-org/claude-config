@@ -72,8 +72,11 @@ echo '{"answers":{"x":{"type":"boolean","probability":0.82}},"model":"typesafe-a
 
 echo "== repo config shape"
 eq "package.json pins ai exactly" "$(node -e "console.log(require('$SRC/package.json').dependencies.ai)")" "7.0.126"
-has "exclude_paths has /visa/" "$(node -e "console.log(require('$SRC/jev-config.json').exclude_paths.join(' '))")" "/visa/"
-has "exclude_paths has /work/" "$(node -e "console.log(require('$SRC/jev-config.json').exclude_paths.join(' '))")" "/work/"
+# shellcheck disable=SC2088 # literal tilde in a test description
+has "exclude_paths has ~/Visa" "$(node -e "console.log(require('$SRC/jev-config.json').exclude_paths.join(' '))")" "~/Visa"
+# shellcheck disable=SC2088 # literal tilde in a test description
+has "exclude_paths has ~/work" "$(node -e "console.log(require('$SRC/jev-config.json').exclude_paths.join(' '))")" "~/work"
+lacks "exclude_paths has no bare /work/ substring entry" "$(node -e "console.log(require('$SRC/jev-config.json').exclude_paths.join(' '))")" " /work/"
 eq "exempt_agents" "$(node -e "console.log(require('$SRC/jev-rules.json').exempt_agents.join(','))")" "dara,clara"
 eq "rules map starts empty" "$(node -e "console.log(String(Object.keys(require('$SRC/jev-rules.json').rules).length))")" "0"
 
@@ -108,6 +111,10 @@ has "kill switch says why" "$ERR" "kill_switch"
 rm -f "$T/.claude/jev.off"
 run_ask "$(mkin t-kill '{"a":1}')" JEV_MOCK="$FIX"
 eq "kill switch removed -> 0" "$RC" "0"
+mkdir "$T/.claude/jev.off"
+run_ask "$(mkin t-kill '{"a":1}')" JEV_MOCK="$FIX"
+eq "a DIRECTORY named jev.off is not the kill switch (mkdir tamper does nothing)" "$RC" "0"
+rmdir "$T/.claude/jev.off"
 printf '{"exempt_agents":[],"rules":{"r-off":{"mode":"off"},"r-shadow":{"mode":"shadow"}}}' >"$J/jev-rules.json"
 run_ask "$(mkin r-off '{"a":1}')" JEV_MOCK="$FIX"
 eq "rule mode off exits 3" "$RC" "3"
@@ -116,6 +123,18 @@ eq "rule mode shadow runs" "$RC" "0"
 printf '{"exempt_agents":[],"r-top":{"mode":"off"}}' >"$J/jev-rules.json"
 run_ask "$(mkin r-top '{"a":1}')" JEV_MOCK="$FIX"
 eq "top-level rule entry (contract shape) also honored" "$RC" "3"
+# One registry reader: rules.d/*.json (lexical) then jev-rules.json LAST (the user's file wins).
+mkdir -p "$J/rules.d"
+printf '{"rules":{"r-d":{"mode":"off"},"r-both":{"mode":"off"}}}' >"$J/rules.d/10-a.json"
+printf '{"r-d2":{"mode":"off"}}' >"$J/rules.d/20-b.json"
+printf '{"exempt_agents":[],"rules":{"r-both":{"mode":"shadow"}}}' >"$J/jev-rules.json"
+run_ask "$(mkin r-d '{"a":1}')" JEV_MOCK="$FIX"
+eq "rules.d entry (wrapped shape) honored by the client" "$RC" "3"
+run_ask "$(mkin r-d2 '{"a":1}')" JEV_MOCK="$FIX"
+eq "rules.d entry (flat shape) honored by the client" "$RC" "3"
+run_ask "$(mkin r-both '{"a":1}')" JEV_MOCK="$FIX"
+eq "jev-rules.json overrides rules.d for the same rule" "$RC" "0"
+rm -rf "$J/rules.d"
 cp "$SRC/jev-rules.json" "$J/jev-rules.json"
 
 echo "== egress exclusion"
@@ -124,7 +143,7 @@ run_ask "$(mkin t-egress '{"a":1}')" JEV_MOCK="$FIX" JEV_MOCK_CHECK_EGRESS=1
 eq "personal cwd is allowed" "$RC" "0"
 OUT=$(cd "$T/work/proj" && printf '%s' "$(mkin t-egress '{"a":1}')" | env JEV_MOCK="$FIX" JEV_MOCK_CHECK_EGRESS=1 "$ASK" 2>"$T/stderr")
 RC=$?
-eq "cwd under /work/ exits 3" "$RC" "3"
+eq "cwd under ~/work exits 3" "$RC" "3"
 has "egress says why" "$(cat "$T/stderr")" "egress_excluded_path"
 run_ask "{\"rule\":\"t-egress\",\"cwd\":\"$T/Visa/repo\",\"state\":{\"a\":1},\"questions\":$Q}" JEV_MOCK="$FIX" JEV_MOCK_CHECK_EGRESS=1
 eq "caller-supplied cwd under Visa exits 3 (case-insensitive)" "$RC" "3"
@@ -136,7 +155,27 @@ run_ask "{\"rule\":\"t-egress\",\"state\":{\"untrusted_source\":\"gmail\",\"a\":
 eq "untrusted_source flagged inside state exits 3" "$RC" "3"
 OUT=$(cd "$T/work/proj" && printf '%s' "$(mkin t-egress '{"a":1}')" | env JEV_MOCK="$FIX" "$ASK" 2>/dev/null)
 RC=$?
-eq "mock mode skips egress unless asked (CI checkouts live under /work/)" "$RC" "0"
+eq "mock mode skips egress unless asked" "$RC" "0"
+# Exclusions are anchored at $HOME (or an absolute prefix), never a bare substring: a CI checkout such as
+# /home/runner/work/<repo> must be allowed, a sibling like ~/workshop must be allowed, ~/Work/.. refused.
+mkdir -p "$T/ci/home/runner/work/repo" "$T/workshop/x" "$T/Work/Proj" "$T/elsewhere/visa/repo"
+for okdir in "$T/ci/home/runner/work/repo" "$T/workshop/x" "$T/elsewhere/visa/repo"; do
+  run_ask "{\"rule\":\"t-egress\",\"cwd\":\"$okdir\",\"state\":{\"a\":1},\"questions\":$Q}" JEV_MOCK="$FIX" JEV_MOCK_CHECK_EGRESS=1
+  eq "cwd ${okdir#"$T"/} is not under an excluded HOME dir -> allowed" "$RC" "0"
+done
+run_ask "{\"rule\":\"t-egress\",\"cwd\":\"$T/Work/Proj\",\"state\":{\"a\":1},\"questions\":$Q}" JEV_MOCK="$FIX" JEV_MOCK_CHECK_EGRESS=1
+eq "cwd ~/Work/Proj refused (case-insensitive)" "$RC" "3"
+ln -s "$T/work/proj" "$T/linked-into-work"
+run_ask "{\"rule\":\"t-egress\",\"cwd\":\"$T/linked-into-work\",\"state\":{\"a\":1},\"questions\":$Q}" JEV_MOCK="$FIX" JEV_MOCK_CHECK_EGRESS=1
+eq "symlink into ~/work refused (realpath)" "$RC" "3"
+printf '{"exclude_paths":["/srv/clients/","~/clients/**"]}' >"$J/jev-config.json"
+mkdir -p "$T/clients/a"
+run_ask "{\"rule\":\"t-egress\",\"cwd\":\"/srv/clients/acme\",\"state\":{\"a\":1},\"questions\":$Q}" JEV_MOCK="$FIX" JEV_MOCK_CHECK_EGRESS=1
+eq "absolute prefix entry refuses /srv/clients/acme" "$RC" "3"
+run_ask "{\"rule\":\"t-egress\",\"cwd\":\"$T/clients/a\",\"state\":{\"a\":1},\"questions\":$Q}" JEV_MOCK="$FIX" JEV_MOCK_CHECK_EGRESS=1
+# shellcheck disable=SC2088 # literal tilde in a test description
+eq "~/clients/** entry refuses ~/clients/a" "$RC" "3"
+cp "$SRC/jev-config.json" "$J/jev-config.json"
 
 echo "== redaction"
 AWS="AKIA""IOSFODNN7""EXAMPLE"

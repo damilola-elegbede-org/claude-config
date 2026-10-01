@@ -66,10 +66,10 @@ jobs:
         python -c "import yaml; print(f'PyYAML version: {yaml.__version__}')"
         echo "✓ Python environment ready"
 
-    - name: Setup Node.js (for markdownlint only)
+    - name: Setup Node.js (markdownlint + Jev client tests)
       uses: actions/setup-node@v7
       with:
-        node-version: '20.18.0'  # Pin to specific LTS version
+        node-version: '22'  # Jev's locked ai SDK needs node>=22
         cache: 'npm'
         registry-url: 'https://registry.npmjs.org'
 

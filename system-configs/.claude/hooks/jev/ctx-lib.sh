@@ -8,7 +8,10 @@
 #     unreadable config means "do nothing, print nothing, exit 0". Output is only ever
 #     emitted as one complete JSON decision.
 #   - A rule that is not registered in rules.d/*.json (or jev-rules.json) is OFF.
-#   - Registry precedence: jev-rules.json overrides rules.d/*.json.
+#   - Registry reader (the SAME semantics as client.mjs rulesRegistry() and jev-gate-lib.sh
+#     jev_rules_json): rules.d/*.json in lexical order, then jev-rules.json LAST, so the user's
+#     jev-rules.json overrides rules.d. Each file is {"exempt_agents":[...], "rules":{"<id>":{...}}}
+#     (a flat {"<id>":{...}} is tolerated); entries merge key by key, later files win.
 #   - Big payloads go through files (--rawfile/--slurpfile), never --arg: a hook input can be
 #     megabytes and a single argv entry is capped (128KB on Linux).
 
@@ -52,7 +55,8 @@ ctx_prepare() {
   INPUT_FILE="${WORK}/in.json"
   cat >"$INPUT_FILE" 2>/dev/null
   [ -s "$INPUT_FILE" ] || return 1
-  [ -e "${JEV_CLAUDE_DIR}/jev.off" ] && return 1
+  # The kill switch is a regular file; `mkdir ~/.claude/jev.off` must not disable the hooks.
+  [ -f "${JEV_CLAUDE_DIR}/jev.off" ] && [ ! -L "${JEV_CLAUDE_DIR}/jev.off" ] && return 1
   return 0
 }
 
@@ -148,19 +152,82 @@ ctx_log() {
   )
 }
 
+# ctx_realpath <abs path>: best-effort physical path (symlinks resolved) even when the leaf does not
+# exist: the deepest existing ancestor is resolved with `cd -P`, a symlink leaf is followed (<= 8 hops).
+ctx_realpath() {
+  local p="$1" tail="" d hop=0 t
+  case "$p" in /*) ;; *) return 1 ;; esac
+  while [ -L "$p" ] && [ "$hop" -lt 8 ]; do
+    t="$(readlink "$p" 2>/dev/null)" || break
+    case "$t" in /*) p="$t" ;; *) p="$(dirname "$p")/$t" ;; esac
+    hop=$((hop + 1))
+  done
+  d="${p%/}"
+  [ -n "$d" ] || d="/"
+  while [ ! -d "$d" ] && [ "$d" != "/" ]; do
+    tail="/$(basename "$d")$tail"
+    d="$(dirname "$d")"
+  done
+  d="$(cd "$d" 2>/dev/null && pwd -P)" || return 1
+  [ "$d" = "/" ] && d=""
+  printf '%s%s' "$d" "$tail"
+}
+
 # ctx_path_excluded <path>: 0 when <path> is under an `exclude_paths` entry of jev-config.json
 # (work / Visa repos: D's egress ruling). The client already refuses by cwd; this closes the gap
-# where a session started elsewhere Reads/Greps into an excluded tree. Entries may start with ~ and
-# end with / or /**. An unreadable config counts as "excluded" (fail closed on egress).
-# No jev-config.json (Phase 0 not deployed) -> nothing is excluded here.
+# where a session started elsewhere Reads/Greps into an excluded tree.
+# SAME semantics as client.mjs excludedPrefixes(): each entry is a directory prefix anchored at "/" or
+# at $HOME ("~/work"; a bare "work" means ~/work), matched case-insensitively on a path-segment
+# boundary. Both sides are compared raw AND physical (symlinks resolved; $HOME too). A trailing "/",
+# "/*" or "/**" is ignored; non-string entries are ignored. A relative <path> never matches. An
+# unreadable config counts as "excluded" (fail closed on egress). No jev-config.json (Phase 0 not
+# deployed) -> nothing is excluded here.
 ctx_path_excluded() {
-  local cfg="${JEV_DIR}/jev-config.json"
-  [ -n "${1:-}" ] && [ -f "$cfg" ] || return 1
+  local cfg="${JEV_DIR}/jev-config.json" p="${1:-}" real home_real q qr x
+  local -a paths=() prefixes=()
+  [ -n "$p" ] && [ -f "$cfg" ] || return 1
   jq -e . "$cfg" >/dev/null 2>&1 || return 0
-  jq -e --arg p "$1" --arg home "$HOME" '
-    (.exclude_paths // []) | any(.[]; . as $e
-      | ($e | sub("^~"; $home) | sub("(/\\*{0,2})$"; "")) as $q
-      | ($q != "") and ($p == $q or ($p | startswith($q + "/"))))' "$cfg" >/dev/null 2>&1
+  case "$p" in /*) ;; *) return 1 ;; esac
+  real="$(ctx_realpath "$p")" || real="$p"
+  home_real="$(cd "$HOME" 2>/dev/null && pwd -P)" || home_real="$HOME"
+  while IFS= read -r q; do
+    [ -n "$q" ] || continue
+    prefixes+=("$q")
+    qr="$(ctx_realpath "$q")" && [ -n "$qr" ] && prefixes+=("$qr")
+  done < <(jq -r --arg h1 "$HOME" --arg h2 "${home_real:-$HOME}" '
+    def trimslash: sub("(/\\*{0,2})+$"; "");
+    ([$h1, $h2] | unique) as $homes
+    | (.exclude_paths // [])[] | select(type == "string") | gsub("^\\s+|\\s+$"; "") | trimslash | select(length > 0)
+    | if startswith("~") then (sub("^~/?"; "") | . as $rel | $homes[] | if $rel == "" then . else . + "/" + $rel end)
+      elif startswith("/") then .
+      else (. as $rel | $homes[] | . + "/" + $rel) end' "$cfg" 2>/dev/null)
+  for x in "$p" "${real:-$p}"; do
+    x="$(printf '%s' "${x%/}" | tr '[:upper:]' '[:lower:]')"
+    paths+=("$x")
+  done
+  for x in "${paths[@]}"; do
+    for q in "${prefixes[@]}"; do
+      q="$(printf '%s' "${q%/}" | tr '[:upper:]' '[:lower:]')"
+      [ -n "$q" ] || continue
+      case "$x" in "$q" | "$q"/*) return 0 ;; esac
+    done
+  done
+  return 1
+}
+
+# ctx_target_excluded [path]: 0 when the egress target is in an excluded tree. A relative [path] is
+# resolved against the hook input's .cwd, an empty [path] means the cwd itself (a Grep/Glob without
+# a path searches the cwd). Used by every hook that digests repo content.
+ctx_target_excluded() {
+  local p="${1:-}" cwd
+  cwd="$(ctx_in .cwd)"
+  [ -n "$cwd" ] || cwd="$PWD"
+  case "$p" in
+    "") p="$cwd" ;;
+    /*) ;;
+    *) p="${cwd%/}/$p" ;;
+  esac
+  ctx_path_excluded "$p"
 }
 
 # ctx_hash: sha256 prefix of stdin (sha256sum on Linux; openssl before shasum on macOS because

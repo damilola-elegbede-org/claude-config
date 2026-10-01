@@ -22,6 +22,11 @@ main() {
     return 0
   fi
 
+  # Egress: output produced in an excluded (work) tree never leaves the machine.
+  if ctx_target_excluded ""; then
+    return 0
+  fi
+
   ctx_extract Bash || return 0
   n="$(ctx_line_count "${WORK}/text.txt")"
   min="$(ctx_cfg min_lines 300)"

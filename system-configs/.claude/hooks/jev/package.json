@@ -4,7 +4,7 @@
   "private": true,
   "description": "Jev client for Claude Code hooks. Deployed to ~/.claude/hooks/jev by scripts/sync.sh.",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "dependencies": {
     "ai": "7.0.126"
