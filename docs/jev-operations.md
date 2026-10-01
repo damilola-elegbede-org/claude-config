@@ -63,3 +63,34 @@ The older logs are still written for one release as aliases and will be removed 
 # what did the gates decide today?
 jq -r 'select(.gate | startswith("G")) | [.ts, .gate, .mode, .outcome] | @tsv' ~/.claude/jev/decisions.jsonl
 ```
+
+## Replay and the regression guard
+
+`scripts/jev-replay.py` replays the 87 labelled examples in `tests/fixtures/jev-replay-labels.jsonl`
+through the same request builder the gates use and reports per-rule precision and recall. The recorded
+answers, thresholds and accepted block rates live in `tests/fixtures/jev-replay-results.json`.
+
+| Command                                                                       | Calls       | What it does                                                                                                                                                                                                                                                                                    |
+| ----------------------------------------------------------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `python3 scripts/jev-replay.py --check`                                       | none        | CI guard. Fails when the questions or labels changed without a fresh live run, when `rules.d/gates.json` thresholds differ from the recorded ones, or when re-scoring the recorded answers at the current thresholds moves any rule's block rate more than 5 points from the accepted baseline. |
+| `python3 scripts/jev-replay.py --rescore`                                     | none        | Re-scores the recorded answers at the current thresholds and rewrites the results file. The accepted baseline is kept, so cumulative drift stays visible.                                                                                                                                       |
+| `python3 scripts/jev-replay.py --backend inline --no-history --write-results` | at most 120 | Live run; records answers and accepts the current thresholds as the new baseline. Key from the `export VERCEL_AI_GATEWAY_TOKEN=` line in `~/.zshrc`. Run it after a question change, and whenever `--check` says the baseline needs confirming.                                                 |
+
+`tests/hooks/test_jev_replay_check.sh` (part of `tests/test.sh`) proves the guard on temp copies: a
+threshold or question edit without an updated results file fails, `--rescore` fixes a small threshold
+change, and a change that moves a block rate more than 5 points fails.
+
+### Suggested monthly live replay (NOT installed)
+
+Model or gateway behaviour can drift without any change in this repo. A monthly live replay catches that.
+This is a suggestion only; nothing in this repo installs it. It deliberately omits `--write-results`: it
+produces a report to read, and a human decides whether to accept a new baseline.
+
+```
+# crontab -e   (monthly, 06:17 on the 1st; about 100 Jev calls)
+17 6 1 * * cd "$HOME/repos/claude-config" && python3 scripts/jev-replay.py --backend inline --no-history --max-calls 120 --ai-dir "$HOME/.claude/hooks/jev" --cache "$HOME/.tmp/jev-replay-cache.jsonl" --out "$HOME/.tmp/reports/jev-replay-$(date +\%F).md" >> "$HOME/.tmp/reports/jev-replay-cron.log" 2>&1
+```
+
+Untested as a cron entry: the inline backend reads the key from `~/.zshrc` itself, but this was not run
+under cron. Compare the new report's per-rule precision and recall with the committed results file; if a
+rule degraded, re-run with `--write-results` only after reviewing it.
