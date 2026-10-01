@@ -95,6 +95,31 @@
             "timeout": 5
           }
         ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/file-org-guard.sh",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/memory-dup-guard.sh",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/pr-draft-guard.sh",
+            "timeout": 5
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -135,7 +160,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if [ -n \"$BARECLAUDE_AGENT_SLUG\" ] || [ -n \"$CLAUDE_JOB_DIR\" ]; then exit 0; fi; afplay -v 1.0 '/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Modern/Aurora.m4r' 2>/dev/null &"
+            "command": "${HOME}/.claude/hooks/jev/notification-urgency.sh",
+            "timeout": 5
           }
         ]
       }
@@ -159,6 +185,15 @@
             "timeout": 5
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/session-start-project.sh",
+            "timeout": 10
+          }
+        ]
       }
     ],
     "SessionEnd": [
@@ -173,6 +208,15 @@
             "type": "command",
             "command": "${HOME}/.claude/hooks/session_registry.sh end",
             "timeout": 5
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/session-end-memory.sh",
+            "timeout": 10
           }
         ]
       }
@@ -194,6 +238,63 @@
             "type": "command",
             "command": "${HOME}/.claude/claude-speak.sh",
             "timeout": 45
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/executive-lint.sh",
+            "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/papercut-nudge.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/retry-counter.sh",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/papercut-grep.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "StopFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/stopfailure-hint.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/postcompact-log.sh",
+            "timeout": 5
           }
         ]
       }

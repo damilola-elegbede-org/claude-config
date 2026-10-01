@@ -1,0 +1,119 @@
+{
+  "file-org-guard": {
+    "mode": "enforce",
+    "scope": ["interactive", "bgjob", "fleet"]
+  },
+  "pr-draft-guard": {
+    "mode": "enforce",
+    "scope": ["interactive", "bgjob", "fleet"]
+  },
+  "retry-counter": {
+    "mode": "enforce",
+    "scope": ["interactive", "bgjob", "fleet"]
+  },
+  "papercut-grep": {
+    "mode": "enforce",
+    "scope": ["interactive", "bgjob", "fleet"]
+  },
+  "executive-lint": {
+    "mode": "enforce",
+    "scope": ["interactive"],
+    "max_lines": 60
+  },
+  "postcompact-log": {
+    "mode": "enforce",
+    "scope": ["interactive", "bgjob", "fleet"]
+  },
+  "stopfailure-hint": { "mode": "enforce", "scope": ["interactive"] },
+
+  "executive-tag-correctness": {
+    "mode": "shadow",
+    "threshold": 0.9,
+    "scope": ["interactive"]
+  },
+  "executive-unsourced-claims": {
+    "mode": "shadow",
+    "threshold": 0.9,
+    "scope": ["interactive"]
+  },
+  "executive-scope-creep": {
+    "mode": "shadow",
+    "threshold": 0.9,
+    "scope": ["interactive"]
+  },
+  "papercut-nudge": {
+    "mode": "shadow",
+    "threshold": 0.8,
+    "scope": ["interactive"]
+  },
+  "papercut-dedupe": {
+    "mode": "shadow",
+    "threshold": 0.9,
+    "scope": ["interactive", "bgjob", "fleet"]
+  },
+  "memory-dup-guard": {
+    "mode": "shadow",
+    "threshold": 0.9,
+    "scope": ["interactive"]
+  },
+  "stopfailure-classify": {
+    "mode": "shadow",
+    "threshold": 0.8,
+    "scope": ["interactive"]
+  },
+  "session-project-memories": {
+    "mode": "shadow",
+    "threshold": 0.8,
+    "scope": ["interactive"]
+  },
+  "session-end-memory": {
+    "mode": "shadow",
+    "threshold": 0.8,
+    "scope": ["interactive"]
+  },
+  "notification-urgency": {
+    "mode": "shadow",
+    "threshold": 0.5,
+    "scope": ["interactive"]
+  },
+
+  "workflow-linear-presort": {
+    "mode": "shadow",
+    "threshold": 0.5,
+    "scope": ["interactive"]
+  },
+  "workflow-commit-type": {
+    "mode": "shadow",
+    "threshold": 0.7,
+    "scope": ["interactive", "bgjob"]
+  },
+  "workflow-commit-mixed": {
+    "mode": "shadow",
+    "threshold": 0.8,
+    "scope": ["interactive", "bgjob"]
+  },
+  "workflow-branch-type": {
+    "mode": "shadow",
+    "threshold": 0.7,
+    "scope": ["interactive", "bgjob"]
+  },
+  "workflow-review-depth": {
+    "mode": "shadow",
+    "scope": ["interactive", "bgjob"]
+  },
+  "workflow-ci-class": {
+    "mode": "shadow",
+    "threshold": 0.7,
+    "scope": ["interactive", "bgjob"]
+  },
+  "workflow-verify-class": {
+    "mode": "shadow",
+    "threshold": 0.7,
+    "scope": ["interactive", "bgjob"]
+  },
+  "workflow-click-target": {
+    "mode": "shadow",
+    "threshold": 0.7,
+    "scope": ["interactive"]
+  }
+}
