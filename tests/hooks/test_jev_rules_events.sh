@@ -382,6 +382,9 @@ eq "memory under ~/work: no output" "$(run memory-dup-guard.sh "$(mw "$HOME/work
 rm -f "$T/capture"
 run memory-dup-guard.sh "$(jq -c --arg c "$HOME/Visa/app" '.cwd=$c' <<<"$(mw "$RE_MEMORY_DIR/prs-not-drafts.md" "$NEWMEM")")" >/dev/null
 [[ ! -s "$T/capture" ]] && ok || bad "cwd under ~/Visa: Jev not called (egress)"
+rm -f "$T/capture"
+run memory-dup-guard.sh "$(jq -c --arg c "$HOME" '.cwd=$c' <<<"$(mw "work/acme/memory/rel-fact.md" "$NEWMEM")")" >/dev/null
+[[ ! -s "$T/capture" ]] && ok || bad "relative path into ~/work from \$HOME: Jev not called (egress)"
 unset JEV_MOCK_CAPTURE
 
 echo "== stopfailure-hint + session-start-project =="

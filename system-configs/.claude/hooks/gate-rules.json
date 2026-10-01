@@ -558,6 +558,23 @@
       "enforce": true
     },
     {
+      "id": "G10-jevsock",
+      "class": "G10",
+      "description": "Bash that names the Jev daemon socket (jev.sock or the tmpdir jev-<uid>-<hash>.sock); only client.mjs talks to it, so a direct connection would skip the client's egress check and audit log",
+      "tools": "^Bash$",
+      "field": "command",
+      "pattern": "jev(?:\\.sock|-[0-9]*-[^[:space:]]*\\.sock|-\\*[^[:space:]]*sock)(?![A-Za-z0-9_])",
+      "action": "deny",
+      "message": "only the Jev client talks to its daemon socket",
+      "scope": [
+        "interactive",
+        "bgjob",
+        "fleet"
+      ],
+      "lanes": {},
+      "enforce": true
+    },
+    {
       "id": "G10-file",
       "class": "G10",
       "description": "Write/Edit to live ~/.claude/hooks/, settings.json, gate state (anchored on $HOME); session transcripts (~/.claude/projects/**/*.jsonl), which gate.sh approve reads as approval evidence",

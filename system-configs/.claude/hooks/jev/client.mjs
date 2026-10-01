@@ -693,7 +693,12 @@ async function daemonMain() {
       if (msg.op !== "evaluate") return void c.end(JSON.stringify({ ok: false, reason: "bad_op" }) + "\n");
       requests++;
       try {
-        const out = await callGateway(msg);
+        // Same-user callers can reach this socket directly, so policy is enforced HERE too, not only in the CLI.
+        if (killSwitchOn()) throw unavailable("kill_switch");
+        validate({ rule: "daemon", state: msg.state, questions: msg.questions });
+        if (msg.timeout_ms !== undefined && !(Number.isFinite(msg.timeout_ms) && msg.timeout_ms >= 50 && msg.timeout_ms <= 60000))
+          throw badInput("timeout_ms: number 50..60000");
+        const out = await callGateway({ model: msg.model, state: redactValue(msg.state, { count: 0 }), questions: msg.questions, timeout_ms: msg.timeout_ms });
         c.end(JSON.stringify({ ok: true, ...out }) + "\n");
       } catch (e) {
         c.end(JSON.stringify({ ok: false, reason: e.reason || `daemon_error:${e?.name}` }) + "\n");

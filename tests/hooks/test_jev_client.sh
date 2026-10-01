@@ -305,6 +305,13 @@ run_ask "$IN"
 eq "call recovers from stale socket" "$RC" "0"
 P2=$(pid_of "$(status)")
 if [[ -n "$P2" && "$P2" != "$PK" ]]; then ok "fresh daemon replaced the stale one"; else bad "no fresh daemon" "old=$PK new=$P2"; fi
+# a same-user process talking to the socket directly gets the client's policy, not a raw Gateway relay
+raw_ipc() { node -e 'const c=require("net").connect(process.argv[1]);let b="";c.on("data",d=>b+=d);c.on("end",()=>console.log(b.trim()));c.write(process.argv[2]+"\n")' "$J/jev.sock" "$1"; }
+has "raw IPC: a well-formed request is served" "$(raw_ipc '{"op":"evaluate","model":"m","state":{"a":1},"questions":{"q":{"type":"boolean","instructions":"x"}}}')" '"ok":true'
+has "raw IPC: a malformed request is refused" "$(raw_ipc '{"op":"evaluate","state":"not-an-object"}')" '"ok":false'
+mkdir -p "$HOME/.claude" && : >"$HOME/.claude/jev.off"
+has "raw IPC: the kill switch applies to direct socket callers" "$(raw_ipc '{"op":"evaluate","model":"m","state":{"a":1},"questions":{"q":{"type":"boolean","instructions":"x"}}}')" 'kill_switch'
+rm -f "$HOME/.claude/jev.off"
 env "$ASK" --stop
 for _ in $(seq 1 20); do
   [[ -z "$(status)" ]] && break

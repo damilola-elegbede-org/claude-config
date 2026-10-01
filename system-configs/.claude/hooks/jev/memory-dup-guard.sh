@@ -20,9 +20,11 @@ MODE=$(re_mode memory-dup-guard shadow)
 # Egress: a memory written inside an excluded (work) tree never leaves the machine, whatever the session cwd.
 # shellcheck source-path=SCRIPTDIR source=ctx-lib.sh
 . "$(dirname "$0")/ctx-lib.sh" || exit 0
-ctx_path_excluded "$FILE" && exit 0
 CWD=$(jq -r '.cwd // empty' <<<"$INPUT" 2>/dev/null)
-[ -n "$CWD" ] && ctx_path_excluded "$CWD" && exit 0
+[ -n "$CWD" ] || CWD="$PWD"
+case "$FILE" in /*) ABS="$FILE" ;; *) ABS="${CWD%/}/$FILE" ;; esac
+ctx_path_excluded "$ABS" && exit 0
+ctx_path_excluded "$CWD" && exit 0
 
 INDEX="$(dirname "$FILE")/MEMORY.md"
 [ -f "$INDEX" ] || exit 0
