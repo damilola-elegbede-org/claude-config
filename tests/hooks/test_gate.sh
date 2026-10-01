@@ -309,7 +309,8 @@ check "one bad regex: other rules still deny" "deny" "$(decision)"
 
 echo "== sync, settings and live-config coverage =="
 SYNC="$REPO_ROOT/scripts/sync.sh"
-SCRIPTS=$(sed -n 's/^RUNTIME_HOOK_SCRIPTS="\(.*\)"$/\1/p' "$SYNC")
+# sync.sh may extend the list with RUNTIME_HOOK_SCRIPTS="$RUNTIME_HOOK_SCRIPTS ..."; drop the self-reference.
+SCRIPTS=$(sed -n 's/^RUNTIME_HOOK_SCRIPTS="\(.*\)"$/\1/p' "$SYNC" | sed 's/\$RUNTIME_HOOK_SCRIPTS//g' | tr '\n' ' ')
 DATA=$(sed -n 's/^RUNTIME_HOOK_DATA="\(.*\)"$/\1/p' "$SYNC")
 check_contains "sync.sh deploys gate.sh" " $SCRIPTS " " hooks/gate.sh "
 check_contains "sync.sh deploys gate-rules.json" " $DATA " " hooks/gate-rules.json "
