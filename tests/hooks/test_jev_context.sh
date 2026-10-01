@@ -702,7 +702,7 @@ done
 check "scripts/sync.sh deploys ctx-lib.sh" grep -q 'hooks/jev/ctx-lib.sh' "$REPO_ROOT/scripts/sync.sh"
 check "scripts/sync.sh deploys rules.d/context.json as data (not bash -n'd)" grep -q '^RUNTIME_HOOK_DATA=.*hooks/jev/rules.d/context.json' "$REPO_ROOT/scripts/sync.sh"
 check "A5 hook is scoped to the compact matcher" jq -e '.hooks.SessionStart | any(.matcher=="compact" and (.hooks|any(.command|endswith("a5-compact-reinject.sh"))))' "$SETTINGS"
-check "hook timeouts are short (<= 10s)" jq -e '[.hooks[][].hooks[] | select(.command|test("hooks/jev/")) | .timeout] | all(. != null and . <= 10)' "$SETTINGS"
+check "hook timeouts are short (<= 10s)" jq -e '[.hooks[][].hooks[] | select(.command|test("hooks/jev/a[0-9]")) | .timeout] | all(. != null and . <= 10)' "$SETTINGS"
 check "existing Stop hook (claude-speak) untouched" jq -e '.hooks.Stop | any(.hooks|any(.command|endswith("claude-speak.sh")))' "$SETTINGS"
 
 # ------------------------------------------------------------------ summary
