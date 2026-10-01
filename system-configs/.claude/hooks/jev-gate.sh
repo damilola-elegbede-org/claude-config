@@ -3,8 +3,10 @@
 # jev-gate.sh - PreToolUse decision gates judged by Jev (G1, G3-G8, G13-G16, MCP classifier,
 # approval detector). Phase 2 of the Jev integration.
 #
-# Flow: cheap regex candidate match (gate-questions.json) -> one Jev call with a boolean per
-# candidate gate -> per-rule mode/threshold (jev-rules.json + rules.d/*.json) -> on a hit,
+# Flow: cheap regex candidate match (gate-questions.json) -> ONE Jev call per tool call carrying
+# every question: the shared risk_class + scope CHOICE questions for the risk gates (G1, G3-G8, G13;
+# a gate hits when the summed probability of its expected classes reaches its threshold) plus a
+# boolean each for G14/G15 -> per-rule mode/threshold (jev-rules.json + rules.d/*.json) -> on a hit,
 # the approval detector asks whether D explicitly approved exactly this action -> deny + reason.
 #
 # Every rule ships mode "shadow": Jev is called and the verdict is logged, nothing is denied.
@@ -125,16 +127,20 @@ resolve_hits() {
 
 # run_gates STATE_JSON UNTRUSTED_JSON CAND_TSV -> fills HIT_LINES, or finishes when unavailable
 run_gates() {
-  local state="$1" un="$2" cand="$3" ids q req resp id mode thr p
+  local state="$1" un="$2" cand="$3" ids q req resp id mode thr p ok scores row
   ids=$(printf '%s\n' "$cand" | cut -f1 | jq -Rn '[inputs | select(length > 0)]')
-  q=$(jev_bool_questions "$ids")
+  q=$(jev_gate_questions "$ids")
   req=$(jev_build_request "gates/$TOOL" "$state" "$un" "$q")
   resp=$(jev_call "$req") || unavailable "gates/$TOOL"
+  scores=$(jev_gate_scores "$resp" "$ids")
   HIT_LINES=""
   while IFS=$'\t' read -r id mode thr; do
     [ -n "$id" ] || continue
-    p=$(jev_prob "$resp" "$id")
-    if [ -n "$p" ] && jev_ge "$p" "$thr"; then
+    row=$(printf '%s\n' "$scores" | awk -F'\t' -v i="$id" '$1 == i { print; exit }')
+    p=$(printf '%s' "$row" | cut -f2)
+    ok=$(printf '%s' "$row" | cut -f3)
+    [ "$p" = "-" ] && p=""
+    if [ -n "$p" ] && [ "${ok:-1}" = "1" ] && jev_ge "$p" "$thr"; then
       HIT_LINES="${HIT_LINES}${id}"$'\t'"${mode}"$'\t'"${p}"$'\n'
     else
       jev_log "$id" "pass" "$mode" "$p"

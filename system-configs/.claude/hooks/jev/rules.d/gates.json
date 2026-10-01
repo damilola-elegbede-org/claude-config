@@ -19,7 +19,7 @@
   },
   "G4-prod-infra": {
     "mode": "shadow",
-    "threshold": 0.8,
+    "threshold": 0.85,
     "scope": [
       "interactive",
       "bgjob",
@@ -37,7 +37,7 @@
   },
   "G6-spend": {
     "mode": "shadow",
-    "threshold": 0.7,
+    "threshold": 0.8,
     "scope": [
       "interactive",
       "bgjob",
@@ -46,7 +46,7 @@
   },
   "G7-outward-comms": {
     "mode": "shadow",
-    "threshold": 0.85,
+    "threshold": 0.7,
     "scope": [
       "interactive",
       "bgjob",
@@ -55,7 +55,7 @@
   },
   "G8-sharing": {
     "mode": "shadow",
-    "threshold": 0.85,
+    "threshold": 0.7,
     "scope": [
       "interactive",
       "bgjob",
@@ -64,7 +64,7 @@
   },
   "G13-external-delete": {
     "mode": "shadow",
-    "threshold": 0.85,
+    "threshold": 0.8,
     "scope": [
       "interactive",
       "bgjob",

@@ -71,9 +71,29 @@ set_mode() { # id|all mode
   mv "$tmp" "$f"
 }
 
-# mock '{"G1-irreversible-local":0.95,"d_approved_exact_action":0.97}'  (boolean probabilities)
+# mock '{"G1-irreversible-local":0.95,"d_approved_exact_action":0.97}'
+# Gates with an `expects` block (G1, G3-G8, G13) are answered the way Jev answers them: through the shared
+# risk_class + scope choice questions (probability of the gate's first expected class, scope in the expected
+# blast radius). Every other key (G14, G15, G16, d_approved_exact_action) is a plain boolean probability.
 mock() {
-  jq -nc --argjson p "$1" '{answers: ($p | with_entries(.value |= {type:"boolean", probability:.}))}' >"$T/mock.json"
+  jq -nc --argjson p "$1" --slurpfile q "$SRC/jev/gate-questions.json" '
+    $q[0].gates as $g
+    | ($p | to_entries) as $e
+    | [$e[] | select($g[.key].expects != null) | {cls: $g[.key].expects.risk_class[0], p: .value, sc: ($g[.key].expects.scope != null)}] as $cls
+    | ($cls | map({key: .cls, value: .p}) | from_entries) as $rp
+    | (if any($cls[]; .sc) then "shared_remote" else "local" end) as $sc
+    | {answers:
+        (($e | map(select($g[.key].expects == null) | {key, value: {type: "boolean", probability: .value}}) | from_entries)
+         + (if ($cls | length) > 0
+            then {risk_class: {type: "choice", choice: ($rp | to_entries | max_by(.value) | .key), probabilities: $rp},
+                  scope: {type: "choice", choice: $sc, probabilities: {($sc): 0.99}}}
+            else {} end))}' >"$T/mock.json"
+}
+
+# mock_choice RISK_CLASS PROB [SCOPE] [SCOPE_PROB]: a raw risk_class/scope answer (probabilities of other options are 0).
+mock_choice() {
+  jq -nc --arg c "$1" --argjson p "$2" --arg s "${3:-local}" --argjson sp "${4:-0.99}" \
+    '{answers:{risk_class:{type:"choice", choice:$c, probabilities:{($c):$p}}, scope:{type:"choice", choice:$s, probabilities:{($s):$sp}}}}' >"$T/mock.json"
 }
 
 mock_class() { # class prob [prod_prob]
@@ -214,6 +234,52 @@ assert_empty "absent rules registry means off" "$OUT"
 assert_eq "absent rules make no call" "0" "$(calls)"
 
 # ============================================================================
+# Choice questions: one call, risk_class + scope, per-class thresholds
+# ============================================================================
+new_home
+set_mode all enforce
+# two risk gates are candidates (rm -> G1, gh pr merge -> G3): still ONE call, ONE risk_class + ONE scope question
+: >"$T/stub.log"
+mock_choice irreversible 0.2
+run_hook jev-gate.sh "$(bash_in 'rm -rf old && gh pr merge 9')" >/dev/null
+assert_eq "two candidate risk gates make one call" "1" "$(calls)"
+assert_eq "one risk_class question in the request" "1" "$(jq -s '[.[0].questions | keys[] | select(. == "risk_class")] | length' "$T/stub.log")"
+assert_eq "no per-gate boolean for risk gates" "0" "$(jq -s '[.[0].questions | keys[] | select(startswith("G"))] | length' "$T/stub.log")"
+
+# G14 (not a risk class) rides in the same call as a boolean next to the choice questions
+: >"$T/stub.log"
+run_hook jev-gate.sh "$(bash_in 'rm -rf old && npm install left-pad')" >/dev/null
+assert_eq "risk + G14 candidates make one call" "1" "$(calls)"
+assert_eq "request keys: risk_class, scope and the G14 boolean" "G14-non-routine,risk_class,scope" "$(jq -s -r '.[0].questions | keys | join(",")' "$T/stub.log")"
+
+# the gate threshold applies to the summed probability of the gate's expected classes
+mock_choice data_loss 0.79
+OUT=$(run_hook jev-gate.sh "$(bash_in 'rm -rf ~/Documents/old')")
+assert_empty "data_loss 0.79 is under G1's 0.8" "$OUT"
+mock_choice data_loss 0.81
+OUT=$(run_hook jev-gate.sh "$(bash_in 'rm -rf ~/Documents/old')")
+assert_contains "data_loss 0.81 reaches G1's 0.8" "$OUT" '"permissionDecision":"deny"'
+# the right class matters: a prod_system answer to an rm candidate does not trip G1
+mock_choice prod_system 0.99
+OUT=$(run_hook jev-gate.sh "$(bash_in 'rm -rf ~/Documents/old')")
+assert_empty "wrong class does not trip G1" "$OUT"
+# classes sum: G1 accepts data_loss OR irreversible
+jq -nc '{answers:{risk_class:{type:"choice",choice:"data_loss",probabilities:{data_loss:0.45,irreversible:0.4}},scope:{type:"choice",choice:"local",probabilities:{local:0.99}}}}' >"$T/mock.json"
+OUT=$(run_hook jev-gate.sh "$(bash_in 'rm -rf ~/Documents/old')")
+assert_contains "expected classes are summed (0.45 + 0.40 >= 0.8)" "$OUT" '"permissionDecision":"deny"'
+# scope: G3 expects shared_remote/production; a local-scope answer cannot trip it even at class 0.99
+mock_choice irreversible 0.99 local 0.99
+OUT=$(run_hook jev-gate.sh "$(bash_in 'gh pr merge 9')")
+assert_empty "local scope does not trip G3" "$OUT"
+mock_choice irreversible 0.99 shared_remote 0.99
+OUT=$(run_hook jev-gate.sh "$(bash_in 'gh pr merge 9')")
+assert_contains "shared_remote scope trips G3" "$OUT" '"permissionDecision":"deny"'
+# a response without the choice answers is no verdict (not a crash, not a deny)
+echo '{"answers":{}}' >"$T/mock.json"
+OUT=$(run_hook jev-gate.sh "$(bash_in 'rm -rf ~/Documents/old')")
+assert_empty "missing risk_class answer passes" "$OUT"
+
+# ============================================================================
 # Redaction / egress / state shape
 # ============================================================================
 new_home
@@ -227,7 +293,9 @@ assert_not_contains "github token redacted" "$(cat "$T/stub.log")" "$FAKE_TOKEN"
 assert_not_contains "aws key redacted" "$(cat "$T/stub.log")" "$FAKE_AWS"
 assert_not_contains "bearer redacted" "$(cat "$T/stub.log")" "abcdefghijklmnop1234"
 assert_contains "request carries the rule id" "$(cat "$T/stub.log")" '"rule":"gates/Bash"'
-assert_contains "request carries boolean questions" "$(cat "$T/stub.log")" '"G1-irreversible-local":{"type":"boolean"'
+assert_contains "request carries the risk_class choice question" "$(cat "$T/stub.log")" '"risk_class":{"type":"choice"'
+assert_contains "request carries the scope choice question" "$(cat "$T/stub.log")" '"scope":{"type":"choice"'
+assert_not_contains "risk gates are not asked as per-gate booleans" "$(cat "$T/stub.log")" '"G1-irreversible-local":{"type":"boolean"'
 
 : >"$T/stub.log"
 run_hook jev-gate.sh "$(bash_in $'cat > notes.md <<\'EOF\'\nrm -rf /very/secret/body\nEOF')" >/dev/null

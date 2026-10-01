@@ -202,6 +202,38 @@ jev_bool_questions() {
     . as $d | $ids | map({key: ., value: {type:"boolean", instructions: $d.gates[.].instructions, criteria: $d.gates[.].criteria}}) | from_entries' "$JEV_QUESTIONS"
 }
 
+# jev_gate_questions IDS_JSON -> the questions object for ONE call covering every candidate gate.
+# Gates with an `expects` block (G1, G3-G8, G13) share two choice questions, risk_class and scope, asked once
+# however many of those gates are candidates (choice probabilities are calibrated; a boolean's |2p-1| is not).
+# Gates without `expects` (G14, G15, ...) keep their own boolean question in the same call.
+jev_gate_questions() {
+  jq -c --argjson ids "$1" '
+    . as $d
+    | ($ids | map(select($d.gates[.].expects != null))) as $cls
+    | ($ids | map(select($d.gates[.].expects == null))) as $bools
+    | (if ($cls | length) > 0
+       then ($d.choice_questions | map_values({type: "choice", instructions, criteria}))
+       else {} end)
+      + ($bools | map({key: ., value: {type: "boolean", instructions: $d.gates[.].instructions, criteria: $d.gates[.].criteria}}) | from_entries)' "$JEV_QUESTIONS"
+}
+
+# jev_gate_scores RESPONSE IDS_JSON -> one TSV line per gate: "id<TAB>p<TAB>scope_ok" (p is "-" when the answer is
+# absent). A choice gate's p is the summed probability of its expected risk classes; scope_ok is 0 only when the
+# gate names expected scopes, the scope answer is present, and their summed probability is below 0.5.
+jev_gate_scores() {
+  printf '%s' "$1" | jq -r --slurpfile q "$JEV_QUESTIONS" --argjson ids "$2" '
+    . as $r | $q[0] as $d
+    | def probs: (.probabilities // (if .choice then {(.choice): 1} else {} end));
+      def psum($a; $opts): ($a | probs) as $p | [$opts[] | ($p[.] // 0)] | add // 0;
+    $ids[] as $id | ($d.gates[$id].expects) as $e
+    | if $e == null then [$id, ($r.answers[$id].probability // "-" | tostring), 1]
+      else
+        [$id,
+         (if $r.answers.risk_class == null then "-" else (psum($r.answers.risk_class; $e.risk_class) | tostring) end),
+         (if $e.scope == null or $r.answers.scope == null then 1 elif psum($r.answers.scope; $e.scope) >= 0.5 then 1 else 0 end)]
+      end | @tsv'
+}
+
 # jev_prob RESPONSE NAME -> probability (empty when absent)
 jev_prob() {
   printf '%s' "$1" | jq -r --arg n "$2" '.answers[$n].probability // empty'
