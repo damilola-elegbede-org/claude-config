@@ -132,6 +132,11 @@ def pretooluse_hooks(settings, tool):
             continue
         for hook in entry.get("hooks", []):
             if hook.get("type") == "command" and hook.get("command"):
+                # Deployed runtime hooks (${HOME}/.claude/hooks/*.sh, e.g. the
+                # decision gate) only exist after /sync; tests/hooks/test_gate.sh
+                # covers them against a sandbox HOME.
+                if "/.claude/hooks/" in hook["command"]:
+                    continue
                 out.append(hook["command"])
     return out
 

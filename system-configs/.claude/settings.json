@@ -85,6 +85,16 @@
             "timeout": 5
           }
         ]
+      },
+      {
+        "matcher": "^(Bash|Write|Edit|MultiEdit|Artifact|CronCreate|RemoteTrigger|mcp__.*)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/gate.sh",
+            "timeout": 5
+          }
+        ]
       }
     ],
     "PostToolUse": [

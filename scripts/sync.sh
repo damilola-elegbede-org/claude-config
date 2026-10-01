@@ -69,7 +69,12 @@ settings_mode() {
 # below rely on unquoted word-splitting to iterate this list. If a hook
 # script ever needs a space in its name, switch this to a newline-delimited
 # heredoc and iterate with `while read`.
-RUNTIME_HOOK_SCRIPTS="statusline.sh hooks/exit_hook.sh hooks/session_start_version_check.sh claude-speak.sh voice-rx.sh hooks/session_registry.sh resume_sessions.sh restart_on_update.sh papercut.sh archive-papercuts.sh"
+RUNTIME_HOOK_SCRIPTS="statusline.sh hooks/exit_hook.sh hooks/session_start_version_check.sh claude-speak.sh voice-rx.sh hooks/session_registry.sh hooks/gate.sh resume_sessions.sh restart_on_update.sh papercut.sh archive-papercuts.sh"
+
+# Non-script runtime data deployed next to the hooks (copied as-is, validated as
+# JSON instead of `bash -n`, never made executable). gate.sh reads its rules from
+# the same directory it is deployed to. Same space-delimited rule as above.
+RUNTIME_HOOK_DATA="hooks/gate-rules.json"
 
 # Parse arguments
 DRY_RUN=false
@@ -590,6 +595,7 @@ sync_files() {
     if [ "$(manifest_flag hook_scripts)" != "true" ]; then
         echo "  ⏭  Hook scripts: skipped by $STATION manifest"
         RUNTIME_HOOK_SCRIPTS=""
+        RUNTIME_HOOK_DATA=""
     fi
     # RUNTIME_HOOK_SCRIPTS is defined at the top of this file.
     #
@@ -630,11 +636,33 @@ sync_files() {
         esac
     done
 
+    # Hook data files (e.g. gate-rules.json): same fail-fast rule as the scripts,
+    # validated as JSON, copied without the executable bit.
+    for datafile in $RUNTIME_HOOK_DATA; do
+        src="$SOURCE_DIR/$datafile"
+        if [ ! -f "$src" ]; then
+            print_error "Tracked hook data file missing from source tree: $datafile"
+            print_error "RUNTIME_HOOK_DATA lists '$datafile' but it is not present in $SOURCE_DIR"
+            return 1
+        fi
+        if ! command -v jq >/dev/null 2>&1; then
+            print_error "jq not available — required to validate hook data file: $datafile"
+            return 1
+        fi
+        validation_errors=$(jq empty "$src" 2>&1) || {
+            print_error "Invalid JSON hook data file: $datafile"
+            printf "    %s\n" "$validation_errors"
+            return 1
+        }
+        mkdir -p "$TARGET_DIR/$(dirname "$datafile")"
+        cp "$src" "$TARGET_DIR/$datafile"
+    done
+
     # Build synced settings summary line from the same map. Every entry
     # is guaranteed to exist at this point (the loop above would have
     # returned on any missing script), so no `-f` guard is needed.
     synced_settings="settings.json"
-    for script in $RUNTIME_HOOK_SCRIPTS; do
+    for script in $RUNTIME_HOOK_SCRIPTS $RUNTIME_HOOK_DATA; do
         synced_settings="$synced_settings, $script"
     done
     echo "  ✅ Settings: $synced_settings"
@@ -739,7 +767,7 @@ main() {
                 fi
             fi
         fi
-        for script in $RUNTIME_HOOK_SCRIPTS; do
+        for script in $RUNTIME_HOOK_SCRIPTS $RUNTIME_HOOK_DATA; do
             if [ -f "$SOURCE_DIR/$script" ]; then
                 echo "  - $script → ~/.claude/$script"
             else
