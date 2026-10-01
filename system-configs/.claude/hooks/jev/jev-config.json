@@ -1,0 +1,8 @@
+{
+  "model": "typesafe-ai/jev",
+  "default_timeout_ms": 1000,
+  "max_state_tokens": 28000,
+  "daemon_idle_ms": 1800000,
+  "exclude_paths_placeholder": "PLACEHOLDER for D: these are guesses. Replace or extend with the real work and Visa checkout locations. Each entry is a directory prefix anchored at / or at $HOME ('~/work' = $HOME/work; a bare 'work' means ~/work), matched case-insensitively on a path-segment boundary against the caller cwd (raw and realpath). A match makes jev-ask exit 3 and send nothing. A bare substring like /work/ is deliberately NOT supported: it matched unrelated checkouts such as /home/runner/work/.",
+  "exclude_paths": ["~/work", "~/Visa", "~/visa"]
+}

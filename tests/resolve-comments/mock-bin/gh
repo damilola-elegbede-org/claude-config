@@ -1,0 +1,39 @@
+#!/bin/bash
+# Mock gh command for testing
+
+case "$*" in
+    "pr view --json number -q .number")
+        echo "62"
+        ;;
+    *"repos/:owner/:repo/pulls/"*"/comments"*)
+        if [[ "$MOCK_SCENARIO" == "happy" ]]; then
+            cat "${FIXTURES_DIR}/coderabbit-comment.json"
+        else
+            echo "[]"
+        fi
+        ;;
+    *"repos/:owner/:repo/issues/"*"/comments?per_page=20"*)
+        if [[ "$MOCK_SCENARIO" == "acknowledged" ]]; then
+            cat "${FIXTURES_DIR}/coderabbit-ack.json"
+        else
+            echo "[]"
+        fi
+        ;;
+    *"repos/:owner/:repo/issues/"*"/comments"*)
+        if [[ "$MOCK_SCENARIO" == "happy" ]]; then
+            cat "${FIXTURES_DIR}/coderabbit-issue-comment.json"
+        else
+            echo "[]"
+        fi
+        ;;
+    *"repos/:owner/:repo/pulls/"*"/reviews"*)
+        echo "[]"
+        ;;
+    "pr comment"*)
+        echo "https://github.com/test/repo/pull/62#issuecomment-test"
+        ;;
+    *)
+        echo "Mock gh: unhandled command: $*" >&2
+        exit 1
+        ;;
+esac

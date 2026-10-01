@@ -1,0 +1,13 @@
+#!/bin/bash
+# jev-ask: CLI shim for the Jev client (see client.mjs for the contract).
+# stdin JSON -> stdout JSON. Exit 0 ok, 3 unavailable (caller applies its fail
+# mode), 2 bad input. Never blocks on Jev being down.
+set -u
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Hooks can run with a thin PATH; node usually lives in homebrew.
+PATH="$PATH:/opt/homebrew/bin:/usr/local/bin"
+if ! command -v node >/dev/null 2>&1; then
+  echo "jev-ask: unavailable: node not found" >&2
+  exit 3
+fi
+exec node "$DIR/client.mjs" "$@"

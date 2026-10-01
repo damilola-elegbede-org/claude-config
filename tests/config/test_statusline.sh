@@ -395,7 +395,7 @@ test_version_flag_format() {
 # Test exit hook functionality
 test_exit_hook() {
     local statusline_path="../../system-configs/.claude/statusline.sh"
-    local exit_hook_path="$(cd ../../system-configs/.claude && pwd)/exit_hook.sh"
+    local exit_hook_path="$(cd ../../system-configs/.claude && pwd)/hooks/exit_hook.sh"
     local test_input='{"model":{"display_name":"Claude"},"version":"8.0.0","workspace":{"current_dir":"/tmp"},"output_style":{"name":"default"}}'
 
     # Clean test environment

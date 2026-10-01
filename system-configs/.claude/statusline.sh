@@ -357,7 +357,10 @@ perform_cleanup() {
 perform_cleanup "$terminal_versions_dir"
 
 # Clean up legacy files from old implementations
-rm -f "$version_dir/acknowledged_version" "$version_dir/notified_session" 2>/dev/null || true
+# .credit_samples / .usage_cache.ok backed an earlier rate-sampling version of
+# the credit burn; it now derives from the payload alone and keeps no state.
+rm -f "$version_dir/acknowledged_version" "$version_dir/notified_session" \
+      "$version_dir/.credit_samples" "$version_dir/.usage_cache.ok" 2>/dev/null || true
 
 # ---- Plan-usage segment: weekly-all / weekly-Fable / 5h-session ----
 # Percentages come from Claude's OAuth usage endpoint (the same numbers /usage
@@ -374,7 +377,14 @@ if [[ -f "$usage_cache" ]]; then
   cache_age=$(( $(date +%s) - cache_mtime ))
 fi
 if [[ $cache_age -gt 60 ]]; then
-  oauth_bearer=$(security find-generic-password -s "Claude Code-credentials" -w 2>/dev/null | jq -r '.claudeAiOauth.accessToken // empty' 2>/dev/null)
+  # Pin the lookup to the login account. Claude Code also files connector (MCP)
+  # OAuth tokens under this service label, and a label-only lookup returns
+  # whichever item macOS finds first — possibly one with no claudeAiOauth at all.
+  oauth_bearer=$(security find-generic-password -s "Claude Code-credentials" -a "$(id -un)" -w 2>/dev/null | jq -r '.claudeAiOauth.accessToken // empty' 2>/dev/null)
+  # Login filed under a different account name: fall back to the label alone.
+  if [[ -z "$oauth_bearer" ]]; then
+    oauth_bearer=$(security find-generic-password -s "Claude Code-credentials" -w 2>/dev/null | jq -r '.claudeAiOauth.accessToken // empty' 2>/dev/null)
+  fi
   # Headless/SSH fallback: machines using file-based credential storage (the
   # Mac Mini fleet node) have no Keychain item, and SSH sessions can't answer
   # a Keychain prompt anyway. Same JSON shape either way.
@@ -417,15 +427,232 @@ heat_bar() {
   printf '%s' "$bar"
 }
 
+# ISO8601 timestamp (as returned by the usage endpoint, e.g.
+# "2026-08-18T04:00:00.808678+00:00") -> epoch seconds. Strips fractional
+# seconds and the UTC offset (the endpoint always returns +00:00/Z).
+iso_to_epoch() {
+  local iso="$1" clean
+  clean="${iso%%.*}"
+  clean="${clean%%+*}"
+  clean="${clean%Z}"
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    date -j -u -f "%Y-%m-%dT%H:%M:%S" "$clean" +%s 2>/dev/null
+  else
+    date -u -d "$clean" +%s 2>/dev/null
+  fi
+}
+
+# Burn-rate tier color, printed directly (mirrors heat_color) so the escape
+# byte is emitted by printf itself rather than stored literally in a variable.
+burn_color() {
+  case "$1" in
+    blue)   printf '\033[38;5;39m' ;;
+    green)  printf '\033[32m' ;;
+    yellow) printf '\033[33m' ;;
+    orange) printf '\033[38;5;208m' ;;
+    *)      printf '\033[31m' ;;
+  esac
+}
+
 usage_segment=""
+credit_mode=0
 if [[ -f "$usage_cache" ]]; then
-  usage_tsv=$(jq -r '[
+  # One `read` per line rather than @tsv + a single multi-var `read`: bash
+  # always classifies tab (and newline) as "IFS whitespace", so a single
+  # `read -r a b c d <<<` would still collapse adjacent delimiters around an
+  # empty field (weekly_scoped/session absent) and shift subsequent values
+  # left, silently dropping u_all_resets. A `read` per line has no
+  # delimiter to collapse - each iteration takes exactly one line, empty or
+  # not. (mapfile/readarray needs bash 4+; macOS ships 3.2.)
+  usage_fields=()
+  while IFS= read -r usage_field; do
+    usage_fields+=("$usage_field")
+  done < <(jq -r '
     ([.limits[] | select(.kind == "weekly_all")][0].percent // ""),
     ([.limits[] | select(.kind == "weekly_scoped")][0].percent // ""),
-    ([.limits[] | select(.kind == "session")][0].percent // "")
-  ] | @tsv' "$usage_cache" 2>/dev/null)
-  IFS=$'\t' read -r u_all u_fable u_5h <<< "$usage_tsv"
+    ([.limits[] | select(.kind == "session")][0].percent // ""),
+    ([.limits[] | select(.kind == "weekly_all")][0].resets_at // ""),
+    ([.limits[] | select(.kind == "session")][0].resets_at // ""),
+    ((.spend.enabled // false) | tostring),
+    (.spend.used.amount_minor // ""),
+    (.spend.limit.amount_minor // ""),
+    (.spend.percent // ""),
+    ((.extra_usage.spend_limit_reached // false) | tostring)
+  ' "$usage_cache" 2>/dev/null)
+  u_all="${usage_fields[0]:-}"
+  u_fable="${usage_fields[1]:-}"
+  u_5h="${usage_fields[2]:-}"
+  u_all_resets="${usage_fields[3]:-}"
+  u_5h_resets="${usage_fields[4]:-}"
+  sp_enabled="${usage_fields[5]:-false}"
+  sp_used="${usage_fields[6]:-}"
+  sp_limit="${usage_fields[7]:-}"
+  sp_percent="${usage_fields[8]:-}"
+  sp_exhausted="${usage_fields[9]:-false}"
   usage_parts=""
+
+  # ---- Credit mode detection ----
+  # Usage credits pick up the bill the moment a plan limit is exhausted, so the
+  # switch is "credits are on AND some plan limit is spent", not "which limit is
+  # is_active" (that field just tracks the highest meter, not exhaustion).
+  credit_mode=0
+  u_all_int=${u_all%.*}
+  u_5h_int=${u_5h%.*}
+  [[ "$u_all_int" =~ ^[0-9]+$ ]] || u_all_int=-1
+  [[ "$u_5h_int"  =~ ^[0-9]+$ ]] || u_5h_int=-1
+  if [[ "$sp_enabled" == "true" ]] && [[ "$sp_used" =~ ^[0-9]+$ ]] && [[ "$sp_limit" =~ ^[0-9]+$ ]]; then
+    if [[ $u_all_int -ge 100 ]] || [[ $u_5h_int -ge 100 ]]; then
+      credit_mode=1
+    fi
+  fi
+fi
+
+if [[ -f "$usage_cache" ]] && [[ $credit_mode -eq 1 ]]; then
+  # ---- Credit mode segment ----
+  # The plan meters are all dead here and are deliberately dropped:
+  #   burn  - numerator pinned at 100, so it DECAYS toward 1.0x/green over the
+  #           rest of the week while real money is being spent. Actively lying.
+  #   all   - stuck at 100% until the reset; binary, no information left.
+  #   fable - a sub-limit of an already-exhausted weekly quota; moot.
+  #   5h    - still meters (it keeps climbing), but can't block anything while
+  #           the weekly quota is gone, so it's noise until the weekly reset.
+  # What replaces them: a month-scoped burn, then cap utilisation.
+  # Burn leads because it's the number that changes what you do; the cap
+  # percentage behind it is context for that ratio. Reported as a percentage
+  # only - the raw dollar figures added width without adding a decision.
+  cm_pct=${sp_percent%.*}
+  [[ "$cm_pct" =~ ^[0-9]+$ ]] || cm_pct=0
+  cm_credits=$(printf 'credits %s%s %s%%\033[0m' \
+    "$(heat_color "$cm_pct")" "$(heat_bar "$cm_pct")" "$cm_pct")
+
+  # The spend cap is monthly, so burn measures the calendar month (UTC). The
+  # API doesn't expose the cap's rollover date; a calendar month is an
+  # assumption. STATUSLINE_NOW_EPOCH exists so tests can pin the clock.
+  now_epoch="${STATUSLINE_NOW_EPOCH:-$(date -u +%s)}"
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    read -r cm_y cm_m <<< "$(date -u -r "$now_epoch" +'%Y %m')"
+  else
+    read -r cm_y cm_m <<< "$(date -u -d "@$now_epoch" +'%Y %m')"
+  fi
+  cm_m=$((10#$cm_m))
+  cm_ny=$cm_y; cm_nm=$((cm_m + 1))
+  if [[ $cm_nm -gt 12 ]]; then cm_nm=1; cm_ny=$((cm_y + 1)); fi
+  cm_start_epoch=$(iso_to_epoch "$(printf '%04d-%02d-01T00:00:00' "$cm_y" "$cm_m")")
+  cm_end_epoch=$(iso_to_epoch "$(printf '%04d-%02d-01T00:00:00' "$cm_ny" "$cm_nm")")
+  cm_secs_left=-1
+  cm_window=0
+  if [[ "$cm_start_epoch" =~ ^[0-9]+$ ]] && [[ "$cm_end_epoch" =~ ^[0-9]+$ ]]; then
+    cm_secs_left=$(( cm_end_epoch - now_epoch ))
+    cm_window=$(( cm_end_epoch - cm_start_epoch ))
+  fi
+  cm_remaining=$(( sp_limit - sp_used ))
+
+  # Credit burn: two percentages, divided.
+  #   time%    = how much of the calendar month is still to run
+  #   credits% = how much of the spend cap is still unspent
+  #   burn     = time% / credits%
+  #
+  #   1.0x = the money left and the time left line up exactly.
+  #  <1.0x = credits outlast the wait; you coast to the reset.
+  #  >1.0x = more waiting than money; on this footing you run dry before the
+  #          plan returns, which is a hard block - no plan quota, no credits.
+  #
+  # No spend rate anywhere. That's the point: a rate needs sampled history, and
+  # the usage endpoint doesn't register credit spend for ~20min, so any
+  # rate-based figure was either blank or guessing during exactly the stretch
+  # you most want to look at it. These two numbers are both present in the
+  # payload on the very first render, so burn is live the instant credit mode
+  # begins and can't be poisoned by a stale or silent endpoint - if the data
+  # freezes, the clock keeps moving and burn rises, which errs loud, not quiet.
+  #
+  # Scoped to the month because the cap is monthly: the same pool of money has
+  # to cover every week left in it, not just the wait for the plan to refresh.
+  # The API never exposes when the cap rolls over, so a UTC calendar month is
+  # assumed.
+  #
+  # Survival tiers - green while running dry is still comfortably far off:
+  #   green <0.6 · yellow <0.8 · orange <0.95 · red >=0.95
+  # (Classified off the rounded display value, so the colour always matches the
+  # number on screen - same rule the plan-mode burn follows.)
+  cm_tail=""
+  if [[ "$sp_exhausted" == "true" ]]; then
+    # credits% is zero and the ratio can't divide by it. With the cap gone and
+    # the plan quota still spent, there is nothing left to draw on - which is
+    # what the burn slot says here. "blocked" rather than "credits spent"
+    # because the credits meter sits right beside it already reading 100%.
+    cm_tail=$(printf '\033[31mblocked\033[0m')
+  elif [[ $cm_secs_left -gt 0 ]] && [[ $cm_window -gt 0 ]] && [[ $cm_remaining -gt 0 ]] && [[ $sp_limit -gt 0 ]]; then
+    cm_calc=$(awk -v s="$cm_secs_left" -v w="$cm_window" -v rem="$cm_remaining" -v cap="$sp_limit" 'BEGIN{
+      t = s / w            # share of the month still to run
+      if (t > 1) t = 1     # clamp: a clock behind the month start
+      c = rem / cap        # share of the cap still unspent
+      b = t / c
+      if (b > 9.9) b = 9.9
+      disp = sprintf("%.2f", b) + 0
+      if      (disp < 0.6)  tier = "green"
+      else if (disp < 0.8)  tier = "yellow"
+      else if (disp < 0.95) tier = "orange"
+      else                  tier = "red"
+      printf "%.2f\t%s", disp, tier
+    }')
+    IFS=$'\t' read -r cm_burn_val cm_burn_tier <<< "$cm_calc"
+    cm_tail=$(printf 'burn %s%sx\033[0m' "$(burn_color "$cm_burn_tier")" "$cm_burn_val")
+  else
+    # Unreadable month bounds, or a cap of zero - nothing to divide.
+    cm_tail=$(printf 'burn \033[90m--\033[0m')
+  fi
+  # "$" leads the segment as the credit-mode marker, the job the bolt used to
+  # do - burn and credits then follow in that order.
+  usage_segment=$(printf '\033[38;5;39m$\033[0m %s · %s' "$cm_tail" "$cm_credits")
+
+elif [[ -f "$usage_cache" ]]; then
+
+  # Burn-rate index: pace of weekly-quota consumption vs. pace of the week
+  # elapsed since the last reset (Mon 10p MT, per weekly_all.resets_at).
+  # 1.0 = burning quota exactly as fast as the week is passing;
+  # >1.0 = on track to exhaust the quota before the next reset.
+  # blue <0.5 · green <1.1 · yellow <1.3 · orange <1.5 · red >=1.5
+  # Placed first so it renders right after "context" and before "all".
+  # Decimal-aware (matches context_pct's pattern): weekly_all.percent isn't
+  # guaranteed to be a whole number, and awk below handles floats natively,
+  # so there's no need to truncate the way the bash heat_bar arithmetic does.
+  if [[ "$u_all" =~ ^[0-9]+(\.[0-9]+)?$ ]] && [[ -n "$u_all_resets" ]]; then
+    resets_epoch=$(iso_to_epoch "$u_all_resets")
+    now_epoch=$(date -u +%s)
+    if [[ "$resets_epoch" =~ ^[0-9]+$ ]] && [[ $resets_epoch -gt $now_epoch ]]; then
+      period_start_epoch=$(( resets_epoch - 604800 ))
+      elapsed=$(( now_epoch - period_start_epoch ))
+    else
+      elapsed=-1  # stale cache (resets_at already passed) or unparsable
+    fi
+    if [[ $elapsed -ge 7200 ]]; then
+      # Round first, THEN classify off that rounded value — D wants the color
+      # to always match what's on screen (e.g. displayed "1.1x" must be
+      # yellow, since 1.1 is the yellow floor), not the hidden raw ratio
+      # behind the rounding (e.g. a raw 1.09 that rounds up to "1.1x" but
+      # would classify green if compared before rounding).
+      burn_calc=$(awk -v p="$u_all" -v e="$elapsed" 'BEGIN{
+        frac = e / 604800.0
+        r = (p / 100.0) / frac
+        if (r > 9.9) r = 9.9
+        disp = sprintf("%.1f", r) + 0
+        if (disp < 0.5) tier = "blue"
+        else if (disp < 1.1) tier = "green"
+        else if (disp < 1.3) tier = "yellow"
+        else if (disp < 1.5) tier = "orange"
+        else tier = "red"
+        printf "%.1f\t%s", disp, tier
+      }')
+      IFS=$'\t' read -r burn_val burn_tier <<< "$burn_calc"
+      burn_part=$(printf 'burn %s%sx\033[0m' "$(burn_color "$burn_tier")" "$burn_val")
+    else
+      # Too soon after reset for a stable ratio, or stale/unparsable resets_at
+      burn_part=$(printf 'burn \033[90m--\033[0m')
+    fi
+    [[ -n "$usage_parts" ]] && usage_parts+=" · "
+    usage_parts+="$burn_part"
+  fi
+
   for metric in "all:$u_all" "fable:$u_fable" "5h:$u_5h"; do
     m_label=${metric%%:*}
     m_pct=${metric#*:}; m_pct=${m_pct%.*}
@@ -434,7 +661,8 @@ if [[ -f "$usage_cache" ]]; then
     [[ -n "$usage_parts" ]] && usage_parts+=" · "
     usage_parts+="$m_part"
   done
-  [[ -n "$usage_parts" ]] && usage_segment="usage: $usage_parts"
+
+  usage_segment="$usage_parts"
 fi
 
 # Context rendered as label + bar + percentage with the same heat map

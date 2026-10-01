@@ -1,0 +1,4 @@
+[{
+  "user": {"login": "coderabbitai[bot]"},
+  "body": "## Refactor Suggestion\n\nImprove acknowledgment detection\n\n## Prompts for AI Agents\n- Fix performance issue with acknowledgment detection\n- Add security checks for input validation\n- Improve test coverage for edge cases"
+}]

@@ -13,6 +13,9 @@ on:
       - 'system-configs/.claude/agents/*.md'
       - 'tests/validate_yaml.sh'
 
+permissions:
+  contents: read
+
 jobs:
   validate-yaml:
     name: Validate YAML Front-Matter

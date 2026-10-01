@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [ main, master ]
 
+permissions:
+  contents: read
+
 jobs:
   test:
     name: Run Tests
@@ -63,10 +66,10 @@ jobs:
         python -c "import yaml; print(f'PyYAML version: {yaml.__version__}')"
         echo "✓ Python environment ready"
 
-    - name: Setup Node.js (for markdownlint only)
+    - name: Setup Node.js (markdownlint + Jev client tests)
       uses: actions/setup-node@v7
       with:
-        node-version: '20.18.0'  # Pin to specific LTS version
+        node-version: '22'  # Jev's locked ai SDK needs node>=22
         cache: 'npm'
         registry-url: 'https://registry.npmjs.org'
 
@@ -251,7 +254,7 @@ jobs:
       timeout-minutes: 8
 
     - name: Lint markdown files
-      uses: DavidAnson/markdownlint-cli2-action@v24
+      uses: DavidAnson/markdownlint-cli2-action@21c1be1b93ad9ed58fa840aacc3f279cde2a72ff # v24
       continue-on-error: true
       with:
         config: '.markdownlint-cli2.jsonc'

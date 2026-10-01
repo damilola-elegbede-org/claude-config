@@ -1,0 +1,66 @@
+{
+  "$schema": "./_schema.json",
+  "id": "excalidraw-classic",
+  "name": "Excalidraw Classic",
+  "mode": "light",
+  "authored": "baked",
+  "canvas": {
+    "background": "#ffffff",
+    "panel": "#f5f5f5"
+  },
+  "ink": {
+    "primary": "#1e1e1e",
+    "muted": "#6c757d",
+    "connector": "#1e1e1e"
+  },
+  "surfaces": [
+    {
+      "slot": "blue",
+      "fill": "#d1e3f3",
+      "stroke": "#1971c2",
+      "text": "#1e1e1e",
+      "contrast": 12.7
+    },
+    {
+      "slot": "green",
+      "fill": "#d5ecda",
+      "stroke": "#2f9e44",
+      "text": "#1e1e1e",
+      "contrast": 13.37
+    },
+    {
+      "slot": "amber",
+      "fill": "#fce8cc",
+      "stroke": "#f08c00",
+      "text": "#1e1e1e",
+      "contrast": 13.94
+    },
+    {
+      "slot": "red",
+      "fill": "#f9d6d6",
+      "stroke": "#e03131",
+      "text": "#1e1e1e",
+      "contrast": 12.4
+    },
+    {
+      "slot": "violet",
+      "fill": "#e1d9f7",
+      "stroke": "#6741d9",
+      "text": "#1e1e1e",
+      "contrast": 12.28
+    },
+    {
+      "slot": "teal",
+      "fill": "#cee7eb",
+      "stroke": "#0c8599",
+      "text": "#1e1e1e",
+      "contrast": 12.9
+    }
+  ],
+  "defaults": {
+    "roughness": 1,
+    "strokeWidth": 2,
+    "fontFamily": 5,
+    "fontSize": 20
+  }
+}

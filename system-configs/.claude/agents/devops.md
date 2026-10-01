@@ -1,15 +1,11 @@
 ---
 name: devops
-description: MUST BE USED for CI/CD, Kubernetes, IaC, and platform engineering. Use PROACTIVELY for deployment and reliability issues. Triggers on "deploy", "ci/cd", "pipeline", "docker", "kubernetes", "k8s", "platform".
+description: Use for CI/CD, Kubernetes, IaC, and platform engineering, proactively for deployment and reliability issues. Triggers on "deploy", "ci/cd", "pipeline", "docker", "kubernetes", "k8s", "platform".
 tools: Read, Write, Bash
-model: sonnet
-thinking-level: think harder
-thinking-tokens: 8000
 permissionMode: acceptEdits
 memory: local
 color: orange
 category: infrastructure
-skills: git-conventions
 ---
 
 # DevOps

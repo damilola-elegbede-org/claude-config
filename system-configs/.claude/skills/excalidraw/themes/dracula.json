@@ -1,0 +1,66 @@
+{
+  "$schema": "./_schema.json",
+  "id": "dracula",
+  "name": "Dracula",
+  "mode": "dark",
+  "authored": "baked",
+  "canvas": {
+    "background": "#282a36",
+    "panel": "#44475a"
+  },
+  "ink": {
+    "primary": "#f8f8f2",
+    "muted": "#8a9cc9",
+    "connector": "#bd93f9"
+  },
+  "surfaces": [
+    {
+      "slot": "blue",
+      "fill": "#3a4c5a",
+      "stroke": "#8be9fd",
+      "text": "#f8f8f2",
+      "contrast": 8.34
+    },
+    {
+      "slot": "green",
+      "fill": "#2f4f42",
+      "stroke": "#50fa7b",
+      "text": "#f8f8f2",
+      "contrast": 8.5
+    },
+    {
+      "slot": "amber",
+      "fill": "#4f4440",
+      "stroke": "#ffb86c",
+      "text": "#f8f8f2",
+      "contrast": 8.82
+    },
+    {
+      "slot": "red",
+      "fill": "#4f323c",
+      "stroke": "#ff5555",
+      "text": "#f8f8f2",
+      "contrast": 10.63
+    },
+    {
+      "slot": "violet",
+      "fill": "#433d59",
+      "stroke": "#bd93f9",
+      "text": "#f8f8f2",
+      "contrast": 9.61
+    },
+    {
+      "slot": "teal",
+      "fill": "#3a4c5a",
+      "stroke": "#8be9fd",
+      "text": "#f8f8f2",
+      "contrast": 8.34
+    }
+  ],
+  "defaults": {
+    "roughness": 1,
+    "strokeWidth": 2,
+    "fontFamily": 5,
+    "fontSize": 20
+  }
+}

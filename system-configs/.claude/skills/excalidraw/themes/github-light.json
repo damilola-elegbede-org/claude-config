@@ -1,0 +1,66 @@
+{
+  "$schema": "./_schema.json",
+  "id": "github-light",
+  "name": "GitHub Light",
+  "mode": "light",
+  "authored": "baked",
+  "canvas": {
+    "background": "#ffffff",
+    "panel": "#f6f8fa"
+  },
+  "ink": {
+    "primary": "#1f2328",
+    "muted": "#59636e",
+    "connector": "#0969da"
+  },
+  "surfaces": [
+    {
+      "slot": "blue",
+      "fill": "#cee1f8",
+      "stroke": "#0969da",
+      "text": "#1f2328",
+      "contrast": 11.85
+    },
+    {
+      "slot": "green",
+      "fill": "#d1e5d7",
+      "stroke": "#1a7f37",
+      "text": "#1f2328",
+      "contrast": 11.96
+    },
+    {
+      "slot": "amber",
+      "fill": "#ebe1cc",
+      "stroke": "#9a6700",
+      "text": "#1f2328",
+      "contrast": 12.17
+    },
+    {
+      "slot": "red",
+      "fill": "#f5d3d5",
+      "stroke": "#cf222e",
+      "text": "#1f2328",
+      "contrast": 11.41
+    },
+    {
+      "slot": "violet",
+      "fill": "#e6dcf9",
+      "stroke": "#8250df",
+      "text": "#1f2328",
+      "contrast": 12.01
+    },
+    {
+      "slot": "teal",
+      "fill": "#d1e5e6",
+      "stroke": "#1b7c83",
+      "text": "#1f2328",
+      "contrast": 12.08
+    }
+  ],
+  "defaults": {
+    "roughness": 1,
+    "strokeWidth": 2,
+    "fontFamily": 5,
+    "fontSize": 20
+  }
+}

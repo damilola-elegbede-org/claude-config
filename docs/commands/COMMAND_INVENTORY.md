@@ -10,7 +10,6 @@ Complete inventory of 34 skills across 6 categories.
 | Agent-Routed | 4 | `/debug`, `/plan`, `/prime`, `/docs` |
 | Git Workflow | 6 | `/branch`, `/commit`, `/push`, `/pr` |
 | Utility | 4 | `/test`, `/audit`, `/prompt`, `/verify` |
-| Agent-Preloaded Reference | 5 | `git-conventions`, `security-checklist` |
 | Imported (Anthropic) | 8 | `pdf`, `docx`, `webapp-testing` |
 | **Total** | **34** | |
 
@@ -69,10 +68,6 @@ Reference material injected into agent contexts. Not user-invocable (`user-invoc
 
 | Skill | Preloaded By | Purpose |
 |-------|-------------|---------|
-| `git-conventions` | code-reviewer, devops | Git best practices, commit conventions |
-| `security-checklist` | code-reviewer, security-auditor | OWASP checks, secure coding patterns |
-| `testing-patterns` | test-engineer | TDD/BDD patterns, test organization |
-| `api-design-patterns` | architect | REST/GraphQL patterns, OpenAPI |
 | `markdown-linting` | (reference only — tech-writer removed) | Markdownlint rules, documentation formatting |
 
 ## Imported Anthropic Skills (8)

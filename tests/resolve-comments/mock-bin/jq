@@ -1,0 +1,3 @@
+#!/bin/bash
+# Mock jq command - pass through for testing
+exec /usr/bin/jq "$@"

@@ -24,18 +24,27 @@ COMMANDS_DIR = PROJECT_ROOT / "system-configs" / ".claude" / "commands"
 SKILLS_DIR = PROJECT_ROOT / "system-configs" / ".claude" / "skills"
 
 # Expected counts
-# 9 agents: architect, claude-advisor, code-reviewer, debugger, devops, feature-agent,
+# 8 agents: architect, code-reviewer, debugger, devops, feature-agent,
 #   frontend-engineer, security-auditor, test-engineer
-# 39 skills: git, orchestration, quality, planning, formats, specialized, agent-context,
+#   (fable-advisor removed — the native advisor tool, configured via
+#    advisorModel in settings.json, replaces it; the subagent had no way to
+#    return a result to its caller)
+# 37 skills: git, orchestration, quality, planning, formats, specialized, agent-context,
 #   plus office-common (shared toolkit for xlsx/pptx/docx), changelog
 #   (replay of the last Claude Code CLI upgrade's CHANGELOG slice), watch
 #   (video transcript/frames skill), process-linear (Linear triage skill,
 #   renamed from process-bareclaude), ask (D-facing question primitive),
 #   interview (full-understanding protocol), and gauntlet-loop (multi-round
-#   critic/builder gauntlet skill)
+#   critic/builder gauntlet skill), and excalidraw (themed .excalidraw diagram
+#   generation with a render-and-verify loop), and colorwheel (InfoSec
+#   color-wheel vetting: red/blue/yellow/orange/green teams, purple re-attack
+#   loop, white verdict)
 #   (advisor skill removed — migrated to the native advisor tool, see PR #221)
+#   (api-design-patterns, git-conventions, security-checklist and testing-patterns
+#    removed: 1043 lines of general knowledge preloaded into 5 agents' context on
+#    every invocation, with nothing project-specific in them)
 # Note: sync and skills-import are project-local (.claude/skills/), not in system-configs
-EXPECTED_AGENT_COUNT = 9
+EXPECTED_AGENT_COUNT = 8
 EXPECTED_SKILL_COUNT = 39
 
 # Non-agent/command documentation files to skip

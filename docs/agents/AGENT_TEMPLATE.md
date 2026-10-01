@@ -4,36 +4,33 @@
 # This template matches the pattern used by 15 production agents
 # Target length: 30-50 lines (not 180+)
 #
-# Model selection (Claude Sonnet 4.6 / Opus 4.6 - February 2026):
-# - sonnet: Claude Sonnet 4.6 - Standard development, enhanced reasoning (DEFAULT)
-#   * Most agents use Sonnet 4.6
-# - opus: Complex architecture or orchestration requiring maximum reasoning depth
-#   * architect (system-wide design), feature-agent (deep orchestration)
-# - haiku: Checklist-driven tasks, structured output, template-following
-#   * (rare — reserved for simple rule-based validation)
+# Model selection — `model:` is OPTIONAL. Precedence: model named in the spawn
+# call > agent `model:` > settings.json env.CLAUDE_CODE_SUBAGENT_MODEL > session model.
+# - omit it (DEFAULT): uses the settings.json subagent model (sonnet today), so
+#   one settings line moves every such agent
+#   * code-reviewer, debugger, devops, frontend-engineer, test-engineer
+# - inherit: follows the session's model (sonnet by default)
+#   * architect (system-wide design), feature-agent (orchestration),
+#     security-auditor (adversarial review)
+# - opus/sonnet/haiku/fable: a fixed pin that ignores settings.json — only for a
+#   deliberate cost or capability pin
 #
-# Thinking level selection (optional - Sonnet 4.6/Opus 4.6 native support):
-# - ultrathink (31,999 tokens): System-wide architecture, complex forensics, enterprise planning
-#   * Used by: architect, feature-agent
-# - megathink (10,000 tokens): Domain expertise, multi-system coordination, complex optimization
-#   * Recommended for: API design, debugging, performance, security
-# - think harder (8,000 tokens): Focused analysis, moderate complexity, specific optimizations
-#   * Used by: devops, code-reviewer
-# - think (4,000 tokens): Basic enhanced reasoning (rarely needed - most agents work without)
+# Reasoning depth is controlled by model + effort now (settings.json top-level
+# effortLevel as the default for every model, modelSettings.<model>.effortLevel
+# for an exception, which overrides the top-level one, or --effort per session),
+# not per-agent frontmatter. There is no per-agent thinking-level/thinking-tokens
+# field.
 #
 # Fill in ALL placeholders. Delete these comments before use.
 #
-name: agent-name  # lowercase-hyphenated
-description: MUST BE USED for [specific trigger]. Use for ANY [domain] task. Triggers on "[keyword1]", "[keyword2]", "[keyword3]".
-tools: Read, Write, Edit, Grep, Glob, Bash  # Only include what's needed
-model: sonnet  # opus/sonnet/haiku - see guide above
-thinking-level: megathink  # OPTIONAL: ultrathink/megathink/think harder/think - only if needed
-thinking-tokens: 10000  # OPTIONAL: Must match thinking-level token count
-category: development  # development, quality, security, architecture, design, analysis, infrastructure, coordination - See docs/agents/AGENT_CATEGORIES.md for canonical list
-color: blue  # Must match category color - see AGENT_CATEGORIES.md
+name: agent-name # lowercase-hyphenated
+description: Use for [specific trigger], [domain] tasks. Triggers on "[keyword1]", "[keyword2]", "[keyword3]".
+tools: Read, Write, Edit, Grep, Glob, Bash # Only include what's needed
+# model: inherit # OPTIONAL: omit for the settings.json subagent model - see guide above
+category: development # development, quality, security, architecture, design, analysis, infrastructure, coordination - See docs/agents/AGENT_CATEGORIES.md for canonical list
+color: blue # Must match category color - see AGENT_CATEGORIES.md
 # permissionMode: plan  # OPTIONAL: plan / acceptEdits / default / dontAsk / bypassPermissions
 # memory: project        # OPTIONAL: project / local / user - persistent agent memory
-# skills: git-conventions, security-checklist  # OPTIONAL: Preloads skill content into agent context (comma-separated)
 ---
 
 # [Agent Name]
@@ -50,9 +47,9 @@ Expert [role] specializing in [2-3 specific technical domains]. [One sentence de
 - [Technical skill 4: integration or collaboration strength]
 - [Technical skill 5: optional - only if truly distinct]
 
-## Thinking Level: [MEGATHINK (10,000 tokens)] - OPTIONAL SECTION
+## Complexity Factors - OPTIONAL SECTION
 
-This agent requires [substantial/enhanced/maximum] thinking depth due to:
+This agent requires deep reasoning due to:
 
 - **[Complexity factor 1]**: [Specific reasoning why this requires deep thinking]
 - **[Complexity factor 2]**: [Another aspect requiring enhanced reasoning]
@@ -87,24 +84,21 @@ This agent cannot invoke other agents or create Task calls. Only Claude has orch
 
 ### Required Fields
 
-| Field | Description | Example |
-|-------|-------------|---------|
-| `name` | Lowercase-hyphenated identifier | `code-reviewer` |
-| `description` | Trigger description with keywords | `MUST BE USED for...` |
-| `tools` | Comma-separated tool list | `Read, Write, Edit, Grep, Glob, Bash` |
-| `model` | Model tier | `sonnet`, `opus`, `haiku` |
-| `category` | Agent category | `development`, `quality`, `security` |
-| `color` | Category color | `blue`, `green`, `red` |
+| Field         | Description                       | Example                               |
+| ------------- | --------------------------------- | ------------------------------------- |
+| `name`        | Lowercase-hyphenated identifier   | `code-reviewer`                       |
+| `description` | Trigger description with keywords | `Use for...`                          |
+| `tools`       | Comma-separated tool list         | `Read, Write, Edit, Grep, Glob, Bash` |
+| `category`    | Agent category                    | `development`, `quality`, `security`  |
+| `color`       | Category color                    | `blue`, `green`, `red`                |
 
 ### Optional Fields
 
-| Field | Description | Values | Example |
-|-------|-------------|--------|---------|
-| `thinking-level` | Extended thinking depth | `ultrathink`, `megathink`, `think harder`, `think` | `megathink` |
-| `thinking-tokens` | Token budget for thinking | Must match thinking-level | `10000` |
-| `permissionMode` | Permission behavior | `plan`, `acceptEdits`, `default`, `dontAsk`, `bypassPermissions` | `plan` |
-| `memory` | Persistent memory scope | `project`, `local`, `user` | `project` |
-| `skills` | Preloaded reference skills | Comma-separated skill names | `git-conventions, security-checklist` |
+| Field            | Description                                          | Values                                                           | Example   |
+| ---------------- | ---------------------------------------------------- | ---------------------------------------------------------------- | --------- |
+| `permissionMode` | Permission behavior                                  | `plan`, `acceptEdits`, `default`, `dontAsk`, `bypassPermissions` | `plan`    |
+| `memory`         | Persistent memory scope                              | `project`, `local`, `user`                                       | `project` |
+| `model`          | Model (omit to use the settings.json subagent model) | `inherit`, `opus`, `sonnet`, `haiku`, `fable`                    | `inherit` |
 
 ### The `skills` Field
 
@@ -115,7 +109,7 @@ the user to invoke those skills separately.
 **Syntax:**
 
 ```yaml
-skills: git-conventions, security-checklist
+skills: feature-lifecycle
 ```
 
 **How it works:**
@@ -127,19 +121,10 @@ skills: git-conventions, security-checklist
 **Current agent-skill mappings:**
 
 | Agent | Preloaded Skills |
-|-------|-----------------|
-| architect | `api-design-patterns` |
-| code-reviewer | `git-conventions`, `security-checklist` |
-| devops | `git-conventions` |
-| security-auditor | `security-checklist` |
-| test-engineer | `testing-patterns` |
+| ----- | ---------------- |
 
 **Available reference skills** (all have `user-invocable: false`):
 
-- `git-conventions` - Git best practices, commit conventions, branching strategies
-- `security-checklist` - OWASP checks, vulnerability patterns, secure coding
-- `testing-patterns` - TDD/BDD patterns, test organization, coverage strategies
-- `api-design-patterns` - REST/GraphQL patterns, OpenAPI, versioning
 - `markdown-linting` - Markdownlint rules, documentation formatting
 
 **Best practices:**
@@ -151,13 +136,8 @@ skills: git-conventions, security-checklist
 
 ## Production Agents (8)
 
-| Agent | Model | Category | Skills |
-|-------|-------|----------|--------|
-| architect | opus | architecture | `api-design-patterns` |
-| code-reviewer | sonnet | quality | `git-conventions`, `security-checklist` |
-| debugger | sonnet | development | - |
-| devops | sonnet | infrastructure | `git-conventions` |
-| feature-agent | opus | orchestration | `feature-lifecycle` |
-| frontend-engineer | sonnet | development | - |
-| security-auditor | sonnet | security | `security-checklist` |
-| test-engineer | sonnet | quality | `testing-patterns` |
+| Agent             | Model   | Category      | Skills              |
+| ----------------- | ------- | ------------- | ------------------- |
+| debugger          | default | development   | -                   |
+| feature-agent     | inherit | orchestration | `feature-lifecycle` |
+| frontend-engineer | default | development   | -                   |

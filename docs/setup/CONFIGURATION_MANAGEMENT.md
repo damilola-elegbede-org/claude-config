@@ -1663,7 +1663,7 @@ main "$@"
     },
     "model": {
       "type": "string",
-      "enum": ["opus", "sonnet", "haiku"],
+      "enum": ["opus", "sonnet", "haiku", "fable"],
       "description": "Claude model to use"
     },
     "color": {

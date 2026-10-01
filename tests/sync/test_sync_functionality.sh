@@ -42,18 +42,33 @@ else
     exit 1
 fi
 
-# Test 3: Test file exclusions
-echo "Testing file exclusions..."
+# Test 3: Output-style deployment
+echo "Testing output-style deployment..."
 
-# Check that output-styles are excluded
-OUTPUT_STYLES_COUNT=$(find "$SOURCE_DIR/.claude" -path "*/output-styles/*" -type f 2>/dev/null | wc -l | tr -d ' ')
-if [ "$OUTPUT_STYLES_COUNT" -gt 0 ]; then
-    # Verify these files would be excluded
-    EXCLUDED_IN_SYNC=$(find "$SOURCE_DIR/.claude" -type f \( -path "*/output-styles/*" -o -name "*TEMPLATE*" -o -name "README.md" \) 2>/dev/null | wc -l | tr -d ' ')
-    echo -e "${GREEN}✓${NC} Exclusion rules would skip $EXCLUDED_IN_SYNC files"
-else
-    echo -e "${GREEN}✓${NC} No output-styles files to exclude"
+# This asserted the opposite of reality until 2026-08-15: it claimed
+# output-styles were EXCLUDED from sync, while sync.sh has always rsynced
+# them. Both of its branches printed a pass, so it could never fail and the
+# false model survived long enough to be believed. Assert what sync.sh does.
+OUTPUT_STYLES_COUNT=$(find "$SOURCE_DIR/.claude/output-styles" -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
+if [ "$OUTPUT_STYLES_COUNT" -eq 0 ]; then
+    echo -e "${RED}✗${NC} No output styles found in $SOURCE_DIR/.claude/output-styles"
+    exit 1
 fi
+
+if ! grep -q 'rsync .*--delete .*"\$SOURCE_DIR/output-styles/"' "${ORIGINAL_DIR}/scripts/sync.sh"; then
+    echo -e "${RED}✗${NC} sync.sh no longer rsyncs output-styles — this test is stale"
+    exit 1
+fi
+echo -e "${GREEN}✓${NC} Output styles are deployed by sync ($OUTPUT_STYLES_COUNT files)"
+
+# A style authored directly in ~/.claude/output-styles/ is the only way to A/B
+# a candidate against the deployed one. --delete would destroy it, so the
+# local-*.md escape must stay.
+if ! grep -q "exclude='local-\*\.md'" "${ORIGINAL_DIR}/scripts/sync.sh"; then
+    echo -e "${RED}✗${NC} local-*.md styles are unprotected — --delete will destroy them"
+    exit 1
+fi
+echo -e "${GREEN}✓${NC} Locally-authored local-*.md styles survive --delete"
 
 # Test 4: Test backup functionality
 echo "Testing backup functionality..."

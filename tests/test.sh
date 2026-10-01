@@ -179,6 +179,8 @@ run_test "Command Files Validation" "config/test_command_files.sh"
 run_test "Command YAML Validation" "validate_command_yaml.sh"
 run_test "Statusline Functionality" "config/test_statusline.sh"
 run_test "Statusline Edge Cases" "config/test_statusline_edge_cases.sh"
+run_test "Statusline Credit Mode" "config/test_statusline_credit_mode.sh"
+run_test "Statusline Keychain Lookup" "config/test_statusline_keychain.sh"
 
 # Run quality tests
 echo "Running Quality Tests..."
@@ -189,11 +191,23 @@ run_test "Markdown Quality Gates" "markdown/test_markdown_quality.sh"
 echo "Running Agent System Tests..."
 echo "------------------------------"
 run_test "Agent System Validation" "agents/test_agent_system.sh"
+run_test "Hook Guards" "hooks/test_hooks.sh"
+run_test "Decision Gates" "hooks/test_gate.sh"
+run_test "Jev Client" "hooks/test_jev_client.sh"
+run_test "Jev Registry" "hooks/test_jev_registry.sh"
+run_test "Jev Replay Check" "hooks/test_jev_replay_check.sh"
+run_test "Ask-Jev Skill" "hooks/test_ask_jev.sh"
+run_test "Jev Rules/Events/Workflow Hooks" "hooks/test_jev_rules_events.sh"
+run_test "Jev Decision Gates" "hooks/test_jev_gates.sh"
+run_test "Jev Context Hooks" "hooks/test_jev_context.sh"
+run_test "Jev Sync Node Check" "hooks/test_jev_sync_node.sh"
+run_test "File Organization" "config/test_file_org.sh"
 
 # Run sync functionality tests
 echo "Running Sync Tests..."
 echo "--------------------"
 run_test "Sync Functionality" "sync/test_sync_functionality.sh"
+run_test "Papercut Runtime Data" "papercuts/test_papercuts.sh"
 
 # Run script health tests
 echo "Running Script Health Tests..."

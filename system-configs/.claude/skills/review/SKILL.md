@@ -55,6 +55,10 @@ IF: no files to review
   END
 ```
 
+Optional depth hint (branch-delta mode, no explicit flag): run
+`${HOME}/.claude/skills/review/scripts/depth.sh`. If it prints `"depth":"deep"`, treat the run as `--deep`. It can
+only raise depth: never below the path-based floor it reports, never skips or shortens a review, never approves.
+
 ### Step 3: Route by Mode
 
 ```text
@@ -75,13 +79,11 @@ Spawn all three reviewers **in a SINGLE message with multiple Task tool calls**:
 Task tool call 1:
   subagent_type: "general-purpose"
   description: "Code-quality review"
-  model: "sonnet"
   prompt: contents of `references/code-review-prompt.md`, with `{file_list}` from Step 2, `{current_branch}`, and `{ISO timestamp}` substituted
 
 Task tool call 2:
   subagent_type: "general-purpose"
   description: "Security review"
-  model: "sonnet"
   prompt: contents of `references/security-review-prompt.md`, with `{file_list}` from Step 2, `{current_branch}`, and `{ISO timestamp}` substituted
 
 Task tool call 3:
@@ -247,8 +249,10 @@ Launching interactive triage...
 - No auto-fix — all changes require user approval via triage
 - `--full` mode may take longer depending on codebase size
 - `--deep` fans out three subagents in parallel for multi-perspective analysis
-- Code and security reviewers use `model: "sonnet"`; a11y-reviewer uses `model: "haiku"` (checklist-driven, structured output)
-- Code-reviewer prompt embeds `git-conventions` skill; security-reviewer embeds `security-checklist`
+- Code and security reviewers carry no `model:` pin (they use the settings.json subagent model);
+  a11y-reviewer pins `model: "haiku"` (checklist-driven, structured output)
+- Reviewer prompts carry their own standards inline; the former `git-conventions` and
+  `security-checklist` reference skills were removed as general knowledge Claude already has
 - Subagents are ephemeral — no cleanup needed after they return
 - When [#24316][tc] lands, replace `subagent_type: "general-purpose"` with custom agent types
 

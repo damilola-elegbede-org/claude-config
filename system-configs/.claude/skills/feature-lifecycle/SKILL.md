@@ -21,12 +21,12 @@ Detect the input type from `$ARGUMENTS` and normalize into a structured spec.
 
 ### Input Types
 
-| Type | Detection | Action |
-|------|-----------|--------|
-| Spec file | `$ARGUMENTS` ends in `.md` and file exists | Read file, extract requirements |
-| GitHub issue | `$ARGUMENTS` contains `--issue <number>` | Run `gh issue view <number>`, extract title/body/labels |
-| Inline description | `$ARGUMENTS` contains text that is not a file path or flag | Parse text as requirements |
-| Interactive | `$ARGUMENTS` is empty | Prompt user for feature description, acceptance criteria, and constraints |
+| Type               | Detection                                                  | Action                                                                    |
+| ------------------ | ---------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Spec file          | `$ARGUMENTS` ends in `.md` and file exists                 | Read file, extract requirements                                           |
+| GitHub issue       | `$ARGUMENTS` contains `--issue <number>`                   | Run `gh issue view <number>`, extract title/body/labels                   |
+| Inline description | `$ARGUMENTS` contains text that is not a file path or flag | Parse text as requirements                                                |
+| Interactive        | `$ARGUMENTS` is empty                                      | Prompt user for feature description, acceptance criteria, and constraints |
 
 ### Normalization
 
@@ -235,7 +235,7 @@ import anthropic
 
 client = anthropic.Anthropic()
 message = client.messages.create(
-    model="claude-opus-4-6",
+    model="claude-sonnet-5-5",
     max_tokens=16384,
     messages=[{
         "role": "user",
@@ -251,12 +251,14 @@ import Anthropic from "@anthropic-ai/sdk";
 
 const client = new Anthropic();
 const message = await client.messages.create({
-  model: "claude-opus-4-6",
+  model: "claude-sonnet-5-5",
   max_tokens: 16384,
-  messages: [{
-    role: "user",
-    content: "/feature-lifecycle --issue 42"
-  }]
+  messages: [
+    {
+      role: "user",
+      content: "/feature-lifecycle --issue 42",
+    },
+  ],
 });
 ```
 

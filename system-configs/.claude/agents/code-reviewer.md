@@ -1,15 +1,11 @@
 ---
 name: code-reviewer
-description: MUST BE USED for pre-commit reviews and vulnerability detection. Use PROACTIVELY after code changes. Triggers on "review", "check", "audit", "quality".
+description: Use for pre-commit reviews and vulnerability detection, proactively after code changes. Triggers on "review", "check", "audit", "quality".
 tools: Read, Grep, Glob, Bash
-model: sonnet
-thinking-level: think harder
-thinking-tokens: 8000
 permissionMode: plan
 memory: local
 color: green
 category: quality
-skills: git-conventions, security-checklist
 ---
 
 # Code Reviewer

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.damilola.claude-restart-on-update</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>__HOME__/.claude/restart_on_update.sh</string>
+    </array>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>__HOME__/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>HOME</key>
+        <string>__HOME__</string>
+    </dict>
+
+    <!-- Checks every 30 minutes whether a newer build has been fetched, and
+         restarts tmux-hosted sessions onto it if so. This is a background
+         POLL only -- claude update itself runs from resume_sessions.sh at
+         login and from Claude Code's own background updater; this agent
+         never fetches, it only reacts once a newer build already exists in
+         ~/.local/share/claude/versions/. Adjust StartInterval (seconds) to
+         taste; lower = more responsive to new builds, higher = fewer
+         interruptions to in-progress work. -->
+    <key>StartInterval</key>
+    <integer>1800</integer>
+
+    <key>StandardOutPath</key>
+    <string>__HOME__/.claude/logs/restart_on_update.launchd.log</string>
+    <key>StandardErrorPath</key>
+    <string>__HOME__/.claude/logs/restart_on_update.launchd.log</string>
+</dict>
+</plist>

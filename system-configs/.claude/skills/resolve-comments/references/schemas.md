@@ -2,6 +2,9 @@
 
 ## Ignored issues — `.tmp/coderabbit-ignored.json`
 
+The filename is a cross-skill contract (`/pr` and `/ship-it` read it by this exact path) and keeps
+its historical name. Its contents are source-agnostic: each record names its own `source`.
+
 <!-- SCHEMA VERSION: "1.0" — Any breaking schema changes MUST increment schema_version. -->
 <!-- Readers (e.g. pr/SKILL.md) validate this field on load and reject stale files. -->
 
@@ -13,11 +16,11 @@
   "ignored_issues": [
     {
       "id": 1,
-      "source": "coderabbit|code-reviewer",
+      "source": "coderabbit|codex|bot|human|code-reviewer",
       "location": "file.ts:45",
       "description": "Issue description",
       "severity": "LOW",
-      "category": "nitpick|low-priority|user-skipped",
+      "category": "nitpick|low-priority|user-skipped|human-thread-deferred|out-of-scope-edit",
       "reason": "Auto-generated reason from evaluation"
     }
   ]
@@ -44,30 +47,38 @@ show the dialog to the user. A caller that runs it forked must pass `--auto` to 
 ```text
 User: /resolve-comments
 
-Fetched 3 unresolved CodeRabbit comments from PR #42
+Fetched 3 unresolved review threads from PR #42
+  coderabbit: 2
+  codex: 1
 
 Review Issues:
 
 | # | Src | Description | Action |
 |---|-----|-------------|--------|
 | 1 | CR | auth.ts:45 - Missing error handling | FIX |
-| 2 | CR | api.ts:12 - Add input validation | FIX |
+| 2 | Codex | api.ts:12 - Stale timestamp ages the rate (P1) | FIX |
 | 3 | CR | utils.ts:8 - Use const vs let | SKIP |
 
 Summary: 2 to fix, 1 to skip
 
 [User selects "Approve all fixes (2 issues)"]
 
-Fixed (using CodeRabbit AI prompt): Missing error handling
-Fixed (using CodeRabbit AI prompt): Add input validation
+Fixed (using coderabbit AI prompt): Missing error handling
+Fixed: Stale timestamp ages the rate
 
-Committed: fix: resolve CodeRabbit feedback (2 issues)
+Committed: fix: resolve PR review feedback (2 issues)
 Pushed to origin
-Resolved thread (Fixed): auth.ts:45
-Resolved thread (Fixed): api.ts:12
-Resolved thread (Acknowledged): utils.ts:8
+Replied @coderabbitai resolve (coderabbit): auth.ts:45
+Resolved thread (codex, Fixed): api.ts:12
+Replied @coderabbitai resolve (coderabbit): utils.ts:8
 Thread resolution complete: 3 succeeded, 0 failed
-Posted @coderabbitai resolve with change summary to PR #42
+  resolved by us: 1
+  awaiting CodeRabbit: 2
+  left for a human: 0
+ℹ️ 1 other thread(s) remain open on this PR (not acted on by this run):
+  - README.md:4 (alice)
+✅ Verified: 1 resolved by us, 2 resolved by CodeRabbit
+Posted resolution summary to PR #42
 
 Resolved 3 comments: 2 fixed, 1 acknowledged
 ```
