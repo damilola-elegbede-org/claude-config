@@ -74,11 +74,30 @@ run_gate() {
     GERR=$(cat "$SANDBOX/stderr")
 }
 
+# GATE_TP (the session transcript) and GATE_CWD ride along in every payload, like Claude Code sends them.
+GATE_TP=""
+GATE_CWD="/work"
 payload() { # payload <tool> <input-json>
-    jq -nc --arg t "$1" --argjson i "$2" '{tool_name:$t,tool_input:$i,cwd:"/work"}'
+    jq -nc --arg t "$1" --argjson i "$2" --arg tp "$GATE_TP" --arg cwd "$GATE_CWD" \
+        '{tool_name:$t,tool_input:$i,cwd:$cwd} + (if $tp != "" then {transcript_path:$tp,session_id:"sess-1"} else {} end)'
 }
-write_payload() { jq -nc --arg p "$1" --arg c "$2" '{tool_name:"Write",tool_input:{file_path:$p,content:$c},cwd:"/work"}'; }
-bash_payload() { jq -nc --arg c "$1" '{tool_name:"Bash",tool_input:{command:$c},cwd:"/work"}'; }
+write_payload() { payload Write "$(jq -nc --arg p "$1" --arg c "$2" '{file_path:$p,content:$c}')"; }
+bash_payload() { payload Bash "$(jq -nc --arg c "$1" '{command:$c}')"; }
+# mk_ask <transcript> <tool_use id> <offset-secs-from-now> <answer|NONE>: append an AskUserQuestion and (unless
+# NONE) its answered tool_result, in the shape Claude Code writes (toolUseResult.answers).
+mk_ask() {
+    local ts=$(($(date +%s) + $3))
+    jq -nc --arg id "$2" --argjson e "$ts" \
+        '{type:"assistant",timestamp:($e|todate),message:{content:[{type:"tool_use",id:$id,name:"AskUserQuestion",input:{questions:[{question:"Approve this action?"}]}}]}}' >>"$1"
+    if [[ "$4" != "NONE" ]]; then
+        jq -nc --arg id "$2" --arg a "$4" --argjson e "$((ts + 1))" \
+            '{type:"user",timestamp:($e|todate),toolUseResult:{answers:{"Approve this action?":$a}},message:{content:[{type:"tool_result",tool_use_id:$id,content:("User has answered your questions: \"Approve this action?\"=\"" + $a + "\".")}]}}' >>"$1"
+    fi
+}
+# deny_hash <home> <payload>: run the gate (expected to deny) and print the approval hash.
+deny_hash() { run_gate "$1" "$2"; hash_from_reason; }
+# approve_rc <home> <hash>: run `gate.sh approve`, sets AOUT, returns its exit code.
+approve_rc() { AOUT=$(HOME="$1" bash "$1/.claude/hooks/gate.sh" approve "$2" 2>&1); return $?; }
 reason() { printf '%s' "$GOUT" | jq -r '.hookSpecificOutput.permissionDecisionReason // empty' 2>/dev/null; }
 decision() { printf '%s' "$GOUT" | jq -r '.hookSpecificOutput.permissionDecision // empty' 2>/dev/null; }
 hash_from_reason() { reason | sed -n 's/.*gate\.sh approve \([0-9a-f]\{64\}\).*/\1/p'; }
@@ -138,7 +157,7 @@ check "interactive: hookEventName" "PreToolUse" "$(printf '%s' "$GOUT" | jq -r '
 check_contains "interactive: asks D" "$(reason)" "Put this action to D via AskUserQuestion"
 check_contains "interactive: retry wording" "$(reason)" "retry with the exact same command"
 # shellcheck disable=SC2088 # the literal tilde is the text Claude is told to run
-check_contains "interactive: approve command""$(reason)" "~/.claude/hooks/gate.sh approve "
+check_contains "interactive: approve command" "$(reason)" "~/.claude/hooks/gate.sh approve "
 check_absent "interactive: no needs-input wording" "$(reason)" "needs input:"
 
 run_gate "$H" "$(bash_payload 'rm -rf foo')" CLAUDE_JOB_DIR="$H/job"
@@ -205,20 +224,54 @@ check "kill switch: exit 0" "0" "$GRC"
 rm -f "$H_KS/.claude/gate.off"
 run_gate "$H_KS" "$(bash_payload 'rm -rf foo')"
 check "kill switch removed: denied again" "deny" "$(decision)"
+mkdir "$H_KS/.claude/gate.off"
+run_gate "$H_KS" "$(bash_payload 'rm -rf foo')"
+check "kill switch: a DIRECTORY named gate.off does not disable the gate" "deny" "$(decision)"
+rmdir "$H_KS/.claude/gate.off"
+touch "$H_KS/.claude/real-target"
+ln -s "$H_KS/.claude/real-target" "$H_KS/.claude/gate.off"
+run_gate "$H_KS" "$(bash_payload 'rm -rf foo')"
+check "kill switch: a SYMLINK named gate.off does not disable the gate" "deny" "$(decision)"
+rm -f "$H_KS/.claude/gate.off"
 
 echo "== one-shot approval =="
 H_AP=$(make_home approval)
+TX_AP="$SANDBOX/tx-approval.jsonl"
+: >"$TX_AP"
+GATE_TP="$TX_AP"
 P=$(bash_payload 'rm -rf foo')
 run_gate "$H_AP" "$P"
 HASH=$(hash_from_reason)
 check "approval: 64-hex hash is in the reason" "64" "${#HASH}"
 if [[ -f "$H_AP/.claude/gate-pending/$HASH" ]]; then pass; else fail "approval: pending file written"; fi
+check "approval: pending records the transcript path" "$TX_AP" "$(jq -r .transcript_path "$H_AP/.claude/gate-pending/$HASH")"
+check "approval: pending records the session id" "sess-1" "$(jq -r .session_id "$H_AP/.claude/gate-pending/$HASH")"
+check "approval: pending records cwd" "/work" "$(jq -r .cwd "$H_AP/.claude/gate-pending/$HASH")"
 run_gate "$H_AP" "$P"
 check "approval: unapproved retry still denied" "deny" "$(decision)"
 check "approval: same action hashes the same" "$HASH" "$(hash_from_reason)"
-APPROVE_OUT=$(HOME="$H_AP" bash "$H_AP/.claude/hooks/gate.sh" approve "$HASH" 2>&1)
-check "approval: approve exits 0" "0" "$?"
-check_contains "approval: approve says approved" "$APPROVE_OUT" "approved"
+# D never answered: approve must refuse.
+approve_rc "$H_AP" "$HASH"
+check "approval: refused when no AskUserQuestion happened" "1" "$?"
+check_contains "approval: refusal says what is missing" "$AOUT" "no AskUserQuestion answered"
+if [[ -f "$H_AP/.claude/gate-pending/$HASH" && ! -e "$H_AP/.claude/gate-approved/$HASH" ]]; then pass; else fail "approval: a refused approve leaves the pending file alone"; fi
+mk_ask "$TX_AP" ask-old -120 Approve
+approve_rc "$H_AP" "$HASH"
+check "approval: an AskUserQuestion from BEFORE the deny does not count" "1" "$?"
+mk_ask "$TX_AP" ask-nores 2 NONE
+approve_rc "$H_AP" "$HASH"
+check "approval: a question with no answer (dismissed) does not count" "1" "$?"
+mk_ask "$TX_AP" ask-deny 3 "Deny"
+approve_rc "$H_AP" "$HASH"
+check "approval: a Deny answer does not count" "1" "$?"
+mk_ask "$TX_AP" ask-no 4 "No, do not run it"
+approve_rc "$H_AP" "$HASH"
+check "approval: a No answer does not count" "1" "$?"
+mk_ask "$TX_AP" ask-yes 5 "Approve"
+approve_rc "$H_AP" "$HASH"
+check "approval: approve exits 0 after a real Approve" "0" "$?"
+check_contains "approval: approve says approved" "$AOUT" "approved"
+check_contains "approval: the spent question is recorded" "$(cat "$H_AP/.claude/gate-asks-used")" "ask-yes"
 if [[ -f "$H_AP/.claude/gate-approved/$HASH" && ! -f "$H_AP/.claude/gate-pending/$HASH" ]]; then pass; else fail "approval: pending moved to approved"; fi
 run_gate "$H_AP" "$(bash_payload 'rm -rf bar')"
 check "approval: a different command is not approved" "deny" "$(decision)"
@@ -228,6 +281,87 @@ if [[ ! -e "$H_AP/.claude/gate-approved/$HASH" ]]; then pass; else fail "approva
 check_contains "approval: logged" "$(cat "$H_AP/.claude/gate-log.jsonl")" '"decision":"allow-by-approval"'
 run_gate "$H_AP" "$P"
 check "approval: second retry denied again (single use)" "deny" "$(decision)"
+
+echo "== approval: one question approves one action =="
+H_ONE=$(make_home onequestion)
+TX_ONE="$SANDBOX/tx-one.jsonl"
+: >"$TX_ONE"
+GATE_TP="$TX_ONE"
+H1=$(deny_hash "$H_ONE" "$(bash_payload 'rm -rf one')")
+H2=$(deny_hash "$H_ONE" "$(bash_payload 'rm -rf two')")
+mk_ask "$TX_ONE" ask-a 2 "Approve"
+approve_rc "$H_ONE" "$H1"
+check "one question: first approve works" "0" "$?"
+approve_rc "$H_ONE" "$H2"
+check "one question: the same question cannot approve a second action" "1" "$?"
+mk_ask "$TX_ONE" ask-b 3 "Approve"
+approve_rc "$H_ONE" "$H2"
+check "one question: a second question approves the second action" "0" "$?"
+
+echo "== approval: bound to the action, cwd and scope =="
+H_BIND=$(make_home binding)
+TX_B="$SANDBOX/tx-bind.jsonl"
+: >"$TX_B"
+GATE_TP="$TX_B"
+GATE_CWD="/work/a"
+HB=$(deny_hash "$H_BIND" "$(bash_payload 'rm -rf foo')")
+mk_ask "$TX_B" ask-c 2 "Approve"
+approve_rc "$H_BIND" "$HB"
+GATE_CWD="/work/b"
+run_gate "$H_BIND" "$(bash_payload 'rm -rf foo')"
+check "binding: the same command in another cwd is NOT approved" "deny" "$(decision)"
+check "binding: another cwd is a different action" "1" "$([[ "$(hash_from_reason)" == "$HB" ]] && echo 0 || echo 1)"
+GATE_CWD="/work/a"
+run_gate "$H_BIND" "$(bash_payload 'rm -rf foo')"
+check "binding: the approved cwd still works" "" "$GOUT"
+# Write/Edit: the written content is part of the identity.
+HW=$(deny_hash "$H_BIND" "$(write_payload "$H_BIND/.claude/hooks/x.sh" "echo A")")
+mk_ask "$TX_B" ask-d 4 "Approve"
+approve_rc "$H_BIND" "$HW"
+run_gate "$H_BIND" "$(write_payload "$H_BIND/.claude/hooks/x.sh" "echo EVIL")"
+check "binding: different Write content is NOT approved" "deny" "$(decision)"
+run_gate "$H_BIND" "$(write_payload "$H_BIND/.claude/hooks/x.sh" "echo A")"
+check "binding: the approved Write content is allowed" "" "$GOUT"
+GATE_CWD="/work"
+
+echo "== approval: one approval per action when several rules match =="
+H_MR=$(make_home multirule)
+TX_MR="$SANDBOX/tx-mr.jsonl"
+: >"$TX_MR"
+GATE_TP="$TX_MR"
+MR_CMD='sudo rm -rf foo'
+run_gate "$H_MR" "$(bash_payload "$MR_CMD")"
+HM=$(hash_from_reason)
+check_contains "multi-rule: the reason names the first rule" "$(reason)" "CHECKPOINT G1-rm:"
+check_contains "multi-rule: the reason names the other matched rule" "$(reason)" "Also matched "
+check "multi-rule: ONE pending file for the action" "1" "$(find "$H_MR/.claude/gate-pending" -type f | wc -l | tr -d ' ')"
+check "multi-rule: the pending file lists every rule" "true" "$(jq '.rules | length >= 2' "$H_MR/.claude/gate-pending/$HM")"
+mk_ask "$TX_MR" ask-m 2 "Approve"
+approve_rc "$H_MR" "$HM"
+check "multi-rule: a single approve succeeds" "0" "$?"
+run_gate "$H_MR" "$(bash_payload "$MR_CMD")"
+check "multi-rule: one approval clears all matched rules (no deadlock)" "" "$GOUT"
+
+echo "== approval: single use under concurrency =="
+H_CC=$(make_home concurrent)
+TX_CC="$SANDBOX/tx-cc.jsonl"
+: >"$TX_CC"
+GATE_TP="$TX_CC"
+CCP=$(bash_payload 'rm -rf foo')
+HC=$(deny_hash "$H_CC" "$CCP")
+mk_ask "$TX_CC" ask-cc 2 "Approve"
+approve_rc "$H_CC" "$HC"
+rm -f "$SANDBOX"/cc-out.*
+for n in 1 2 3 4 5 6; do
+    (printf '%s' "$CCP" | env -u BARECLAUDE_AGENT_SLUG -u CLAUDE_JOB_DIR HOME="$H_CC" TMPDIR="$H_CC/tmp" bash "$H_CC/.claude/hooks/gate.sh" >"$SANDBOX/cc-out.$n" 2>/dev/null) &
+done
+wait
+ALLOWED=0
+for n in 1 2 3 4 5 6; do
+    [[ -s "$SANDBOX/cc-out.$n" ]] || ALLOWED=$((ALLOWED + 1))
+done
+check "concurrency: exactly one of six identical calls consumed the approval" "1" "$ALLOWED"
+GATE_TP=""
 
 echo "== approve command hardening =="
 approve() { HOME="$H_AP" env "$@" bash "$H_AP/.claude/hooks/gate.sh" approve "$APPROVE_ARG" >/dev/null 2>&1; }
@@ -249,17 +383,65 @@ check "approve: forging via Write is denied" "deny" "$(decision)"
 
 echo "== approval expiry =="
 H_EXP=$(make_home expiry)
-run_gate "$H_EXP" "$P"
+TX_EXP="$SANDBOX/tx-exp.jsonl"
+: >"$TX_EXP"
+GATE_TP="$TX_EXP"
+EXP_P=$(bash_payload 'rm -rf foo')
+run_gate "$H_EXP" "$EXP_P"
 HASH=$(hash_from_reason)
-HOME="$H_EXP" bash "$H_EXP/.claude/hooks/gate.sh" approve "$HASH" >/dev/null 2>&1
+mk_ask "$TX_EXP" ask-e1 2 "Approve"
+approve_rc "$H_EXP" "$HASH"
+check "expiry: approve succeeds while fresh" "0" "$?"
 touch -t 200001010000 "$H_EXP/.claude/gate-approved/$HASH"
-run_gate "$H_EXP" "$P"
+run_gate "$H_EXP" "$EXP_P"
 check "expiry: stale approval no longer allows" "deny" "$(decision)"
 if [[ ! -e "$H_EXP/.claude/gate-approved/$HASH" ]]; then pass; else fail "expiry: stale approval removed"; fi
 HASH=$(hash_from_reason)
 touch -t 200001010000 "$H_EXP/.claude/gate-pending/$HASH"
-HOME="$H_EXP" bash "$H_EXP/.claude/hooks/gate.sh" approve "$HASH" >/dev/null 2>&1
+mk_ask "$TX_EXP" ask-e2 4 "Approve"
+approve_rc "$H_EXP" "$HASH"
 check "expiry: stale pending cannot be approved" "1" "$?"
+GATE_TP=""
+
+echo "== shadow rules log but never deny (G7: PR review-reply workflow) =="
+H_G7=$(make_home g7)
+run_gate "$H_G7" "$(bash_payload 'gh pr comment 12 --body hi')"
+check "G7-gh is shadow: no deny" "" "$GOUT"
+check_contains "G7-gh is shadow: logged" "$(cat "$H_G7/.claude/gate-log.jsonl")" '"rule":"G7-gh","tool":"Bash","decision":"shadow"'
+run_gate "$H_G7" "$(bash_payload 'gh api repos/o/r/issues/3/comments -f body=hi')"
+check "G7-gh-api is shadow: no deny" "" "$GOUT"
+check "G7 rules ship with enforce=false" "2" "$(jq '[.rules[] | select((.id == "G7-gh" or .id == "G7-gh-api") and .enforce == false)] | length' "$RULES")"
+
+echo "== matching text: data is not code =="
+H_DATA=$(make_home data)
+for c in \
+    'git commit -m "rm -rf the build dir"' \
+    'echo "run rm -rf / to nuke it"' \
+    'printf "%s\n" "DELETE FROM users"' \
+    'grep -rn "git push origin main" docs/' \
+    'gh issue create --title "git stash pop broke" --body "rm -rf x"' \
+    'gh api repos/o/r/issues -f body="rm -rf x" -f title=t'; do
+    run_gate "$H_DATA" "$(bash_payload "$c")"
+    check "data: allowed -> $c" "" "$GOUT"
+done
+for c in \
+    'echo "$(rm -rf foo)"' \
+    'echo "x; rm -rf foo" | bash' \
+    'eval "x; rm -rf foo"' \
+    'bash -lc "rm -rf foo"' \
+    'git commit -m x && rm -rf foo'; do
+    run_gate "$H_DATA" "$(bash_payload "$c")"
+    check "data: still denied -> $c" "deny" "$(decision)"
+done
+run_gate "$H_DATA" "$(bash_payload "$(printf 'cat > n.md <<EOF\nrm -rf foo\nEOF')")"
+check "data: a heredoc body is data" "" "$GOUT"
+run_gate "$H_DATA" "$(bash_payload "$(printf 'bash <<EOF\nrm -rf foo\nEOF')")"
+check "data: a heredoc fed to bash is code" "deny" "$(decision)"
+run_gate "$H_DATA" "$(bash_payload "$(printf 'cat > n.md <<EOF\nhi\nEOF\nrm -rf foo')")"
+check "data: code AFTER a heredoc is still checked" "deny" "$(decision)"
+run_gate "$H_DATA" "$(bash_payload 'mkdir ~/.claude/gate.off')"
+check "tamper: mkdir gate.off is denied" "deny" "$(decision)"
+check_contains "tamper: by G10-tamper" "$(reason)" "CHECKPOINT G10-tamper:"
 
 echo "== logging =="
 H_LOG=$(make_home logging)

@@ -156,14 +156,14 @@
 {"rule":"G7-cal","expect":"allow","tool":"mcp__claude_ai_Google_Calendar__list_events","input":{}}
 {"rule":"G7-cal","expect":"allow","tool":"mcp__claude_ai_Google_Calendar__get_event","input":{}}
 {"rule":"G7-cal","expect":"allow","tool":"mcp__claude_ai_Google_Calendar__suggest_time","input":{}}
-{"rule":"G7-gh","expect":"deny","tool":"Bash","input":{"command":"gh pr comment 12 --body hi"}}
-{"rule":"G7-gh","expect":"deny","tool":"Bash","input":{"command":"gh issue comment 3 -b x"}}
-{"rule":"G7-gh","expect":"deny","tool":"Bash","input":{"command":"gh pr review 12 --approve"}}
+{"rule":"G7-gh","expect":"allow","tool":"Bash","input":{"command":"gh pr comment 12 --body hi"}}
+{"rule":"G7-gh","expect":"allow","tool":"Bash","input":{"command":"gh issue comment 3 -b x"}}
+{"rule":"G7-gh","expect":"allow","tool":"Bash","input":{"command":"gh pr review 12 --approve"}}
 {"rule":"G7-gh","expect":"allow","tool":"Bash","input":{"command":"gh pr view 12 --comments"}}
 {"rule":"G7-gh","expect":"allow","tool":"Bash","input":{"command":"gh issue list"}}
 {"rule":"G7-gh","expect":"allow","tool":"Bash","input":{"command":"gh pr create --title x --body y"}}
-{"rule":"G7-gh-api","expect":"deny","tool":"Bash","input":{"command":"gh api repos/o/r/issues/3/comments -f body=hi"}}
-{"rule":"G7-gh-api","expect":"deny","tool":"Bash","input":{"command":"gh api -X POST repos/o/r/pulls/3/comments"}}
+{"rule":"G7-gh-api","expect":"allow","tool":"Bash","input":{"command":"gh api repos/o/r/issues/3/comments -f body=hi"}}
+{"rule":"G7-gh-api","expect":"allow","tool":"Bash","input":{"command":"gh api -X POST repos/o/r/pulls/3/comments"}}
 {"rule":"G7-gh-api","expect":"allow","tool":"Bash","input":{"command":"gh api repos/o/r/issues/3/comments"}}
 {"rule":"G7-gh-api","expect":"allow","tool":"Bash","input":{"command":"gh api repos/o/r/pulls/3"}}
 {"rule":"G7-gh-api","expect":"allow","tool":"Bash","input":{"command":"gh api repos/o/r/issues/3/comments --paginate"}}
@@ -284,3 +284,22 @@
 {"rule":"general","expect":"allow","tool":"Bash","input":{"command":"ls -la && git status --short"}}
 {"rule":"general","expect":"allow","tool":"Bash","input":{}}
 {"rule":"general","expect":"allow","tool":"Write","input":{"file_path":"/proj/src/app.ts","content":"export const a = 1;"}}
+{"rule":"G2-push-main","expect":"allow","tool":"Bash","input":{"command":"cat > notes.md <<'EOF'\ngit push origin main\nEOF"}}
+{"rule":"G1-rm","expect":"allow","tool":"Bash","input":{"command":"git commit -m \"cleanup: rm -rf build dir\""}}
+{"rule":"G1-rm","expect":"allow","tool":"Bash","input":{"command":"gh pr create --title 'rm -rf bug' --body 'explains rm -rf'"}}
+{"rule":"G5-sql","expect":"allow","tool":"Bash","input":{"command":"echo \"DELETE FROM users\""}}
+{"rule":"G2-stash","expect":"allow","tool":"Bash","input":{"command":"grep -c \"git stash pop\" notes.md"}}
+{"rule":"G12-ssh","expect":"allow","tool":"Bash","input":{"command":"ssh mbm \"grep -rl FOO ~/x 2>/dev/null | head -3\""}}
+{"rule":"G1-rm","expect":"deny","tool":"Bash","input":{"command":"bash <<'EOF'\nrm -rf data\nEOF"}}
+{"rule":"G1-rm","expect":"deny","tool":"Bash","input":{"command":"bash -lc 'rm -rf data'"}}
+{"rule":"G1-rm","expect":"deny","tool":"Bash","input":{"command":"sh -ec 'rm -rf data'"}}
+{"rule":"G1-rm","expect":"deny","tool":"Bash","input":{"command":"echo 'x; rm -rf data' | sh"}}
+{"rule":"G2-push-main","expect":"deny","tool":"Bash","input":{"command":"echo done; git push origin main"}}
+{"rule":"G10-tamper","expect":"deny","tool":"Bash","input":{"command":"mkdir ~/.claude/gate.off"}}
+{"rule":"G10-tamper","expect":"deny","tool":"Bash","input":{"command":"cd ~/.claude && touch gate.off"}}
+{"rule":"G10-tamper","expect":"deny","tool":"Bash","input":{"command":"echo x > ~/.claude/jev.off"}}
+{"rule":"G10-tamper","expect":"deny","tool":"Bash","input":{"command":"touch ~/.claude/jev.off"}}
+{"rule":"G10-tamper","expect":"deny","tool":"Bash","input":{"command":"rm ~/.claude/gate-asks-used"}}
+{"rule":"G10-tamper","expect":"allow","tool":"Bash","input":{"command":"cp ~/.claude/settings.json /tmp/settings.bak"}}
+{"rule":"G10-tamper","expect":"allow","tool":"Bash","input":{"command":"ls ~/.claude/gate.off"}}
+{"rule":"G10-file","expect":"deny","tool":"Write","input":{"file_path":"@HOME@/.claude/jev.off"}}

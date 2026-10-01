@@ -1,13 +1,14 @@
 {
-  "_comment": "Decision-gate rules for hooks/gate.sh. Patterns are jq (Oniguruma) regexes written in the POSIX ERE subset plus lookahead/lookbehind where needed. Macros ({{SEP}} {{PFX}} {{GIT}} {{EXTOK}} {{LIVE}} and dynamic {{HOME}} {{TMPDIR}} {{JOBDIR}}) are expanded before matching. anchor=cmd wraps the pattern as SEP(?<c>PFX pattern rest-of-segment) so it only matches in command position; exempt is tested against that capture (or the whole match). exempt_all is tested against the whole field. Rules apply in file order; every matching rule is evaluated and the first non-skipped one denies. Per-rule: scope (interactive|bgjob|fleet), lanes (fleet agent slug -> allow), enforce (false = log as shadow only). exempt_agents are never blocked (their would-be decision is logged).",
+  "_comment": "Decision-gate rules for hooks/gate.sh. Patterns are jq (Oniguruma) regexes written in the POSIX ERE subset plus lookahead/lookbehind where needed. Macros ({{SEP}} {{PFX}} {{GIT}} {{EXTOK}} {{LIVE}} and dynamic {{HOME}} {{TMPDIR}} {{JOBDIR}}) are expanded before matching. anchor=cmd wraps the pattern as SEP(?<c>PFX pattern rest-of-segment) so it only matches in command position; exempt is tested against that capture (or the whole match). exempt_all is tested against the whole field. Rules apply in file order; every matching rule is evaluated, the first enforced one names the CHECKPOINT and the others are listed as Also matched, and ONE approval (bound to tool + exact command/path+content + cwd + scope) clears them all. Before matching, heredoc bodies (unless fed to a shell) and quoted data (echo/printf/grep arguments, --body/--title/-m/-f body= values) are blanked; SEP also matches shell -c in any combined-flag form (bash -lc). Per-rule: scope (interactive|bgjob|fleet), lanes (fleet agent slug -> allow), enforce (false = log as shadow only). exempt_agents are never blocked (their would-be decision is logged).",
   "exempt_agents": ["dara", "clara"],
   "macros": {
-    "SEP": "(?:^|[;&|(\\n`]|\\$\\(|-c[[:space:]]+[\\\"']|-exec(?:dir)?[[:space:]]+)[[:space:]]*",
+    "SEP": "(?:^|[;&|(\\n`]|\\$\\(|-c[[:space:]]+[\\\"']|(?<![A-Za-z0-9_-])(?:ba|z|da|k)?sh[[:space:]]+(?:-[^[:space:]]+[[:space:]]+)*-[A-Za-z]*c[[:space:]]+[\\\"']|-exec(?:dir)?[[:space:]]+)[[:space:]]*",
     "PFX": "(?:[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*(?:(?:sudo|doas|env|command|exec|time|nohup|xargs|npx|then|do|else|elif|if|while|until|!)[[:space:]]+(?:-[^[:space:]]+[[:space:]]+)*(?:[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*)*",
     "GIT": "(?:git|(?:[^[:space:]]*/)?git-agent\\.sh[[:space:]]+[A-Za-z0-9_-]+)(?:[[:space:]]+-{1,2}[A-Za-z][^[:space:]]*(?:[[:space:]]+[^[:space:]-][^[:space:]]*)?)*[[:space:]]+",
     "EXTOK": "[\\\"']?(?![^[:space:]]*\\.\\.)(?:(?:{{TMPDIR}}|{{JOBDIR}}|/private/tmp|/tmp|\\$TMPDIR|\\$\\{TMPDIR\\}|\\$CLAUDE_JOB_DIR|\\$\\{CLAUDE_JOB_DIR\\})(?:/[^[:space:]]*)?|(?:[^[:space:]]*/)?(?:\\.tmp|node_modules|dist|build|__pycache__|\\.pytest_cache)(?:/[^[:space:]]*)?)[\\\"']?(?=[[:space:]]|$)",
     "LIVE": "(?:~|\\\"?\\$\\{?HOME\\}?\\\"?|{{HOME}})/\\.claude/",
-    "LIVEGUARDED": "{{LIVE}}(?:gate\\.off|gate-approved|gate-pending|gate-log\\.jsonl|settings\\.json|hooks(?:/|(?=[[:space:]]|$)))"
+    "LIVEGUARDED": "{{LIVE}}(?:gate\\.off|jev\\.off|gate-approved|gate-pending|gate-asks-used|gate-log\\.jsonl|settings\\.json|hooks(?:/|(?=[[:space:]]|$)))",
+    "GATESTATE": "(?:gate\\.off|jev\\.off|gate-approved|gate-pending|gate-asks-used|gate-log\\.jsonl)"
   },
   "rules": [
     {
@@ -328,7 +329,7 @@
     {
       "id": "G7-gh",
       "class": "G7",
-      "description": "gh pr|issue comment|review",
+      "description": "gh pr|issue comment|review (shadow: log-only so the PR review-reply workflow is not blocked)",
       "tools": "^Bash$",
       "field": "command",
       "pattern": "gh[[:space:]]+(?:(?:-R|--repo)[[:space:]]+[^[:space:]]+[[:space:]]+)?(?:pr|issue)[[:space:]]+(?:comment|review)(?=[[:space:]]|$)",
@@ -337,12 +338,12 @@
       "message": "posting a GitHub comment/review goes out as D",
       "scope": ["interactive", "bgjob", "fleet"],
       "lanes": {},
-      "enforce": true
+      "enforce": false
     },
     {
       "id": "G7-gh-api",
       "class": "G7",
-      "description": "gh api .../comments with POST or a body field",
+      "description": "gh api .../comments with POST or a body field (shadow: log-only so the PR review-reply workflow is not blocked)",
       "tools": "^Bash$",
       "field": "command",
       "pattern": "gh[[:space:]]+api(?=[[:space:]])(?=[^;&|\\n]*comments)(?=[^;&|\\n]*(?:(?:-X|--method)[[:space:]]+(?:POST|post)|(?:-f|-F|--field|--raw-field)[[:space:]]+body))",
@@ -351,7 +352,7 @@
       "message": "posting a GitHub comment through the API goes out as D",
       "scope": ["interactive", "bgjob", "fleet"],
       "lanes": {},
-      "enforce": true
+      "enforce": false
     },
     {
       "id": "G8-drive",
@@ -413,7 +414,7 @@
       "description": "Write/Edit to live ~/.claude/hooks/, settings.json, gate state (anchored on $HOME)",
       "tools": "^(?:Write|Edit|MultiEdit)$",
       "field": "file_path",
-      "pattern": "^{{HOME}}/\\.claude/(?:hooks/|settings\\.json$|gate\\.off$|gate-approved/|gate-pending/|gate-log\\.jsonl$)",
+      "pattern": "^{{HOME}}/\\.claude/(?:hooks/|settings\\.json$|gate\\.off$|jev\\.off$|gate-approved/|gate-pending/|gate-asks-used$|gate-log\\.jsonl$)",
       "action": "deny",
       "message": "live hooks/settings are edited through claude-config (branch, PR, sync) and the gate state is off limits to agents",
       "scope": ["interactive", "bgjob", "fleet"],
@@ -423,10 +424,10 @@
     {
       "id": "G10-tamper",
       "class": "G10",
-      "description": "Bash that writes to live hooks/settings.json or the gate's own state (gate.off, approvals, log)",
+      "description": "Bash that creates, edits, moves or removes live hooks/settings.json or the gate's own state (gate.off, jev.off, approvals, log): any verb incl. mkdir; cp/rsync/install only when the guarded path is the DESTINATION; bare names (cd ~/.claude && touch gate.off) when the command mentions .claude",
       "tools": "^Bash$",
       "field": "command",
-      "pattern": "(?:^|[^A-Za-z0-9_])(?:touch|tee|cp|mv|rm|ln|install|truncate|dd|chmod|chown|rsync|sed[[:space:]]+-i[^[:space:]]*|perl[[:space:]]+-[a-z]*i[^[:space:]]*)(?=[[:space:]])[^;&|\\n]*{{LIVEGUARDED}}|>>?[^;&|\\n]*{{LIVEGUARDED}}",
+      "pattern": "(?:^|[^A-Za-z0-9_])(?:touch|tee|mv|rm|ln|mkdir|truncate|dd|chmod|chown|sed[[:space:]]+-i[^[:space:]]*|perl[[:space:]]+-[a-z]*i[^[:space:]]*)(?=[[:space:]])[^;&|\\n]*{{LIVEGUARDED}}|(?:^|[^A-Za-z0-9_])(?:cp|rsync|install)(?=[[:space:]])[^;&|\\n]*[[:space:]\\\"']{{LIVEGUARDED}}[^[:space:];&|\\n]*[\\\"']?(?:[[:space:]]+[0-9]?>>?&?[^[:space:];&|]*)*[[:space:]]*(?=$|[;&|\\n])|>>?[^;&|\\n]*{{LIVEGUARDED}}|\\.claude[^\\n]*[^A-Za-z0-9_](?:touch|tee|mv|rm|ln|mkdir|truncate|chmod|chown|cp|install|rsync)(?=[[:space:]])[^;&|\\n]*[[:space:]\\\"']{{GATESTATE}}(?=[[:space:]\\\"'/;&|]|$)|\\.claude[^\\n]*>>?[[:space:]]*[\\\"']?{{GATESTATE}}(?=[[:space:]\\\"'/;&|]|$)",
       "action": "deny",
       "message": "agents must not disable or tamper with the gate, the live hooks, or live settings",
       "scope": ["interactive", "bgjob", "fleet"],
@@ -439,7 +440,7 @@
       "description": "launchctl load/bootstrap/enable, crontab (except -l)",
       "tools": "^Bash$",
       "field": "command",
-      "pattern": "(?:launchctl[[:space:]]+(?:load|bootstrap|enable)(?=[[:space:]]|$)|crontab(?=[[:space:]]|$))",
+      "pattern": "(?:launchctl[[:space:]]+(?:load|bootstrap|enable)(?=[[:space:]]|$)|crontab(?=[[:space:]]|$)(?![[:space:]]+-l(?:[[:space:]]|$)))",
       "anchor": "cmd",
       "exempt": "^{{PFX}}crontab[[:space:]]+-l(?=[[:space:]]|$)",
       "action": "deny",

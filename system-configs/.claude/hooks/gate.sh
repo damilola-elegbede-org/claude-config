@@ -10,6 +10,17 @@
 #                       action to D via AskUserQuestion. If D approves, Claude
 #                       runs `gate.sh approve <hash>` and retries the exact
 #                       same action; the approval is good for ONE use, 30 min.
+#                       `approve` is model-mediated (D accepted that residual
+#                       risk) but verified: it refuses unless the session
+#                       transcript shows an AskUserQuestion issued AFTER the
+#                       deny whose answer is present and is not a no/deny/
+#                       cancel, and each such question can approve only one
+#                       action. The approval is bound to the action itself
+#                       (tool + command/path + written content + cwd + scope),
+#                       not to a rule: one approval covers every rule the
+#                       action matches. A single-use approval is claimed with
+#                       an atomic rename, so concurrent identical calls cannot
+#                       both consume it.
 # Background job      : (CLAUDE_JOB_DIR set) deny, do not retry, end the report
 #                       with `needs input:`.
 # Fleet agent         : (BARECLAUDE_AGENT_SLUG set) rule lanes allow specific
@@ -18,11 +29,19 @@
 #                       like a background job.
 #
 # Kill switch  : touch ~/.claude/gate.off (D only; agents are denied from it).
+#                Only a REGULAR FILE counts: `mkdir ~/.claude/gate.off` or a
+#                symlink does nothing, and G10-tamper denies creating one.
 # Log          : ~/.claude/gate-log.jsonl, one line per decision. Write/Edit log
 #                file_path only, MCP tools log the tool name only, and anything
 #                that looks like a secret is never logged.
 # State        : ~/.claude/gate-pending/<hash>   written on deny (interactive)
 #                ~/.claude/gate-approved/<hash>  written by `gate.sh approve`
+#                ~/.claude/gate-asks-used        AskUserQuestion ids already spent
+#
+# Matching text: heredoc bodies and quoted DATA (echo/printf/grep arguments,
+# --body/--title/-m/-f body= values) are blanked before rules run, so prose
+# about `rm -rf` never trips a rule; the approval identity still uses the exact
+# raw command.
 #
 # Failure policy: every error path exits 0 (fail open, with a loud stderr
 # warning), like the inline guards in settings.json. No `set -e`: a non-matching
@@ -34,6 +53,7 @@ umask 077
 CLAUDE_DIR="${HOME:-}/.claude"
 PENDING_DIR="$CLAUDE_DIR/gate-pending"
 APPROVED_DIR="$CLAUDE_DIR/gate-approved"
+ASKS_USED="$CLAUDE_DIR/gate-asks-used"
 LOG_FILE="$CLAUDE_DIR/gate-log.jsonl"
 KILL_SWITCH="$CLAUDE_DIR/gate.off"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
@@ -68,6 +88,32 @@ log_decision() {
         >>"$LOG_FILE" 2>/dev/null || true
 }
 
+# ask_ids_after <transcript> <since-epoch>: prints the tool_use id of every AskUserQuestion issued at or
+# after <since> whose tool_result carries at least one answer and no answer is a refusal. The answers
+# come from toolUseResult.answers (the structured form Claude Code writes) or, failing that, from the
+# "question"="answer" pairs in the result text. A dismissed question has no answers and never counts.
+ask_ids_after() {
+    tail -c 4000000 "$1" 2>/dev/null | jq -R -n -r --argjson since "$2" '
+        def arr: if type == "array" then .[] else empty end;
+        def secs: (. // "" | sub("\\.[0-9]+Z$"; "Z") | (try fromdateiso8601 catch 0));
+        def refusal: test("\\b(deny|denied|no|nope|reject|rejected|cancel|cancelled|canceled|stop|abort|decline|declined|do not|don.?t|not now)\\b"; "i");
+        [inputs | fromjson? | select(type == "object")] as $all
+        | [$all[] | select(.type == "assistant") | . as $m | (.message.content | arr)
+           | select(type == "object" and .type == "tool_use" and .name == "AskUserQuestion")
+           | {id: .id, ts: ($m.timestamp | secs)} | select(.ts >= $since)] as $asks
+        | [$all[] | select(.type == "user") | . as $m | (.message.content | arr)
+           | select(type == "object" and .type == "tool_result")
+           | . as $r
+           | {id: .tool_use_id,
+              answers: (($m.toolUseResult.answers? // null) as $a
+                | if ($a | type) == "object" then [$a[] | tostring]
+                  else ($r.content | if type == "string" then . elif type == "array" then ([.[]? | select(type == "object") | (.text // "")] | join(" ")) else "" end
+                        | [scan("\"=\"((?:[^\"\\\\]|\\\\.)*)\"") | .[0]]) end)}] as $res
+        | $asks[] | . as $a
+        | select([$res[] | select(.id == $a.id) | .answers | select(length > 0 and all(.[]; (gsub("[[:space:]]"; "") | length > 0) and (refusal | not)))] | length > 0)
+        | .id' 2>/dev/null
+}
+
 cmd_approve() {
     local h="${1:-}"
     if [[ ! "$h" =~ ^[0-9a-f]{64}$ ]]; then
@@ -88,9 +134,30 @@ cmd_approve() {
         warn "that checkpoint expired (older than $APPROVAL_TTL_MIN min); retry the action to get a fresh one"
         return 1
     fi
+
+    # Verify D actually answered: an AskUserQuestion after the deny with a non-refusal answer, unspent.
+    local tp since ask spent=""
+    tp=$(jq -r '.transcript_path // empty' "$pending" 2>/dev/null)
+    since=$(jq -r '.ts_epoch // empty' "$pending" 2>/dev/null)
+    if [[ -z "$tp" || ! -r "$tp" || ! "$since" =~ ^[0-9]+$ ]]; then
+        warn "cannot verify D's answer (no readable session transcript recorded with this checkpoint): ask D with AskUserQuestion, then retry the action to get a fresh checkpoint"
+        return 1
+    fi
+    while IFS= read -r ask; do
+        [[ -n "$ask" ]] || continue
+        if [[ -f "$ASKS_USED" ]] && grep -qxF -- "$ask" "$ASKS_USED"; then continue; fi
+        spent="$ask"
+        break
+    done < <(ask_ids_after "$tp" "$since")
+    if [[ -z "$spent" ]]; then
+        warn "refused: no AskUserQuestion answered by D after this checkpoint (or its answer was a no/deny/cancel, or it already approved another action). Put the exact action to D with AskUserQuestion first."
+        return 1
+    fi
+
     mkdir -p "$APPROVED_DIR" 2>/dev/null
     if mv "$pending" "$APPROVED_DIR/$h" 2>/dev/null; then
         touch "$APPROVED_DIR/$h"
+        printf '%s\n' "$spent" >>"$ASKS_USED" 2>/dev/null
         log_decision "approve" "approved" "gate.sh" "interactive" "${PWD:-}" "$h"
         printf 'approved: retry the exact same action within %s minutes (single use)\n' "$APPROVAL_TTL_MIN"
         return 0
@@ -99,13 +166,28 @@ cmd_approve() {
     return 1
 }
 
+# claim_approval <hash>: succeeds for exactly ONE caller per approval. The approval file is renamed to a
+# per-process name (atomic), so of several concurrent identical calls only the winner proceeds.
+claim_approval() {
+    local f="$APPROVED_DIR/$1" mine="$APPROVED_DIR/.claim.$1.$$"
+    [[ -f "$f" ]] || return 1
+    mv "$f" "$mine" 2>/dev/null || return 1
+    if expired "$mine"; then
+        rm -f "$mine"
+        return 1
+    fi
+    rm -f "$mine"
+    return 0
+}
+
 if [[ "${1:-}" == "approve" ]]; then
     cmd_approve "${2:-}"
     exit $?
 fi
 
 [[ -n "${HOME:-}" ]] || exit 0
-[[ -e "$KILL_SWITCH" ]] && exit 0
+# Only a regular file is the kill switch (a directory or symlink created by an agent is not).
+[[ -f "$KILL_SWITCH" && ! -L "$KILL_SWITCH" ]] && exit 0
 
 if ! command -v jq >/dev/null 2>&1; then
     warn "jq missing — Claude Code decision gates are disabled"
@@ -126,6 +208,36 @@ SCOPE="interactive"
 read -r -d '' JQ_PROG <<'JQEOF'
 def esc: gsub("(?<x>[.\\[\\]\\\\^$*+?(){}|/-])"; "\\\(.x)");
 def never: "@@NEVER@@";
+# Heredoc bodies are data, unless the heredoc feeds a shell (bash/sh <<EOF, ssh host <<EOF, eval, source).
+def strip_heredocs:
+  split("\n")
+  | reduce .[] as $l ({out: [], hd: null};
+      if .hd != null then
+        (.hd as $w | if ($l | test("^[[:space:]]*" + $w + "[[:space:]]*$")) then .hd = null else . end)
+      else
+        .out += [$l]
+        | (if ($l | test("(?<!<)<<(?!<)-?[[:space:]]*[\"']?[A-Za-z_][A-Za-z0-9_]*"))
+              and (($l | test("(?:^|[^A-Za-z0-9_./-])(?:(?:ba|z|da|k)?sh|ssh|eval|source)[[:space:]]")) | not)
+           then .hd = ($l | capture("(?<!<)<<(?!<)-?[[:space:]]*[\"']?(?<w>[A-Za-z_][A-Za-z0-9_]*)").w)
+           else . end)
+      end)
+  | .out | join("\n");
+# A double-quoted string WITHOUT command substitution, a single-quoted string, a bare word.
+def dq: "\"(?:(?!\\$\\(|`)(?:[^\"\\\\]|\\\\.))*\"";
+def sq: "'[^']*'";
+# A bare word must END at whitespace or a separator: "2" in "2>/dev/null" (an fd, not an argument) is not a token,
+# so redirections stay visible to the rules.
+def tok: "(?:" + dq + "|" + sq + "|[^[:space:];&|<>\"'`()]+(?![^[:space:];&|\"'`()]))";
+# Quoted text that is DATA, not a command, is blanked: values of --body/--title/--message/-m/-f body=,
+# and every argument of echo/printf/grep/rg/ag. Skipped entirely when the text could be executed
+# (piped into a shell, eval, xargs) and for strings containing $( or a backtick.
+def blank_data:
+  if test("\\|[[:space:]]*(?:sudo[[:space:]]+)?(?:(?:ba|z|da|k)?sh|xargs)(?:[[:space:]]|$)|(?:^|[^A-Za-z0-9_])eval[[:space:]]") then .
+  else
+    gsub("(?<f>(?:--body|--title|--message|--notes|--subject|--description|--comment|-m|-b|-t)(?:[[:space:]]+|=))(?:" + dq + "|" + sq + ")"; "\(.f)\"\"")
+    | gsub("(?<f>(?:-f|-F|--field|--raw-field)[[:space:]]+(?:body|title|message|comment|commit_message|description|text)=)(?:" + dq + "|" + sq + ")"; "\(.f)\"\"")
+    | gsub("(?<h>(?:^|[;&|(\\n`])[[:space:]]*(?:(?:/usr)?/bin/)?(?:echo|printf|grep|egrep|fgrep|rg|ag)(?:[[:space:]]+-[A-Za-z-]+)*)(?:[[:space:]]+" + tok + ")+"; "\(.h) \"\"")
+  end;
 $rules[0] as $R
 | (($R.macros // {}) + {
     HOME: ($home | esc),
@@ -135,6 +247,8 @@ $rules[0] as $R
 | def expand: reduce range(0; 3) as $i (.; reduce ($M | to_entries[]) as $m (.; gsub("\\{\\{" + $m.key + "\\}\\}"; $m.value)));
 (.tool_name // "") as $tn
 | (.tool_input | if type == "object" then . else {} end) as $ti
+| (.cwd // "") as $cwd
+| (if $tn == "Bash" then (($ti.command // "") | if type == "string" then (strip_heredocs | blank_data) else "" end) else "" end) as $cc
 | def normpath:
     if type != "string" then ""
     else sub("^~/"; $home + "/")
@@ -148,6 +262,7 @@ def fv($f):
   if $f == "_tool_name" then $tn
   elif $f == "content" then ([$ti.content?, $ti.new_string?, ($ti.edits[]?.new_string?)] | map(select(type == "string")) | join("\n"))
   elif $f == "file_path" then ($ti.file_path | normpath)
+  elif $f == "command" and $tn == "Bash" then $cc
   else ($ti[$f] // "" | if type == "string" then . else tojson end)
   end;
 def hits($r):
@@ -168,12 +283,14 @@ def safe_target:
    elif ($ti.file_path? // null) != null then fv("file_path")
    else "" end) as $t
   | if ($t | test(secret; "i")) then "[redacted:secret-pattern]" else $t[0:300] end;
+# The approval identity: the ACTION (tool, exact raw command or path+written content, cwd, scope), never a rule.
 def subject:
   if $tn == "Bash" then ($ti.command // "")
-  elif ($ti.file_path? // null) != null then fv("file_path")
+  elif ($ti.file_path? // null) != null then fv("file_path") + "\u001e" + fv("content")
   else ($ti | tojson) end;
+def action_id: $tn + "\u001f" + subject + "\u001f" + $cwd + "\u001f" + $scope;
 ("^[[:space:]]*(?:~|\"?\\$\\{?HOME\\}?\"?|" + ($home | esc) + ")/\\.claude/hooks/gate\\.sh\"?[[:space:]]+approve[[:space:]]+[0-9a-f]{64}[[:space:]]*\\z") as $approve_re
-| if $tn == "Bash" and (($ti.command // "") | test($approve_re)) then {errors: [], matches: [], exempt_agent: false}
+| if $tn == "Bash" and (($ti.command // "") | test($approve_re)) then {errors: [], matches: [], exempt_agent: false, action: ""}
   else
     [ $R.rules[] | . as $r
       | select(($r.scope // ["interactive", "bgjob", "fleet"]) | any(. == $scope))
@@ -187,12 +304,12 @@ def subject:
         elif ($h | length) > 0 then
           {id: $r.id, class: $r.class, message: $r.message, enforce: ($r.enforce != false),
            lane_allowed: ($scope == "fleet" and (($r.lanes // {})[$slug] == "allow")),
-           hash_input: ($r.id + "\u001f" + $tn + "\u001f" + subject),
            target: safe_target}
         else empty end ]
     | {errors: [.[] | select(.error != null) | .error],
        matches: [.[] | select(.error == null)],
-       exempt_agent: ($slug != "" and (($R.exempt_agents // []) | any(. == $slug)))}
+       exempt_agent: ($slug != "" and (($R.exempt_agents // []) | any(. == $slug))),
+       action: action_id}
   end
 JQEOF
 
@@ -211,8 +328,15 @@ done < <(printf '%s' "$RESULT" | jq -r '.errors[]' 2>/dev/null)
 TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // ""' 2>/dev/null)
 CWD=$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null)
 CWD="${CWD:-$PWD}"
+SESSION_ID=$(printf '%s' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null)
+TRANSCRIPT=$(printf '%s' "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null)
 EXEMPT_AGENT=$(printf '%s' "$RESULT" | jq -r '.exempt_agent' 2>/dev/null)
 
+# Pass 1: log shadow / exempt / lane matches, collect the ENFORCED ones. Approvals are per action, so a
+# command matching several rules is decided once (no approve-A / approve-B / approve-A deadlock).
+BLOCK_IDS=()
+BLOCK_MSGS=()
+BLOCK_TARGET=""
 while IFS= read -r M; do
     [[ -z "$M" ]] && continue
     read -r ID ENFORCE LANE < <(printf '%s' "$M" | jq -r '[.id, (.enforce | tostring), (.lane_allowed | tostring)] | join(" ")')
@@ -230,34 +354,48 @@ while IFS= read -r M; do
         log_decision "$ID" "allow-by-lane" "$TOOL" "$SCOPE" "$CWD" "$TARGET"
         continue
     fi
-
-    HASH=$(hash_str "$(printf '%s' "$M" | jq -r '.hash_input')")
-
-    if [[ -n "$HASH" && -f "$APPROVED_DIR/$HASH" ]]; then
-        if expired "$APPROVED_DIR/$HASH"; then
-            rm -f "$APPROVED_DIR/$HASH"
-        else
-            rm -f "$APPROVED_DIR/$HASH"
-            log_decision "$ID" "allow-by-approval" "$TOOL" "$SCOPE" "$CWD" "$TARGET"
-            continue
-        fi
-    fi
-
-    MESSAGE=$(printf '%s' "$M" | jq -r '.message')
-    if [[ "$SCOPE" == "interactive" ]]; then
-        if [[ -n "$HASH" ]]; then
-            mkdir -p "$PENDING_DIR" 2>/dev/null
-            jq -nc --arg rule "$ID" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '{rule:$rule,ts:$ts}' >"$PENDING_DIR/$HASH" 2>/dev/null
-            REASON="CHECKPOINT $ID: $MESSAGE. Put this action to D via AskUserQuestion; if D approves, run \`~/.claude/hooks/gate.sh approve $HASH\` and retry with the exact same command."
-        else
-            REASON="CHECKPOINT $ID: $MESSAGE. Put this action to D via AskUserQuestion; if D approves, retry with the exact same command."
-        fi
-    else
-        REASON="CHECKPOINT $ID: $MESSAGE. Do not retry; end your report with \`needs input:\` naming this action."
-    fi
-    log_decision "$ID" "deny" "$TOOL" "$SCOPE" "$CWD" "$TARGET"
-    jq -nc --arg r "$REASON" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}'
-    exit 0
+    BLOCK_IDS+=("$ID")
+    BLOCK_MSGS+=("$(printf '%s' "$M" | jq -r '.message')")
+    [[ -z "$BLOCK_TARGET" ]] && BLOCK_TARGET="$TARGET"
 done < <(printf '%s' "$RESULT" | jq -c '.matches[]' 2>/dev/null)
 
+[[ ${#BLOCK_IDS[@]} -eq 0 ]] && exit 0
+
+ACTION=$(printf '%s' "$RESULT" | jq -r '.action' 2>/dev/null)
+HASH=""
+[[ -n "$ACTION" ]] && HASH=$(hash_str "$ACTION")
+
+if [[ -n "$HASH" ]] && claim_approval "$HASH"; then
+    for ID in "${BLOCK_IDS[@]}"; do
+        log_decision "$ID" "allow-by-approval" "$TOOL" "$SCOPE" "$CWD" "$BLOCK_TARGET"
+    done
+    exit 0
+fi
+
+# Name every matched rule in one reason: the first keeps the "CHECKPOINT <id>:" prefix.
+MESSAGE="${BLOCK_MSGS[0]}"
+ALSO=""
+i=1
+while [[ $i -lt ${#BLOCK_IDS[@]} ]]; do
+    ALSO="$ALSO Also matched ${BLOCK_IDS[$i]}: ${BLOCK_MSGS[$i]}."
+    i=$((i + 1))
+done
+if [[ "$SCOPE" == "interactive" ]]; then
+    if [[ -n "$HASH" ]]; then
+        mkdir -p "$PENDING_DIR" 2>/dev/null
+        IDS_JSON=$(printf '%s\n' "${BLOCK_IDS[@]}" | jq -R . | jq -sc . 2>/dev/null)
+        jq -nc --argjson rules "${IDS_JSON:-[]}" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --argjson te "$(date +%s)" \
+            --arg sid "$SESSION_ID" --arg tp "$TRANSCRIPT" --arg cwd "$CWD" --arg scope "$SCOPE" \
+            '{rules:$rules,ts:$ts,ts_epoch:$te,session_id:$sid,transcript_path:$tp,cwd:$cwd,scope:$scope}' >"$PENDING_DIR/$HASH" 2>/dev/null
+        REASON="CHECKPOINT ${BLOCK_IDS[0]}: $MESSAGE.$ALSO Put this action to D via AskUserQuestion; if D approves, run \`~/.claude/hooks/gate.sh approve $HASH\` and retry with the exact same command."
+    else
+        REASON="CHECKPOINT ${BLOCK_IDS[0]}: $MESSAGE.$ALSO Put this action to D via AskUserQuestion; if D approves, retry with the exact same command."
+    fi
+else
+    REASON="CHECKPOINT ${BLOCK_IDS[0]}: $MESSAGE.$ALSO Do not retry; end your report with \`needs input:\` naming this action."
+fi
+for ID in "${BLOCK_IDS[@]}"; do
+    log_decision "$ID" "deny" "$TOOL" "$SCOPE" "$CWD" "$BLOCK_TARGET"
+done
+jq -nc --arg r "$REASON" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}'
 exit 0
