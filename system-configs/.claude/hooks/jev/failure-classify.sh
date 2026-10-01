@@ -26,7 +26,10 @@ CLASS=unknown
 SOURCE=none
 INFRA='runner has received a shutdown|lost communication with the server|No space left on device|rate limit exceeded|Could not resolve host|ENOTFOUND|ECONNRESET|socket hang up|50[234] (Bad Gateway|Service|Gateway)|pull access denied|error pulling image|The operation was canceled|Unable to download|TLS handshake timeout'
 FLAKY='flaky|Retrying \(|retry [0-9]+/[0-9]+|Test timeout of [0-9]+ms exceeded|Timeout - Async callback|ETXTBSY|EADDRINUSE|Target closed|browser has disconnected'
-ENVRX='command not found|No such file or directory|ENOENT|Cannot find module .[^./]|ModuleNotFoundError|not installed|Permission denied|EACCES|ECONNREFUSED|executable file not found'
+# Module-resolution errors (Cannot find module, ModuleNotFoundError) are NOT here: an import typo or an undeclared
+# dependency introduced by the change under verification fails the same way as an absent package, so they stay
+# unclassified (unknown) rather than steering the skill away from fixing code.
+ENVRX='command not found|No such file or directory|ENOENT|not installed|Permission denied|EACCES|ECONNREFUSED|executable file not found'
 ASSERT='AssertionError|expected .{1,80} (received|to (equal|be|have|match))|Assertion failed|error TS[0-9]+|SyntaxError|\bFAIL\b|Failed tests|ESLint|lint error'
 
 if [ "$KIND" = ci ]; then

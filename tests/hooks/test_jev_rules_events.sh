@@ -602,7 +602,9 @@ eq "ci: Test timeout is flaky (regex)" "$(fc ci 'Error: Test timeout of 30000ms 
 eq "ci: AssertionError is real (regex)" "$(fc ci 'AssertionError: expected 1 to equal 2' | jq -r .class)" real
 eq "verify: command not found is env (regex)" "$(fc verify 'bash: shellcheck: command not found' | jq -r .class)" env
 eq "verify: relative missing module is not env" "$(fc verify "Cannot find module './foo'" | jq -r .class)" unknown
-eq "verify: package missing module is env" "$(fc verify "Cannot find module 'left-pad'" | jq -r .class)" env
+eq "verify: package missing module is NOT env (ambiguous: undeclared dependency or import typo)" "$(fc verify "Cannot find module 'left-pad'" | jq -r .class)" unknown
+eq "verify: python ModuleNotFoundError is NOT env either" "$(fc verify "ModuleNotFoundError: No module named 'requests'" | jq -r '.class')" unknown
+eq "verify: a missing module does not carry the do-not-edit-code steer" "$(fc verify "Cannot find module 'left-pad'" | jq -r '.steer')" ""
 eq "verify: assertion (regex)" "$(fc verify 'AssertionError: expected 401, received 500' | jq -r .class)" assertion
 eq "verify: assertion failure mentioning ENOENT stays assertion" "$(fc verify $'FAIL src/a.test.ts\nAssertionError: expected 1 to equal 2\nENOENT: no such file or directory, open fixture.json' | jq -r .class)" assertion
 has "verify env steer: do not edit code" "$(fc verify 'command not found: tsc')" "do not edit code"
