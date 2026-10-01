@@ -249,8 +249,9 @@ ctx_target_excluded() {
 # even though the session cwd is outside it (`git -C ~/Visa/app test`, `cd ../work && make`, `~/Visa/x/run.sh`).
 # Every path-like word of the command is checked (quotes stripped; ~, $HOME and ${HOME} expanded; relative
 # words resolved against the hook input's .cwd; a bare word counts when it names something in the cwd). A word
-# with another $VARIABLE inside a path cannot be resolved, so it counts as touching, and so does a command with
-# more than 16 candidate words (fail closed on egress). Residual: a script outside the tree that itself reads an
+# with any other $VARIABLE cannot be resolved (the hook never sees the agent's shell variables), so it counts as
+# touching ($PWD and special parameters like $? excepted; ${NAME} is read as $NAME and ${NAME:-x} fails closed),
+# and so does a command with more than 16 candidate words (fail closed on egress). Residual: a script outside the tree that itself reads an
 # excluded tree at run time cannot be seen from the command text.
 ctx_cmd_touches_excluded() {
   local cmd="${1:-}" cwd tok p n=0
@@ -272,10 +273,12 @@ ctx_cmd_touches_excluded() {
       '${HOME}/'*) tok="$HOME/${tok#\$\{HOME\}/}" ;;
     esac
     case "$tok" in
-      *'$'*)
-        case "$tok" in */*) return 0 ;; esac # an unresolvable variable inside a path
-        continue
-        ;;
+      '$PWD') tok="$cwd" ;;
+      '$PWD/'*) tok="${cwd%/}/${tok#\$PWD/}" ;;
+    esac
+    case "$tok" in
+      '$' | '$'['?#!@*$-']* | '$'[0-9]*) continue ;; # $( ... ), $?, $1: special parameters, never a path
+      *'$'*) return 0 ;;                  # any other unresolved variable may name an excluded tree
     esac
     case "$tok" in
       /*) p="$tok" ;;
@@ -285,7 +288,8 @@ ctx_cmd_touches_excluded() {
     n=$((n + 1))
     [ "$n" -le 16 ] || return 0
     ctx_path_excluded "$p" && return 0
-  done < <(printf '%s' "$cmd" | tr -d "\"'" | tr '[:space:];&|()<>=`{}' '\n' | sed '/^$/d' | sort -u | head -80)
+  done < <(printf '%s' "$cmd" | tr -d "\"'" | sed -E 's/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/$\1/g; s/\$\{/$_/g' |
+    tr '[:space:];&|()<>=`{}' '\n' | sed '/^$/d' | sort -u | head -80)
   return 1
 }
 

@@ -407,7 +407,8 @@ check "cwd under exclude_paths: silent" out_empty
 # provenance: the cwd is NOT excluded, but the command reads an excluded tree
 mkdir -p "$TEST_HOME/visa-repo/app" "$TEST_HOME/other/sub"
 for c in "git -C $TEST_HOME/visa-repo/app test" "cd $TEST_HOME/visa-repo && npm test" "$TEST_HOME/visa-repo/run.sh --all" \
-  "FOO=1 make -C '$TEST_HOME/visa-repo/app'" 'cd ~/visa-repo/app && make' 'cd $HOME/visa-repo && make' "npm test --prefix=$TEST_HOME/visa-repo" "cd ../visa-repo/app && make" 'cd "$VISA_DIR/app" && make'; do
+  "FOO=1 make -C '$TEST_HOME/visa-repo/app'" 'cd ~/visa-repo/app && make' 'cd $HOME/visa-repo && make' "npm test --prefix=$TEST_HOME/visa-repo" "cd ../visa-repo/app && make" 'cd "$VISA_DIR/app" && make' \
+  'cd "$VISA_DIR" && npm test' 'npm test --prefix=${HOME}/visa-repo/app' 'cd ${HOME}/visa-repo && make' 'make -C ${VISA_DIR:-x}'; do
   bash_input "$c" "$LOG"
   case "$c" in "cd ../visa-repo"*) jq -c --arg c "$TEST_HOME/other" '.cwd=$c' "$IN" >"$IN.x" && mv "$IN.x" "$IN" ;; esac
   B="$(calls)"
@@ -418,6 +419,10 @@ bash_input "cd $TEST_HOME/other && make" "$LOG"
 B="$(calls)"
 JEV_MOCK="$FIX" run_hook a3-bash-trim.sh "$IN"
 check "command naming only a non-excluded path is still trimmed (control)" bash -c "! [[ \"\$(wc -l <'$STUB_COUNT' | tr -d ' ')\" == '$B' ]]"
+bash_input "cd \$PWD && make; echo \$? \$(date)" "$LOG"
+B="$(calls)"
+JEV_MOCK="$FIX" run_hook a3-bash-trim.sh "$IN"
+check "\$PWD, \$? and \$( ) are not unresolved paths: still trimmed (control)" bash -c "! [[ \"\$(wc -l <'$STUB_COUNT' | tr -d ' ')\" == '$B' ]]"
 rm -f "$HOME/.claude/hooks/jev/jev-config.json"
 bash_input "npm run build" "$LOG"
 B="$(calls)"
