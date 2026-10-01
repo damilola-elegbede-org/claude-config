@@ -278,7 +278,7 @@ EOF
 ]}}
 EOF
   claude_run "$d" s "$d/settings.json" \
-    "Run these bash commands one at a time, each as its own Bash call, exactly as written, in this order: (1) echo hello  (2) git --version  (3) echo x && git --version  (4) FOO=1 git --version  (5) rm -f $d/nonexistent-file  (6) echo y > $d/redirect-out.txt  (7) gh pr create --help  (8) cd /tmp && gh pr create --help  (9) gh --repo a/b pr create --help  (10) (git --version)  (11) echo \$(git --version)  Then reply with exactly the word DONE." \
+    "Run these bash commands one at a time, each as its own Bash call, exactly as written, in this order: (1) echo hello  (2) git --version  (3) echo x && git --version  (4) FOO=1 git --version  (5) rm -f $d/nonexistent-file  (6) echo y > $d/redirect-out.txt  (7) gh pr create --help  (8) cd /tmp && gh pr create --help  (9) gh --repo a/b pr create --help  (10) (git --version)  (11) echo \$(git --version)  (12) ls /tmp; git --version  (13) echo x | git --version  Then reply with exactly the word DONE." \
     --no-session-persistence
   claude_run "$d" s2 "$d/settings.json" \
     "Use the Edit tool (not Bash) once on each of these files, replacing the text a with b: $d/package.json, $d/other.txt, $d/settings.local.json. Then use the Write tool to create $d/memory/note.md with the content hello, and $d/plain.md with the content hello. Then reply with exactly the word DONE." \
@@ -287,7 +287,7 @@ EOF
   echo "  markers (handler|command):"
   sort "$d/markers.txt" 2>/dev/null | sed 's/^/    /'
   local n
-  for n in "echo hello" "git --version" "echo x && git --version" "FOO=1 git --version" "rm -f" "redirect-out" "gh pr create --help" "cd /tmp && gh pr create" "gh --repo a/b pr create" "(git --version)" 'echo $(git --version)'; do
+  for n in "echo hello" "git --version" "echo x && git --version" "FOO=1 git --version" "rm -f" "redirect-out" "gh pr create --help" "cd /tmp && gh pr create" "gh --repo a/b pr create" "(git --version)" 'echo $(git --version)' "ls /tmp; git --version" "echo x | git --version"; do
     echo "  handlers that ran for [$n]: $(grep -F -- "$n" "$d/markers.txt" 2>/dev/null | cut -d'|' -f1 | sort | tr '\n' ' ')"
   done
   if grep -q '^git-prefix|echo hello$' "$d/markers.txt" 2>/dev/null; then
@@ -307,6 +307,7 @@ EOF
   fi
   verdict "e-gh: gh-create ran for [$(grep '^gh-create|' "$d/markers.txt" | cut -d'|' -f2 | tr '\n' ';')] (expected: all three gh pr create forms, none of the others)"
   verdict "e-subshell: git-prefix ran for (git --version): $(grep -c '^git-prefix|(git --version)$' "$d/markers.txt" 2>/dev/null), for echo \$(git --version): $(grep -cF 'git-prefix|echo $(git --version)' "$d/markers.txt" 2>/dev/null)"
+  verdict "e-separators: git-prefix ran for [ls /tmp; git --version]: $(grep -cF 'git-prefix|ls /tmp; git --version' "$d/markers.txt" 2>/dev/null), for [echo x | git --version]: $(grep -cF 'git-prefix|echo x | git --version' "$d/markers.txt" 2>/dev/null) (1 = the git guard's if sees git after ; and |)"
   verdict "e-paths: edit-pkg ran for [$(grep '^edit-pkg|' "$d/markers.txt" | cut -d'|' -f2 | xargs -n1 basename 2>/dev/null | tr '\n' ' ')], edit-settings for [$(grep '^edit-settings|' "$d/markers.txt" | cut -d'|' -f2 | xargs -n1 basename 2>/dev/null | tr '\n' ' ')], write-memory for [$(grep '^write-memory|' "$d/markers.txt" | cut -d'|' -f2 | xargs -n1 basename 2>/dev/null | tr '\n' ' ')] (expected: package.json / settings.local.json / note.md only)"
 }
 

@@ -113,7 +113,7 @@ CLI 2.1.286). It takes one permission rule per handler (`Bash(git *)`, `Write(**
 applies to tool events. What the probe showed:
 
 - A handler with a non-matching `if` is not spawned at all.
-- `Bash(git *)` matches `git ...` anywhere in a compound command (`echo x && git ...`) and after
+- `Bash(git *)` matches `git ...` anywhere in a compound command (after `&&`, `;` and `|`) and after
   environment assignments (`FOO=1 git ...`). Commands the CLI cannot parse safely, such as `(git ...)` and
   `echo $(git ...)`, ran every `if` handler, so an unparseable command fails open (the hook runs).
 - Redirections are invisible to the glob: `Bash(*>*)` did not match `echo y > file`.
