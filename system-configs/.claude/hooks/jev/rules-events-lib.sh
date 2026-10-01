@@ -52,7 +52,7 @@ re_cfg() {
   for f in "${files[@]}"; do [ -f "$f" ] && existing+=("$f"); done
   if [ "${#existing[@]}" -gt 0 ] && re_need_jq; then
     out=$(jq -rs --arg r "$rule" --arg k "$key" \
-      'reduce .[] as $o ({}; . * $o) | .[$r][$k] // empty' "${existing[@]}" 2>/dev/null)
+      'reduce .[] as $o ({}; . * ($o.rules // $o)) | .[$r][$k] // empty' "${existing[@]}" 2>/dev/null)
     if [ -n "$out" ]; then
       printf '%s' "$out"
       return 0

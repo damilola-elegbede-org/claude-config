@@ -589,6 +589,130 @@ assert_contains "shadow logged" "$(gate_log)" "would-block-shadow"
 assert_not_contains "stop log has no message text" "$(gate_log)" "refactor"
 
 # ============================================================================
+# Contract drift: the hooks must work against the REAL client (client.mjs in mock mode), not only the stub
+# ============================================================================
+if command -v node >/dev/null 2>&1; then
+  real_client_home() { # new_home, but with the real client + shim instead of the stub
+    new_home
+    cp "$SRC/jev/client.mjs" "$SRC/jev/jev-ask" "$SRC/jev/jev-config.json" "$SRC/jev/jev-rules.json" "$T/home/.claude/hooks/jev/"
+    chmod +x "$T/home/.claude/hooks/jev/jev-ask"
+  }
+  shadow_log() { cat "$T/home/.claude/jev-shadow.jsonl" 2>/dev/null || true; }
+
+  real_client_home
+  mock '{"G1-irreversible-local":0.95}'
+  OUT=$(run_hook jev-gate.sh "$(bash_in 'rm -rf ~/Documents/old')")
+  assert_empty "real client: shadow mode never denies" "$OUT"
+  assert_contains "real client accepted the gates/Bash rule id and answered" "$(shadow_log)" '"rule":"gates/Bash"'
+  assert_contains "real client: the call succeeded (not unavailable)" "$(shadow_log)" '"outcome":"ok"'
+  assert_contains "gate saw a real verdict, not a degraded warning" "$(gate_log)" '"verdict":"would-deny-shadow"'
+  assert_not_contains "no unavailable verdict from the real client" "$(gate_log)" '"verdict":"unavailable"'
+
+  set_mode G1-irreversible-local enforce
+  OUT=$(run_hook jev-gate.sh "$(bash_in 'rm -rf ~/Documents/old')")
+  assert_contains "real client: enforce denies" "$OUT" '"permissionDecision":"deny"'
+
+  real_client_home
+  set_mode G16-ask-bundled enforce
+  mock '{"G16-ask-bundled":0.95}'
+  OUT=$(run_hook jev-gate.sh "$BUNDLE")
+  assert_contains "real client: gates/AskUserQuestion accepted, bundled ask denied" "$OUT" "one decision per ask"
+  assert_contains "real client logged gates/AskUserQuestion" "$(shadow_log)" '"rule":"gates/AskUserQuestion"'
+
+  real_client_home
+  set_mode mcp-classifier enforce
+  mock_class outward 0.92
+  OUT=$(run_hook jev-gate.sh "$(mcp_in mcp__claude_ai_Gmail__send_message)")
+  assert_contains "real client: mcp-classifier request accepted and enforced" "$OUT" "outward-facing"
+
+  real_client_home
+  set_mode G3-merge enforce
+  {
+    line_user u1 "merge PR 42 when CI is green"
+    line_user u2 "yes, merge it"
+  } >"$T/t-real.jsonl"
+  mock '{"G3-merge":0.95,"d_approved_exact_action":0.97}'
+  OUT=$(run_hook jev-gate.sh "$(bash_in 'gh pr merge 42 --squash' "$T/t-real.jsonl")")
+  assert_empty "real client: approval-detector request accepted, D approval lets it through" "$OUT"
+  assert_contains "real client logged approval-detector" "$(shadow_log)" '"rule":"approval-detector"'
+else
+  pass
+fi
+
+# The stub itself must enforce the client's input validation (so drift like a bad rule id cannot hide).
+if jq -nc '{rule:"bad rule id", state:{}, questions:{x:{type:"boolean", instructions:"q"}}}' | JEV_MOCK="$T/mock.json" bash "$STUB" >/dev/null 2>&1; then
+  fail "stub accepted an invalid rule id"
+else
+  assert_eq "stub rejects an invalid rule id with exit 2" "2" "$(jq -nc '{rule:"bad rule id", state:{}, questions:{x:{type:"boolean", instructions:"q"}}}' | JEV_MOCK="$T/mock.json" bash "$STUB" >/dev/null 2>&1; echo $?)"
+fi
+assert_eq "stub rejects empty questions with exit 2" "2" "$(jq -nc '{rule:"r", state:{}, questions:{}}' | JEV_MOCK="$T/mock.json" bash "$STUB" >/dev/null 2>&1; echo $?)"
+assert_eq "stub accepts gates/Bash" "0" "$(jq -nc '{rule:"gates/Bash", state:{}, questions:{x:{type:"boolean", instructions:"q"}}}' | JEV_MOCK="$T/mock.json" bash "$STUB" >/dev/null 2>&1; echo $?)"
+
+# ============================================================================
+# One registry reader: rules.d/*.json then jev-rules.json LAST (user wins), both shapes
+# ============================================================================
+new_home
+mock '{"G1-irreversible-local":0.95}'
+OUT=$(run_hook jev-gate.sh "$(bash_in 'rm -rf ~/Documents/old')")
+assert_empty "baseline: shipped rules.d is shadow" "$OUT"
+printf '{"exempt_agents":["dara","clara"],"rules":{"G1-irreversible-local":{"mode":"enforce"}}}' >"$T/home/.claude/hooks/jev/jev-rules.json"
+OUT=$(run_hook jev-gate.sh "$(bash_in 'rm -rf ~/Documents/old')")
+assert_contains "jev-rules.json (wrapped) overrides rules.d, so the user can enforce a gate" "$OUT" '"permissionDecision":"deny"'
+printf '{"G1-irreversible-local":{"mode":"enforce"}}' >"$T/home/.claude/hooks/jev/jev-rules.json"
+OUT=$(run_hook jev-gate.sh "$(bash_in 'rm -rf ~/Documents/old')")
+assert_contains "jev-rules.json (flat shape) overrides rules.d too" "$OUT" '"permissionDecision":"deny"'
+printf '{"exempt_agents":["tars"],"rules":{"G1-irreversible-local":{"mode":"enforce"}}}' >"$T/home/.claude/hooks/jev/jev-rules.json"
+OUT=$(run_hook jev-gate.sh "$(bash_in 'rm -rf ~/Documents/old')" BARECLAUDE_AGENT_SLUG=tars)
+assert_empty "exempt_agents from jev-rules.json is honoured" "$OUT"
+OUT=$(run_hook jev-gate.sh "$(bash_in 'rm -rf ~/Documents/old')" BARECLAUDE_AGENT_SLUG=dara)
+assert_contains "exempt_agents replaced (dara no longer exempt)" "$OUT" '"permissionDecision":"deny"'
+printf '{"rules":{"G1-irreversible-local":{"mode":"off"}}}' >"$T/home/.claude/hooks/jev/jev-rules.json"
+: >"$T/stub.log"
+OUT=$(run_hook jev-gate.sh "$(bash_in 'rm -rf ~/Documents/old')")
+assert_eq "jev-rules.json can turn a gate off" "0" "$(calls)"
+
+# ============================================================================
+# jev_tail survives credential-looking strings (jev_redact must not break the JSON)
+# ============================================================================
+new_home
+{
+  line_user u1 'please run: export API_KEY="abc123" and token: "xyz789" then merge'
+  line_assistant a1 'ok'
+} >"$T/t-redact.jsonl"
+TAIL=$(HOME="$T/home" bash -c '. "$HOME/.claude/hooks/jev-gate-lib.sh"; jev_tail "$1"' _ "$T/t-redact.jsonl")
+assert_eq "jev_tail JSON stays valid and keeps the D turn" "true" "$(printf '%s' "$TAIL" | jq -r '.has_d' 2>/dev/null)"
+assert_not_contains "credential value redacted in the tail" "$TAIL" "abc123"
+assert_contains "redaction marker present" "$TAIL" "[REDACTED]"
+
+# ============================================================================
+# MCP: the cache keeps the class only; production impact is judged per call
+# ============================================================================
+new_home
+set_mode mcp-classifier enforce
+set_mode G4-prod-infra enforce
+mock_class write 0.9 0.1
+OUT=$(run_hook jev-gate.sh "$(mcp_in mcp__claude_ai_Vercel__update_project)")
+assert_empty "first write call targets staging: passes" "$OUT"
+assert_eq "cache holds no prod_infra" "null" "$(jq -r '."mcp__claude_ai_Vercel__update_project".prod_infra' "$T/home/.claude/hooks/jev/mcp-classes.json")"
+mock_class write 0.9 0.95
+OUT=$(run_hook jev-gate.sh "$(mcp_in mcp__claude_ai_Vercel__update_project)")
+assert_contains "same tool, production target: G4 still fires (prod is not served from the cache)" "$OUT" "G4-prod-infra"
+
+# ============================================================================
+# MCP approvals are bound to the argument values
+# ============================================================================
+new_home
+set_mode mcp-classifier enforce
+mock_class outward 0.95
+: >"$T/stub.log"
+run_hook jev-gate.sh "$(jq -nc '{tool_name:"mcp__claude_ai_Gmail__send_message", tool_input:{to:"alice@example.com", subject:"hi", body:"b"}, session_id:"s9", transcript_path:"", cwd:"/x/demo"}')" >/dev/null
+run_hook jev-gate.sh "$(jq -nc '{tool_name:"mcp__claude_ai_Gmail__send_message", tool_input:{to:"mallory@example.com", subject:"hi", body:"b"}, session_id:"s9", transcript_path:"", cwd:"/x/demo"}')" >/dev/null
+SHAS=$(jq -r '.action_sha' "$T/home/.claude/jev-gates.jsonl" | sort -u | grep -c .)
+assert_eq "different recipient, same keys: different action identity" "2" "$SHAS"
+assert_contains "the redacted argument digest reaches the judge" "$(cat "$T/stub.log")" "alice@example.com"
+assert_not_contains "body-like fields never reach the judge" "$(cat "$T/stub.log")" '"body":"b"'
+
+# ============================================================================
 # Replay harness (mock backend only: CI never calls the Gateway)
 # ============================================================================
 LABELS="$REPO_ROOT/tests/fixtures/jev-replay-labels.jsonl"

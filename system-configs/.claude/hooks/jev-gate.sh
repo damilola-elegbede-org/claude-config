@@ -18,7 +18,8 @@ HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 command -v jq >/dev/null 2>&1 || exit 0
 command -v perl >/dev/null 2>&1 || exit 0
-[ -e "$JEV_CLAUDE_DIR/jev.off" ] && exit 0
+# The kill switch is a regular file: `mkdir ~/.claude/jev.off` must not disable the gates.
+[ -f "$JEV_CLAUDE_DIR/jev.off" ] && [ ! -L "$JEV_CLAUDE_DIR/jev.off" ] && exit 0
 [ -f "$JEV_QUESTIONS" ] || exit 0
 
 INPUT=$(cat)
@@ -187,12 +188,14 @@ handle_ask() {
 
 # ------------------------------------------------------------------------ MCP --
 
-mcp_cache_lookup() { # -> "class<TAB>prod<TAB>p" or empty
+# The cache holds the operation CLASS of a tool only. Production impact (G4) depends on each call's
+# arguments, so it is never cached: a staging call must not hide a later production call.
+mcp_cache_lookup() { # -> "class<TAB>p" or empty
   [ -f "$JEV_DIR/mcp-classes.json" ] || return 0
-  jq -r --arg t "$TOOL" '.[$t] // empty | [.class, ((.prod_infra // false) | tostring), ((.p // 0) | tostring)] | @tsv' "$JEV_DIR/mcp-classes.json" 2>/dev/null
+  jq -r --arg t "$TOOL" '.[$t] // empty | [.class, ((.p // 0) | tostring)] | @tsv' "$JEV_DIR/mcp-classes.json" 2>/dev/null
 }
 
-mcp_cache_store() { # class prod p
+mcp_cache_store() { # class p
   local f="$JEV_DIR/mcp-classes.json" lock="$JEV_DIR/mcp-classes.lock" tmp i=0
   mkdir -p "$JEV_DIR" 2>/dev/null || return 0
   while ! mkdir "$lock" 2>/dev/null; do
@@ -202,8 +205,8 @@ mcp_cache_store() { # class prod p
   done
   [ -f "$f" ] || echo '{}' >"$f"
   tmp=$(mktemp "$JEV_DIR/mcp-classes.XXXXXX") && {
-    jq --arg t "$TOOL" --arg c "$1" --argjson pr "$2" --argjson p "$3" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-      '.[$t] = {class:$c, prod_infra:$pr, p:$p, source:"jev", ts:$ts}' "$f" >"$tmp" 2>/dev/null && mv "$tmp" "$f" || rm -f "$tmp"
+    jq --arg t "$TOOL" --arg c "$1" --argjson p "$2" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+      '.[$t] = {class:$c, p:$p, source:"jev", ts:$ts}' "$f" >"$tmp" 2>/dev/null && mv "$tmp" "$f" || rm -f "$tmp"
   }
   rmdir "$lock" 2>/dev/null || true
 }
@@ -217,33 +220,64 @@ mcp_heuristic() { # OP -> read|write|spend|delete|outward|unknown
     | [ $tk[] as $w | $order[] as $c | select(($h[$c] | split("|") | index($w)) != null) | $c ] | (.[0] // "unknown")'
 }
 
+# mcp_args_digest -> compact JSON of the call's arguments: body-like fields omitted, strings cut to 60
+# chars, nested values reduced to their type, then redacted.
+mcp_args_digest() {
+  printf '%s' "$INPUT" | jq -c '
+    (.tool_input // {}) | if type=="object" then
+      to_entries | map({key, value: (if (.key | test("^(body|text|content|message|html|description|prompt|note|notes|comment|raw|markdown|blocks|properties)$"; "i")) then "<omitted>"
+        elif (.value | type) == "string" then (.value[0:60])
+        elif ((.value | type) == "number" or (.value | type) == "boolean") then .value
+        else "<" + (.value | type) + ">" end)}) | from_entries
+    else {} end' | jev_redact
+}
+
+# mcp_prod_check -> sets prod=true when THIS call targets production (G4). One prod-only Jev call per
+# write-class invocation (the class is cached, the target is not). Unavailable -> prod=false.
+mcp_prod_check() {
+  local g4 q req resp pp op_name server_name
+  prod=false
+  g4=$(jev_resolve_rules "$RULES" G4-prod-infra)
+  [ -n "$g4" ] || return 0
+  op_name="${TOOL#mcp__}"
+  server_name="${op_name%%__*}"
+  op_name="${op_name#*__}"
+  q=$(jq -c '{prod_infra: {type:"boolean", instructions:.mcp.prod_instructions, criteria:{true:"Changes a live production or shared deployed system.", false:"Does not affect production or shared infrastructure."}}}' "$JEV_QUESTIONS")
+  state=$(jq -nc --arg tool "$TOOL" --arg server "$server_name" --arg op "$op_name" --argjson args "$args" --arg ctx "$JEV_CTX" \
+    '{tool_name:$tool, server:$server, operation:$op, arguments:$args, context:$ctx}')
+  req=$(jev_build_request "mcp-classifier" "$state" '{}' "$q")
+  resp=$(jev_call "$req") || return 0
+  pp=$(printf '%s' "$resp" | jq -r '.answers.prod_infra.probability // 0')
+  if jev_ge "$pp" "$(printf '%s' "$g4" | cut -f3)"; then prod=true; fi
+}
+
 handle_mcp() {
   local rule mode thr cached class prod p prod_p state q req resp args desc op server g4 g4mode cand un
   rule=$(jev_resolve_rules "$RULES" mcp-classifier)
   [ -n "$rule" ] || exit 0
   mode=$(printf '%s' "$rule" | cut -f2)
   thr=$(printf '%s' "$rule" | cut -f3)
-  ACTION="mcp tool ${TOOL}"
-  ACTION_SHA=$(jev_sha "$TOOL|$(printf '%s' "$INPUT" | jq -c '(.tool_input // {}) | if type=="object" then keys else [] end')")
+  # The approval is bound to the exact argument VALUES: ACTION_SHA hashes the full canonical input (never
+  # logged or sent), ACTION carries a redacted, trimmed digest so the approval detector and D see what is
+  # being approved. Body-like fields are omitted from the digest.
+  ACTION_SHA=$(jev_sha "$TOOL|$(printf '%s' "$INPUT" | jq -S -c '.tool_input // {}')")
   if jev_is_exempt "$RULES"; then
+    ACTION="mcp tool ${TOOL}"
     jev_log mcp-classifier allow-exempt-agent "$mode" ""
     exit 0
   fi
   op="${TOOL#mcp__}"
   server="${op%%__*}"
   op="${op#*__}"
+  args=$(mcp_args_digest)
+  ACTION="mcp tool ${TOOL} args=$(jev_trim "$args" 240)"
+  prod=false
   cached=$(mcp_cache_lookup)
   if [ -n "$cached" ]; then
-    IFS=$'\t' read -r class prod p <<<"$cached"
+    IFS=$'\t' read -r class p <<<"$cached"
     jev_log mcp-classifier "cache-hit:$class" "$mode" "$p"
+    [ "$class" = "write" ] && mcp_prod_check
   else
-    args=$(printf '%s' "$INPUT" | jq -c '
-      (.tool_input // {}) | if type=="object" then
-        to_entries | map({key, value: (if (.key | test("^(body|text|content|message|html|description|prompt|note|notes|comment|raw|markdown|blocks|properties)$"; "i")) then "<omitted>"
-          elif (.value | type) == "string" then (.value[0:60])
-          elif ((.value | type) == "number" or (.value | type) == "boolean") then .value
-          else "<" + (.value | type) + ">" end)}) | from_entries
-      else {} end' | jev_redact)
     desc=$(printf '%s' "$INPUT" | jq -r '.tool_description // .tool_input.description // empty' | head -c 300 | jev_redact)
     state=$(jq -nc --arg tool "$TOOL" --arg server "$server" --arg op "$op" --argjson args "$args" --arg desc "$desc" --arg ctx "$JEV_CTX" \
       '{tool_name:$tool, server:$server, operation:$op, arguments:$args, context:$ctx} + (if $desc != "" then {description:$desc} else {} end)')
@@ -260,7 +294,7 @@ handle_mcp() {
       if [ -n "$g4" ] && jev_ge "$prod_p" "$(printf '%s' "$g4" | cut -f3)"; then prod=true; fi
       case "$class" in
         read | write | outward | spend | delete)
-          mcp_cache_store "$class" "$([ "$prod" = true ] && echo true || echo false)" "$p"
+          mcp_cache_store "$class" "$p"
           jev_log mcp-classifier "classified:$class" "$mode" "$p"
           ;;
         *) class="" ;;

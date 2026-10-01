@@ -4,8 +4,9 @@
 # Sourced, never executed. Bash 3.2 compatible (macOS /bin/bash).
 #
 # Contract (system-configs/.claude/hooks/jev/): the client is `jev-ask` (stdin JSON in,
-# stdout JSON out, exit 3 = unavailable). Per-rule mode/threshold/scope come from
-# jev-rules.json merged with rules.d/*.json. Every rule here ships mode "shadow".
+# stdout JSON out, exit 3 = unavailable). Per-rule mode/threshold/scope come from the rules
+# registry (see jev_rules_json: the SAME reader semantics as client.mjs and ctx-lib.sh).
+# Every rule here ships mode "shadow".
 
 JEV_CLAUDE_DIR="${JEV_CLAUDE_DIR:-$HOME/.claude}"
 JEV_DIR="${JEV_DIR:-$JEV_CLAUDE_DIR/hooks/jev}"
@@ -29,20 +30,27 @@ jev_init_context() {
   fi
 }
 
-# Merged rules registry: jev-rules.json then rules.d/*.json (lexical order, later wins, deep merge).
+# Merged rules registry. ONE reader semantics, shared with client.mjs rulesRegistry() and ctx-lib.sh
+# ctx_rule_load: files = rules.d/*.json in lexical order, then jev-rules.json LAST (the user's file
+# wins). Each file is {"exempt_agents":[...], "rules":{"<id>":{...}}}; a flat {"<id>":{...}} is
+# tolerated. Entries deep-merge (later wins); exempt_agents comes from the last file that sets it.
+# Output: {"<id>":{mode,threshold,scope}, ..., "exempt_agents":[...]} (flat, what the helpers below read).
 jev_rules_json() {
   local files=() f
-  [ -f "$JEV_DIR/jev-rules.json" ] && files+=("$JEV_DIR/jev-rules.json")
   if [ -d "$JEV_DIR/rules.d" ]; then
     for f in "$JEV_DIR"/rules.d/*.json; do
       [ -f "$f" ] && files+=("$f")
     done
   fi
+  [ -f "$JEV_DIR/jev-rules.json" ] && files+=("$JEV_DIR/jev-rules.json")
   if [ "${#files[@]}" -eq 0 ]; then
     echo '{}'
     return 0
   fi
-  jq -s 'reduce .[] as $o ({}; . * $o)' "${files[@]}" 2>/dev/null || echo '{}'
+  jq -s 'reduce .[] as $o ({};
+    . * (($o.rules // ($o | del(.exempt_agents)))
+         + (if $o.exempt_agents then {exempt_agents: $o.exempt_agents} else {} end)))' \
+    "${files[@]}" 2>/dev/null || echo '{}'
 }
 
 # jev_is_exempt RULES_JSON -> 0 when the fleet agent is on the exempt list (default dara, clara).
@@ -67,6 +75,8 @@ jev_resolve_rules() {
 
 # ------------------------------------------------------------------ hygiene --
 
+# Also run over serialized JSON (jev_tail): a value never swallows a backslash or a closing quote, so a
+# transcript string that exports a quoted credential keeps its JSON escapes and the JSON stays valid.
 jev_redact() {
   perl -pe '
     s/\b(?:sk|pk|rk)-[A-Za-z0-9_-]{16,}/[REDACTED]/g;
@@ -76,8 +86,8 @@ jev_redact() {
     s/\bAKIA[0-9A-Z]{16}\b/[REDACTED]/g;
     s/\bglpat-[A-Za-z0-9_-]{16,}/[REDACTED]/g;
     s/\b(Bearer|Basic|token)\s+[A-Za-z0-9._~+\/=-]{12,}/$1 [REDACTED]/gi;
-    s{(://)[^/\s:@]+:[^/\s@]+@}{$1\[REDACTED\]@}g;
-    s/(\b[A-Za-z0-9_]*(?:key|token|secret|passw(?:or)?d|pwd|credential)[A-Za-z0-9_]*\s*[=:]\s*)[^\s"\x27]+/$1\[REDACTED\]/gi;
+    s{(://)[^/\s:@\\"]+:[^/\s@\\"]+@}{$1\[REDACTED\]@}g;
+    s/(\b[A-Za-z0-9_]*(?:key|token|secret|passw(?:or)?d|pwd|credential)[A-Za-z0-9_]*\s*[=:]\s*(?:\\"|\\\x27)?)[^\s"\x27\\]+/$1\[REDACTED\]/gi; # assignment pattern: NAME=value or NAME: value
     s/[A-Za-z0-9+_=-]{40,}/[REDACTED-LONG]/g;
   '
 }

@@ -14,7 +14,7 @@ HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 command -v jq >/dev/null 2>&1 || exit 0
 command -v perl >/dev/null 2>&1 || exit 0
-[ -e "$JEV_CLAUDE_DIR/jev.off" ] && exit 0
+[ -f "$JEV_CLAUDE_DIR/jev.off" ] && [ ! -L "$JEV_CLAUDE_DIR/jev.off" ] && exit 0 # regular file only (mkdir is not the kill switch)
 [ -f "$JEV_QUESTIONS" ] || exit 0
 
 INPUT=$(cat)

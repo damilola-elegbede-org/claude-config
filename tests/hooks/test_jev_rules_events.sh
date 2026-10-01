@@ -69,7 +69,7 @@ SJ="$SRC/settings.json"
 jq -e . "$SJ" >/dev/null 2>&1 && ok || bad "settings.json is valid JSON"
 for want in \
   "PreToolUse:file-org-guard.sh" "PreToolUse:memory-dup-guard.sh" "PreToolUse:pr-draft-guard.sh" \
-  "PostToolUseFailure:retry-counter.sh" "PostToolUseFailure:papercut-grep.sh" \
+  "PostToolUseFailure:retry-counter.sh" "PostToolUse:retry-counter.sh" "PostToolUseFailure:papercut-grep.sh" \
   "Stop:executive-lint.sh" "Stop:papercut-nudge.sh" "StopFailure:stopfailure-hint.sh" \
   "SessionStart:session-start-project.sh" "SessionEnd:session-end-memory.sh" \
   "Notification:notification-urgency.sh" "PostCompact:postcompact-log.sh"; do
@@ -87,6 +87,13 @@ for f in "$HOOKS"/*.sh; do
   b="hooks/jev/$(basename "$f")"
   grep -qF "$b" "$REPO_ROOT/scripts/sync.sh" && ok || bad "sync.sh RUNTIME_HOOK_SCRIPTS lists $b"
 done
+
+# re_cfg reads the {"rules":{...}} wrapper of the client's jev-rules.json (last file wins)
+mkdir -p "$HOME/.claude/hooks/jev"
+printf '%s' '{"exempt_agents":["x"],"rules":{"retry-counter":{"mode":"shadow"}}}' >"$HOME/.claude/hooks/jev/jev-rules.json"
+eq "re_cfg: wrapped jev-rules.json overrides the shipped mode" "$(unset JEV_RULES_FILE; . "$HOOKS/rules-events-lib.sh"; re_cfg retry-counter mode dflt)" "shadow"
+eq "re_cfg: shipped value for another rule survives" "$(unset JEV_RULES_FILE; . "$HOOKS/rules-events-lib.sh"; re_cfg pr-draft-guard mode dflt)" "enforce"
+rm -f "$HOME/.claude/hooks/jev/jev-rules.json"
 
 echo "== file-org-guard =="
 REPO="$T/repo"
@@ -121,12 +128,12 @@ loghas shadow-would-deny && ok || bad "shadow verdict logged"
 echo "== pr-draft-guard =="
 bc() { jq -nc --arg c "$1" '{tool_name:"Bash",tool_input:{command:$c}}'; }
 reset
-for c in 'gh pr create --draft --title x' 'gh pr create -d --title x' 'cd /r && gh pr create --title "t" --body "b" --draft' 'gh -R o/r pr create --draft'; do
+for c in 'gh pr create --draft --title x' 'gh pr create --draft=true --title x' 'gh pr create -d --title x' 'cd /r && gh pr create --title "t" --body "b" --draft' 'gh -R o/r pr create --draft'; do
   out=$(run pr-draft-guard.sh "$(bc "$c")")
   has "denied: $c" "$out" '"permissionDecision":"deny"'
 done
 has "deny reason says ready not draft" "$out" "ready for review"
-for c in 'gh pr create --title x --body y' 'gh pr create --draft=false' 'git commit -m "docs: gh pr create --draft is banned"' $'gh pr create --title x --body "$(cat <<\'EOF\'\nmention gh pr create --draft here\nEOF\n)"' 'ALLOW_DRAFT_PR=1 gh pr create --draft' 'gh pr list --draft' 'echo hello'; do
+for c in 'gh pr create --title x --body y' 'gh pr create --draft=false' 'gh pr create --draft=false --title x' 'git commit -m "docs: gh pr create --draft is banned"' $'gh pr create --title x --body "$(cat <<\'EOF\'\nmention gh pr create --draft here\nEOF\n)"' 'ALLOW_DRAFT_PR=1 gh pr create --draft' 'gh pr list --draft' 'echo hello'; do
   out=$(run pr-draft-guard.sh "$(bc "$c")")
   eq "allowed: ${c:0:50}" "$out" ""
 done
@@ -148,6 +155,19 @@ has "4th failure still injects" "$out4" "failed 4 times"
 eq "different command has its own count" "$(run retry-counter.sh "$(rf 'ls /nope')")" ""
 eq "other session has its own count" "$(run retry-counter.sh "$(rf 'npm test' s2)")" ""
 eq "non-Bash tool ignored" "$(run retry-counter.sh "$(rf 'x' s1 Edit)")" ""
+# a success between failures resets the streak: fail x2, success, fail x2 must not reach 3
+rok() { jq -nc --arg c "$1" --arg s "${2:-s1}" '{session_id:$s,hook_event_name:"PostToolUse",tool_name:"Bash",tool_input:{command:$c},tool_response:{}}'; }
+r1=$(run retry-counter.sh "$(rf 'make build' s3)")
+r2=$(run retry-counter.sh "$(rf 'make build' s3)")
+rs=$(run retry-counter.sh "$(rok 'make build' s3)")
+r3=$(run retry-counter.sh "$(rf 'make build' s3)")
+r4=$(run retry-counter.sh "$(rf 'make build' s3)")
+eq "success reset: failures before it are silent" "$r1$r2" ""
+eq "success event itself emits nothing" "$rs" ""
+eq "success reset: fail x2 after the success stays silent" "$r3$r4" ""
+has "success reset: a 3rd consecutive failure after it injects" "$(run retry-counter.sh "$(rf 'make build' s3)")" "failed 3 times"
+run retry-counter.sh "$(rok 'ls elsewhere' s3)" >/dev/null
+has "success of a different command does not reset this one" "$(run retry-counter.sh "$(rf 'make build' s3)")" "failed 4 times"
 
 echo "== papercut-grep =="
 reset
@@ -230,9 +250,10 @@ has "request carries the reply" "$(cat "$T/capture")" "All 18 tests pass"
 rules '{"executive-tag-correctness":{"mode":"enforce","threshold":0.9}}'
 out=$(run executive-lint.sh "$(sl "$GOOD")")
 has "enforce + high-confidence mismatch blocks" "$out" "looks wrong"
+rules '{"executive-tag-correctness":{"mode":"enforce","threshold":0.9}}'
+out=$(JEV_MOCK=unavailable run executive-lint.sh "$(sl "$GOOD")")
+eq "Jev unavailable fails open (enforce mode)" "$out" ""
 rules '{}'
-JEV_MOCK=unavailable out=$(run executive-lint.sh "$(sl "$GOOD")")
-eq "Jev unavailable fails open" "$out" ""
 touch "$HOME/.claude/jev.off"
 rm -f "$T/capture"
 out=$(run executive-lint.sh "$(sl "$GOOD")")
@@ -276,6 +297,20 @@ has "enforce: Jev near-duplicate refused" "$out" "duplicate"
 JEV_MOCK=unavailable bash "$HOOKS/papercut-dedupe.sh" claude-code "brand new unrelated thing" "fix" "proj/b" >/dev/null 2>&1
 [[ "$(grep -c '^20' "$PAPERCUT_LOG")" == 3 ]] && ok || bad "Jev unavailable fails open (appends)"
 bash "$HOOKS/papercut-dedupe.sh" only three args >/dev/null 2>&1 && bad "wrong arg count should fail via papercut.sh usage" || ok
+# exact-duplicate check compares the symptom column only (field 3), trimmed and normalized
+reset
+rm -f "$PAPERCUT_LOG"
+bash "$HOOKS/papercut-dedupe.sh" claude-code "formatter reflowed the file" "raised the timeout to 30s" "proj/a" >/dev/null 2>&1
+n0=$(grep -c '^20' "$PAPERCUT_LOG")
+out=$(bash "$HOOKS/papercut-dedupe.sh" claude-code "timeout" "bump it" "proj/b" 2>&1)
+hasnt "short symptom found only in another entry's fix column is not a duplicate" "$out" "duplicate"
+[[ "$(grep -c '^20' "$PAPERCUT_LOG")" == $((n0 + 1)) ]] && ok || bad "generic symptom appended despite matching a fix column"
+out=$(bash "$HOOKS/papercut-dedupe.sh" claude-code "  TIMEOUT  " "other fix" "proj/c" 2>&1)
+has "trimmed/lowercased exact symptom is a duplicate" "$out" "duplicate"
+[[ "$(grep -c '^20' "$PAPERCUT_LOG")" == $((n0 + 1)) ]] && ok || bad "exact duplicate not appended"
+out=$(bash "$HOOKS/papercut-dedupe.sh" claude-code "" "fix" "proj/d" 2>&1)
+hasnt "empty symptom is not reported as a duplicate" "$out" "duplicate"
+[[ "$(grep -c '^20' "$PAPERCUT_LOG")" == $((n0 + 1)) ]] && ok || bad "empty symptom is rejected by papercut.sh, nothing appended"
 
 echo "== papercut-nudge =="
 reset
@@ -324,8 +359,8 @@ eq "MEMORY.md write ignored" "$(run memory-dup-guard.sh "$(mw "$RE_MEMORY_DIR/ME
 eq "non-memory path ignored" "$(run memory-dup-guard.sh "$(mw "$T/other/notes.md" "$NEWMEM")")" ""
 printf x >"$RE_MEMORY_DIR/existing.md"
 eq "update of an existing memory ignored" "$(run memory-dup-guard.sh "$(mw "$RE_MEMORY_DIR/existing.md" "$NEWMEM")")" ""
-JEV_MOCK=unavailable out=$(run memory-dup-guard.sh "$(mw "$RE_MEMORY_DIR/prs-not-drafts.md" "$NEWMEM")")
-eq "Jev unavailable fails open" "$out" ""
+out=$(JEV_MOCK=unavailable run memory-dup-guard.sh "$(mw "$RE_MEMORY_DIR/prs-not-drafts.md" "$NEWMEM")")
+eq "Jev unavailable fails open (enforce mode)" "$out" ""
 
 echo "== stopfailure-hint + session-start-project =="
 reset
@@ -340,6 +375,14 @@ sfin() { jq -nc --arg e "$1" '{session_id:"sess-A",hook_event_name:"StopFailure"
 eq "StopFailure emits no stdout (harness ignores it)" "$(run stopfailure-hint.sh "$(sfin 'API Error: Unable to connect (ECONNRESET)')")" ""
 STATEF="$HOME/.claude/jev/state/last-stopfailure.json"
 [[ -f "$STATEF" ]] && ok || bad "hint state file written"
+# only the error fields feed the classifier, not cwd / transcript_path / session_id
+rm -f "$STATEF"
+run stopfailure-hint.sh "$(jq -nc '{session_id:"billing-sess",cwd:"/work/billing-service",transcript_path:"/x/oauth-proxy/t.jsonl",error:"unknown",error_details:"weird gremlin 77"}')" >/dev/null
+[[ ! -f "$STATEF" ]] && ok || bad "billing/oauth in a path must not classify the failure" "$(cat "$STATEF" 2>/dev/null)"
+run stopfailure-hint.sh "$(jq -nc '{session_id:"s9",cwd:"/work/billing-service",error:"billing_error",error_details:"credit balance is too low"}')" >/dev/null
+has "a real billing error is still classified" "$(cat "$STATEF" 2>/dev/null)" '"class":"billing"'
+rm -f "$STATEF"
+run stopfailure-hint.sh "$(sfin 'API Error: Unable to connect (ECONNRESET)')" >/dev/null
 has "hint carries the memory fix" "$(cat "$STATEF")" "2.4GHz"
 has "hint classifies as network_reset" "$(cat "$STATEF")" network_reset
 ssi() { jq -nc --arg s "$1" --arg src "$2" --arg c "${3:-$T/nowhere}" '{session_id:$s,source:$src,cwd:$c}'; }
@@ -550,6 +593,7 @@ eq "verify: command not found is env (regex)" "$(fc verify 'bash: shellcheck: co
 eq "verify: relative missing module is not env" "$(fc verify "Cannot find module './foo'" | jq -r .class)" unknown
 eq "verify: package missing module is env" "$(fc verify "Cannot find module 'left-pad'" | jq -r .class)" env
 eq "verify: assertion (regex)" "$(fc verify 'AssertionError: expected 401, received 500' | jq -r .class)" assertion
+eq "verify: assertion failure mentioning ENOENT stays assertion" "$(fc verify $'FAIL src/a.test.ts\nAssertionError: expected 1 to equal 2\nENOENT: no such file or directory, open fixture.json' | jq -r .class)" assertion
 has "verify env steer: do not edit code" "$(fc verify 'command not found: tsc')" "do not edit code"
 mock fcm '{"answers":{"class":{"type":"choice","choice":"flaky","probabilities":{"flaky":0.9}}}}'
 eq "unmatched log, shadow: unknown" "$(fc ci 'something odd happened' | jq -r .class)" unknown
@@ -564,6 +608,19 @@ mock pt '{"answers":{"target":{"type":"choice","choice":"c2","probabilities":{"c
 eq "pick_target shadow: no Jev pick returned" "$(printf '%s' "$CANDS" | bash "$SKILLS/webapp-testing/scripts/pick_target.sh" 'open the assistance panel' | jq -r .selector)" ""
 rules '{"workflow-click-target":{"mode":"enforce"}}'
 eq "pick_target enforce: Jev pick" "$(printf '%s' "$CANDS" | bash "$SKILLS/webapp-testing/scripts/pick_target.sh" 'open the assistance panel' | jq -r .selector)" "#help"
+mock pt '{"answers":{"target":{"type":"choice","choice":"c2","probabilities":{"c2":0.3}}}}'
+eq "pick_target enforce: pick below the rule threshold returns no selector" "$(printf '%s' "$CANDS" | bash "$SKILLS/webapp-testing/scripts/pick_target.sh" 'open the assistance panel' | jq -r .selector)" ""
+rules '{"workflow-click-target":{"mode":"enforce","threshold":0.2}}'
+eq "pick_target enforce: threshold from rules is honoured" "$(printf '%s' "$CANDS" | bash "$SKILLS/webapp-testing/scripts/pick_target.sh" 'open the assistance panel' | jq -r .selector)" "#help"
+rules '{"workflow-click-target":{"mode":"enforce"}}'
+for bad_ch in 'c9' 'foo' 'c1x' 'a[$(touch '"$T"'/pwned)]'; do
+  mock pt "$(jq -nc --arg c "$bad_ch" '{answers:{target:{type:"choice",choice:$c,probabilities:{($c):0.95}}}}')"
+  eq "pick_target enforce: invalid choice [$bad_ch] returns no selector" "$(printf '%s' "$CANDS" | bash "$SKILLS/webapp-testing/scripts/pick_target.sh" 'open the assistance panel' | jq -r .selector)" ""
+done
+[[ ! -e "$T/pwned" ]] && ok || bad "pick_target must not evaluate the model's choice as arithmetic"
+out=$(bash "$SKILLS/webapp-testing/scripts/pick_target.sh" --help </dev/null)
+has "pick_target --help prints usage without reading stdin" "$out" "pick_target.sh"
+mock pt '{"answers":{"target":{"type":"choice","choice":"c2","probabilities":{"c2":0.9}}}}'
 export JEV_MOCK_CAPTURE="$T/capture"
 rm -f "$T/capture"
 printf '%s' "$CANDS" | bash "$SKILLS/webapp-testing/scripts/pick_target.sh" 'open the assistance panel' >/dev/null
