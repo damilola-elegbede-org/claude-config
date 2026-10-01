@@ -77,6 +77,8 @@ RUNTIME_HOOK_SCRIPTS="statusline.sh hooks/exit_hook.sh hooks/session_start_versi
 RUNTIME_HOOK_DATA="hooks/gate-rules.json"
 # Phase 4 (rules, lifecycle events, workflow helpers). .sh only: this list is bash -n'd.
 RUNTIME_HOOK_SCRIPTS="$RUNTIME_HOOK_SCRIPTS hooks/jev/rules-events-lib.sh hooks/jev/executive-lint.sh hooks/jev/file-org-guard.sh hooks/jev/pr-draft-guard.sh hooks/jev/retry-counter.sh hooks/jev/papercut-grep.sh hooks/jev/papercut-nudge.sh hooks/jev/papercut-dedupe.sh hooks/jev/memory-dup-guard.sh hooks/jev/stopfailure-hint.sh hooks/jev/session-start-project.sh hooks/jev/session-end-memory.sh hooks/jev/notification-urgency.sh hooks/jev/postcompact-log.sh hooks/jev/failure-classify.sh hooks/jev/session-check.sh"
+# Jev decision gates (Phase 2).
+RUNTIME_HOOK_SCRIPTS="$RUNTIME_HOOK_SCRIPTS hooks/jev-gate.sh hooks/jev-gate-lib.sh hooks/jev-ask-channel.sh"
 
 # Parse arguments
 DRY_RUN=false
@@ -536,7 +538,7 @@ sync_jev_hooks() {
     fi
 
     mkdir -p "$jev_dst"
-    if ! jev_out=$(rsync -a --delete --exclude='node_modules' --exclude='jev.sock' --exclude='jev.sock.spawn' "$jev_src/" "$jev_dst/" 2>&1); then
+    if ! jev_out=$(rsync -a --delete --exclude='node_modules' --exclude='jev.sock' --exclude='jev.sock.spawn' --exclude='mcp-classes.json' --exclude='mcp-classes.lock' "$jev_src/" "$jev_dst/" 2>&1); then
         print_error "Failed to sync hooks/jev"
         printf "    %s\n" "$jev_out"
         return 1
