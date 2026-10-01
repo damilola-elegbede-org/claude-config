@@ -264,9 +264,23 @@ jev_log() {
 
 # --------------------------------------------------------------- one-shot state --
 
+# An approval is consumed by CLAIMING its key: a mkdir under approvals.d/ (atomic, so of two concurrent
+# identical calls only one wins), mirrored in approvals.log for the audit trail.
+JEV_APPROVAL_CLAIMS="$JEV_STATE_DIR/approvals.d"
+
 # jev_stamp_seen KEY -> 0 when this approval was already consumed.
 jev_stamp_seen() {
+  [ -d "$JEV_APPROVAL_CLAIMS/$(jev_sha "$1")" ] && return 0
   [ -f "$JEV_APPROVAL_LOG" ] && grep -qxF -- "$1" "$JEV_APPROVAL_LOG"
+}
+
+# jev_stamp_claim KEY -> 0 for exactly ONE caller per key; 1 when the key was already claimed.
+# Fails closed: when the claim directory cannot be created the approval is not granted.
+jev_stamp_claim() {
+  mkdir -p "$JEV_APPROVAL_CLAIMS" 2>/dev/null || return 1
+  mkdir "$JEV_APPROVAL_CLAIMS/$(jev_sha "$1")" 2>/dev/null || return 1
+  printf '%s\n' "$1" >>"$JEV_APPROVAL_LOG" 2>/dev/null || true
+  return 0
 }
 
 jev_stamp_add() {

@@ -96,11 +96,15 @@ check_approval_call() {
   fi
   duuid=$(printf '%s' "$TAILJSON" | jq -r '.d_uuid')
   key="${SESSION}|${ACTION_SHA}|${duuid}"
-  if jev_stamp_seen "$key"; then
+  if [ "$dry" = "1" ]; then
+    if jev_stamp_seen "$key"; then
+      jev_log approval-detector "approval-already-used" "" "$p"
+      return 0
+    fi
+  elif ! jev_stamp_claim "$key"; then # atomic: concurrent identical calls cannot both consume one approval
     jev_log approval-detector "approval-already-used" "" "$p"
     return 0
   fi
-  [ "$dry" = "1" ] || jev_stamp_add "$key"
   jev_log approval-detector "approved" "" "$p"
   APPROVED=1
 }
@@ -207,10 +211,27 @@ handle_ask() {
 # ------------------------------------------------------------------------ MCP --
 
 # The cache holds the operation CLASS of a tool only. Production impact (G4) depends on each call's
-# arguments, so it is never cached: a staging call must not hide a later production call.
+# arguments, so it is never cached: a staging call must not hide a later production call. A generic tool
+# whose arguments CHOOSE the operation (method=GET vs DELETE, action=read vs remove) is keyed by the tool
+# plus those operation-defining arguments, so the first call's class is never reused for another operation.
+mcp_cache_key() { # -> TOOL, or TOOL#digest when operation-defining arguments are present
+  local d
+  d=$(printf '%s' "$INPUT" | jq -c '
+    (.tool_input // {}) | if type == "object" then
+      [to_entries[] | select(.key | test("^(method|http_method|verb|action|operation|op|mode|type|kind|command|cmd|intent)$"; "i"))
+       | select((.value | type) == "string" or (.value | type) == "number" or (.value | type) == "boolean")
+       | [(.key | ascii_downcase), (.value | tostring | ascii_downcase | .[0:60])]] | sort
+    else [] end' 2>/dev/null)
+  if [ -z "$d" ] || [ "$d" = "[]" ]; then
+    printf '%s' "$TOOL"
+  else
+    printf '%s#%s' "$TOOL" "$(jev_sha "$d" | cut -c1-8)"
+  fi
+}
+
 mcp_cache_lookup() { # -> "class<TAB>p" or empty
   [ -f "$JEV_DIR/mcp-classes.json" ] || return 0
-  jq -r --arg t "$TOOL" '.[$t] // empty | [.class, ((.p // 0) | tostring)] | @tsv' "$JEV_DIR/mcp-classes.json" 2>/dev/null
+  jq -r --arg t "${MCP_KEY:-$TOOL}" '.[$t] // empty | [.class, ((.p // 0) | tostring)] | @tsv' "$JEV_DIR/mcp-classes.json" 2>/dev/null
 }
 
 mcp_cache_store() { # class p
@@ -223,7 +244,7 @@ mcp_cache_store() { # class p
   done
   [ -f "$f" ] || echo '{}' >"$f"
   tmp=$(mktemp "$JEV_DIR/mcp-classes.XXXXXX") && {
-    jq --arg t "$TOOL" --arg c "$1" --argjson p "$2" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    jq --arg t "${MCP_KEY:-$TOOL}" --arg c "$1" --argjson p "$2" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
       '.[$t] = {class:$c, p:$p, source:"jev", ts:$ts}' "$f" >"$tmp" 2>/dev/null && mv "$tmp" "$f" || rm -f "$tmp"
   }
   rmdir "$lock" 2>/dev/null || true
@@ -253,7 +274,7 @@ mcp_args_digest() {
 # mcp_prod_check -> sets prod=true when THIS call targets production (G4). One prod-only Jev call per
 # write-class invocation (the class is cached, the target is not). Unavailable -> prod=false.
 mcp_prod_check() {
-  local g4 q req resp pp op_name server_name
+  local g4 q req resp pp op_name server_name state
   prod=false
   g4=$(jev_resolve_rules "$RULES" G4-prod-infra)
   [ -n "$g4" ] || return 0
@@ -271,7 +292,7 @@ mcp_prod_check() {
 }
 
 handle_mcp() {
-  local rule mode thr cached class prod p prod_p state q req resp args desc op server g4 g4mode cand un
+  local rule mode thr cached class prod p prod_p state q req resp args desc op server g4 g4mode cand un prior_hits
   rule=$(jev_resolve_rules "$RULES" mcp-classifier)
   [ -n "$rule" ] || exit 0
   mode=$(printf '%s' "$rule" | cut -f2)
@@ -279,7 +300,7 @@ handle_mcp() {
   # The approval is bound to the exact argument VALUES: ACTION_SHA hashes the full canonical input (never
   # logged or sent), ACTION carries a redacted, trimmed digest so the approval detector and D see what is
   # being approved. Body-like fields are omitted from the digest.
-  ACTION_SHA=$(jev_sha "$TOOL|$(printf '%s' "$INPUT" | jq -S -c '.tool_input // {}')")
+  ACTION_SHA=$(jev_sha "$TOOL|$(printf '%s' "$INPUT" | jq -S -c '.tool_input // {}')|${CWD}|${JEV_CTX}")
   if jev_is_exempt "$RULES"; then
     ACTION="mcp tool ${TOOL}"
     jev_log mcp-classifier allow-exempt-agent "$mode" ""
@@ -289,6 +310,7 @@ handle_mcp() {
   server="${op%%__*}"
   op="${op#*__}"
   args=$(mcp_args_digest)
+  MCP_KEY=$(mcp_cache_key)
   ACTION="mcp tool ${TOOL} args=$(jev_trim "$args" 240)"
   prod=false
   cached=$(mcp_cache_lookup)
@@ -349,14 +371,17 @@ handle_mcp() {
       fi
       ;;
   esac
-  # G15: a non-read MCP call while untrusted content is in the recent transcript.
-  if [ -z "$HIT_LINES" ] && [ "$class" != "read" ]; then
+  # G15: a non-read MCP call while untrusted content is in the recent transcript. Judged independently of
+  # the class hits above (G15 may enforce while mcp-classifier is still in shadow), then merged with them.
+  if [ "$class" != "read" ]; then
     TAILJSON=$(jev_tail "$TRANSCRIPT")
     cand=$(jev_resolve_rules "$RULES" G15-untrusted-origin)
     un=$(printf '%s' "$TAILJSON" | jq -c '.untrusted')
     if [ -n "$cand" ] && [ "$un" != "[]" ]; then
+      prior_hits="$HIT_LINES"
       state=$(jq -nc --arg tool "$TOOL" --arg ctx "$JEV_CTX" --argjson t "$TAILJSON" '{tool_name:$tool, context:$ctx, turns:$t.turns}')
       run_gates "$state" "$un" "$cand"
+      HIT_LINES="${prior_hits}${HIT_LINES}"
     fi
   fi
   [ -n "$HIT_LINES" ] || exit 0
@@ -426,7 +451,9 @@ handle_generic() {
       ;;
     *) exit 0 ;;
   esac
-  ACTION_SHA=$(jev_sha "$TOOL|$ACTION")
+  # The approval identity is the FULL canonical tool input plus cwd and context, never the redacted, truncated
+  # display digest in ACTION: a retry with other file contents or another command middle is another action.
+  ACTION_SHA=$(jev_sha "$TOOL|$(printf '%s' "$INPUT" | jq -S -c '.tool_input // {}')|${CWD}|${JEV_CTX}")
 
   cand_ids=$(candidates_for "$subject")
   if [ "$extra_g1" = "1" ]; then cand_ids="${cand_ids:+$cand_ids$'\n'}G1-irreversible-local"; fi
