@@ -89,14 +89,21 @@ def ask_jev(prompt, skills, jev):
         }},
         "timeout_ms": 5000,
     }
-    p = subprocess.run([jev], input=json.dumps(req), capture_output=True, text=True, timeout=30)
+    try:
+        p = subprocess.run([jev], input=json.dumps(req), capture_output=True, text=True, timeout=30)
+    except subprocess.TimeoutExpired as e:
+        raise RuntimeError("jev-ask timed out") from e
     if p.returncode == 3:
         raise RuntimeError("Jev unavailable (exit 3)")
     if p.returncode != 0:
         raise RuntimeError(f"jev-ask exit {p.returncode}: {p.stderr[:200]}")
-    ans = json.loads(p.stdout)["answers"]["skill"]
-    probs = ans.get("probabilities") or {ans["choice"]: 1.0}
-    return ans["choice"], probs
+    try:
+        ans = json.loads(p.stdout)["answers"]["skill"]
+        probs = ans.get("probabilities") or {ans["choice"]: 1.0}
+        choice = ans["choice"]
+    except (ValueError, KeyError, TypeError, AttributeError) as e:
+        raise RuntimeError(f"malformed jev-ask response: {p.stdout[:200]}") from e
+    return choice, probs
 
 
 def analyse(rows, skills):

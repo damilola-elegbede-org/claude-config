@@ -18,7 +18,9 @@ re_need_jq || exit 0
 INPUT=$(cat)
 MODE=$(re_mode stopfailure-classify shadow)
 SID=$(jq -r '.session_id // empty' <<<"$INPUT" 2>/dev/null)
-ERRTEXT=$(jq -r '[.. | strings] | join(" ")' <<<"$INPUT" 2>/dev/null | cut -c1-1500)
+# Only the error fields: session_id, cwd and transcript_path must not feed the classifier
+# (a project dir named billing-service would classify as billing).
+ERRTEXT=$(jq -r '[.error, .error_details, .message] | map(select(. != null) | if type == "string" then . else tojson end) | join(" ")' <<<"$INPUT" 2>/dev/null | cut -c1-1500)
 [ -n "$ERRTEXT" ] || exit 0
 
 CLASS=other

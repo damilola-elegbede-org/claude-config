@@ -17,6 +17,11 @@
 . "$(dirname "$0")/../../../hooks/jev/rules-events-lib.sh" 2>/dev/null || { echo '{"helper":"pick_target","mode":"unavailable","selector":""}'; exit 0; }
 re_need_jq || { echo '{"helper":"pick_target","mode":"unavailable","selector":""}'; exit 0; }
 
+case "${1:-}" in -h | --help)
+  sed -n '2,15s/^# \{0,1\}//p' "$0"
+  exit 0
+  ;;
+esac
 GOAL="${1:-}"
 CANDS=$(head -60)
 MODE=$(re_mode workflow-click-target shadow)
@@ -44,8 +49,12 @@ RESP=$(printf '%s' "$REQ" | re_jev_call 2>/dev/null) || { out "" none; exit 0; }
 CH=$(jq -r '.answers.target.choice // empty' <<<"$RESP" 2>/dev/null)
 P=$(jq -r --arg c "$CH" '.answers.target.probabilities[$c] // 0' <<<"$RESP" 2>/dev/null)
 re_log workflow-click-target "pick=$CH p=$P" "mode=$MODE"
-if [ "$MODE" = enforce ] && [ -n "$CH" ]; then
-  IDX="${CH#c}"
+# CH comes from the model: accept only c<digits> within range (no arithmetic on arbitrary
+# text) and only at or above the rule threshold; otherwise return no selector so the skill
+# falls back to its own judgement.
+if [ "$MODE" = enforce ] && [[ "$CH" =~ ^c([0-9]+)$ ]] && [ "${BASH_REMATCH[1]}" -lt "$N" ] \
+  && awk -v p="$P" -v t="$(re_cfg workflow-click-target threshold 0.7)" 'BEGIN{exit !(p+0>=t+0)}'; then
+  IDX=$((10#${BASH_REMATCH[1]}))
   SEL=$(printf '%s\n' "$CANDS" | sed -n "$((IDX + 1))p" | cut -f1)
   out "$SEL" jev "$P"
 else

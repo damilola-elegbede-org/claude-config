@@ -35,9 +35,9 @@ if [ "$KIND" = ci ]; then
   elif printf '%s' "$LOG" | grep -qE "$ASSERT"; then CLASS=real; SOURCE=regex
   fi
 else
-  if printf '%s' "$LOG" | grep -qE "$ENVRX"; then CLASS="env"; SOURCE=regex
+  if printf '%s' "$LOG" | grep -qE "$ASSERT"; then CLASS=assertion; SOURCE=regex
+  elif printf '%s' "$LOG" | grep -qE "$ENVRX"; then CLASS="env"; SOURCE=regex
   elif printf '%s' "$LOG" | grep -qiE "$FLAKY"; then CLASS=flaky; SOURCE=regex
-  elif printf '%s' "$LOG" | grep -qE "$ASSERT"; then CLASS=assertion; SOURCE=regex
   fi
 fi
 

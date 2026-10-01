@@ -30,13 +30,21 @@ if ! re_need_jq; then
 fi
 MODE=$(re_mode papercut-dedupe shadow)
 
-# 1. deterministic exact-symptom check
+# 1. deterministic exact-symptom check: the trimmed, lowercased, whitespace-normalized
+# symptom must equal field 3 of a dated entry (date · source · symptom · fix · project).
+# An empty symptom is not a duplicate of anything; papercut.sh rejects it with its own error.
 NORM=$(printf '%s' "$SYMPTOM" | tr '[:upper:]' '[:lower:]' | tr -s '[:space:]' ' ')
+NORM="${NORM# }"
+NORM="${NORM% }"
+[ -n "$NORM" ] || exec "$WRITER" "$@"
 FILES=("$LOG")
 for f in "$(dirname "$LOG")"/papercuts/archive/*.md; do [ -f "$f" ] && FILES+=("$f"); done
 for f in "${FILES[@]}"; do
   [ -f "$f" ] || continue
-  if tr '[:upper:]' '[:lower:]' <"$f" | tr -s '[:space:]' ' ' | grep -qF -- "$NORM"; then
+  if awk -F' · ' -v n="$NORM" '/^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] · / {
+        s = tolower($3); gsub(/[[:space:]]+/, " ", s); sub(/^ /, "", s); sub(/ $/, "", s)
+        if (s == n) { found = 1; exit } }
+      END { exit !found }' "$f"; then
     re_log papercut-dedupe duplicate-exact ""
     echo "duplicate: this symptom is already in the papercut log; nothing appended"
     exit 0

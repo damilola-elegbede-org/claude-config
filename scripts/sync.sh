@@ -535,6 +535,7 @@ sync_jev_hooks() {
 
     jev_install=false
     if [ ! -d "$jev_dst/node_modules" ] \
+        || [ ! -f "$jev_dst/node_modules/.jev-installed" ] \
         || ! cmp -s "$jev_src/package.json" "$jev_dst/package.json" 2>/dev/null \
         || ! cmp -s "$jev_src/package-lock.json" "$jev_dst/package-lock.json" 2>/dev/null; then
         jev_install=true
@@ -554,6 +555,7 @@ sync_jev_hooks() {
         elif ! command -v npm >/dev/null 2>&1; then
             print_warning "npm not found - Jev client has no SDK; checkpoints fall back to regex"
         elif jev_out=$(cd "$jev_dst" && npm ci --omit=dev --no-audit --no-fund 2>&1); then
+            : >"$jev_dst/node_modules/.jev-installed"
             echo "  ✅ Jev deps: npm ci --omit=dev in ~/.claude/hooks/jev"
         else
             print_warning "npm ci failed in ~/.claude/hooks/jev - Jev falls back to regex until it succeeds"

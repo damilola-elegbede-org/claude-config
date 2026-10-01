@@ -27,7 +27,7 @@ s = re.sub(r"<<-?\s*([\"\x27]?)(\w+)\1.*?\n\s*\2\s*(\n|$)", " ", cmd, flags=re.S
 s = re.sub(r"\"(?:[^\"\\]|\\.)*\"|\x27[^\x27]*\x27", "\"\"", s, flags=re.S)
 for seg in re.split(r"&&|\|\||[;|\n]", s):
     if re.search(r"(^|\s)gh\s+(?:.*\s)?pr\s+create(\s|$)", seg) and \
-       re.search(r"(^|\s)(--draft(?!=false)|-d)(\s|$)", seg):
+       re.search(r"(^|\s)(--draft(=(?!false\b)\S*)?|-d)(\s|$)", seg):
         print("draft")
         break
 ' 2>/dev/null)

@@ -12,6 +12,7 @@ Usage:
   python3 scripts/rules-table.py --slimming # list CLAUDE.md rules whose prose may be deleted
   python3 scripts/rules-table.py --stats    # counts only
 """
+import argparse
 import json
 import os
 import sys
@@ -34,7 +35,11 @@ def memory_dir(reg):
 
 
 def load():
-    return json.loads(REGISTRY.read_text(encoding="utf-8"))
+    try:
+        return json.loads(REGISTRY.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as e:
+        print(f"cannot load registry {REGISTRY}: {e}", file=sys.stderr)
+        return None
 
 
 def validate(reg):
@@ -61,7 +66,7 @@ def validate(reg):
         else:
             hook = r.get("hook")
             if not hook:
-                errors.append(f"{rid}: enforcement {r['enforcement']} requires a hook filename")
+                errors.append(f"{rid}: enforcement {r.get('enforcement')} requires a hook filename")
             elif not any((d / hook).is_file() for d in HOOK_DIRS):
                 errors.append(f"{rid}: hook {hook} not found under hooks/jev or system-configs/.claude")
             if r.get("enforcement") == "jev" and r.get("mode") not in ("shadow", "enforce"):
@@ -166,23 +171,31 @@ def render(reg):
 
 
 def main(argv):
+    ap = argparse.ArgumentParser(description="Render and validate docs/rules-enforcement.md from the rules registry.")
+    mode = ap.add_mutually_exclusive_group()
+    mode.add_argument("--check", action="store_true", help="validate registry + fail if the doc is stale")
+    mode.add_argument("--slimming", action="store_true", help="list CLAUDE.md rules whose prose may be deleted")
+    mode.add_argument("--stats", action="store_true", help="counts only")
+    args = ap.parse_args(argv)
     reg = load()
+    if reg is None:
+        return 1
     errors = validate(reg)
-    if "--stats" in argv:
-        total, c = stats(reg)
-        print(f"rules={total} regex={c['regex']} jev={c['jev']} none={c['none']}")
-        return 0
-    if "--slimming" in argv:
-        for r in slimming(reg):
-            print(f"{r['id']}\t{r['source']}\t{r['hook']}")
-        return 0
-    if errors:
+    if errors:  # fail closed before any mode that reads rule fields
         print("registry errors:", file=sys.stderr)
         for e in errors:
             print("  " + e, file=sys.stderr)
         return 1
+    if args.stats:
+        total, c = stats(reg)
+        print(f"rules={total} regex={c['regex']} jev={c['jev']} none={c['none']}")
+        return 0
+    if args.slimming:
+        for r in slimming(reg):
+            print(f"{r['id']}\t{r['source']}\t{r['hook']}")
+        return 0
     text = render(reg)
-    if "--check" in argv:
+    if args.check:
         if not DOC.is_file() or DOC.read_text(encoding="utf-8") != text:
             print("docs/rules-enforcement.md is stale: run python3 scripts/rules-table.py", file=sys.stderr)
             return 1

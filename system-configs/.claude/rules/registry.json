@@ -139,7 +139,7 @@
       "hook": "retry-counter.sh",
       "mode": "advisory",
       "coverage": "partial",
-      "note": "PostToolUseFailure counter injects additionalContext from the 3rd identical failure; it cannot block a 4th attempt."
+      "note": "PostToolUseFailure counter injects additionalContext from the 3rd consecutive identical failure (a successful PostToolUse of the same command resets it); it cannot block a 4th attempt."
     },
     {
       "id": "CLAUDE-FIL-1",
@@ -787,8 +787,8 @@
       "enforcement": "regex",
       "hook": "settings.json",
       "mode": "enforce",
-      "coverage": "full",
-      "note": "Inline PreToolUse Bash guard in settings.json blocks git push --force / -f (existing, not part of this branch)."
+      "coverage": "partial",
+      "note": "Inline PreToolUse Bash guard in settings.json blocks git push --force / -f (existing, not part of this branch). Fetch+rebase before push is not checked."
     },
     {
       "id": "MEM-EXEC-1",

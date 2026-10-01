@@ -34,14 +34,14 @@ cp "$SRC_DIR"/{client.mjs,jev-ask,session-check.sh,jev-config.json,jev-rules.jso
 echo "smoke: npm ci --omit=dev in temp copy"
 (cd "$JEV_DIR" && npm ci --omit=dev --no-audit --no-fund --silent) || { echo "smoke: npm ci failed" >&2; exit 1; }
 
+export JEV_STATE_DIR="$TMP/state"
+export JEV_SOCK="$TMP/jev.sock"
+
 reason=$("$ASK" --check 2>/dev/null)
 if [[ -n "$reason" ]]; then
   echo "smoke: Jev not ready: $reason (a key must be resolvable; see client.mjs)" >&2
   exit 1
 fi
-
-export JEV_STATE_DIR="$TMP/state"
-export JEV_SOCK="$TMP/jev.sock"
 
 INPUT='{"rule":"smoke","timeout_ms":15000,"state":{"command":"git push --force origin main","cwd":"/repo"},"questions":{"destructive":{"type":"boolean","instructions":"Is this shell command irreversible or destructive?"},"category":{"type":"choice","instructions":"What kind of action is this?","criteria":{"read_only":null,"local_write":null,"remote_write":null}}}}'
 

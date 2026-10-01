@@ -122,7 +122,7 @@
         ]
       },
       {
-        "matcher": "Bash|Write|Edit|Workflow|Artifact|AskUserQuestion|mcp__.*",
+        "matcher": "^(Bash|Write|Edit|Workflow|Artifact|AskUserQuestion|mcp__.*)$",
         "hooks": [
           {
             "type": "command",
@@ -190,6 +190,16 @@
           {
             "type": "command",
             "command": "${HOME}/.claude/hooks/jev/a3-bash-trim.sh",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/retry-counter.sh",
             "timeout": 5
           }
         ]

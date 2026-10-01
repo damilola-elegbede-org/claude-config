@@ -352,8 +352,7 @@ def pick_backend(choice, args):
     if choice == "client":
         raise SystemExit(f"client backend requested but {CLIENT_DEFAULT} is not executable")
     key = read_key()
-    ai_dirs = [d for d in (args.ai_dir, os.environ.get("JEV_AI_DIR"), str(Path.home() / ".claude/hooks/jev"),
-                           "/Users/daelegbe/.claude/jobs/8f9dcc26/tmp/jevprobe") if d]
+    ai_dirs = [d for d in (args.ai_dir, os.environ.get("JEV_AI_DIR"), str(Path.home() / ".claude/hooks/jev")) if d]
     ai_dirs = [d for d in ai_dirs if (Path(d) / "node_modules/ai").exists()]
     if choice in ("auto", "inline") and key and ai_dirs and shutil.which("node"):
         return InlineBackend(key, ai_dirs)
@@ -367,13 +366,15 @@ def pick_backend(choice, args):
 
 def run_cached(backend, reqs, cache_path):
     """Serve repeated requests from an on-disk cache so re-scoring never re-spends live calls."""
+    if isinstance(backend, MockBackend):
+        cache_path = None  # mock pseudo-scores must never be read from or written to the shared cache
     cache = {}
     if cache_path and cache_path.exists():
         for line in cache_path.read_text().splitlines():
             if line.strip():
                 d = json.loads(line)
                 cache[d["k"]] = d["r"]
-    keys = [hashlib.sha256(json.dumps(r, sort_keys=True).encode()).hexdigest() for r in reqs]
+    keys = [hashlib.sha256((backend.name + "\0" + json.dumps(r, sort_keys=True)).encode()).hexdigest() for r in reqs]
     todo = [(k, r) for k, r in zip(keys, reqs) if k not in cache]
     if todo:
         fresh = backend.run([r for _, r in todo])

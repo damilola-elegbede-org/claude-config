@@ -77,7 +77,8 @@ damilola-tech|damilola\.tech|damilola-profile'
     re_log session-project-memories "project=$PROJECT source=$SRC" "mode=$PROJ_MODE"
     if [ "$PROJ_MODE" = enforce ] && [ -f "$(re_memory_dir)/MEMORY.md" ]; then
       LINES=""
-      for STEM in $STEMS; do
+      read -r -a STEM_LIST <<<"$STEMS" # array, not word-splitting: prefix stems like alcbf-* must not glob
+      for STEM in "${STEM_LIST[@]}"; do
         case "$STEM" in
           *'*') L=$(grep -E "\]\(${STEM%\*}[^)]*\.md\)" "$(re_memory_dir)/MEMORY.md" 2>/dev/null) ;;
           *) L=$(grep -F "](${STEM}.md)" "$(re_memory_dir)/MEMORY.md" 2>/dev/null) ;;
