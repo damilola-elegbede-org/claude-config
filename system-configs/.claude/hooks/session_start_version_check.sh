@@ -109,10 +109,11 @@ refresh_changelog_cache() {
     local cache_mtime="" now age tmp_fetch fetch_size
 
     if [[ -f "$CACHE_FILE" ]]; then
-        if stat -f %m "$CACHE_FILE" >/dev/null 2>&1; then
-            cache_mtime=$(stat -f %m "$CACHE_FILE" 2>/dev/null)   # BSD/macOS
-        elif stat -c %Y "$CACHE_FILE" >/dev/null 2>&1; then
+        # GNU first: on Linux `stat -f` is file-system mode and succeeds with the wrong output.
+        if stat -c %Y "$CACHE_FILE" >/dev/null 2>&1; then
             cache_mtime=$(stat -c %Y "$CACHE_FILE" 2>/dev/null)   # GNU/Linux
+        elif stat -f %m "$CACHE_FILE" >/dev/null 2>&1; then
+            cache_mtime=$(stat -f %m "$CACHE_FILE" 2>/dev/null)   # BSD/macOS
         fi
         if [[ -n "$cache_mtime" ]]; then
             now=$(date +%s)

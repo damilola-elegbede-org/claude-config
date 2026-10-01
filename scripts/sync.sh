@@ -287,13 +287,13 @@ cleanup_old_backups() {
     backup_count=$(find "$HOME" -maxdepth 1 -name '.claude.backup.*' -type d 2>/dev/null | wc -l | tr -d ' ')
     if [ "$backup_count" -gt 5 ]; then
         echo "Rotating backups (keeping latest 5)..."
-        # Detect stat format (BSD vs GNU) for portable mtime listing
-        if stat -f "%m %N" "$HOME" >/dev/null 2>&1; then
-            STAT_OPT='-f'
-            STAT_FMT='%m %N'
-        else
+        # Detect stat format (GNU first: `stat -f` on Linux is file-system mode and succeeds) for portable mtime listing
+        if stat -c '%Y %n' "$HOME" >/dev/null 2>&1; then
             STAT_OPT='-c'
             STAT_FMT='%Y %n'
+        else
+            STAT_OPT='-f'
+            STAT_FMT='%m %N'
         fi
         # List backups by time, delete all but newest 5
         # Use find with strict pattern matching for security

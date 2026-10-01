@@ -170,7 +170,8 @@ eq "latencyMs is a number" "312" "$(jq -r .latencyMs <<<"$LINE1")"
 eq "extra fields merge in" "Bash" "$(jq -r .tool <<<"$LINE1")"
 LINE2="$(sed -n 2p "$LOGF")"
 eq "absent fields are null, not empty strings" "null,null,null,null" "$(jq -r '[.mode, .answers, .confidence, .model] | map(tostring) | join(",")' <<<"$LINE2")"
-eq "the log is private (0600)" "600" "$(stat -f '%Lp' "$LOGF" 2>/dev/null || stat -c '%a' "$LOGF")"
+# GNU stat first: on Linux `stat -f` prints file-system info and exits 0, so the BSD form must be the fallback.
+eq "the log is private (0600)" "600" "$(stat -c '%a' "$LOGF" 2>/dev/null || stat -f '%Lp' "$LOGF")"
 
 # ============================================================================
 # gate.sh (the regex gate) reads the same registry and writes the same log
