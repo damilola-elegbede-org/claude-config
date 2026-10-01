@@ -248,8 +248,10 @@ function truncateToBudget(obj, budgetChars) {
 // ---------------------------------------------------------------------- egress
 
 function egressReason(input) {
-  const src = input.untrusted_source;
-  const srcs = Array.isArray(src) ? src : typeof src === "string" ? [src] : [];
+  // The caller may flag the source at top level or inside state; honor both.
+  const srcs = [input.untrusted_source, input.state?.untrusted_source].flatMap((v) =>
+    Array.isArray(v) ? v : typeof v === "string" ? [v] : [],
+  );
   if (srcs.some((s) => /gmail|slack/i.test(String(s)))) return "egress_untrusted_source";
   const cwds = new Set();
   for (const c of [input.cwd, process.cwd()]) {
@@ -600,7 +602,10 @@ async function ask() {
 
   if (mock === "unavailable") return fail("mock_unavailable");
   if (fs.existsSync(path.join(stateDir(), "jev.off"))) return fail("kill_switch");
-  if (rules().rules?.[input.rule]?.mode === "off") return fail("rule_off");
+  // Rules live under "rules" (shipped shape); tolerate the contract's top-level form too.
+  const ruleCfg = rules();
+  const thisRule = ruleCfg.rules?.[input.rule] ?? (input.rule === "exempt_agents" ? undefined : ruleCfg[input.rule]);
+  if (thisRule?.mode === "off") return fail("rule_off");
   if (!mock || process.env.JEV_MOCK_CHECK_EGRESS === "1") {
     const why = egressReason(input);
     if (why) return fail(why);

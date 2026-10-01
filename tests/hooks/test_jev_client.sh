@@ -113,6 +113,9 @@ run_ask "$(mkin r-off '{"a":1}')" JEV_MOCK="$FIX"
 eq "rule mode off exits 3" "$RC" "3"
 run_ask "$(mkin r-shadow '{"a":1}')" JEV_MOCK="$FIX"
 eq "rule mode shadow runs" "$RC" "0"
+printf '{"exempt_agents":[],"r-top":{"mode":"off"}}' >"$J/jev-rules.json"
+run_ask "$(mkin r-top '{"a":1}')" JEV_MOCK="$FIX"
+eq "top-level rule entry (contract shape) also honored" "$RC" "3"
 cp "$SRC/jev-rules.json" "$J/jev-rules.json"
 
 echo "== egress exclusion"
@@ -129,6 +132,8 @@ run_ask "{\"rule\":\"t-egress\",\"untrusted_source\":\"gmail\",\"state\":{\"a\":
 eq "gmail untrusted_source exits 3" "$RC" "3"
 run_ask "{\"rule\":\"t-egress\",\"untrusted_source\":[\"web\",\"slack\"],\"state\":{\"a\":1},\"questions\":$Q}" JEV_MOCK="$FIX" JEV_MOCK_CHECK_EGRESS=1
 eq "slack untrusted_source exits 3" "$RC" "3"
+run_ask "{\"rule\":\"t-egress\",\"state\":{\"untrusted_source\":\"gmail\",\"a\":1},\"questions\":$Q}" JEV_MOCK="$FIX" JEV_MOCK_CHECK_EGRESS=1
+eq "untrusted_source flagged inside state exits 3" "$RC" "3"
 OUT=$(cd "$T/work/proj" && printf '%s' "$(mkin t-egress '{"a":1}')" | env JEV_MOCK="$FIX" "$ASK" 2>/dev/null)
 RC=$?
 eq "mock mode skips egress unless asked (CI checkouts live under /work/)" "$RC" "0"
