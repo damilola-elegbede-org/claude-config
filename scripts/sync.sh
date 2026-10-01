@@ -554,7 +554,15 @@ sync_jev_hooks() {
             echo "  ⏭  Jev deps: npm ci skipped (JEV_SYNC_SKIP_NPM)"
         elif ! command -v npm >/dev/null 2>&1; then
             print_warning "npm not found - Jev client has no SDK; checkpoints fall back to regex"
-        elif jev_out=$(cd "$jev_dst" && npm ci --omit=dev --no-audit --no-fund 2>&1); then
+        elif ! command -v node >/dev/null 2>&1; then
+            print_warning "node not found - Jev client cannot run; checkpoints fall back to regex"
+        elif jev_node_major=$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null) \
+            && jev_node_min=$(jq -r '.engines.node // ""' "$jev_src/package.json" 2>/dev/null | sed -n 's/[^0-9]*\([0-9][0-9]*\).*/\1/p') \
+            && [ "${jev_node_major:-0}" -lt "${jev_node_min:-22}" ]; then
+            # npm treats engines as advisory (engine-strict is off by default): without this check a Node 20
+            # workstation would install the SDK with warnings and then be reported as healthy.
+            print_warning "Node ${jev_node_major} is older than the Node ${jev_node_min} the Jev SDK needs - skipping npm ci; Jev falls back to regex until Node >= ${jev_node_min}"
+        elif jev_out=$(cd "$jev_dst" && npm ci --omit=dev --no-audit --no-fund --engine-strict 2>&1); then
             : >"$jev_dst/node_modules/.jev-installed"
             echo "  ✅ Jev deps: npm ci --omit=dev in ~/.claude/hooks/jev"
         else
