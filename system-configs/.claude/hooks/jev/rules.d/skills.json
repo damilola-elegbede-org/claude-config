@@ -1,0 +1,14 @@
+{
+  "rules": {
+    "ask-jev-rank": {
+      "mode": "enforce",
+      "threshold": 0.5,
+      "max_files": 60,
+      "batch_size": 20,
+      "head_lines": 40,
+      "line_chars": 240,
+      "max_file_kb": 512,
+      "timeout_ms": 6000
+    }
+  }
+}

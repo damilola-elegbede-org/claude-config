@@ -81,7 +81,7 @@ RUNTIME_HOOK_SCRIPTS="$RUNTIME_HOOK_SCRIPTS hooks/jev/registry.sh hooks/jev/rule
 RUNTIME_HOOK_SCRIPTS="$RUNTIME_HOOK_SCRIPTS hooks/jev-gate.sh hooks/jev-gate-lib.sh hooks/jev-ask-channel.sh"
 # Jev context/cost hooks (Phase 3, A1-A8) + their shared lib.
 RUNTIME_HOOK_SCRIPTS="$RUNTIME_HOOK_SCRIPTS hooks/jev/ctx-lib.sh hooks/jev/a1-read-trim.sh hooks/jev/a2-search-rank.sh hooks/jev/a3-bash-trim.sh hooks/jev/a4-task-boundary.sh hooks/jev/a5-compact-reinject.sh hooks/jev/a6-agent-router.sh hooks/jev/a7-a8-prompt-context.sh"
-RUNTIME_HOOK_DATA="$RUNTIME_HOOK_DATA hooks/jev/rules.d/context.json"
+RUNTIME_HOOK_DATA="$RUNTIME_HOOK_DATA hooks/jev/rules.d/context.json hooks/jev/rules.d/skills.json"
 
 # Parse arguments
 DRY_RUN=false

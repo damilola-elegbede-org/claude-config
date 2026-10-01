@@ -45,7 +45,7 @@ creating or editing either file from a tool call.
 
 `~/.claude/jev/decisions.jsonl` (mode 0600, rotated monthly by the client), one line per decision:
 
-```
+```text
 {ts, gate, mode, answers, confidence, model, latencyMs, outcome, src, ...extra}
 ```
 
@@ -59,7 +59,7 @@ The older logs are still written for one release as aliases and will be removed 
 `~/.claude/jev-shadow.jsonl`, `~/.claude/jev-gates.jsonl`, `~/.claude/jev/rules-events.jsonl`,
 `~/.claude/gate-log.jsonl`. Read `decisions.jsonl` instead.
 
-```
+```text
 # what did the gates decide today?
 jq -r 'select(.gate | startswith("G")) | [.ts, .gate, .mode, .outcome] | @tsv' ~/.claude/jev/decisions.jsonl
 ```
@@ -86,7 +86,7 @@ Model or gateway behaviour can drift without any change in this repo. A monthly 
 This is a suggestion only; nothing in this repo installs it. It deliberately omits `--write-results`: it
 produces a report to read, and a human decides whether to accept a new baseline.
 
-```
+```text
 # crontab -e   (monthly, 06:17 on the 1st; about 100 Jev calls)
 17 6 1 * * cd "$HOME/repos/claude-config" && python3 scripts/jev-replay.py --backend inline --no-history --max-calls 120 --ai-dir "$HOME/.claude/hooks/jev" --cache "$HOME/.tmp/jev-replay-cache.jsonl" --out "$HOME/.tmp/reports/jev-replay-$(date +\%F).md" >> "$HOME/.tmp/reports/jev-replay-cron.log" 2>&1
 ```
@@ -94,6 +94,17 @@ produces a report to read, and a human decides whether to accept a new baseline.
 Untested as a cron entry: the inline backend reads the key from `~/.zshrc` itself, but this was not run
 under cron. Compare the new report's per-rule precision and recall with the committed results file; if a
 rule degraded, re-run with `--write-results` only after reviewing it.
+
+## The opt-in /ask-jev skill
+
+`skills/ask-jev/scripts/rank-files.sh "<query>" <paths or globs...>` ranks candidate files for "where is X /
+which files handle Y" questions so the model reads the top few instead of dozens. A keyword prefilter
+(no model) keeps at most 60 files, then Jev scores them in batches of at most 20 (path plus first 40
+lines, one boolean per file; the client redacts and refuses an excluded cwd). Output is one
+`<probability><TAB><path>` line per file, best first. It fails open: with Jev unavailable it prints the
+prefilter order with `-` as the probability and exits 0. Rule `ask-jev-rank` lives in
+`hooks/jev/rules.d/skills.json`; it ships `enforce` because invoking the skill is itself the opt-in and the
+output is advisory. Tests: `tests/hooks/test_ask_jev.sh`.
 
 ## Hook `if` prefilters
 

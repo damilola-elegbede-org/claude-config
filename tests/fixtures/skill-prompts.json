@@ -14,6 +14,18 @@
       "skill": "ask",
       "prompt": "I need to decide between Postgres and SQLite for this tool, get my input with a recommendation."
     },
+    {
+      "skill": "ask-jev",
+      "prompt": "Where is retry handling implemented across src/? Rank the files so I only read the top few."
+    },
+    {
+      "skill": "ask-jev",
+      "prompt": "Which files handle session expiry in this repo? There are dozens of candidates."
+    },
+    {
+      "skill": "ask-jev",
+      "prompt": "Find which modules touch the billing webhook before we open any of them."
+    },
 
     {
       "skill": "branch",
