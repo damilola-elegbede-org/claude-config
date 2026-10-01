@@ -79,6 +79,9 @@ RUNTIME_HOOK_DATA="hooks/gate-rules.json"
 RUNTIME_HOOK_SCRIPTS="$RUNTIME_HOOK_SCRIPTS hooks/jev/rules-events-lib.sh hooks/jev/executive-lint.sh hooks/jev/file-org-guard.sh hooks/jev/pr-draft-guard.sh hooks/jev/retry-counter.sh hooks/jev/papercut-grep.sh hooks/jev/papercut-nudge.sh hooks/jev/papercut-dedupe.sh hooks/jev/memory-dup-guard.sh hooks/jev/stopfailure-hint.sh hooks/jev/session-start-project.sh hooks/jev/session-end-memory.sh hooks/jev/notification-urgency.sh hooks/jev/postcompact-log.sh hooks/jev/failure-classify.sh hooks/jev/session-check.sh"
 # Jev decision gates (Phase 2).
 RUNTIME_HOOK_SCRIPTS="$RUNTIME_HOOK_SCRIPTS hooks/jev-gate.sh hooks/jev-gate-lib.sh hooks/jev-ask-channel.sh"
+# Jev context/cost hooks (Phase 3, A1-A8) + their shared lib.
+RUNTIME_HOOK_SCRIPTS="$RUNTIME_HOOK_SCRIPTS hooks/jev/ctx-lib.sh hooks/jev/a1-read-trim.sh hooks/jev/a2-search-rank.sh hooks/jev/a3-bash-trim.sh hooks/jev/a4-task-boundary.sh hooks/jev/a5-compact-reinject.sh hooks/jev/a6-agent-router.sh hooks/jev/a7-a8-prompt-context.sh"
+RUNTIME_HOOK_DATA="$RUNTIME_HOOK_DATA hooks/jev/rules.d/context.json"
 
 # Parse arguments
 DRY_RUN=false

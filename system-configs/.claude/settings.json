@@ -130,6 +130,16 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "matcher": "Agent|Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/a6-agent-router.sh",
+            "timeout": 5
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -151,6 +161,36 @@
             "command": "INPUT=$(cat); command -v jq >/dev/null 2>&1 || { echo 'WARNING: jq missing — Claude Code hook guards are disabled' >&2; exit 0; }; FILE=$(printf '%s' \"$INPUT\" | jq -r '.tool_input.file_path // empty' 2>/dev/null); if [[ -z \"$FILE\" ]] || [[ \"$FILE\" =~ \\.(test|spec)\\. ]] || [[ \"$FILE\" =~ __tests__/ ]] || [[ \"$FILE\" =~ (^|/)test_[^/]*\\.py$ ]] || [[ \"$FILE\" =~ _test\\.(py|go)$ ]] || [[ ! \"$FILE\" =~ \\.(js|jsx|ts|tsx|py|go)$ ]]; then exit 0; fi; DIR=$(dirname \"$FILE\"); BASE=$(basename \"$FILE\" | sed 's/\\.[^.]*$//'); TESTFILE=\"\"; case \"$FILE\" in *.py) for C in \"${DIR}/test_${BASE}.py\" \"${DIR}/${BASE}_test.py\" \"${DIR}/tests/test_${BASE}.py\"; do [[ -f \"$C\" ]] && TESTFILE=\"$C\" && break; done; [[ -n \"$TESTFILE\" ]] && { python3 -m pytest \"$TESTFILE\" 2>/dev/null || true; };; *.go) [[ -f \"${DIR}/${BASE}_test.go\" ]] && { (cd \"$DIR\" && go test . 2>/dev/null) || true; };; *) TESTFILE=$(ls \"${DIR}/${BASE}\".{test,spec}.{ts,tsx,js,jsx} \"${DIR}/__tests__/${BASE}\".{test,spec}.{ts,tsx,js,jsx} 2>/dev/null | head -1); [[ -n \"$TESTFILE\" ]] && { npx --no-install jest --passWithNoTests \"$TESTFILE\" 2>/dev/null || npx --no-install vitest run \"$TESTFILE\" 2>/dev/null || true; };; esac; exit 0",
             "timeout": 60,
             "async": true
+          }
+        ]
+      },
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/a1-read-trim.sh",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Grep|Glob",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/a2-search-rank.sh",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/a3-bash-trim.sh",
+            "timeout": 5
           }
         ]
       }
@@ -202,6 +242,16 @@
             "type": "command",
             "command": "${HOME}/.claude/hooks/jev/session-start-project.sh",
             "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/a5-compact-reinject.sh",
+            "timeout": 8
           }
         ]
       }
@@ -273,6 +323,15 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/a4-task-boundary.sh",
+            "timeout": 10
+          }
+        ]
       }
     ],
     "PostToolUseFailure": [
@@ -313,6 +372,17 @@
           {
             "type": "command",
             "command": "${HOME}/.claude/hooks/jev/postcompact-log.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/a7-a8-prompt-context.sh",
             "timeout": 5
           }
         ]

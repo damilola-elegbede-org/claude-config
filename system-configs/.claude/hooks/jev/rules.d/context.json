@@ -1,0 +1,83 @@
+{
+  "rules": {
+    "A1-read-trim": {
+      "mode": "shadow",
+      "threshold": 0.35,
+      "scope": ["interactive", "bgjob", "fleet"],
+      "min_lines": 400,
+      "max_lines": 20000,
+      "chunk_lines": 100,
+      "budget_floor": 200,
+      "budget_ceiling": 600,
+      "budget_frac": 0.35,
+      "min_saving": 0.2,
+      "will_edit_p": 0.5
+    },
+    "A2-search-rank": {
+      "mode": "shadow",
+      "threshold": 0.35,
+      "scope": ["interactive", "bgjob", "fleet"],
+      "min_hits": 100,
+      "max_lines": 20000,
+      "chunk_lines": 25,
+      "budget_floor": 100,
+      "budget_ceiling": 100,
+      "budget_frac": 0,
+      "min_saving": 0.2
+    },
+    "A3-bash-trim": {
+      "mode": "shadow",
+      "threshold": 0.35,
+      "scope": ["interactive", "bgjob", "fleet"],
+      "min_lines": 300,
+      "max_lines": 20000,
+      "chunk_lines": 50,
+      "tail_lines": 40,
+      "budget_floor": 150,
+      "budget_ceiling": 400,
+      "budget_frac": 0.3,
+      "min_saving": 0.2
+    },
+    "A4-task-boundary": {
+      "mode": "shadow",
+      "threshold": 0.8,
+      "scope": ["interactive"],
+      "min_est_tokens": 150000,
+      "cooldown_s": 1800,
+      "suggest_on": ["task_completed"]
+    },
+    "A5-compact-reinject": {
+      "mode": "shadow",
+      "threshold": 0.5,
+      "scope": ["interactive", "bgjob", "fleet"],
+      "top_n": 5,
+      "max_candidates": 80
+    },
+    "A5b-compact-state": {
+      "mode": "enforce",
+      "scope": ["interactive", "bgjob", "fleet"],
+      "gh_timeout_s": 3
+    },
+    "A6-agent-router": {
+      "mode": "shadow",
+      "threshold": 0.8,
+      "scope": ["interactive", "bgjob"],
+      "min_prompt_chars": 30
+    },
+    "A7-memory-inject": {
+      "mode": "shadow",
+      "threshold": 0.7,
+      "scope": ["interactive"],
+      "top_n": 3,
+      "min_prompt_chars": 15,
+      "max_candidates": 60,
+      "body_chars": 3000
+    },
+    "A8-skill-picker": {
+      "mode": "shadow",
+      "threshold": 0.7,
+      "scope": ["interactive"],
+      "min_prompt_chars": 15
+    }
+  }
+}
