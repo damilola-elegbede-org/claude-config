@@ -339,6 +339,17 @@ check "Grep with NO path in an excluded cwd: untouched, no call" bash -c "[ ! -s
 jq -cn --rawfile c "$HITS" --arg cwd "$TEST_HOME/visa-repo" '{tool_name:"Grep", cwd:$cwd, tool_input:{pattern:"x", path:"src"}, tool_response:{content:$c}}' >"$IN"
 JEV_MOCK="$FIX" run_hook a2-search-rank.sh "$IN"
 check "Grep with a RELATIVE path resolved against an excluded cwd: untouched, no call" bash -c "[ ! -s '$OUTF' ] && [ \"\$(wc -l <'$STUB_COUNT' | tr -d ' ')\" = '$B' ]"
+# a search rooted at a clean ancestor whose hits come from an excluded descendant
+mkdir -p "$TEST_HOME/other"
+{ for i in $(seq 1 150); do printf '%s/other/a.txt:%s:clean line %s\n' "$TEST_HOME" "$i" "$i"; done
+  printf '%s/visa-repo/secret.ts:7:CONFIDENTIAL work line\n' "$TEST_HOME"; } >"$TEST_HOME/mixed-hits.txt"
+jq -cn --rawfile c "$TEST_HOME/mixed-hits.txt" --arg p "$TEST_HOME" --arg cwd "$TEST_HOME/other" '{tool_name:"Grep", cwd:$cwd, tool_input:{pattern:"line", path:$p}, tool_response:{content:$c}}' >"$IN"
+JEV_MOCK="$FIX" run_hook a2-search-rank.sh "$IN"
+check "Grep of a clean ancestor with ONE hit inside an excluded tree: untouched, no call" bash -c "[ ! -s '$OUTF' ] && [ \"\$(wc -l <'$STUB_COUNT' | tr -d ' ')\" = '$B' ]"
+grep -v visa-repo "$TEST_HOME/mixed-hits.txt" >"$TEST_HOME/clean-hits.txt"
+jq -cn --rawfile c "$TEST_HOME/clean-hits.txt" --arg p "$TEST_HOME" --arg cwd "$TEST_HOME/other" '{tool_name:"Grep", cwd:$cwd, tool_input:{pattern:"line", path:$p}, tool_response:{content:$c}}' >"$IN"
+JEV_MOCK="$FIX" run_hook a2-search-rank.sh "$IN"
+check "same search without the excluded hit is still ranked (control)" bash -c "! [[ \"\$(wc -l <'$STUB_COUNT' | tr -d ' ')\" == '$B' ]]"
 rm -f "$HOME/.claude/hooks/jev/jev-config.json"
 
 # ------------------------------------------------------------------ A3: Bash log trim

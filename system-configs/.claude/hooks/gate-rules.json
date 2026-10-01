@@ -541,6 +541,23 @@
       "enforce": true
     },
     {
+      "id": "G10-identity",
+      "class": "G10",
+      "description": "Bash that assigns or exports BARECLAUDE_AGENT_SLUG (a self-assigned fleet identity would exempt the session, or a child it launches, from every gate)",
+      "tools": "^Bash$",
+      "field": "command",
+      "pattern": "(?:^|[^A-Za-z0-9_])BARECLAUDE_AGENT_SLUG[[:space:]]*=|(?:^|[^A-Za-z0-9_])setenv[[:space:]]+BARECLAUDE_AGENT_SLUG(?=[[:space:]])",
+      "action": "deny",
+      "message": "fleet identity is set by the fleet launcher, never by a session: exempt agents skip every gate",
+      "scope": [
+        "interactive",
+        "bgjob",
+        "fleet"
+      ],
+      "lanes": {},
+      "enforce": true
+    },
+    {
       "id": "G10-file",
       "class": "G10",
       "description": "Write/Edit to live ~/.claude/hooks/, settings.json, gate state (anchored on $HOME); session transcripts (~/.claude/projects/**/*.jsonl), which gate.sh approve reads as approval evidence",

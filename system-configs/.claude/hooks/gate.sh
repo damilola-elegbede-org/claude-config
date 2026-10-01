@@ -354,7 +354,7 @@ def safe_target:
 # The approval identity: the ACTION (tool, exact raw command or path+written content, cwd, scope), never a rule.
 def subject:
   if $tn == "Bash" then ($ti.command // "")
-  elif ($ti.file_path? // null) != null then fv("file_path") + "\u001e" + fv("content")
+  elif ($ti.file_path? // null) != null then fv("file_path") + "\u001e" + ($ti | del(.file_path) | tojson)
   else ($ti | tojson) end;
 def action_id: $tn + "\u001f" + subject + "\u001f" + $cwd + "\u001f" + $scope;
 ("^[[:space:]]*(?:~|\"?\\$\\{?HOME\\}?\"?|" + ($home | esc) + ")/\\.claude/hooks/gate\\.sh\"?[[:space:]]+approve[[:space:]]+[0-9a-f]{64}[[:space:]]*\\z") as $approve_re

@@ -29,6 +29,17 @@ main() {
     ctx_log skip "${WORK}/detail.json"
     return 0
   fi
+  # ... and every returned path is checked too: a search of a clean ancestor ($HOME) can return hits from an
+  # excluded descendant (~/work). Grep content lines are "path:line:text"; files modes are bare paths.
+  local hit
+  while IFS= read -r hit; do
+    [ -n "$hit" ] || continue
+    if ctx_target_excluded "$hit"; then
+      jq -cn --argjson n "$n" '{decision:"keep-full", why:"excluded-hit", lines:$n}' >"${WORK}/detail.json"
+      ctx_log skip "${WORK}/detail.json"
+      return 0
+    fi
+  done < <(sed -E 's/^([^:]+):[0-9]+[:-].*/\1/; s/^([^:]+)-[0-9]+-.*/\1/' "${WORK}/text.txt" | awk '!seen[$0]++' | head -500)
 
   task="$(ctx_task "$(ctx_in .transcript_path)")"
   state="$(jq -cn --arg task "$task" --arg tool "$tool" --arg pat "$(ctx_in .tool_input.pattern | cut -c1-200)" --argjson n "$n" \

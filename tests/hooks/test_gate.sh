@@ -284,6 +284,15 @@ mk_ask_q "$TX_AP" ask-wrongcode 5 "Yes" "Approve rm -rf other? checkpoint 000000
 approve_rc "$H_AP" "$HASH"
 check "approval: a question carrying another checkpoint's code does not approve" "1" "$?"
 if [[ ! -e "$H_AP/.claude/gate-asks-used.d/ask-unrelated" && ! -e "$H_AP/.claude/gate-asks-used.d/ask-wrongcode" ]]; then pass; else fail "approval: an unrelated question is never claimed"; fi
+# An Edit's approval is bound to its WHOLE input: the same path and new_string with a different old_string
+# or replace_all is a different action (Codex repro: a safe approved edit reused against another occurrence).
+E1=$(payload Edit "$(jq -nc --arg p "$H_AP/.claude/hooks/gate.sh" '{file_path:$p, old_string:"# harmless comment", new_string:"# x"}')")
+E2=$(payload Edit "$(jq -nc --arg p "$H_AP/.claude/hooks/gate.sh" '{file_path:$p, old_string:"exit 2", new_string:"# x"}')")
+E3=$(payload Edit "$(jq -nc --arg p "$H_AP/.claude/hooks/gate.sh" '{file_path:$p, old_string:"# harmless comment", new_string:"# x", replace_all:true}')")
+HE1=$(deny_hash "$H_AP" "$E1")
+HE2=$(deny_hash "$H_AP" "$E2")
+HE3=$(deny_hash "$H_AP" "$E3")
+if [[ -n "$HE1" && "$HE1" != "$HE2" && "$HE1" != "$HE3" && "$HE2" != "$HE3" ]]; then pass; else fail "approval: Edit hash covers old_string and replace_all ($HE1 $HE2 $HE3)"; fi
 mk_ask "$TX_AP" ask-yes 5 "Approve" "$HASH"
 approve_rc "$H_AP" "$HASH"
 check "approval: approve exits 0 after a real Approve" "0" "$?"
