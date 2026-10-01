@@ -47,6 +47,9 @@ respected. If pre-commit hooks fail, the error is reported for manual resolution
    - Match repository's existing commit style
    - Include clear, concise description
    - Add Claude Code attribution footer
+   - Optional hint: `${HOME}/.claude/skills/commit/scripts/classify.sh commit`. Only when its `mode` is `enforce`,
+     use `type` as the default conventional type and, if `mixed` is true, offer to split the commit; otherwise
+     ignore it (`deterministic_type` is a path-based guess)
 
 4. **Create Commit**
    - Stage relevant files if needed
