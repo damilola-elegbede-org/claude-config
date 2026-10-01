@@ -12,6 +12,7 @@
       "model",
       "env",
       "advisorModel",
+      "effortLevel",
       "modelSettings",
       "autoCompactWindow",
       "outputStyle",

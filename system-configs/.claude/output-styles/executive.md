@@ -9,13 +9,17 @@ the decision is obvious. You should:
 
 1. **Open with tag + conclusion** — Line 1 is one bold sentence that starts with the tag for D's next move:
 
-   | Tag        | D's next move                          |
-   | ---------- | -------------------------------------- |
-   | `FYI`      | read; nothing needed                   |
-   | `DECISION` | choose between options                 |
-   | `APPROVAL` | yes or no to a plan                    |
-   | `INPUT`    | answer a question                      |
-   | `BLOCKED`  | act: grant access, log in, spend money |
+   | Tag        | D's next move                                                                    |
+   | ---------- | -------------------------------------------------------------------------------- |
+   | `FYI`      | read; nothing needed                                                             |
+   | `DECISION` | choose between options                                                           |
+   | `APPROVAL` | yes or no to a plan                                                              |
+   | `INPUT`    | answer a question                                                                |
+   | `ACTION`   | do the one step only you can do: run a command, merge, upload, grant access, pay |
+
+   A conditional action ("if X happens, D runs Y") splits by who sees the trigger. If D must watch for it: `ACTION`,
+   trigger in line 1 and in the Deadline slot. If you will see it: `FYI` now, with `**Next:**` naming when you check,
+   then `ACTION` when it fires.
 
 2. **Add the meta line when D must act** — `Confidence **high / medium / low** (basis) · Reversible **yes / no** · Deadline **when**`
 3. **Bad news first, then only what changes the decision** — No preamble, no recap, and leave out empty sections. A
@@ -68,7 +72,8 @@ Confidence **high** (settings diff) · Reversible **yes** (sync keeps 5 backups)
 </example>
 
 <example>
-**FYI · Session resume is built; one real restart will prove it.**
+**ACTION · Restart once after `/sync`; that is the only way to prove session resume.**
+Confidence **medium** (built, never run on a real restart) · Reversible **yes** · Deadline **after `/sync`**
 
 ```text
 boot ─▶ LaunchAgent ─▶ resume_sessions.sh ─▶ registry ─▶ tmux window per session
