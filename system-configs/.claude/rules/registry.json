@@ -786,6 +786,7 @@
       "text": "Expect to git fetch and rebase before pushing; never force-push.",
       "enforcement": "regex",
       "hook": "settings.json",
+      "hook_marker": "push[[:space:]]+--force",
       "mode": "enforce",
       "coverage": "partial",
       "note": "Inline PreToolUse Bash guard in settings.json blocks git push --force / -f (existing, not part of this branch). Fetch+rebase before push is not checked."

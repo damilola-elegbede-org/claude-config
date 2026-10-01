@@ -363,7 +363,11 @@ class ClientBackend(Backend):
     def run(self, reqs):
         out = []
         for r in reqs:
-            p = subprocess.run([str(self.path)], input=json.dumps(r), capture_output=True, text=True)
+            try:
+                p = subprocess.run([str(self.path)], input=json.dumps(r), capture_output=True, text=True, timeout=60)
+            except subprocess.TimeoutExpired:
+                out.append({"ok": False, "error": "timeout"})  # a hung client must not block the whole replay
+                continue
             if p.returncode != 0:
                 out.append({"ok": False, "error": f"exit {p.returncode}"})
                 continue
@@ -442,7 +446,8 @@ def run_cached(backend, reqs, cache_path):
             if line.strip():
                 d = json.loads(line)
                 cache[d["k"]] = d["r"]
-    keys = [hashlib.sha256((backend.name + "\0" + json.dumps(r, sort_keys=True)).encode()).hexdigest() for r in reqs]
+    model = os.environ.get("JEV_MODEL") or "typesafe-ai/jev"  # a model change must not be served the old model's answers
+    keys = [hashlib.sha256((backend.name + "\0" + model + "\0" + json.dumps(r, sort_keys=True)).encode()).hexdigest() for r in reqs]
     todo = [(k, r) for k, r in zip(keys, reqs) if k not in cache]
     if todo:
         fresh = backend.run([r for _, r in todo])

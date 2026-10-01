@@ -286,9 +286,23 @@ EOF
   echo "  final text: $(final_text "$d/s.jsonl" | tr '\n' ' ' | cut -c1-80) / $(final_text "$d/s2.jsonl" | tr '\n' ' ' | cut -c1-80)"
   echo "  markers (handler|command):"
   sort "$d/markers.txt" 2>/dev/null | sed 's/^/    /'
-  local n
+  local n expected
   for n in "echo hello" "git --version" "echo x && git --version" "FOO=1 git --version" "rm -f" "redirect-out" "gh pr create --help" "cd /tmp && gh pr create" "gh --repo a/b pr create" "(git --version)" 'echo $(git --version)' "ls /tmp; git --version" "echo x | git --version"; do
-    echo "  handlers that ran for [$n]: $(grep -F -- "$n" "$d/markers.txt" 2>/dev/null | cut -d'|' -f1 | sort | tr '\n' ' ')"
+    # The label abbreviates some commands; compare the FULL marker command (the text after the FIRST |, which
+    # may itself contain pipes, so no awk -F'|').
+    case "$n" in
+      "rm -f") expected="rm -f $d/nonexistent-file" ;;
+      "redirect-out") expected="echo y > $d/redirect-out.txt" ;;
+      "cd /tmp && gh pr create") expected="cd /tmp && gh pr create --help" ;;
+      "gh --repo a/b pr create") expected="gh --repo a/b pr create --help" ;;
+      *) expected="$n" ;;
+    esac
+    echo "  handlers that ran for [$n]: $(awk -v expected="$expected" '
+      {
+        delimiter = index($0, "|")
+        if (delimiter && substr($0, delimiter + 1) == expected)
+          print substr($0, 1, delimiter - 1)
+      }' "$d/markers.txt" 2>/dev/null | sort | tr '\n' ' ')"
   done
   if grep -q '^git-prefix|echo hello$' "$d/markers.txt" 2>/dev/null; then
     verdict "e: if-field NOT honoured (git-prefix ran for echo hello)"

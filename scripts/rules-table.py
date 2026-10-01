@@ -42,6 +42,20 @@ def load():
         return None
 
 
+def inline_pretooluse_commands():
+    """Every PreToolUse hook command in settings.json (the inline guards)."""
+    try:
+        settings = json.loads((ROOT / "system-configs/.claude/settings.json").read_text())
+    except (OSError, json.JSONDecodeError):
+        return []
+    cmds = []
+    for entry in (settings.get("hooks") or {}).get("PreToolUse") or []:
+        for h in entry.get("hooks") or []:
+            if isinstance(h.get("command"), str):
+                cmds.append(h["command"])
+    return cmds
+
+
 def validate(reg):
     errors = []
     seen = set()
@@ -69,6 +83,13 @@ def validate(reg):
                 errors.append(f"{rid}: enforcement {r.get('enforcement')} requires a hook filename")
             elif not any((d / hook).is_file() for d in HOOK_DIRS):
                 errors.append(f"{rid}: hook {hook} not found under hooks/jev or system-configs/.claude")
+            elif hook == "settings.json":
+                # The file always exists; the guard a rule relies on is INLINE in it, so prove the guard is there.
+                marker = r.get("hook_marker")
+                if not marker:
+                    errors.append(f"{rid}: hook settings.json needs hook_marker (a substring of the inline PreToolUse guard it relies on)")
+                elif not any(marker in c for c in inline_pretooluse_commands()):
+                    errors.append(f"{rid}: hook_marker {marker!r} is in no PreToolUse command of settings.json (guard removed?)")
             if r.get("enforcement") == "jev" and r.get("mode") not in ("shadow", "enforce"):
                 errors.append(f"{rid}: jev rules are shadow or enforce")
         # source:line + anchor must really be there
