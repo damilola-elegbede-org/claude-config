@@ -809,9 +809,72 @@ post_sync_validation() {
     return 0
 }
 
+# Prerequisites: everything sync and the runtime hooks need, checked BEFORE anything is written
+# (including by --dry-run). Missing tools and a Node older than the Jev SDK's engines.node are
+# hard failures; a missing gateway key is a warning (Jev degrades to regex, and fleet stations
+# without a key must still sync). JEV_SYNC_SKIP_NPM=1 (tests) skips the node/npm checks.
+check_prerequisites() {
+    prereq_fail=0
+    echo "🔎 Prerequisites:"
+    for prereq_tool in jq rsync; do
+        if command -v "$prereq_tool" >/dev/null 2>&1; then
+            echo "  ✅ $prereq_tool"
+        else
+            print_error "$prereq_tool not found (brew install $prereq_tool)"
+            prereq_fail=1
+        fi
+    done
+
+    if [ "$(manifest_flag hook_scripts)" = "true" ]; then
+        if [ -z "${JEV_SYNC_SKIP_NPM:-}" ]; then
+            prereq_node_min=22
+            if command -v jq >/dev/null 2>&1 && [ -f "$SOURCE_DIR/hooks/jev/package.json" ]; then
+                prereq_node_min=$(jq -r '.engines.node // ""' "$SOURCE_DIR/hooks/jev/package.json" 2>/dev/null | sed -n 's/[^0-9]*\([0-9][0-9]*\).*/\1/p')
+                prereq_node_min=${prereq_node_min:-22}
+            fi
+            if ! command -v node >/dev/null 2>&1; then
+                print_error "node not found - the Jev client needs Node >= $prereq_node_min (brew install node)"
+                prereq_fail=1
+            elif prereq_node_major=$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null) \
+                && [ "${prereq_node_major:-0}" -lt "$prereq_node_min" ]; then
+                print_error "Node $prereq_node_major is older than the Node $prereq_node_min the Jev SDK needs (brew upgrade node)"
+                prereq_fail=1
+            else
+                echo "  ✅ node $(node -p 'process.versions.node' 2>/dev/null) (needs >= $prereq_node_min)"
+            fi
+            if command -v npm >/dev/null 2>&1; then
+                echo "  ✅ npm"
+            else
+                print_error "npm not found - needed for npm ci in ~/.claude/hooks/jev"
+                prereq_fail=1
+            fi
+        fi
+
+        # Same lookup order as hooks/jev/client.mjs resolveKey(): environment first, then an export line in ~/.zshrc.
+        if [ -n "${AI_GATEWAY_API_KEY:-}${VERCEL_AI_GATEWAY_TOKEN:-}${VERCEL_AI_GATEWAY_KEY:-}" ] \
+            || grep -Eqs '^[[:space:]]*export[[:space:]]+(VERCEL_AI_GATEWAY_TOKEN|VERCEL_AI_GATEWAY_KEY|AI_GATEWAY_API_KEY)=[^[:space:]#]' "${JEV_ZSHRC:-$HOME/.zshrc}"; then
+            echo "  ✅ Jev gateway key"
+        else
+            print_warning "no Jev gateway key (export VERCEL_AI_GATEWAY_TOKEN in ~/.zshrc or set AI_GATEWAY_API_KEY) - Jev checkpoints will fall back to regex"
+        fi
+    fi
+
+    if [ "$prereq_fail" -ne 0 ]; then
+        echo ""
+        echo "❌ Prerequisites missing — nothing was synced. Install the items above and run sync again."
+        return 1
+    fi
+    echo ""
+    return 0
+}
+
 # Main execution
 main() {
     start_time=$(date +%s)
+
+    if ! check_prerequisites; then
+        return 1
+    fi
 
     # Handle dry run
     if [ "$DRY_RUN" = "true" ]; then
