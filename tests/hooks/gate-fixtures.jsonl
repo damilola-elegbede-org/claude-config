@@ -319,6 +319,9 @@
 {"rule":"G10-tamper","expect":"deny","tool":"Bash","input":{"command":"echo x > ~/.claude/jev.off"}}
 {"rule":"G10-tamper","expect":"deny","tool":"Bash","input":{"command":"touch ~/.claude/jev.off"}}
 {"rule":"G10-tamper","expect":"deny","tool":"Bash","input":{"command":"rm ~/.claude/gate-asks-used"}}
+{"rule":"G10-tamper","expect":"deny","tool":"Bash","input":{"command":"mkdir ~/.claude/gate-asks-used.d/toolu_x"}}
+{"rule":"G10-tamper","expect":"deny","tool":"Bash","input":{"command":"touch ~/.claude/gate-asks-used.d/toolu_x"}}
+{"rule":"G10-file","expect":"deny","tool":"Write","input":{"file_path":"@HOME@/.claude/gate-asks-used.d/toolu_x","content":"x"}}
 {"rule":"G10-tamper","expect":"allow","tool":"Bash","input":{"command":"cp ~/.claude/settings.json /tmp/settings.bak"}}
 {"rule":"G10-tamper","expect":"allow","tool":"Bash","input":{"command":"ls ~/.claude/gate.off"}}
 {"rule":"G10-file","expect":"deny","tool":"Write","input":{"file_path":"@HOME@/.claude/jev.off"}}
