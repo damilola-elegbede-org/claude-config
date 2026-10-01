@@ -62,7 +62,9 @@
           },
           {
             "type": "command",
-            "command": "INPUT=$(cat); command -v jq >/dev/null 2>&1 || { echo 'WARNING: jq missing — Claude Code hook guards are disabled' >&2; exit 0; }; CMD=$(printf '%s' \"$INPUT\" | jq -r '.tool_input.command // empty' 2>/dev/null); if [[ -z \"$CMD\" ]]; then exit 0; fi; TOP=$(git rev-parse --show-toplevel 2>/dev/null); { [[ -x infra/scripts/git-agent.sh ]] || [[ -n \"$TOP\" && -x \"$TOP/infra/scripts/git-agent.sh\" ]]; } || exit 0; if printf '%s' \"$CMD\" | grep -qE '(^|[;&|(]|&&|\\|\\|)[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=(\"[^\"]*\"|[^[:space:]]*)[[:space:]]+)*git[[:space:]]+(commit|push|clone|tag|remote|am|cherry-pick|revert)([[:space:]]|$)'; then echo \"BLOCKED: bare git for an identity/remote op. Bare git commits under the repo git config (often D personal email), not the bot - ENG-124 leak class. Use: infra/scripts/git-agent.sh <agent> <git args>\" >&2; exit 2; fi"
+            "command": "INPUT=$(cat); command -v jq >/dev/null 2>&1 || { echo 'WARNING: jq missing — Claude Code hook guards are disabled' >&2; exit 0; }; CMD=$(printf '%s' \"$INPUT\" | jq -r '.tool_input.command // empty' 2>/dev/null); if [[ -z \"$CMD\" ]]; then exit 0; fi; TOP=$(git rev-parse --show-toplevel 2>/dev/null); { [[ -x infra/scripts/git-agent.sh ]] || [[ -n \"$TOP\" && -x \"$TOP/infra/scripts/git-agent.sh\" ]]; } || exit 0; if printf '%s' \"$CMD\" | grep -qE '(^|[;&|(]|&&|\\|\\|)[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=(\"[^\"]*\"|[^[:space:]]*)[[:space:]]+)*git[[:space:]]+(commit|push|clone|tag|remote|am|cherry-pick|revert)([[:space:]]|$)'; then echo \"BLOCKED: bare git for an identity/remote op. Bare git commits under the repo git config (often D personal email), not the bot - ENG-124 leak class. Use: infra/scripts/git-agent.sh <agent> <git args>\" >&2; exit 2; fi",
+            "if": "Bash(git *)",
+            "timeout": 5
           }
         ]
       },
@@ -107,6 +109,7 @@
           {
             "type": "command",
             "command": "${HOME}/.claude/hooks/jev/memory-dup-guard.sh",
+            "if": "Write(**/memory/*.md)",
             "timeout": 5
           }
         ]
@@ -117,6 +120,7 @@
           {
             "type": "command",
             "command": "${HOME}/.claude/hooks/jev/pr-draft-guard.sh",
+            "if": "Bash(gh *pr create*)",
             "timeout": 5
           }
         ]
@@ -210,7 +214,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo 'Preserve in the summary: the current task and its acceptance criteria, decisions made and why, files changed, open questions, and the exact next steps.'"
+            "command": "echo 'Preserve in the summary: the current task and its acceptance criteria, decisions made and why, files changed, open questions, and the exact next steps.'",
+            "timeout": 5
           }
         ]
       }
@@ -296,7 +301,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if [ -n \"$BARECLAUDE_AGENT_SLUG\" ] || [ -n \"$CLAUDE_JOB_DIR\" ]; then exit 0; fi; afplay -v 1.0 '/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Modern/Keys.m4r' 2>/dev/null &"
+            "command": "if [ -n \"$BARECLAUDE_AGENT_SLUG\" ] || [ -n \"$CLAUDE_JOB_DIR\" ]; then exit 0; fi; afplay -v 1.0 '/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Modern/Keys.m4r' 2>/dev/null &",
+            "timeout": 5
           }
         ]
       }

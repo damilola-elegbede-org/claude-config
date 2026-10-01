@@ -94,3 +94,32 @@ produces a report to read, and a human decides whether to accept a new baseline.
 Untested as a cron entry: the inline backend reads the key from `~/.zshrc` itself, but this was not run
 under cron. Compare the new report's per-rule precision and recall with the committed results file; if a
 rule degraded, re-run with `--write-results` only after reviewing it.
+
+## Hook `if` prefilters
+
+Claude Code's handler-level `if` field is supported (probe `scripts/jev-hook-probes.sh e`, run live on
+CLI 2.1.286). It takes one permission rule per handler (`Bash(git *)`, `Write(**/memory/*.md)`) and only
+applies to tool events. What the probe showed:
+
+- A handler with a non-matching `if` is not spawned at all.
+- `Bash(git *)` matches `git ...` anywhere in a compound command (`echo x && git ...`) and after
+  environment assignments (`FOO=1 git ...`). Commands the CLI cannot parse safely, such as `(git ...)` and
+  `echo $(git ...)`, ran every `if` handler, so an unparseable command fails open (the hook runs).
+- Redirections are invisible to the glob: `Bash(*>*)` did not match `echo y > file`.
+- Two handlers with the same command and different `if` rules both run (no cross-handler dedupe).
+- Path rules for Edit and Write work (`Edit(**/package.json)`, `Write(**/memory/*.md)`).
+
+Applied only where the script ignores everything the rule filters out, so no hook is skipped for a call it
+would have acted on:
+
+| Handler                                                | `if`                    |
+| ------------------------------------------------------ | ----------------------- |
+| `pr-draft-guard.sh`                                    | `Bash(gh *pr create*)`  |
+| `memory-dup-guard.sh`                                  | `Write(**/memory/*.md)` |
+| bare-git identity guard (`infra/scripts/git-agent.sh`) | `Bash(git *)`           |
+
+Deliberately left without one: `gate.sh` and `jev-gate.sh` (their rules match on redirects and on
+payload content, which a glob cannot see), the destructive-git guard (its `--no-verify` arm is not
+git-prefixed and an `if` takes one rule), the file-extension guards (several extensions, one rule), and the
+Jev context hooks (`a1`..`a8`, `retry-counter`: they act on every call of their matcher, so there is
+nothing for a prefilter to skip). Every handler now has an explicit `timeout`.

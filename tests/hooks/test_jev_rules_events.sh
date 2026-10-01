@@ -88,6 +88,17 @@ for f in "$HOOKS"/*.sh; do
   grep -qF "$b" "$REPO_ROOT/scripts/sync.sh" && ok || bad "sync.sh RUNTIME_HOOK_SCRIPTS lists $b"
 done
 
+# hook `if` prefilters (settings.json handler field; verified live with scripts/jev-hook-probes.sh e):
+# only handlers whose script ignores everything the rule filters out get one, one permission rule each.
+if_of() { jq -r --arg f "$1" '[.hooks[][]?.hooks[]? | select(.command | contains($f)) | .if // "none"] | join(",")' "$SJ"; }
+eq "if: pr-draft-guard only runs for gh pr create" "$(if_of pr-draft-guard.sh)" 'Bash(gh *pr create*)'
+eq "if: memory-dup-guard only runs for memory notes" "$(if_of memory-dup-guard.sh)" 'Write(**/memory/*.md)'
+eq "if: the git-agent identity guard only runs for git commands" "$(jq -r '[.hooks.PreToolUse[].hooks[] | select(.command | contains("git-agent.sh")) | .if] | join(",")' "$SJ")" 'Bash(git *)'
+eq "if: the destructive-git guard has none (its --no-verify arm is not git-prefixed)" "$(jq -r '[.hooks.PreToolUse[].hooks[] | select(.command | contains("--no-gpg-sign")) | .if // "none"] | join(",")' "$SJ")" none
+eq "if: gate.sh and jev-gate have none (redirects are invisible to if globs)" "$(if_of hooks/gate.sh),$(if_of hooks/jev-gate.sh)" "none,none"
+eq "if: every rule is a single permission rule (no OR, no list)" "$(jq -r '[.hooks[][]?.hooks[]? | .if // empty | select(test("\\|\\||,|\\|[^)]*\\)$"))] | length' "$SJ")" 0
+eq "every hook handler has an explicit timeout" "$(jq -r '[.hooks[][]?.hooks[]? | select(.timeout == null)] | length' "$SJ")" 0
+
 # re_cfg reads the {"rules":{...}} wrapper of the client's jev-rules.json (last file wins)
 mkdir -p "$HOME/.claude/hooks/jev"
 printf '%s' '{"exempt_agents":["x"],"rules":{"retry-counter":{"mode":"shadow"}}}' >"$HOME/.claude/hooks/jev/jev-rules.json"

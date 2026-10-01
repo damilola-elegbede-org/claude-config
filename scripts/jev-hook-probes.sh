@@ -10,8 +10,11 @@
 #      --permission-mode bypassPermissions; is "ask" ignored?
 #   c  PostToolUse updatedToolOutput: does it replace a Bash / Read result?
 #   d  (supplemental) SessionStart: does plain stdout / systemMessage surface?
+#   e  hook handler `if` field (permission-rule syntax): does it gate the spawn,
+#      match env-prefixed / compound / wildcard-contained commands, and are two
+#      handlers with the same command string deduplicated?
 #
-# Usage: scripts/jev-hook-probes.sh [a|b|c|d|all]   (default: all)
+# Usage: scripts/jev-hook-probes.sh [a|b|c|d|e|all]   (default: all)
 #
 # Isolation: each probe runs in its own temp cwd, with --setting-sources project
 # plus --settings <temp file>, so the user's live hooks (TTS on Stop, sounds on
@@ -237,19 +240,91 @@ EOF
   verdict "d: SessionStart plain stdout -> model sees it: $plain_in_model (in stream: $plain_in_stream); systemMessage -> model sees it: $sysmsg_in_model (in stream: $sysmsg_in_stream)"
 }
 
+# ---------------------------------------------------------------- probe e
+# The handler-level `if` field (docs: one permission rule per handler, tool events only). A marker
+# hook per rule appends "<id>|<command>" to markers.txt, so the file shows exactly which handlers
+# spawned for which Bash command.
+probe_e() {
+  echo "== probe e: hook handler if-field"
+  local d
+  d="$(new_probe_dir e)"
+  cat >"$d/mark.sh" <<'EOF'
+#!/bin/bash
+CMD=$(jq -r '.tool_input.command // .tool_input.file_path // empty')
+printf '%s|%s\n' "$1" "$CMD" >>"$(dirname "$0")/markers.txt"
+EOF
+  chmod +x "$d/mark.sh"
+  mkdir -p "$d/memory"
+  printf 'a\n' >"$d/package.json"
+  printf 'a\n' >"$d/other.txt"
+  printf 'a\n' >"$d/settings.local.json"
+  cat >"$d/settings.json" <<EOF
+{"hooks":{"PreToolUse":[
+ {"matcher":"Bash","hooks":[
+  {"type":"command","command":"$d/mark.sh always"},
+  {"type":"command","command":"$d/mark.sh git-prefix","if":"Bash(git *)"},
+  {"type":"command","command":"$d/mark.sh contains-rm","if":"Bash(*rm *)"},
+  {"type":"command","command":"$d/mark.sh redirect","if":"Bash(*>*)"},
+  {"type":"command","command":"$d/mark.sh dup","if":"Bash(git *)"},
+  {"type":"command","command":"$d/mark.sh dup","if":"Bash(*git*)"},
+  {"type":"command","command":"$d/mark.sh gh-create","if":"Bash(gh *pr create*)"}]},
+ {"matcher":"Edit","hooks":[
+  {"type":"command","command":"$d/mark.sh edit-any"},
+  {"type":"command","command":"$d/mark.sh edit-pkg","if":"Edit(**/package.json)"},
+  {"type":"command","command":"$d/mark.sh edit-settings","if":"Edit(**/settings*.json)"}]},
+ {"matcher":"Write","hooks":[
+  {"type":"command","command":"$d/mark.sh write-any"},
+  {"type":"command","command":"$d/mark.sh write-memory","if":"Write(**/memory/*.md)"}]}
+]}}
+EOF
+  claude_run "$d" s "$d/settings.json" \
+    "Run these bash commands one at a time, each as its own Bash call, exactly as written, in this order: (1) echo hello  (2) git --version  (3) echo x && git --version  (4) FOO=1 git --version  (5) rm -f $d/nonexistent-file  (6) echo y > $d/redirect-out.txt  (7) gh pr create --help  (8) cd /tmp && gh pr create --help  (9) gh --repo a/b pr create --help  (10) (git --version)  (11) echo \$(git --version)  Then reply with exactly the word DONE." \
+    --no-session-persistence
+  claude_run "$d" s2 "$d/settings.json" \
+    "Use the Edit tool (not Bash) once on each of these files, replacing the text a with b: $d/package.json, $d/other.txt, $d/settings.local.json. Then use the Write tool to create $d/memory/note.md with the content hello, and $d/plain.md with the content hello. Then reply with exactly the word DONE." \
+    --no-session-persistence
+  echo "  final text: $(final_text "$d/s.jsonl" | tr '\n' ' ' | cut -c1-80) / $(final_text "$d/s2.jsonl" | tr '\n' ' ' | cut -c1-80)"
+  echo "  markers (handler|command):"
+  sort "$d/markers.txt" 2>/dev/null | sed 's/^/    /'
+  local n
+  for n in "echo hello" "git --version" "echo x && git --version" "FOO=1 git --version" "rm -f" "redirect-out" "gh pr create --help" "cd /tmp && gh pr create" "gh --repo a/b pr create" "(git --version)" 'echo $(git --version)'; do
+    echo "  handlers that ran for [$n]: $(grep -F -- "$n" "$d/markers.txt" 2>/dev/null | cut -d'|' -f1 | sort | tr '\n' ' ')"
+  done
+  if grep -q '^git-prefix|echo hello$' "$d/markers.txt" 2>/dev/null; then
+    verdict "e: if-field NOT honoured (git-prefix ran for echo hello)"
+  elif grep -q '^git-prefix|git --version$' "$d/markers.txt" 2>/dev/null; then
+    verdict "e: if-field honoured: Bash(git *) skipped non-git commands and ran for git"
+  else
+    verdict "e: INCONCLUSIVE (see markers above)"
+  fi
+  local dups
+  dups=$(grep -c '^dup|git --version$' "$d/markers.txt" 2>/dev/null)
+  verdict "e-dedupe: same command string under two matching ifs ran ${dups:-0}x per git --version call (1 = deduplicated, 2 = both ran)"
+  if grep -q '^redirect|echo y >' "$d/markers.txt" 2>/dev/null; then
+    verdict "e-redirect: Bash(*>*) matched a redirect command"
+  else
+    verdict "e-redirect: Bash(*>*) did NOT match 'echo y > file' (redirections are invisible to if globs)"
+  fi
+  verdict "e-gh: gh-create ran for [$(grep '^gh-create|' "$d/markers.txt" | cut -d'|' -f2 | tr '\n' ';')] (expected: all three gh pr create forms, none of the others)"
+  verdict "e-subshell: git-prefix ran for (git --version): $(grep -c '^git-prefix|(git --version)$' "$d/markers.txt" 2>/dev/null), for echo \$(git --version): $(grep -cF 'git-prefix|echo $(git --version)' "$d/markers.txt" 2>/dev/null)"
+  verdict "e-paths: edit-pkg ran for [$(grep '^edit-pkg|' "$d/markers.txt" | cut -d'|' -f2 | xargs -n1 basename 2>/dev/null | tr '\n' ' ')], edit-settings for [$(grep '^edit-settings|' "$d/markers.txt" | cut -d'|' -f2 | xargs -n1 basename 2>/dev/null | tr '\n' ' ')], write-memory for [$(grep '^write-memory|' "$d/markers.txt" | cut -d'|' -f2 | xargs -n1 basename 2>/dev/null | tr '\n' ' ')] (expected: package.json / settings.local.json / note.md only)"
+}
+
 case "$WHICH" in
   a) probe_a ;;
   b) probe_b ;;
   c) probe_c ;;
   d) probe_d ;;
+  e) probe_e ;;
   all)
     probe_b
     probe_c
     probe_a
     probe_d
+    probe_e
     ;;
   *)
-    echo "usage: $0 [a|b|c|d|all]" >&2
+    echo "usage: $0 [a|b|c|d|e|all]" >&2
     exit 2
     ;;
 esac
