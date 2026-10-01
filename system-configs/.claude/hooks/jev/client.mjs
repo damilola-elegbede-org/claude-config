@@ -394,6 +394,19 @@ function egressReason(input) {
       /* not on disk: raw only */
     }
   }
+  // Paths the request is about (a Write/Edit target): relative ones resolve against the caller's cwd, and a
+  // file that does not exist yet is canonicalized through its parent directory.
+  const base = typeof input.cwd === "string" && input.cwd ? input.cwd : process.cwd();
+  for (const p of Array.isArray(input.paths) ? input.paths : []) {
+    if (typeof p !== "string" || !p) continue;
+    const abs = path.resolve(base, p.startsWith("~/") ? path.join(home(), p.slice(2)) : p);
+    cwds.add(abs);
+    try {
+      cwds.add(path.join(fs.realpathSync(path.dirname(abs)), path.basename(abs)));
+    } catch {
+      /* parent not on disk: raw only */
+    }
+  }
   for (const q of excludedPrefixes()) {
     for (const c of cwds) {
       const lc = c.toLowerCase();
@@ -423,6 +436,8 @@ function validate(input) {
   }
   if (input.timeout_ms !== undefined && !(Number.isFinite(input.timeout_ms) && input.timeout_ms >= 50 && input.timeout_ms <= 60000))
     throw badInput("timeout_ms: number 50..60000");
+  if (input.paths !== undefined && !(Array.isArray(input.paths) && input.paths.length <= 50 && input.paths.every((p) => typeof p === "string")))
+    throw badInput("paths: array of up to 50 strings");
   if (input.untrusted !== undefined && input.untrusted !== null && typeof input.untrusted !== "object" && typeof input.untrusted !== "string")
     throw badInput("untrusted: object or string");
 }

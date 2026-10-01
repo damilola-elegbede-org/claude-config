@@ -193,9 +193,13 @@ jev_note() {
 }
 
 # jev_build_request RULE STATE_JSON UNTRUSTED_JSON QUESTIONS_JSON -> request JSON
+# JEV_EGRESS_PATHS (JSON array, optional): paths the action targets; the client refuses egress when any is
+# inside an excluded tree (a relative one resolves against JEV_EGRESS_CWD).
 jev_build_request() {
-  jq -nc --arg rule "$1" --argjson state "$2" --argjson un "$3" --argjson q "$4" '
-    {rule:$rule, state:$state, questions:$q} + (if ($un | length) > 0 then {untrusted:$un} else {} end)'
+  jq -nc --arg rule "$1" --argjson state "$2" --argjson un "$3" --argjson q "$4" \
+    --argjson paths "${JEV_EGRESS_PATHS:-[]}" --arg cwd "${JEV_EGRESS_CWD:-}" '
+    {rule:$rule, state:$state, questions:$q} + (if ($un | length) > 0 then {untrusted:$un} else {} end)
+    + (if ($paths | length) > 0 then {paths:$paths} + (if $cwd != "" then {cwd:$cwd} else {} end) else {} end)'
 }
 
 # The question helpers read the merged registry (registry.sh) out of the global RULES the caller set.

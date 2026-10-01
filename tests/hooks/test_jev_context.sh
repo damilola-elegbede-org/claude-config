@@ -425,7 +425,8 @@ check "cwd under exclude_paths: silent" out_empty
 mkdir -p "$TEST_HOME/visa-repo/app" "$TEST_HOME/other/sub"
 for c in "git -C $TEST_HOME/visa-repo/app test" "cd $TEST_HOME/visa-repo && npm test" "$TEST_HOME/visa-repo/run.sh --all" \
   "FOO=1 make -C '$TEST_HOME/visa-repo/app'" 'cd ~/visa-repo/app && make' 'cd $HOME/visa-repo && make' "npm test --prefix=$TEST_HOME/visa-repo" "cd ../visa-repo/app && make" 'cd "$VISA_DIR/app" && make' \
-  'cd "$VISA_DIR" && npm test' 'npm test --prefix=${HOME}/visa-repo/app' 'cd ${HOME}/visa-repo && make' 'make -C ${VISA_DIR:-x}'; do
+  'cd "$VISA_DIR" && npm test' 'npm test --prefix=${HOME}/visa-repo/app' 'cd ${HOME}/visa-repo && make' 'make -C ${VISA_DIR:-x}' \
+  "awk 1 $TEST_HOME/vi\\sa-repo/app/log.txt" 'cd vi\sa-repo && make'; do
   bash_input "$c" "$LOG"
   case "$c" in "cd ../visa-repo"*) jq -c --arg c "$TEST_HOME/other" '.cwd=$c' "$IN" >"$IN.x" && mv "$IN.x" "$IN" ;; esac
   B="$(calls)"

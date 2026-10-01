@@ -147,6 +147,14 @@ eq "cwd under ~/work exits 3" "$RC" "3"
 has "egress says why" "$(cat "$T/stderr")" "egress_excluded_path"
 run_ask "{\"rule\":\"t-egress\",\"cwd\":\"$T/Visa/repo\",\"state\":{\"a\":1},\"questions\":$Q}" JEV_MOCK="$FIX" JEV_MOCK_CHECK_EGRESS=1
 eq "caller-supplied cwd under Visa exits 3 (case-insensitive)" "$RC" "3"
+run_ask "{\"rule\":\"t-egress\",\"paths\":[\"$T/work/proj/package.json\"],\"state\":{\"a\":1},\"questions\":$Q}" JEV_MOCK="$FIX" JEV_MOCK_CHECK_EGRESS=1
+eq "a target path under ~/work exits 3 even from a personal cwd" "$RC" "3"
+run_ask "{\"rule\":\"t-egress\",\"cwd\":\"$T/work\",\"paths\":[\"proj/new-file.json\"],\"state\":{\"a\":1},\"questions\":$Q}" JEV_MOCK="$FIX" JEV_MOCK_CHECK_EGRESS=1
+eq "a RELATIVE target resolved against an excluded cwd exits 3" "$RC" "3"
+run_ask "{\"rule\":\"t-egress\",\"paths\":[\"$T/personal/proj/package.json\"],\"state\":{\"a\":1},\"questions\":$Q}" JEV_MOCK="$FIX" JEV_MOCK_CHECK_EGRESS=1
+eq "a personal target path is allowed (control)" "$RC" "0"
+run_ask "{\"rule\":\"t-egress\",\"paths\":\"$T/x\",\"state\":{\"a\":1},\"questions\":$Q}" JEV_MOCK="$FIX"
+eq "paths must be an array" "$RC" "2"
 run_ask "{\"rule\":\"t-egress\",\"untrusted_source\":\"gmail\",\"state\":{\"a\":1},\"questions\":$Q}" JEV_MOCK="$FIX" JEV_MOCK_CHECK_EGRESS=1
 eq "gmail untrusted_source exits 3" "$RC" "3"
 run_ask "{\"rule\":\"t-egress\",\"untrusted_source\":[\"web\",\"slack\"],\"state\":{\"a\":1},\"questions\":$Q}" JEV_MOCK="$FIX" JEV_MOCK_CHECK_EGRESS=1

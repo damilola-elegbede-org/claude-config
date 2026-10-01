@@ -413,6 +413,9 @@ handle_generic() {
     Write | Edit)
       path=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // empty')
       [ -n "$path" ] || exit 0
+      # The client refuses egress when the target is inside an excluded tree, whatever the session cwd.
+      JEV_EGRESS_PATHS=$(jq -nc --arg p "$path" '[$p]')
+      [ "$CWD" != "-" ] && JEV_EGRESS_CWD="$CWD"
       # Only dependency-like or model lines are ever sent, never file contents.
       excerpt=$(printf '%s' "$INPUT" | jq -r '[.tool_input.content, .tool_input.new_string] | map(select(. != null)) | join("\n")' |
         grep -E '"model"|^[[:space:]]*"[@a-zA-Z0-9/_.-]+"[[:space:]]*:[[:space:]]*"[~^<>=*0-9a-zA-Z.-]+"|^[A-Za-z0-9_.-]+(==|>=|~=)[0-9]' | head -10 | jev_redact)

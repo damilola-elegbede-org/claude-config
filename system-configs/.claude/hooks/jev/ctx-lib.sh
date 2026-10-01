@@ -281,6 +281,10 @@ ctx_cmd_touches_excluded() {
       *'$'*) return 0 ;;                  # any other unresolved variable may name an excluded tree
     esac
     case "$tok" in
+      '\') continue ;;  # a line continuation
+      *\\*) return 0 ;; # a shell escape (w\ork) hides the real spelling: ambiguous provenance, no egress
+    esac
+    case "$tok" in
       /*) p="$tok" ;;
       */* | .*) p="${cwd%/}/$tok" ;;
       *) [ -e "${cwd%/}/$tok" ] || continue; p="${cwd%/}/$tok" ;;
