@@ -1,6 +1,9 @@
 {
   "_comment": "Decision-gate rules for hooks/gate.sh. Patterns are jq (Oniguruma) regexes written in the POSIX ERE subset plus lookahead/lookbehind where needed. Macros ({{SEP}} {{PFX}} {{GIT}} {{EXTOK}} {{LIVE}} and dynamic {{HOME}} {{TMPDIR}} {{JOBDIR}}) are expanded before matching. anchor=cmd wraps the pattern as SEP(?<c>PFX pattern rest-of-segment) so it only matches in command position; exempt is tested against that capture (or the whole match). exempt_all is tested against the whole field. Rules apply in file order; every matching rule is evaluated, the first enforced one names the CHECKPOINT and the others are listed as Also matched, and ONE approval (bound to tool + exact command/path+content + cwd + scope) clears them all. Before matching, heredoc bodies (unless fed to a shell) and quoted data (echo/printf/grep arguments, --body/--title/-m/-f body= values) are blanked; SEP also matches shell -c in any combined-flag form (bash -lc). Per-rule: scope (interactive|bgjob|fleet), lanes (fleet agent slug -> allow), enforce (false = log as shadow only). exempt_agents are never blocked (their would-be decision is logged).",
-  "exempt_agents": ["dara", "clara"],
+  "exempt_agents": [
+    "dara",
+    "clara"
+  ],
   "macros": {
     "SEP": "(?:^|[;&|(\\n`]|\\$\\(|-c[[:space:]]+[\\\"']|(?<![A-Za-z0-9_-])(?:ba|z|da|k)?sh[[:space:]]+(?:-[^[:space:]]+[[:space:]]+)*-[A-Za-z]*c[[:space:]]+[\\\"']|-exec(?:dir)?[[:space:]]+)[[:space:]]*",
     "PFX": "(?:[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*(?:(?:sudo|doas|env|command|exec|time|nohup|xargs|npx|then|do|else|elif|if|while|until|!)[[:space:]]+(?:-[^[:space:]]+[[:space:]]+)*(?:[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*)*",
@@ -23,7 +26,11 @@
       "exempt_all": "VERCEL_PROJECT_ID=",
       "action": "deny",
       "message": "Shell pins VERCEL_PROJECT_ID to alocubano; pass the project explicitly (--project <name> or VERCEL_PROJECT_ID=<id> prefix)",
-      "scope": ["interactive", "bgjob", "fleet"],
+      "scope": [
+        "interactive",
+        "bgjob",
+        "fleet"
+      ],
       "lanes": {},
       "enforce": true
     },
@@ -37,7 +44,11 @@
       "anchor": "cmd",
       "action": "deny",
       "message": "Codex is a brew cask: brew upgrade codex",
-      "scope": ["interactive", "bgjob", "fleet"],
+      "scope": [
+        "interactive",
+        "bgjob",
+        "fleet"
+      ],
       "lanes": {},
       "enforce": true
     },
@@ -52,7 +63,11 @@
       "exempt_all": "^[[:space:]]*(?:git[[:space:]]+(?:commit|log|grep|show)|grep|rg|ag)[[:space:]][^;&]*$",
       "action": "deny",
       "message": "Turso/libsql remote rejects CREATE TEMP TABLE; use a regular table or in-memory structure",
-      "scope": ["interactive", "bgjob", "fleet"],
+      "scope": [
+        "interactive",
+        "bgjob",
+        "fleet"
+      ],
       "lanes": {},
       "enforce": true
     },
@@ -66,7 +81,11 @@
       "exempt_path": "(?:\\.(?:md|txt)$|/tests?/|/test[_-][^/]*$|gate-rules\\.json$|/\\.claude/projects/)",
       "action": "deny",
       "message": "hooks get JSON on stdin, not $CLAUDE_TOOL_INPUT; read it with INPUT=$(cat) and jq",
-      "scope": ["interactive", "bgjob", "fleet"],
+      "scope": [
+        "interactive",
+        "bgjob",
+        "fleet"
+      ],
       "lanes": {},
       "enforce": true
     },
@@ -80,7 +99,11 @@
       "path": "(?:^|/)settings[^/]*\\.json$",
       "action": "deny",
       "message": "numeric settings must be numbers: a quoted value silently never applies",
-      "scope": ["interactive", "bgjob", "fleet"],
+      "scope": [
+        "interactive",
+        "bgjob",
+        "fleet"
+      ],
       "lanes": {},
       "enforce": true
     },
@@ -95,7 +118,11 @@
       "exempt": "^{{PFX}}(?:/(?:usr/)?bin/)?rm(?:[[:space:]]+-[^[:space:]]+)*(?:[[:space:]]+{{EXTOK}})(?:[[:space:]]+(?:-[^[:space:]]+|{{EXTOK}}))*[[:space:]]*$",
       "action": "deny",
       "message": "recursive rm outside scratch paths (/tmp, $TMPDIR, .tmp/, node_modules, dist, build, __pycache__, .pytest_cache, $CLAUDE_JOB_DIR)",
-      "scope": ["interactive", "bgjob", "fleet"],
+      "scope": [
+        "interactive",
+        "bgjob",
+        "fleet"
+      ],
       "lanes": {},
       "enforce": true
     },
@@ -110,7 +137,11 @@
       "exempt": "^{{PFX}}find[[:space:]]+{{EXTOK}}",
       "action": "deny",
       "message": "find -delete removes files without a recycle step",
-      "scope": ["interactive", "bgjob", "fleet"],
+      "scope": [
+        "interactive",
+        "bgjob",
+        "fleet"
+      ],
       "lanes": {},
       "enforce": true
     },
@@ -125,7 +156,11 @@
       "exempt": "of=/dev/null(?=[[:space:]]|$)|(?:^|[[:space:]])(?:of=)?{{EXTOK}}[[:space:]]*$",
       "action": "deny",
       "message": "truncate/shred/dd of= overwrite file contents irreversibly",
-      "scope": ["interactive", "bgjob", "fleet"],
+      "scope": [
+        "interactive",
+        "bgjob",
+        "fleet"
+      ],
       "lanes": {},
       "enforce": true
     },
@@ -138,7 +173,11 @@
       "pattern": "(?<![A-Za-z0-9_.-])(?:python[0-9.]*|node(?:js)?|deno|bun|perl|ruby|php)(?:(?:[[:space:]]+-[^[:space:]]+)*[[:space:]]+(?:-[A-Za-z]*[cepEr][A-Za-z]*|--eval|--print)|(?:[[:space:]]+-)?[[:space:]]*<<-?)(?=[[:space:]\\\"'])(?:.|\\n){0,800}?(?:shutil\\.rmtree|\\brmtree\\b|\\bremove_tree\\b|\\bos\\.(?:remove|unlink|rmdir|removedirs)\\b|\\.(?:unlink|rmdir)\\(|\\b(?:rmSync|rmdirSync|unlinkSync|rimraf)\\b|\\bfs\\.(?:promises\\.)?(?:rm|rmdir|unlink)\\(|\\bFileUtils\\.(?:rm_rf?|rm_r|remove_entry(?:_secure)?)\\b|\\bFile\\.delete\\b|\\bDir\\.rmdir\\b|\\bunlink[[:space:]]*\\(?[[:space:]]*[\\\"'$]|(?<![A-Za-z0-9_-])rm[[:space:]]+-[A-Za-z]*[rR])",
       "action": "deny",
       "message": "inline interpreter code deletes files (rmtree/os.remove/fs.rmSync/unlink/...), the same irreversible class as rm -rf; script FILES that delete are not inspected",
-      "scope": ["interactive", "bgjob", "fleet"],
+      "scope": [
+        "interactive",
+        "bgjob",
+        "fleet"
+      ],
       "lanes": {},
       "enforce": true
     },
@@ -152,7 +191,11 @@
       "anchor": "cmd",
       "action": "deny",
       "message": "pushing to main/master publishes straight to the shared branch",
-      "scope": ["interactive", "bgjob", "fleet"],
+      "scope": [
+        "interactive",
+        "bgjob",
+        "fleet"
+      ],
       "lanes": {},
       "enforce": true
     },
@@ -166,7 +209,11 @@
       "anchor": "cmd",
       "action": "deny",
       "message": "deleting a remote branch or tag is hard to reverse",
-      "scope": ["interactive", "bgjob", "fleet"],
+      "scope": [
+        "interactive",
+        "bgjob",
+        "fleet"
+      ],
       "lanes": {},
       "enforce": true
     },
@@ -180,7 +227,11 @@
       "anchor": "cmd",
       "action": "deny",
       "message": "deleting a tag loses the release pointer",
-      "scope": ["interactive", "bgjob", "fleet"],
+      "scope": [
+        "interactive",
+        "bgjob",
+        "fleet"
+      ],
       "lanes": {},
       "enforce": true
     },
@@ -194,7 +245,11 @@
       "anchor": "cmd",
       "action": "deny",
       "message": "the stash stack is shared by all sessions; use `git stash apply <sha>` and drop by explicit stash@{n}",
-      "scope": ["interactive", "bgjob", "fleet"],
+      "scope": [
+        "interactive",
+        "bgjob",
+        "fleet"
+      ],
       "lanes": {},
       "enforce": true
     },
@@ -208,7 +263,11 @@
       "anchor": "cmd",
       "action": "deny",
       "message": "merging a PR is a decision for D (or Dara's lane); /process-linear approvals are records, not execution orders",
-      "scope": ["interactive", "bgjob", "fleet"],
+      "scope": [
+        "interactive",
+        "bgjob",
+        "fleet"
+      ],
       "lanes": {
         "dara": "allow"
       },
@@ -225,7 +284,11 @@
       "exempt": "(?:-X|--method)[[:space:]]+GET",
       "action": "deny",
       "message": "merging a PR through the API is still a merge",
-      "scope": ["interactive", "bgjob", "fleet"],
+      "scope": [
+        "interactive",
+        "bgjob",
+        "fleet"
+      ],
       "lanes": {
         "dara": "allow"
       },
@@ -242,7 +305,11 @@
       "exempt": "^{{PFX}}vercel[[:space:]]+(?:build|logs|inspect|ls|list)(?=[[:space:]]|$)",
       "action": "deny",
       "message": "production deploy/infra change",
-      "scope": ["interactive", "bgjob", "fleet"],
+      "scope": [
+        "interactive",
+        "bgjob",
+        "fleet"
+      ],
       "lanes": {},
       "enforce": true
     },
@@ -254,7 +321,11 @@
       "flags": "i",
       "action": "deny",
       "message": "production deploy/infra change through the Vercel connector",
-      "scope": ["interactive", "bgjob", "fleet"],
+      "scope": [
+        "interactive",
+        "bgjob",
+        "fleet"
+      ],
       "lanes": {},
       "enforce": true
     },
@@ -270,7 +341,11 @@
       "exempt_all": "^[[:space:]]*(?:git[[:space:]]+(?:commit|log|grep|show)|grep|rg|ag)[[:space:]][^;&]*$",
       "action": "deny",
       "message": "destructive SQL against a data store",
-      "scope": ["interactive", "bgjob", "fleet"],
+      "scope": [
+        "interactive",
+        "bgjob",
+        "fleet"
+      ],
       "lanes": {},
       "enforce": true
     },
@@ -284,7 +359,11 @@
       "anchor": "cmd",
       "action": "deny",
       "message": "direct Turso database access can destroy or rewrite production data",
-      "scope": ["interactive", "bgjob", "fleet"],
+      "scope": [
+        "interactive",
+        "bgjob",
+        "fleet"
+      ],
       "lanes": {},
       "enforce": true
     },
@@ -297,7 +376,11 @@
       "exempt": "__(?:get|list|search|read)_",
       "action": "deny",
       "message": "this tool spends money",
-      "scope": ["interactive", "bgjob", "fleet"],
+      "scope": [
+        "interactive",
+        "bgjob",
+        "fleet"
+      ],
       "lanes": {},
       "enforce": true
     },
@@ -309,7 +392,11 @@
       "flags": "i",
       "action": "deny",
       "message": "sending email goes out as D",
-      "scope": ["interactive", "bgjob", "fleet"],
+      "scope": [
+        "interactive",
+        "bgjob",
+        "fleet"
+      ],
       "lanes": {
         "clara": "allow"
       },
@@ -323,7 +410,11 @@
       "flags": "i",
       "action": "deny",
       "message": "posting to Slack goes out as D",
-      "scope": ["interactive", "bgjob", "fleet"],
+      "scope": [
+        "interactive",
+        "bgjob",
+        "fleet"
+      ],
       "lanes": {},
       "enforce": true
     },
@@ -335,7 +426,11 @@
       "flags": "i",
       "action": "deny",
       "message": "calendar changes send invites or notify attendees",
-      "scope": ["interactive", "bgjob", "fleet"],
+      "scope": [
+        "interactive",
+        "bgjob",
+        "fleet"
+      ],
       "lanes": {},
       "enforce": true
     },
@@ -349,7 +444,11 @@
       "anchor": "cmd",
       "action": "deny",
       "message": "posting a GitHub comment/review goes out as D",
-      "scope": ["interactive", "bgjob", "fleet"],
+      "scope": [
+        "interactive",
+        "bgjob",
+        "fleet"
+      ],
       "lanes": {},
       "enforce": false
     },
@@ -363,7 +462,11 @@
       "anchor": "cmd",
       "action": "deny",
       "message": "posting a GitHub comment through the API goes out as D",
-      "scope": ["interactive", "bgjob", "fleet"],
+      "scope": [
+        "interactive",
+        "bgjob",
+        "fleet"
+      ],
       "lanes": {},
       "enforce": false
     },
@@ -375,7 +478,11 @@
       "flags": "i",
       "action": "deny",
       "message": "sharing a file changes who can read it",
-      "scope": ["interactive", "bgjob", "fleet"],
+      "scope": [
+        "interactive",
+        "bgjob",
+        "fleet"
+      ],
       "lanes": {},
       "enforce": true
     },
@@ -389,7 +496,11 @@
       "anchor": "cmd",
       "action": "deny",
       "message": "changes repo visibility or opens file permissions to everyone",
-      "scope": ["interactive", "bgjob", "fleet"],
+      "scope": [
+        "interactive",
+        "bgjob",
+        "fleet"
+      ],
       "lanes": {},
       "enforce": true
     },
@@ -403,7 +514,11 @@
       "anchor": "cmd",
       "action": "deny",
       "message": "reads or writes secrets (.env files are exempt only as .example/.sample/.template/.test)",
-      "scope": ["interactive", "bgjob", "fleet"],
+      "scope": [
+        "interactive",
+        "bgjob",
+        "fleet"
+      ],
       "lanes": {},
       "enforce": true
     },
@@ -417,7 +532,11 @@
       "anchor": "cmd",
       "action": "deny",
       "message": "privilege escalation, piped remote execution, or a global install",
-      "scope": ["interactive", "bgjob", "fleet"],
+      "scope": [
+        "interactive",
+        "bgjob",
+        "fleet"
+      ],
       "lanes": {},
       "enforce": true
     },
@@ -430,20 +549,28 @@
       "pattern": "^{{HOME}}/\\.claude/(?:hooks/|settings\\.json$|gate\\.off$|jev\\.off$|gate-approved/|gate-pending/|gate-asks-used(?:\\.d/|$)|gate-log\\.jsonl$|jev/decisions\\.jsonl$)",
       "action": "deny",
       "message": "live hooks/settings are edited through claude-config (branch, PR, sync) and the gate state is off limits to agents",
-      "scope": ["interactive", "bgjob", "fleet"],
+      "scope": [
+        "interactive",
+        "bgjob",
+        "fleet"
+      ],
       "lanes": {},
       "enforce": true
     },
     {
       "id": "G10-tamper",
       "class": "G10",
-      "description": "Bash that creates, edits, moves or removes live hooks/settings.json or the gate's own state (gate.off, jev.off, approvals, log): any verb incl. mkdir; cp/rsync/install only when the guarded path is the DESTINATION; bare names (cd ~/.claude && touch gate.off) when the command mentions .claude",
+      "description": "Bash that creates, edits, moves or removes live hooks/settings.json or the gate's own state (gate.off, jev.off, approvals, log): any verb incl. mkdir; cp/rsync/install only when the guarded path is the DESTINATION; bare names (cd ~/.claude && touch gate.off) when the command mentions .claude; kill switches (gate.off, jev.off) are protected under any path spelling (./, ../, ~/.claude/./) even when the command does not mention .claude",
       "tools": "^Bash$",
       "field": "command",
-      "pattern": "(?:^|[^A-Za-z0-9_])(?:touch|tee|mv|rm|ln|mkdir|truncate|dd|chmod|chown|sed[[:space:]]+-i[^[:space:]]*|perl[[:space:]]+-[a-z]*i[^[:space:]]*)(?=[[:space:]])[^;&|\\n]*{{LIVEGUARDED}}|(?:^|[^A-Za-z0-9_])(?:cp|rsync|install)(?=[[:space:]])[^;&|\\n]*[[:space:]\\\"']{{LIVEGUARDED}}[^[:space:];&|\\n]*[\\\"']?(?:[[:space:]]+[0-9]?>>?&?[^[:space:];&|]*)*[[:space:]]*(?=$|[;&|\\n])|>>?[^;&|\\n]*{{LIVEGUARDED}}|\\.claude[^\\n]*[^A-Za-z0-9_](?:touch|tee|mv|rm|ln|mkdir|truncate|chmod|chown|cp|install|rsync)(?=[[:space:]])[^;&|\\n]*[[:space:]\\\"']{{GATESTATE}}(?=[[:space:]\\\"'/;&|]|$)|\\.claude[^\\n]*>>?[[:space:]]*[\\\"']?{{GATESTATE}}(?=[[:space:]\\\"'/;&|]|$)",
+      "pattern": "(?:^|[^A-Za-z0-9_])(?:touch|tee|mv|rm|ln|mkdir|truncate|dd|chmod|chown|sed[[:space:]]+-i[^[:space:]]*|perl[[:space:]]+-[a-z]*i[^[:space:]]*)(?=[[:space:]])[^;&|\\n]*{{LIVEGUARDED}}|(?:^|[^A-Za-z0-9_])(?:cp|rsync|install)(?=[[:space:]])[^;&|\\n]*[[:space:]\\\"']{{LIVEGUARDED}}[^[:space:];&|\\n]*[\\\"']?(?:[[:space:]]+[0-9]?>>?&?[^[:space:];&|]*)*[[:space:]]*(?=$|[;&|\\n])|>>?[^;&|\\n]*{{LIVEGUARDED}}|\\.claude[^\\n]*[^A-Za-z0-9_](?:touch|tee|mv|rm|ln|mkdir|truncate|chmod|chown|cp|install|rsync)(?=[[:space:]])[^;&|\\n]*[[:space:]\\\"'](?:[^[:space:];&|\\\"']*/)?{{GATESTATE}}(?=[[:space:]\\\"'/;&|]|$)|\\.claude[^\\n]*>>?[[:space:]]*[\\\"']?(?:[^[:space:];&|\\\"']*/)?{{GATESTATE}}(?=[[:space:]\\\"'/;&|]|$)|(?:^|[^A-Za-z0-9_])(?:touch|tee|mv|rm|ln|mkdir|truncate|dd|chmod|chown|cp|install|rsync)(?=[[:space:]])[^;&|\\n]*[[:space:]\\\"'=](?:[^[:space:];&|\\\"']*/)?(?:gate|jev)\\.off(?=[[:space:]\\\"';&|)]|$)|>>?[[:space:]]*[\\\"']?(?:[^[:space:];&|\\\"']*/)?(?:gate|jev)\\.off(?=[[:space:]\\\"';&|)]|$)",
       "action": "deny",
       "message": "agents must not disable or tamper with the gate, the live hooks, or live settings",
-      "scope": ["interactive", "bgjob", "fleet"],
+      "scope": [
+        "interactive",
+        "bgjob",
+        "fleet"
+      ],
       "lanes": {},
       "enforce": true
     },
@@ -458,7 +585,11 @@
       "exempt": "^{{PFX}}crontab[[:space:]]+-l(?=[[:space:]]|$)",
       "action": "deny",
       "message": "installs a persistent or scheduled job",
-      "scope": ["interactive", "bgjob", "fleet"],
+      "scope": [
+        "interactive",
+        "bgjob",
+        "fleet"
+      ],
       "lanes": {},
       "enforce": true
     },
@@ -472,7 +603,11 @@
       },
       "action": "deny",
       "message": "creates a scheduled or remote trigger (untested against the real tool_input schema)",
-      "scope": ["interactive", "bgjob", "fleet"],
+      "scope": [
+        "interactive",
+        "bgjob",
+        "fleet"
+      ],
       "lanes": {},
       "enforce": true
     },
@@ -485,7 +620,11 @@
       "pattern": "^{{HOME}}(?:/\\.claude/(?:skills/|agents/|output-styles/|CLAUDE\\.md$|statusline\\.sh$|claude-speak\\.sh$|voice-rx\\.sh$|resume_sessions\\.sh$|restart_on_update\\.sh$|papercut\\.sh$|archive-papercuts\\.sh$)|/CLAUDE\\.md$)",
       "action": "deny",
       "message": "live ~/.claude is replaced by sync; change claude-config and run sync instead",
-      "scope": ["interactive", "bgjob", "fleet"],
+      "scope": [
+        "interactive",
+        "bgjob",
+        "fleet"
+      ],
       "lanes": {},
       "enforce": true
     },
@@ -498,7 +637,11 @@
       "pattern": "(?:^|[^A-Za-z0-9_])ssh[[:space:]](?=[^\\n]*?mbm)(?=[^\\n]*(?:sed[[:space:]]+-i|(?<![A-Za-z0-9_-])(?:tee|cp|mv|rm)(?![A-Za-z0-9_-])|(?<![0-9&])>|git[[:space:]]+(?:commit|push)|systemctl|launchctl))",
       "action": "deny",
       "message": "writing on the fleet node (mbm) by hand; change the repo and sync",
-      "scope": ["interactive", "bgjob", "fleet"],
+      "scope": [
+        "interactive",
+        "bgjob",
+        "fleet"
+      ],
       "lanes": {},
       "enforce": true
     },
@@ -511,7 +654,11 @@
       "pattern": "(?:^|/)BareClaude/infra/model-policy\\.json$",
       "action": "deny",
       "message": "fleet model policy changes go through the BareClaude repo",
-      "scope": ["interactive", "bgjob", "fleet"],
+      "scope": [
+        "interactive",
+        "bgjob",
+        "fleet"
+      ],
       "lanes": {},
       "enforce": true
     },
@@ -523,7 +670,11 @@
       "flags": "i",
       "action": "deny",
       "message": "deleting in an external tool",
-      "scope": ["interactive", "bgjob", "fleet"],
+      "scope": [
+        "interactive",
+        "bgjob",
+        "fleet"
+      ],
       "lanes": {},
       "enforce": true
     },
@@ -537,7 +688,11 @@
       "anchor": "cmd",
       "action": "deny",
       "message": "deleting a repo or release is irreversible",
-      "scope": ["interactive", "bgjob", "fleet"],
+      "scope": [
+        "interactive",
+        "bgjob",
+        "fleet"
+      ],
       "lanes": {},
       "enforce": true
     },
@@ -550,7 +705,11 @@
       "pattern": "^delete$",
       "action": "deny",
       "message": "deleting a published artifact breaks its link for everyone",
-      "scope": ["interactive", "bgjob", "fleet"],
+      "scope": [
+        "interactive",
+        "bgjob",
+        "fleet"
+      ],
       "lanes": {},
       "enforce": true
     }
