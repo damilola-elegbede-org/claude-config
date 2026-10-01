@@ -14,6 +14,8 @@ To test local web applications, write native Python Playwright scripts.
 **Helper Scripts Available**:
 
 - `scripts/with_server.py` - Manages server lifecycle (supports multiple servers)
+- `scripts/pick_target.sh "<goal>"` - Optional click-target picker: reads `selector<TAB>text` candidate lines on
+  stdin and prints the best selector as JSON (empty selector means no pick; fall back to your own judgement)
 
 **Always run scripts with `--help` first** to see usage. DO NOT read the source
 until you try running the script first and find that a customized solution is

@@ -1,0 +1,124 @@
+{
+  "G1-irreversible-local": {
+    "mode": "shadow",
+    "threshold": 0.8,
+    "scope": [
+      "interactive",
+      "bgjob",
+      "fleet"
+    ]
+  },
+  "G3-merge": {
+    "mode": "shadow",
+    "threshold": 0.85,
+    "scope": [
+      "interactive",
+      "bgjob",
+      "fleet"
+    ]
+  },
+  "G4-prod-infra": {
+    "mode": "shadow",
+    "threshold": 0.85,
+    "scope": [
+      "interactive",
+      "bgjob",
+      "fleet"
+    ]
+  },
+  "G5-data-store": {
+    "mode": "shadow",
+    "threshold": 0.7,
+    "scope": [
+      "interactive",
+      "bgjob",
+      "fleet"
+    ]
+  },
+  "G6-spend": {
+    "mode": "shadow",
+    "threshold": 0.8,
+    "scope": [
+      "interactive",
+      "bgjob",
+      "fleet"
+    ]
+  },
+  "G7-outward-comms": {
+    "mode": "shadow",
+    "threshold": 0.7,
+    "scope": [
+      "interactive",
+      "bgjob",
+      "fleet"
+    ]
+  },
+  "G8-sharing": {
+    "mode": "shadow",
+    "threshold": 0.7,
+    "scope": [
+      "interactive",
+      "bgjob",
+      "fleet"
+    ]
+  },
+  "G13-external-delete": {
+    "mode": "shadow",
+    "threshold": 0.8,
+    "scope": [
+      "interactive",
+      "bgjob",
+      "fleet"
+    ]
+  },
+  "G14-non-routine": {
+    "mode": "shadow",
+    "threshold": 0.7,
+    "scope": [
+      "interactive",
+      "bgjob",
+      "fleet"
+    ]
+  },
+  "G15-untrusted-origin": {
+    "mode": "shadow",
+    "threshold": 0.85,
+    "scope": [
+      "interactive",
+      "bgjob",
+      "fleet"
+    ]
+  },
+  "G16-ask-bundled": {
+    "mode": "shadow",
+    "threshold": 0.7,
+    "scope": [
+      "interactive"
+    ]
+  },
+  "G16-ask-channel": {
+    "mode": "shadow",
+    "threshold": 0.85,
+    "scope": [
+      "interactive"
+    ]
+  },
+  "mcp-classifier": {
+    "mode": "shadow",
+    "threshold": 0.7,
+    "scope": [
+      "interactive",
+      "bgjob",
+      "fleet"
+    ]
+  },
+  "approval-detector": {
+    "mode": "shadow",
+    "threshold": 0.8,
+    "scope": [
+      "interactive",
+      "bgjob",
+      "fleet"
+    ]
+  }
+}

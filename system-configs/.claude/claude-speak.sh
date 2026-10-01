@@ -73,6 +73,13 @@ for line in open(sys.argv[1]):
 if not last:
     sys.exit(0)
 
+# Speak only when line 1 carries a tag that needs D (D rule 2026-09-30). FYI and
+# untagged replies stay silent. Checked before the markdown stripping below
+# removes the ** around the tag.
+first = next((l for l in last.splitlines() if l.strip()), '')
+if not re.match(r'^[\s*_#>]*(ACTION|DECISION|APPROVAL|INPUT|BLOCKED)\b', first):
+    sys.exit(0)
+
 # Strip markdown so it reads as speech, not syntax.
 t = re.sub(r'```.*?```', ' (code block omitted) ', last, flags=re.S)
 t = re.sub(r'`([^`]*)`', r'\1', t)

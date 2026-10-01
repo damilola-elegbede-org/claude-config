@@ -62,7 +62,9 @@
           },
           {
             "type": "command",
-            "command": "INPUT=$(cat); command -v jq >/dev/null 2>&1 || { echo 'WARNING: jq missing — Claude Code hook guards are disabled' >&2; exit 0; }; CMD=$(printf '%s' \"$INPUT\" | jq -r '.tool_input.command // empty' 2>/dev/null); if [[ -z \"$CMD\" ]]; then exit 0; fi; TOP=$(git rev-parse --show-toplevel 2>/dev/null); { [[ -x infra/scripts/git-agent.sh ]] || [[ -n \"$TOP\" && -x \"$TOP/infra/scripts/git-agent.sh\" ]]; } || exit 0; if printf '%s' \"$CMD\" | grep -qE '(^|[;&|(]|&&|\\|\\|)[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=(\"[^\"]*\"|[^[:space:]]*)[[:space:]]+)*git[[:space:]]+(commit|push|clone|tag|remote|am|cherry-pick|revert)([[:space:]]|$)'; then echo \"BLOCKED: bare git for an identity/remote op. Bare git commits under the repo git config (often D personal email), not the bot - ENG-124 leak class. Use: infra/scripts/git-agent.sh <agent> <git args>\" >&2; exit 2; fi"
+            "command": "INPUT=$(cat); command -v jq >/dev/null 2>&1 || { echo 'WARNING: jq missing — Claude Code hook guards are disabled' >&2; exit 0; }; CMD=$(printf '%s' \"$INPUT\" | jq -r '.tool_input.command // empty' 2>/dev/null); if [[ -z \"$CMD\" ]]; then exit 0; fi; TOP=$(git rev-parse --show-toplevel 2>/dev/null); { [[ -x infra/scripts/git-agent.sh ]] || [[ -n \"$TOP\" && -x \"$TOP/infra/scripts/git-agent.sh\" ]]; } || exit 0; if printf '%s' \"$CMD\" | grep -qE '(^|[;&|(]|&&|\\|\\|)[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=(\"[^\"]*\"|[^[:space:]]*)[[:space:]]+)*git[[:space:]]+(commit|push|clone|tag|remote|am|cherry-pick|revert)([[:space:]]|$)'; then echo \"BLOCKED: bare git for an identity/remote op. Bare git commits under the repo git config (often D personal email), not the bot - ENG-124 leak class. Use: infra/scripts/git-agent.sh <agent> <git args>\" >&2; exit 2; fi",
+            "if": "Bash(git *)",
+            "timeout": 5
           }
         ]
       },
@@ -82,6 +84,63 @@
           {
             "type": "command",
             "command": "INPUT=$(cat); command -v jq >/dev/null 2>&1 || { echo 'WARNING: jq missing — Claude Code hook guards are disabled' >&2; exit 0; }; FILE=$(printf '%s' \"$INPUT\" | jq -r '.tool_input.file_path // empty' 2>/dev/null); if [[ -z \"$FILE\" ]]; then exit 0; fi; if [[ \"$FILE\" =~ \\.(test|spec)\\. ]] || [[ \"$FILE\" =~ __tests__/ ]] || [[ \"$FILE\" =~ /tests?/ ]] || [[ \"$FILE\" =~ \\.env ]] || [[ \"$FILE\" =~ \\.(md|json|yaml|yml|css|scss|html|txt|svg|lock|toml|cfg|ini|conf)$ ]] || [[ \"$FILE\" =~ \\.(d\\.ts)$ ]] || [[ \"$FILE\" =~ Makefile ]] || [[ \"$FILE\" =~ Dockerfile ]]; then exit 0; fi; if [[ ! \"$FILE\" =~ \\.(ts|tsx|js|jsx|py|go|rs|rb)$ ]]; then exit 0; fi; DIR=$(dirname \"$FILE\"); BASE=$(basename \"$FILE\" | sed 's/\\.[^.]*$//'); FOUND=0; for EXT in test.ts test.tsx test.js test.jsx spec.ts spec.tsx spec.js spec.jsx; do if [[ -f \"${DIR}/${BASE}.${EXT}\" ]] || [[ -f \"${DIR}/__tests__/${BASE}.${EXT}\" ]]; then FOUND=1; break; fi; done; if [[ \"$FILE\" =~ \\.py$ ]]; then BASE_US=\"${BASE//-/_}\"; if [[ -f \"${DIR}/test_${BASE}.py\" ]] || [[ -f \"${DIR}/${BASE}_test.py\" ]] || [[ -f \"${DIR}/tests/test_${BASE}.py\" ]] || [[ -f \"${DIR}/test_${BASE_US}.py\" ]] || [[ -f \"${DIR}/${BASE_US}_test.py\" ]] || [[ -f \"${DIR}/tests/test_${BASE_US}.py\" ]]; then FOUND=1; fi; fi; if [[ \"$FILE\" =~ \\.go$ ]]; then if [[ -f \"${DIR}/${BASE}_test.go\" ]]; then FOUND=1; fi; fi; if [[ $FOUND -eq 0 ]]; then CONVENTION=$(find \"$DIR\" -maxdepth 2 \\( -name '*.test.*' -o -name '*.spec.*' -o -name 'test_*.py' -o -name '*_test.py' -o -name '*_test.go' \\) -print -quit 2>/dev/null); if [[ -z \"$CONVENTION\" ]]; then exit 0; fi; echo \"BLOCKED: No test file found for ${FILE}, and this directory uses colocated tests. Write the test first (TDD).\" >&2; exit 2; fi",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "^(Bash|Write|Edit|MultiEdit|Artifact|CronCreate|RemoteTrigger|mcp__.*)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/gate.sh",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/file-org-guard.sh",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/memory-dup-guard.sh",
+            "if": "Write(**/memory/*.md)",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/pr-draft-guard.sh",
+            "if": "Bash(gh *pr create*)",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "^(Bash|Write|Edit|Workflow|Artifact|AskUserQuestion|mcp__.*)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -x \"${HOME}/.claude/hooks/jev-gate.sh\" ] || exit 0; exec \"${HOME}/.claude/hooks/jev-gate.sh\"",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Agent|Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/a6-agent-router.sh",
             "timeout": 5
           }
         ]
@@ -108,6 +167,46 @@
             "async": true
           }
         ]
+      },
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/a1-read-trim.sh",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Grep|Glob",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/a2-search-rank.sh",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/a3-bash-trim.sh",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/retry-counter.sh",
+            "timeout": 5
+          }
+        ]
       }
     ],
     "PreCompact": [
@@ -115,7 +214,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo 'Preserve in the summary: the current task and its acceptance criteria, decisions made and why, files changed, open questions, and the exact next steps.'"
+            "command": "echo 'Preserve in the summary: the current task and its acceptance criteria, decisions made and why, files changed, open questions, and the exact next steps.'",
+            "timeout": 5
           }
         ]
       }
@@ -125,7 +225,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if [ -n \"$BARECLAUDE_AGENT_SLUG\" ] || [ -n \"$CLAUDE_JOB_DIR\" ]; then exit 0; fi; afplay -v 1.0 '/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Modern/Aurora.m4r' 2>/dev/null &"
+            "command": "${HOME}/.claude/hooks/jev/notification-urgency.sh",
+            "timeout": 5
           }
         ]
       }
@@ -142,6 +243,30 @@
             "type": "command",
             "command": "${HOME}/.claude/hooks/session_registry.sh start",
             "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/session-check.sh",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/session-start-project.sh",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/a5-compact-reinject.sh",
+            "timeout": 8
           }
         ]
       }
@@ -160,6 +285,15 @@
             "timeout": 5
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/session-end-memory.sh",
+            "timeout": 10
+          }
+        ]
       }
     ],
     "PermissionRequest": [
@@ -167,7 +301,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if [ -n \"$BARECLAUDE_AGENT_SLUG\" ] || [ -n \"$CLAUDE_JOB_DIR\" ]; then exit 0; fi; afplay -v 1.0 '/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Modern/Keys.m4r' 2>/dev/null &"
+            "command": "if [ -n \"$BARECLAUDE_AGENT_SLUG\" ] || [ -n \"$CLAUDE_JOB_DIR\" ]; then exit 0; fi; afplay -v 1.0 '/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Modern/Keys.m4r' 2>/dev/null &",
+            "timeout": 5
           }
         ]
       }
@@ -179,6 +314,92 @@
             "type": "command",
             "command": "${HOME}/.claude/claude-speak.sh",
             "timeout": 45
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/executive-lint.sh",
+            "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/papercut-nudge.sh",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -x \"${HOME}/.claude/hooks/jev-ask-channel.sh\" ] || exit 0; exec \"${HOME}/.claude/hooks/jev-ask-channel.sh\"",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/a4-task-boundary.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/retry-counter.sh",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/papercut-grep.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "StopFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/stopfailure-hint.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/postcompact-log.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/a7-a8-prompt-context.sh",
+            "timeout": 5
           }
         ]
       }

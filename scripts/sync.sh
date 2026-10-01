@@ -69,7 +69,19 @@ settings_mode() {
 # below rely on unquoted word-splitting to iterate this list. If a hook
 # script ever needs a space in its name, switch this to a newline-delimited
 # heredoc and iterate with `while read`.
-RUNTIME_HOOK_SCRIPTS="statusline.sh hooks/exit_hook.sh hooks/session_start_version_check.sh claude-speak.sh voice-rx.sh hooks/session_registry.sh resume_sessions.sh restart_on_update.sh papercut.sh archive-papercuts.sh"
+RUNTIME_HOOK_SCRIPTS="statusline.sh hooks/exit_hook.sh hooks/session_start_version_check.sh claude-speak.sh voice-rx.sh hooks/session_registry.sh hooks/gate.sh resume_sessions.sh restart_on_update.sh papercut.sh archive-papercuts.sh"
+
+# Non-script runtime data deployed next to the hooks (copied as-is, validated as
+# JSON instead of `bash -n`, never made executable). gate.sh reads its rules from
+# the same directory it is deployed to. Same space-delimited rule as above.
+RUNTIME_HOOK_DATA="hooks/gate-rules.json"
+# Phase 4 (rules, lifecycle events, workflow helpers). .sh only: this list is bash -n'd.
+RUNTIME_HOOK_SCRIPTS="$RUNTIME_HOOK_SCRIPTS hooks/jev/registry.sh hooks/jev/rules-events-lib.sh hooks/jev/executive-lint.sh hooks/jev/file-org-guard.sh hooks/jev/pr-draft-guard.sh hooks/jev/retry-counter.sh hooks/jev/papercut-grep.sh hooks/jev/papercut-nudge.sh hooks/jev/papercut-dedupe.sh hooks/jev/memory-dup-guard.sh hooks/jev/stopfailure-hint.sh hooks/jev/session-start-project.sh hooks/jev/session-end-memory.sh hooks/jev/notification-urgency.sh hooks/jev/postcompact-log.sh hooks/jev/failure-classify.sh hooks/jev/session-check.sh"
+# Jev decision gates (Phase 2).
+RUNTIME_HOOK_SCRIPTS="$RUNTIME_HOOK_SCRIPTS hooks/jev-gate.sh hooks/jev-gate-lib.sh hooks/jev-ask-channel.sh"
+# Jev context/cost hooks (Phase 3, A1-A8) + their shared lib.
+RUNTIME_HOOK_SCRIPTS="$RUNTIME_HOOK_SCRIPTS hooks/jev/ctx-lib.sh hooks/jev/a1-read-trim.sh hooks/jev/a2-search-rank.sh hooks/jev/a3-bash-trim.sh hooks/jev/a4-task-boundary.sh hooks/jev/a5-compact-reinject.sh hooks/jev/a6-agent-router.sh hooks/jev/a7-a8-prompt-context.sh"
+RUNTIME_HOOK_DATA="$RUNTIME_HOOK_DATA hooks/jev/rules.d/context.json hooks/jev/rules.d/skills.json"
 
 # Parse arguments
 DRY_RUN=false
@@ -275,13 +287,13 @@ cleanup_old_backups() {
     backup_count=$(find "$HOME" -maxdepth 1 -name '.claude.backup.*' -type d 2>/dev/null | wc -l | tr -d ' ')
     if [ "$backup_count" -gt 5 ]; then
         echo "Rotating backups (keeping latest 5)..."
-        # Detect stat format (BSD vs GNU) for portable mtime listing
-        if stat -f "%m %N" "$HOME" >/dev/null 2>&1; then
-            STAT_OPT='-f'
-            STAT_FMT='%m %N'
-        else
+        # Detect stat format (GNU first: `stat -f` on Linux is file-system mode and succeeds) for portable mtime listing
+        if stat -c '%Y %n' "$HOME" >/dev/null 2>&1; then
             STAT_OPT='-c'
             STAT_FMT='%Y %n'
+        else
+            STAT_OPT='-f'
+            STAT_FMT='%m %N'
         fi
         # List backups by time, delete all but newest 5
         # Use find with strict pattern matching for security
@@ -487,6 +499,92 @@ validate_configs() {
     return 0
 }
 
+# Deploy hooks/jev/ (Jev client: shim, node client, configs, session check).
+# Unlike RUNTIME_HOOK_SCRIPTS this is a directory with a node dependency, so
+# it gets its own step: validate, rsync (runtime state and node_modules are
+# excluded, so --delete never touches them), then `npm ci --omit=dev` ONLY when
+# package.json / package-lock.json changed or node_modules is missing.
+# JEV_SYNC_SKIP_NPM=1 skips the install (tests run sync against a temp HOME).
+# An install failure warns but does not fail sync: Jev degrades to regex and
+# the SessionStart check says so.
+sync_jev_hooks() {
+    jev_src="$SOURCE_DIR/hooks/jev"
+    jev_dst="$TARGET_DIR/hooks/jev"
+    if [ ! -d "$jev_src" ]; then
+        print_error "Jev hooks missing from source tree: hooks/jev"
+        return 1
+    fi
+    for jev_script in jev-ask session-check.sh; do
+        if [ ! -f "$jev_src/$jev_script" ]; then
+            print_error "Jev hook script missing from source tree: hooks/jev/$jev_script"
+            return 1
+        fi
+        jev_err=$(bash -n "$jev_src/$jev_script" 2>&1) || {
+            print_error "Invalid shell script: hooks/jev/$jev_script"
+            printf "    %s\n" "$jev_err"
+            return 1
+        }
+    done
+    if command -v node >/dev/null 2>&1; then
+        jev_err=$(node --check "$jev_src/client.mjs" 2>&1) || {
+            print_error "Invalid JavaScript: hooks/jev/client.mjs"
+            printf "    %s\n" "$jev_err"
+            return 1
+        }
+    fi
+
+    jev_install=false
+    if [ ! -d "$jev_dst/node_modules" ] \
+        || [ ! -f "$jev_dst/node_modules/.jev-installed" ] \
+        || ! cmp -s "$jev_src/package.json" "$jev_dst/package.json" 2>/dev/null \
+        || ! cmp -s "$jev_src/package-lock.json" "$jev_dst/package-lock.json" 2>/dev/null; then
+        jev_install=true
+    fi
+
+    mkdir -p "$jev_dst"
+    if ! jev_out=$(rsync -a --delete --exclude='node_modules' --exclude='jev.sock' --exclude='jev.sock.spawn' --exclude='mcp-classes.json' --exclude='mcp-classes.lock' "$jev_src/" "$jev_dst/" 2>&1); then
+        print_error "Failed to sync hooks/jev"
+        printf "    %s\n" "$jev_out"
+        return 1
+    fi
+    chmod +x "$jev_dst/jev-ask" "$jev_dst/session-check.sh"
+
+    if [ "$jev_install" = "true" ]; then
+        if [ -n "${JEV_SYNC_SKIP_NPM:-}" ]; then
+            echo "  ⏭  Jev deps: npm ci skipped (JEV_SYNC_SKIP_NPM)"
+        elif ! command -v npm >/dev/null 2>&1; then
+            print_warning "npm not found - Jev client has no SDK; checkpoints fall back to regex"
+        elif ! command -v node >/dev/null 2>&1; then
+            print_warning "node not found - Jev client cannot run; checkpoints fall back to regex"
+        elif jev_node_major=$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null) \
+            && jev_node_min=$(jq -r '.engines.node // ""' "$jev_src/package.json" 2>/dev/null | sed -n 's/[^0-9]*\([0-9][0-9]*\).*/\1/p') \
+            && [ "${jev_node_major:-0}" -lt "${jev_node_min:-22}" ]; then
+            # npm treats engines as advisory (engine-strict is off by default): without this check a Node 20
+            # workstation would install the SDK with warnings and then be reported as healthy.
+            print_warning "Node ${jev_node_major} is older than the Node ${jev_node_min} the Jev SDK needs - skipping npm ci; Jev falls back to regex until Node >= ${jev_node_min}"
+            # The manifests were just updated but node_modules was not: drop the marker so the next sync on a
+            # new-enough Node reinstalls instead of trusting a stale install.
+            rm -f "$jev_dst/node_modules/.jev-installed"
+        elif jev_out=$(cd "$jev_dst" && npm ci --omit=dev --no-audit --no-fund --engine-strict 2>&1); then
+            : >"$jev_dst/node_modules/.jev-installed"
+            echo "  ✅ Jev deps: npm ci --omit=dev in ~/.claude/hooks/jev"
+        else
+            print_warning "npm ci failed in ~/.claude/hooks/jev - Jev falls back to regex until it succeeds"
+            printf "    %s\n" "$jev_out"
+        fi
+    else
+        echo "  ✅ Jev deps: unchanged (npm ci not needed)"
+    fi
+
+    # A running daemon holds the old client and SDK in memory; stop it so the
+    # next call starts a fresh one. Harmless when none is running.
+    if command -v node >/dev/null 2>&1; then
+        "$jev_dst/jev-ask" --stop >/dev/null 2>&1 || true
+    fi
+    echo "  ✅ Jev hooks → ~/.claude/hooks/jev/"
+    return 0
+}
+
 # Function to sync files
 sync_files() {
     echo "🔄 Synchronizing files:"
@@ -590,6 +688,7 @@ sync_files() {
     if [ "$(manifest_flag hook_scripts)" != "true" ]; then
         echo "  ⏭  Hook scripts: skipped by $STATION manifest"
         RUNTIME_HOOK_SCRIPTS=""
+        RUNTIME_HOOK_DATA=""
     fi
     # RUNTIME_HOOK_SCRIPTS is defined at the top of this file.
     #
@@ -630,11 +729,36 @@ sync_files() {
         esac
     done
 
+    # Hook data files (e.g. gate-rules.json): same fail-fast rule as the scripts,
+    # validated as JSON, copied without the executable bit.
+    for datafile in $RUNTIME_HOOK_DATA; do
+        src="$SOURCE_DIR/$datafile"
+        if [ ! -f "$src" ]; then
+            print_error "Tracked hook data file missing from source tree: $datafile"
+            print_error "RUNTIME_HOOK_DATA lists '$datafile' but it is not present in $SOURCE_DIR"
+            return 1
+        fi
+        if ! command -v jq >/dev/null 2>&1; then
+            print_error "jq not available — required to validate hook data file: $datafile"
+            return 1
+        fi
+        validation_errors=$(jq empty "$src" 2>&1) || {
+            print_error "Invalid JSON hook data file: $datafile"
+            printf "    %s\n" "$validation_errors"
+            return 1
+        }
+        mkdir -p "$TARGET_DIR/$(dirname "$datafile")"
+        cp "$src" "$TARGET_DIR/$datafile"
+    done
+    if [ "$(manifest_flag hook_scripts)" = "true" ]; then
+        sync_jev_hooks || return 1
+    fi
+
     # Build synced settings summary line from the same map. Every entry
     # is guaranteed to exist at this point (the loop above would have
     # returned on any missing script), so no `-f` guard is needed.
     synced_settings="settings.json"
-    for script in $RUNTIME_HOOK_SCRIPTS; do
+    for script in $RUNTIME_HOOK_SCRIPTS $RUNTIME_HOOK_DATA; do
         synced_settings="$synced_settings, $script"
     done
     echo "  ✅ Settings: $synced_settings"
@@ -688,9 +812,72 @@ post_sync_validation() {
     return 0
 }
 
+# Prerequisites: everything sync and the runtime hooks need, checked BEFORE anything is written
+# (including by --dry-run). Missing tools and a Node older than the Jev SDK's engines.node are
+# hard failures; a missing gateway key is a warning (Jev degrades to regex, and fleet stations
+# without a key must still sync). JEV_SYNC_SKIP_NPM=1 (tests) skips the node/npm checks.
+check_prerequisites() {
+    prereq_fail=0
+    echo "🔎 Prerequisites:"
+    for prereq_tool in jq rsync; do
+        if command -v "$prereq_tool" >/dev/null 2>&1; then
+            echo "  ✅ $prereq_tool"
+        else
+            print_error "$prereq_tool not found (brew install $prereq_tool)"
+            prereq_fail=1
+        fi
+    done
+
+    if [ "$(manifest_flag hook_scripts)" = "true" ]; then
+        if [ -z "${JEV_SYNC_SKIP_NPM:-}" ]; then
+            prereq_node_min=22
+            if command -v jq >/dev/null 2>&1 && [ -f "$SOURCE_DIR/hooks/jev/package.json" ]; then
+                prereq_node_min=$(jq -r '.engines.node // ""' "$SOURCE_DIR/hooks/jev/package.json" 2>/dev/null | sed -n 's/[^0-9]*\([0-9][0-9]*\).*/\1/p')
+                prereq_node_min=${prereq_node_min:-22}
+            fi
+            if ! command -v node >/dev/null 2>&1; then
+                print_error "node not found - the Jev client needs Node >= $prereq_node_min (brew install node)"
+                prereq_fail=1
+            elif prereq_node_major=$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null) \
+                && [ "${prereq_node_major:-0}" -lt "$prereq_node_min" ]; then
+                print_error "Node $prereq_node_major is older than the Node $prereq_node_min the Jev SDK needs (brew upgrade node)"
+                prereq_fail=1
+            else
+                echo "  ✅ node $(node -p 'process.versions.node' 2>/dev/null) (needs >= $prereq_node_min)"
+            fi
+            if command -v npm >/dev/null 2>&1; then
+                echo "  ✅ npm"
+            else
+                print_error "npm not found - needed for npm ci in ~/.claude/hooks/jev"
+                prereq_fail=1
+            fi
+        fi
+
+        # Same lookup order as hooks/jev/client.mjs resolveKey(): environment first, then an export line in ~/.zshrc.
+        if [ -n "${AI_GATEWAY_API_KEY:-}${VERCEL_AI_GATEWAY_TOKEN:-}${VERCEL_AI_GATEWAY_KEY:-}" ] \
+            || grep -Eqs '^[[:space:]]*export[[:space:]]+(VERCEL_AI_GATEWAY_TOKEN|VERCEL_AI_GATEWAY_KEY|AI_GATEWAY_API_KEY)=[^[:space:]#]' "${JEV_ZSHRC:-$HOME/.zshrc}"; then
+            echo "  ✅ Jev gateway key"
+        else
+            print_warning "no Jev gateway key (export VERCEL_AI_GATEWAY_TOKEN in ~/.zshrc or set AI_GATEWAY_API_KEY) - Jev checkpoints will fall back to regex"
+        fi
+    fi
+
+    if [ "$prereq_fail" -ne 0 ]; then
+        echo ""
+        echo "❌ Prerequisites missing — nothing was synced. Install the items above and run sync again."
+        return 1
+    fi
+    echo ""
+    return 0
+}
+
 # Main execution
 main() {
     start_time=$(date +%s)
+
+    if ! check_prerequisites; then
+        return 1
+    fi
 
     # Handle dry run
     if [ "$DRY_RUN" = "true" ]; then
@@ -739,13 +926,14 @@ main() {
                 fi
             fi
         fi
-        for script in $RUNTIME_HOOK_SCRIPTS; do
+        for script in $RUNTIME_HOOK_SCRIPTS $RUNTIME_HOOK_DATA; do
             if [ -f "$SOURCE_DIR/$script" ]; then
                 echo "  - $script → ~/.claude/$script"
             else
                 echo "  - $script ⚠️  MISSING from source tree (real sync would fail)"
             fi
         done
+        echo "  - hooks/jev/ → ~/.claude/hooks/jev/ (npm ci --omit=dev only when package.json changed)"
         echo ""
         echo "📊 Preview summary:"
         echo "  Total files: $(find "$SOURCE_DIR" -name "*.md" -o -name "*.json" -o -name "*.sh" 2>/dev/null | wc -l | tr -d ' ') configurations ready"

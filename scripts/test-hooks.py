@@ -132,6 +132,11 @@ def pretooluse_hooks(settings, tool):
             continue
         for hook in entry.get("hooks", []):
             if hook.get("type") == "command" and hook.get("command"):
+                # Deployed runtime hooks (${HOME}/.claude/hooks/*.sh, e.g. the
+                # decision gate) only exist after /sync; tests/hooks/test_gate.sh
+                # covers them against a sandbox HOME.
+                if "/.claude/hooks/" in hook["command"]:
+                    continue
                 out.append(hook["command"])
     return out
 
@@ -157,9 +162,11 @@ def classify(stderr):
 def run_case(commands, payload, cwd):
     """Return (guard_label, needle_matched) for the first blocking hook, or None."""
     for cmd in commands:
+        # JEV_CLAUDE_DIR points the Jev gate hook at the sandbox so a deployed copy finds no
+        # gate-questions.json and exits before touching the real ~/.claude (logs, caches, Jev calls).
         proc = subprocess.run(
             ["bash", "-c", cmd], input=payload, capture_output=True, text=True,
-            timeout=30, cwd=cwd,
+            timeout=30, cwd=cwd, env={**os.environ, "JEV_CLAUDE_DIR": cwd},
         )
         stderr = (proc.stderr or "").strip()
         if proc.returncode == 2:

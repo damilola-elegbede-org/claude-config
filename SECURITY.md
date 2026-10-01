@@ -4,11 +4,11 @@
 
 This project maintains security updates for the following versions:
 
-| Version | Supported          |
-| ------- | ------------------ |
-| main    | :white_check_mark: |
-| feature/* | :x:              |
-| < 1.0   | :x:                |
+| Version    | Supported          |
+| ---------- | ------------------ |
+| main       | :white_check_mark: |
+| feature/\* | :x:                |
+| < 1.0      | :x:                |
 
 ## Reporting a Vulnerability
 
@@ -73,6 +73,25 @@ Please provide:
 - **Audit Logging**: All agent actions are logged
 - **Input Validation**: All inputs validated before processing
 
+### Decision Gates: What They Do and Don't Stop
+
+The decision gates (`hooks/gate.sh` + `gate-rules.json`) and the Jev gates match on the text of each
+tool call. They catch mistakes: a recursive `rm` outside scratch space, a production deploy, an
+unpinned `vercel env pull`, or a direct edit of the live gate files. They are **not** a sandbox
+against a session that is deliberately trying to get around them. Under `bypassPermissions` the
+session runs as your user and can write anything you can, so text matching cannot follow every
+indirection: a path held in a shell variable, a name assembled at run time, or a script file the
+command runs. The gate files and the fleet identity variable (`BARECLAUDE_AGENT_SLUG`) are guarded
+only by that text matching.
+
+Known residuals (reported in PR #268 review, accepted):
+
+- Writes to live hooks, `settings.json` or transcripts through a variable-held or computed path.
+- A fleet identity assigned with escapes inside the name or from a script file.
+
+Planned hardening: make the enforcement files owned by root (written only by `scripts/sync.sh`
+through `sudo`), so a session cannot change them at all.
+
 ### Configuration Security
 
 ```bash
@@ -129,5 +148,5 @@ We thank the following security researchers for responsible disclosure:
 
 ---
 
-*Last updated: 2025-08-26*
-*This security policy is subject to change. Check regularly for updates.*
+_Last updated: 2025-08-26_
+_This security policy is subject to change. Check regularly for updates._
