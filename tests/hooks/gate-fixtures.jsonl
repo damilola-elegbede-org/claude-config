@@ -306,3 +306,6 @@
 {"rule":"G1-rm","expect":"deny","tool":"Bash","input":{"command":"cat <<'EOF' | bash\nrm -rf data\nEOF"}}
 {"rule":"G1-rm","expect":"deny","tool":"Bash","input":{"command":"cat <<'EOF' | sudo sh\nrm -rf data\nEOF"}}
 {"rule":"G1-rm","expect":"allow","tool":"Bash","input":{"command":"cat <<'EOF' > setup.sh\nrm -rf data\nEOF"}}
+{"rule":"G10-file","expect":"deny","tool":"Write","input":{"file_path":"@HOME@/.claude/jev/decisions.jsonl","content":"x"}}
+{"rule":"G10-tamper","expect":"deny","tool":"Bash","input":{"command":"echo x > ~/.claude/jev/decisions.jsonl"}}
+{"rule":"G10-tamper","expect":"allow","tool":"Bash","input":{"command":"tail -5 ~/.claude/jev/decisions.jsonl"}}

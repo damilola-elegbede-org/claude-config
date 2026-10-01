@@ -7,8 +7,8 @@
     "GIT": "(?:git|(?:[^[:space:]]*/)?git-agent\\.sh[[:space:]]+[A-Za-z0-9_-]+)(?:[[:space:]]+-{1,2}[A-Za-z][^[:space:]]*(?:[[:space:]]+[^[:space:]-][^[:space:]]*)?)*[[:space:]]+",
     "EXTOK": "[\\\"']?(?![^[:space:]]*\\.\\.)(?:(?:{{TMPDIR}}|{{JOBDIR}}|/private/tmp|/tmp|\\$TMPDIR|\\$\\{TMPDIR\\}|\\$CLAUDE_JOB_DIR|\\$\\{CLAUDE_JOB_DIR\\})(?:/[^[:space:]]*)?|(?:[^[:space:]]*/)?(?:\\.tmp|node_modules|dist|build|__pycache__|\\.pytest_cache)(?:/[^[:space:]]*)?)[\\\"']?(?=[[:space:]]|$)",
     "LIVE": "(?:~|\\\"?\\$\\{?HOME\\}?\\\"?|{{HOME}})/\\.claude/",
-    "LIVEGUARDED": "{{LIVE}}(?:gate\\.off|jev\\.off|gate-approved|gate-pending|gate-asks-used|gate-log\\.jsonl|settings\\.json|hooks(?:/|(?=[[:space:]]|$)))",
-    "GATESTATE": "(?:gate\\.off|jev\\.off|gate-approved|gate-pending|gate-asks-used|gate-log\\.jsonl)"
+    "LIVEGUARDED": "{{LIVE}}(?:gate\\.off|jev\\.off|gate-approved|gate-pending|gate-asks-used|gate-log\\.jsonl|jev/decisions\\.jsonl|settings\\.json|hooks(?:/|(?=[[:space:]]|$)))",
+    "GATESTATE": "(?:gate\\.off|jev\\.off|gate-approved|gate-pending|gate-asks-used|gate-log\\.jsonl|jev/decisions\\.jsonl)"
   },
   "rules": [
     {
@@ -414,7 +414,7 @@
       "description": "Write/Edit to live ~/.claude/hooks/, settings.json, gate state (anchored on $HOME)",
       "tools": "^(?:Write|Edit|MultiEdit)$",
       "field": "file_path",
-      "pattern": "^{{HOME}}/\\.claude/(?:hooks/|settings\\.json$|gate\\.off$|jev\\.off$|gate-approved/|gate-pending/|gate-asks-used$|gate-log\\.jsonl$)",
+      "pattern": "^{{HOME}}/\\.claude/(?:hooks/|settings\\.json$|gate\\.off$|jev\\.off$|gate-approved/|gate-pending/|gate-asks-used$|gate-log\\.jsonl$|jev/decisions\\.jsonl$)",
       "action": "deny",
       "message": "live hooks/settings are edited through claude-config (branch, PR, sync) and the gate state is off limits to agents",
       "scope": ["interactive", "bgjob", "fleet"],
