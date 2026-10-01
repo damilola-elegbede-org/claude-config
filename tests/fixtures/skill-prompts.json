@@ -1,0 +1,241 @@
+{
+  "version": 1,
+  "note": "Three realistic user prompts per enabled skill (skillOverrides != off in system-configs/.claude/settings.json). scripts/skill-overlap.py asks Jev which skill each prompt belongs to; prompts routed to a different skill reveal overlapping descriptions.",
+  "prompts": [
+    {
+      "skill": "ask",
+      "prompt": "Ask me whether the new endpoint should use JWT or API keys before you wire it up."
+    },
+    {
+      "skill": "ask",
+      "prompt": "Check with me before you pick a naming scheme for the migration files."
+    },
+    {
+      "skill": "ask",
+      "prompt": "I need to decide between Postgres and SQLite for this tool, get my input with a recommendation."
+    },
+
+    {
+      "skill": "branch",
+      "prompt": "Create a branch for the user-dashboard work off main."
+    },
+    {
+      "skill": "branch",
+      "prompt": "Start a new branch called fix/login-timeout so I can begin on the bug."
+    },
+    {
+      "skill": "branch",
+      "prompt": "What should I name the branch for ticket ENG-412 and can you switch to it?"
+    },
+
+    { "skill": "bro", "prompt": "bro what, say that again in plain English" },
+    {
+      "skill": "bro",
+      "prompt": "I didn't follow any of that, explain it like a normal person."
+    },
+    { "skill": "bro", "prompt": "/bro" },
+
+    {
+      "skill": "colorwheel",
+      "prompt": "Red team this plan for me and tell me if it holds up before we build it."
+    },
+    {
+      "skill": "colorwheel",
+      "prompt": "Wargame this proposal: attack it, mitigate it, then give me a verdict."
+    },
+    {
+      "skill": "colorwheel",
+      "prompt": "Stress-test my idea for a paid newsletter against every failure mode."
+    },
+
+    {
+      "skill": "commit",
+      "prompt": "Commit my staged changes with a good conventional message."
+    },
+    {
+      "skill": "commit",
+      "prompt": "The auth refactor is done, make a commit for it."
+    },
+    {
+      "skill": "commit",
+      "prompt": "Amend the last commit with the file I just staged."
+    },
+
+    {
+      "skill": "docs",
+      "prompt": "Update the README so it documents the new sync flags."
+    },
+    {
+      "skill": "docs",
+      "prompt": "Write API documentation for the hooks directory."
+    },
+    {
+      "skill": "docs",
+      "prompt": "The setup guide is out of date, refresh it to match the current scripts."
+    },
+
+    {
+      "skill": "excalidraw",
+      "prompt": "Draw an architecture diagram of how the hooks talk to the Jev daemon."
+    },
+    {
+      "skill": "excalidraw",
+      "prompt": "Sketch a flowchart of the deploy pipeline as an excalidraw file."
+    },
+    {
+      "skill": "excalidraw",
+      "prompt": "Make a sequence diagram for the login flow."
+    },
+
+    {
+      "skill": "fix-ci",
+      "prompt": "The GitHub Actions run is red, figure out why and fix it."
+    },
+    {
+      "skill": "fix-ci",
+      "prompt": "CI is failing on my PR, diagnose the failing job."
+    },
+    {
+      "skill": "fix-ci",
+      "prompt": "Look at run 12345678 and get the pipeline green again."
+    },
+
+    {
+      "skill": "gauntlet-loop",
+      "prompt": "Gauntlet this landing page: keep building until a blind panel prefers it over the reference site."
+    },
+    {
+      "skill": "gauntlet-loop",
+      "prompt": "Don't stop until it's perfect, blind-compare it against the competitor's report."
+    },
+    {
+      "skill": "gauntlet-loop",
+      "prompt": "Build the pitch deck to AAA quality with a harsh critic loop and a final blind panel."
+    },
+
+    {
+      "skill": "interview",
+      "prompt": "Interview me about the reporting feature until you fully understand it."
+    },
+    {
+      "skill": "interview",
+      "prompt": "Make sure you understand what I want before you start, no guesses."
+    },
+    {
+      "skill": "interview",
+      "prompt": "This task is vague, run rounds of questions and play my answers back to me."
+    },
+
+    { "skill": "pdf", "prompt": "Merge these three PDFs into one file." },
+    {
+      "skill": "pdf",
+      "prompt": "Extract the tables from invoice.pdf into a spreadsheet."
+    },
+    {
+      "skill": "pdf",
+      "prompt": "Fill in the form fields in this PDF and flatten it."
+    },
+
+    {
+      "skill": "pr",
+      "prompt": "Open a pull request for this branch with a good title and description."
+    },
+    { "skill": "pr", "prompt": "Create the PR for the work I just pushed." },
+    {
+      "skill": "pr",
+      "prompt": "Write the PR description summarizing these commits and open it."
+    },
+
+    {
+      "skill": "process-linear",
+      "prompt": "Triage my Linear queue and show me what actually needs my decision."
+    },
+    {
+      "skill": "process-linear",
+      "prompt": "Clear the Needs Your Sign-off view in Linear."
+    },
+    {
+      "skill": "process-linear",
+      "prompt": "Go through the blocked BareClaude tickets and bounce the ones that are not mine."
+    },
+
+    { "skill": "push", "prompt": "Push my committed changes to the remote." },
+    { "skill": "push", "prompt": "Push this branch and set the upstream." },
+    {
+      "skill": "push",
+      "prompt": "Send the latest commits up to origin after running the checks."
+    },
+
+    {
+      "skill": "resolve-comments",
+      "prompt": "Go through the review comments on my PR and resolve them."
+    },
+    {
+      "skill": "resolve-comments",
+      "prompt": "CodeRabbit left feedback, address each comment and reply."
+    },
+    {
+      "skill": "resolve-comments",
+      "prompt": "Triage the reviewer's findings and fix the valid ones."
+    },
+
+    {
+      "skill": "review",
+      "prompt": "Review my current branch changes before I merge."
+    },
+    {
+      "skill": "review",
+      "prompt": "Do a thorough code review of the diff against main."
+    },
+    {
+      "skill": "review",
+      "prompt": "Run a deep multi-perspective review: code quality, security and accessibility."
+    },
+
+    {
+      "skill": "ship-it",
+      "prompt": "Ship it: docs, tests, commit, review, push and open the PR."
+    },
+    {
+      "skill": "ship-it",
+      "prompt": "Take this feature all the way through to a pull request."
+    },
+    {
+      "skill": "ship-it",
+      "prompt": "Run the whole delivery pipeline on my changes, stage by stage."
+    },
+
+    { "skill": "test", "prompt": "Run the tests and tell me where we stand." },
+    {
+      "skill": "test",
+      "prompt": "Find the test suite for this project and run it."
+    },
+    { "skill": "test", "prompt": "Write tests for the new parser module." },
+
+    {
+      "skill": "verify",
+      "prompt": "Before I call this done, run every gate and fix whatever fails."
+    },
+    {
+      "skill": "verify",
+      "prompt": "Make sure the lint, typecheck and build all pass, retrying up to three times."
+    },
+    {
+      "skill": "verify",
+      "prompt": "Confirm the skill I just changed actually completed correctly."
+    },
+
+    {
+      "skill": "webapp-testing",
+      "prompt": "Open the local app in Playwright and screenshot the settings page."
+    },
+    {
+      "skill": "webapp-testing",
+      "prompt": "Click through the signup form and check the browser console for errors."
+    },
+    {
+      "skill": "webapp-testing",
+      "prompt": "Verify the frontend still works after my CSS change by driving the page."
+    }
+  ]
+}
