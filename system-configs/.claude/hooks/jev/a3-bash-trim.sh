@@ -11,18 +11,19 @@
 # shellcheck source=ctx-lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/ctx-lib.sh" || exit 0
 
-# Content-view contract. Recognized, and ONLY these (a grep on the hot path, no parser):
-#   [cd DIR && | cd DIR ;]  then any run of prefix words  then a view command:
-#   - prefix words: NAME=VALUE; env with -i -0 -v -u NAME -C DIR and their long forms, then at most one
-#     - or -- that ends env's options; command [-p]
-#   - VALUE: plain chars, '...', "..." with \ escapes, \x, $NAME, one level of $(...) $((...)) ${...} `...`
-#     (an unclosed expansion matches nothing, so its contents never read as the command);
-#     an unquoted ; & | ends it, so FOO=1;echo cat f is not a view
-#   - view command: cat bat nl sed head tail less more diff jq, git [-C DIR] diff|show|blame|log -p
+# Content-view contract. Recognized, and ONLY these (a grep on the hot path, no parser). The WHOLE
+# command must be one view, optionally piped into more views:
+#   [cd DIR && | cd DIR ;]  NAME=VALUE...  [env OPTS [- | --] NAME=VALUE... | command [-p]]  VIEW ARGS  [| VIEW ARGS]...
+#   - env OPTS: -i -v -u NAME -C DIR and their long forms (not -0/--null: env refuses a command with it)
+#   - VALUE and ARGS: plain chars, '...', "..." with \ escapes, \x, $NAME, one level of $(...) $((...))
+#     ${...} `...`, and N>&M; an unclosed expansion matches nothing; an unquoted ; & | ends the view
+#   - VIEW: cat bat nl sed head tail less more diff jq, git [-C DIR] diff|show|blame|log -p
+# So cat f && npm run build, a multi-line command, FOO=1;echo cat f, command FOO=1 cat f and
+# env -0 cat f are NOT views.
 # Not recognized, by design: other wrappers (exec nice time nohup sudo xargs), quoted or escaped command
-# names, redirections before the command, subshells, nested expansions. A miss is safe: the output is
+# names, subshells, nested expansions, pipes into non-view commands. A miss is safe: the output is
 # trimmed, and the full output stays in the cache file every marker cites.
-CONTENT_VIEW="^[[:space:]]*((cd[[:space:]]+[^;&|]+(&&|;)[[:space:]]*)?)(([A-Za-z_][A-Za-z0-9_]*=(\\\$\\(\\([^()]*\\)\\)|\\\$\\([^()]*\\)|\\\$\\{[^}]*\\}|\`[^\`]*\`|\\\$[A-Za-z_][A-Za-z0-9_]*|\\\$[0-9@*#?\$!-]|'[^']*'|\"([^\"\\\\\$\`]|\\\\.|\\\$\\(\\([^()]*\\)\\)|\\\$\\([^()]*\\)|\\\$\\{[^}]*\\}|\`[^\`]*\`|\\\$[A-Za-z_][A-Za-z0-9_]*|\\\$[0-9@*#?\$!-])*\"|\\\\.|[^[:space:];&|'\"\\\\\$()\`<>])*|env([[:space:]]+(-[iv0]+|--ignore-environment|--null|--debug|-u[[:space:]]*[^[:space:];&|]+|--unset=[^[:space:];&|]+|-C[[:space:]]*[^[:space:];&|]+|--chdir=[^[:space:];&|]+))*([[:space:]]+--?)?|command([[:space:]]+-p)?)[[:space:]]+)*(cat|bat|nl|sed|head|tail|less|more|diff|jq|git([[:space:]]+-C[[:space:]]+[^[:space:]]+)?[[:space:]]+(diff|show|blame|log[[:space:]]+-p))([[:space:]]|\$)"
+CONTENT_VIEW="^[[:space:]]*((cd[[:space:]]+[^;&|]+(&&|;)[[:space:]]*)?)([A-Za-z_][A-Za-z0-9_]*=(\\\$\\(\\([^()]*\\)\\)|\\\$\\([^()]*\\)|\\\$\\{[^}]*\\}|\`[^\`]*\`|\\\$[A-Za-z_][A-Za-z0-9_]*|\\\$[0-9@*#?\$!-]|'[^']*'|\"([^\"\\\\\$\`]|\\\\.|\\\$\\(\\([^()]*\\)\\)|\\\$\\([^()]*\\)|\\\$\\{[^}]*\\}|\`[^\`]*\`|\\\$[A-Za-z_][A-Za-z0-9_]*|\\\$[0-9@*#?\$!-])*\"|\\\\.|[^[:space:];&|'\\\"\\\\\$()\`<>])*[[:space:]]+)*(env([[:space:]]+(-[iv]+|--ignore-environment|--debug|-u[[:space:]]*[^[:space:];&|]+|--unset=[^[:space:];&|]+|-C[[:space:]]*[^[:space:];&|]+|--chdir=[^[:space:];&|]+))*([[:space:]]+--?)?[[:space:]]+([A-Za-z_][A-Za-z0-9_]*=(\\\$\\(\\([^()]*\\)\\)|\\\$\\([^()]*\\)|\\\$\\{[^}]*\\}|\`[^\`]*\`|\\\$[A-Za-z_][A-Za-z0-9_]*|\\\$[0-9@*#?\$!-]|'[^']*'|\"([^\"\\\\\$\`]|\\\\.|\\\$\\(\\([^()]*\\)\\)|\\\$\\([^()]*\\)|\\\$\\{[^}]*\\}|\`[^\`]*\`|\\\$[A-Za-z_][A-Za-z0-9_]*|\\\$[0-9@*#?\$!-])*\"|\\\\.|[^[:space:];&|'\\\"\\\\\$()\`<>])*[[:space:]]+)*|command([[:space:]]+-p)?[[:space:]]+)?(cat|bat|nl|sed|head|tail|less|more|diff|jq|git([[:space:]]+-C[[:space:]]+[^[:space:]]+)?[[:space:]]+(diff|show|blame|log[[:space:]]+-p))([[:space:]]+([0-9]*>&[0-9-]|(\\\$\\(\\([^()]*\\)\\)|\\\$\\([^()]*\\)|\\\$\\{[^}]*\\}|\`[^\`]*\`|\\\$[A-Za-z_][A-Za-z0-9_]*|\\\$[0-9@*#?\$!-]|'[^']*'|\"([^\"\\\\\$\`]|\\\\.|\\\$\\(\\([^()]*\\)\\)|\\\$\\([^()]*\\)|\\\$\\{[^}]*\\}|\`[^\`]*\`|\\\$[A-Za-z_][A-Za-z0-9_]*|\\\$[0-9@*#?\$!-])*\"|\\\\.|[^[:space:];&|'\\\"\\\\\$()\`])+))*[[:space:]]*(\\|[[:space:]]*(cat|bat|nl|sed|head|tail|less|more|diff|jq|git([[:space:]]+-C[[:space:]]+[^[:space:]]+)?[[:space:]]+(diff|show|blame|log[[:space:]]+-p))([[:space:]]+([0-9]*>&[0-9-]|(\\\$\\(\\([^()]*\\)\\)|\\\$\\([^()]*\\)|\\\$\\{[^}]*\\}|\`[^\`]*\`|\\\$[A-Za-z_][A-Za-z0-9_]*|\\\$[0-9@*#?\$!-]|'[^']*'|\"([^\"\\\\\$\`]|\\\\.|\\\$\\(\\([^()]*\\)\\)|\\\$\\([^()]*\\)|\\\$\\{[^}]*\\}|\`[^\`]*\`|\\\$[A-Za-z_][A-Za-z0-9_]*|\\\$[0-9@*#?\$!-])*\"|\\\\.|[^[:space:];&|'\\\"\\\\\$()\`])+))*[[:space:]]*)*\$"
 
 main() {
   ctx_bootstrap A3-bash-trim || return 0
@@ -30,7 +31,8 @@ main() {
   [ "$(ctx_in .tool_input.run_in_background)" != "true" ] || return 0
   local cmd task n min state
   cmd="$(ctx_in .tool_input.command)"
-  if printf '%s' "$cmd" | grep -Eq "$CONTENT_VIEW"; then
+  # A newline separates commands and grep matches per line, so a multi-line command is never a view.
+  if [[ "$cmd" != *$'\n'* ]] && printf '%s' "$cmd" | grep -Eq "$CONTENT_VIEW"; then
     return 0
   fi
 
