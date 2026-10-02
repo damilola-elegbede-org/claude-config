@@ -1,6 +1,6 @@
 {
   "_comment": "Decision-gate rules for hooks/gate.sh. Patterns are jq (Oniguruma) regexes written in the POSIX ERE subset plus lookahead/lookbehind where needed. Macros ({{SEP}} {{PFX}} {{GIT}} {{EXTOK}} {{LIVE}} and dynamic {{HOME}} {{TMPDIR}} {{JOBDIR}}) are expanded before matching. anchor=cmd wraps the pattern as SEP(?<c>PFX pattern rest-of-segment) so it only matches in command position; exempt is tested against that capture (or the whole match). exempt_all is tested against the whole field. Rules apply in file order; every matching rule is evaluated, the first enforced one names the CHECKPOINT and the others are listed as Also matched, and ONE approval (bound to tool + exact command/path+content + cwd + scope) clears them all. Before matching, heredoc bodies (unless fed to a shell) and quoted data (echo/printf/grep arguments, --body/--title/-m/-f body= values) are blanked; SEP also matches shell -c in any combined-flag form (bash -lc). Per-rule: scope (interactive|bgjob|fleet), lanes (fleet agent slug -> allow), enforce (false = log as shadow only). exempt_agents are never blocked (their would-be decision is logged).",
-  "exempt_agents": ["dara", "clara"],
+  "exempt_agents": ["clara"],
   "macros": {
     "SEP": "(?:^|[;&|(\\n`]|\\$\\(|-c[[:space:]]+[\\\"']|(?<![A-Za-z0-9_-])(?:ba|z|da|k)?sh[[:space:]]+(?:-[^[:space:]]+[[:space:]]+)*-[A-Za-z]*c[[:space:]]+[\\\"']|-exec(?:dir)?[[:space:]]+)[[:space:]]*",
     "PFX": "(?:[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*(?:(?:sudo|doas|env|command|exec|time|nohup|xargs|npx|then|do|else|elif|if|while|until|!)[[:space:]]+(?:-[^[:space:]]+[[:space:]]+)*(?:[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*)*",
@@ -196,39 +196,6 @@
       "message": "the stash stack is shared by all sessions; use `git stash apply <sha>` and drop by explicit stash@{n}",
       "scope": ["interactive", "bgjob", "fleet"],
       "lanes": {},
-      "enforce": true
-    },
-    {
-      "id": "G3",
-      "class": "G3",
-      "description": "gh pr merge",
-      "tools": "^Bash$",
-      "field": "command",
-      "pattern": "gh[[:space:]]+(?:(?:-R|--repo)[[:space:]]+[^[:space:]]+[[:space:]]+)?pr[[:space:]]+merge(?=[[:space:]]|$)",
-      "anchor": "cmd",
-      "action": "deny",
-      "message": "merging a PR is a decision for D (or Dara's lane); /process-linear approvals are records, not execution orders",
-      "scope": ["interactive", "bgjob", "fleet"],
-      "lanes": {
-        "dara": "allow"
-      },
-      "enforce": true
-    },
-    {
-      "id": "G3-api",
-      "class": "G3",
-      "description": "gh api merge endpoints / mergePullRequest mutation",
-      "tools": "^Bash$",
-      "field": "command",
-      "pattern": "gh[[:space:]]+api[[:space:]]+[^;&|\\n]*?(?:/pulls/[^/[:space:]]+/merge(?=[[:space:]\\\"'?]|$)|/merges?(?=[[:space:]\\\"'?]|$)|mergePullRequest|enablePullRequestAutoMerge)",
-      "anchor": "cmd",
-      "exempt": "(?:-X|--method)[[:space:]]+GET",
-      "action": "deny",
-      "message": "merging a PR through the API is still a merge",
-      "scope": ["interactive", "bgjob", "fleet"],
-      "lanes": {
-        "dara": "allow"
-      },
       "enforce": true
     },
     {

@@ -11,7 +11,7 @@
 #
 # Every rule ships mode "shadow": Jev is called and the verdict is logged, nothing is denied.
 # Fail mode: Jev unavailable -> allow with one warning per session (the regex gates in
-# gate.sh keep enforcing). Dara/Clara are exempt. Output is JSON on stdout, exit 0 always.
+# gate.sh keep enforcing). Clara is exempt. Output is JSON on stdout, exit 0 always.
 set -u
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -461,11 +461,13 @@ handle_generic() {
   cand_ids=$(candidates_for "$subject")
   if [ "$extra_g1" = "1" ]; then cand_ids="${cand_ids:+$cand_ids$'\n'}G1-irreversible-local"; fi
   cand_ids=$(printf '%s\n' "$cand_ids" | sort -u | sed '/^$/d')
-  [ -n "$cand_ids" ] || exit 0
-
+  cand=""
   # shellcheck disable=SC2086
-  cand=$(jev_resolve_rules "$RULES" $cand_ids)
-  [ -n "$cand" ] || exit 0
+  [ -z "$cand_ids" ] || cand=$(jev_resolve_rules "$RULES" $cand_ids)
+  # G15 needs no other candidate: an action no class regex matches (curl ... | bash, a new Write) is
+  # exactly what injected content asks for, so it is judged whenever untrusted content is in the tail.
+  g15=$(jev_resolve_rules "$RULES" G15-untrusted-origin)
+  [ -n "$cand" ] || [ -n "$g15" ] || exit 0
 
   if jev_is_exempt "$RULES"; then
     jev_log "gates/$TOOL" allow-exempt-agent "" ""
@@ -475,12 +477,12 @@ handle_generic() {
   TAILJSON=$(jev_tail "$TRANSCRIPT")
   un='{}'
   has_g14=$(printf '%s\n' "$cand" | cut -f1 | grep -c '^G14-non-routine$' || true)
-  g15=$(jev_resolve_rules "$RULES" G15-untrusted-origin)
   if [ -n "$g15" ] && [ "$(printf '%s' "$TAILJSON" | jq '.untrusted | length')" -gt 0 ]; then
-    cand="${cand}"$'\n'"${g15}"
+    cand="${cand:+$cand$'\n'}${g15}"
     un=$(printf '%s' "$TAILJSON" | jq -c '.untrusted')
     has_g15=1
   fi
+  [ -n "$cand" ] || exit 0
   if [ "${has_g14:-0}" -gt 0 ] || [ "${has_g15:-0}" = "1" ]; then
     state=$(printf '%s' "$state" | jq -c --argjson t "$TAILJSON" '. + {turns:$t.turns}')
   fi

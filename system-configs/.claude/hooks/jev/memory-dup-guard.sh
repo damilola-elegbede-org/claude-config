@@ -11,6 +11,7 @@
 re_need_jq || exit 0
 
 INPUT=$(cat)
+[ "$(re_scope)" = interactive ] || exit 0
 FILE=$(jq -r '.tool_input.file_path // empty' <<<"$INPUT" 2>/dev/null)
 case "$FILE" in */memory/*.md) ;; *) exit 0 ;; esac
 [ "$(basename "$FILE")" = MEMORY.md ] && exit 0

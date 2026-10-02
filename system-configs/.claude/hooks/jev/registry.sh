@@ -121,12 +121,12 @@ jev_reg_value() {
   if [ -n "$v" ]; then printf '%s' "$v"; else printf '%s' "$3"; fi
 }
 
-# jev_reg_exempt SLUG [REGISTRY_JSON] -> 0 when the fleet agent is on the exempt list (default dara, clara).
+# jev_reg_exempt SLUG [REGISTRY_JSON] -> 0 when the fleet agent is on the exempt list (default clara).
 jev_reg_exempt() {
   local reg="${2:-}"
   [ -n "$1" ] || return 1
   [ -n "$reg" ] || reg=$(jev_reg_json)
-  printf '%s' "$reg" | jq -e --arg s "$1" '(.exempt_agents // ["dara","clara"]) | map(ascii_downcase) | index($s | ascii_downcase) != null' >/dev/null 2>&1
+  printf '%s' "$reg" | jq -e --arg s "$1" '(.exempt_agents // ["clara"]) | map(ascii_downcase) | index($s | ascii_downcase) != null' >/dev/null 2>&1
 }
 
 # jev_decision_log GATE MODE OUTCOME [CONFIDENCE] [ANSWERS_JSON] [MODEL] [LATENCY_MS] [SRC] [EXTRA_JSON]

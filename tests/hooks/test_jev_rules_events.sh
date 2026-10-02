@@ -55,11 +55,13 @@ run() { # script, stdin-json  (env passes through)
 bool_ans() { printf '{"answers":{"%s":{"type":"boolean","probability":%s}}}' "$1" "$2"; }
 
 echo "== registry, rules.d and settings wiring =="
-# --- shipped rule modes: Jev rules ship shadow, regex rules enforce -------------
+# --- shipped rule modes: every rule ships enforce (Jev and regex) -------------
 RJ="$HOOKS/rules.d/rules-events.json"
 jq -e . "$RJ" >/dev/null 2>&1 && ok || bad "rules-events.json is valid JSON"
-NONSHADOW=$(jq -r 'to_entries[] | select(.value.threshold != null and .value.mode != "shadow") | .key' "$RJ")
-eq "every Jev rule (has threshold) ships shadow" "$NONSHADOW" ""
+NONENFORCE=$(jq -r 'to_entries[] | select(.value.threshold != null and .value.mode != "enforce") | .key' "$RJ" | sort | paste -sd, -)
+eq "every Jev rule (has threshold) ships enforce except the two D kept in shadow" "$NONENFORCE" "executive-scope-creep,executive-tag-correctness"
+eq "executive-tag-correctness ships shadow" "$(jq -r '."executive-tag-correctness".mode' "$RJ")" "shadow"
+eq "executive-scope-creep ships shadow" "$(jq -r '."executive-scope-creep".mode' "$RJ")" "shadow"
 for r in file-org-guard pr-draft-guard executive-lint retry-counter papercut-grep; do
   eq "regex rule $r ships enforce" "$(jq -r --arg r "$r" '.[$r].mode' "$RJ")" enforce
 done
@@ -127,9 +129,9 @@ printf x >"$REPO/plan.md"
 out=$(run file-org-guard.sh "$(tw "$REPO/plan.md")")
 eq "existing file (overwrite) allowed" "$out" ""
 rm -f "$REPO/plan.md"
-out=$(BARECLAUDE_AGENT_SLUG=dara run file-org-guard.sh "$(tw "$REPO/PLAN.md")")
-eq "dara exempt (allowed)" "$out" ""
-loghas allow-exempt-agent && ok || bad "dara exemption logged"
+out=$(BARECLAUDE_AGENT_SLUG=clara run file-org-guard.sh "$(tw "$REPO/PLAN.md")")
+eq "clara exempt (allowed)" "$out" ""
+loghas allow-exempt-agent && ok || bad "clara exemption logged"
 reset
 rules '{"file-org-guard":{"mode":"shadow"}}'
 out=$(run file-org-guard.sh "$(tw "$REPO/PLAN.md")")
@@ -250,17 +252,24 @@ loghas shadow-would-block && ok || bad "shadow-would-block logged"
 
 echo "== executive-lint: Jev shadow checks =="
 reset
-mock tag '{"answers":{"tag":{"type":"choice","choice":"DECISION","probabilities":{"DECISION":0.95,"FYI":0.05}},"unsourced":{"type":"score","score":2.4,"level":2}}}'
+mock tag '{"answers":{"tag":{"type":"choice","choice":"DECISION","probabilities":{"DECISION":0.95,"FYI":0.05}},"unsourced":{"type":"score","score":2.4,"probabilities":{"0":0.05,"1":0.15,"2":0.5,"3":0.3}}}}'
 export JEV_MOCK_CAPTURE="$T/capture"
 out=$(run executive-lint.sh "$(sl "$GOOD")")
 eq "Jev tag mismatch in shadow does not block" "$out" ""
 loghas '"rule":"executive-tag-correctness","verdict":"mismatch"' && ok || bad "tag mismatch logged" "$(cat "$LOG" 2>/dev/null)"
-loghas '"rule":"executive-unsourced-claims","verdict":"level=2"' && ok || bad "unsourced level logged"
+# Jev returns probabilities per level (never a "level" field): the hook logs P(level>=2) = 0.5 + 0.3.
+loghas '"rule":"executive-unsourced-claims","verdict":"p=0.8"' && ok || bad "unsourced P(level>=2) logged"
 [[ "$(wc -l <"$T/capture" | tr -d ' ')" == 1 ]] && ok || bad "exactly one jev-ask call per Stop"
 has "request carries the reply" "$(cat "$T/capture")" "All 18 tests pass"
 rules '{"executive-tag-correctness":{"mode":"enforce","threshold":0.9}}'
 out=$(run executive-lint.sh "$(sl "$GOOD")")
 has "enforce + high-confidence mismatch blocks" "$out" "looks wrong"
+rules '{"executive-unsourced-claims":{"mode":"enforce","threshold":0.75}}'
+out=$(run executive-lint.sh "$(sl "$GOOD")")
+has "enforce + P(level>=2) 0.8 >= threshold 0.75 blocks" "$out" "lack sources"
+rules '{"executive-unsourced-claims":{"mode":"enforce","threshold":0.85}}'
+out=$(run executive-lint.sh "$(sl "$GOOD")")
+eq "enforce + P(level>=2) 0.8 below threshold 0.85 does not block" "$out" ""
 rules '{"executive-tag-correctness":{"mode":"enforce","threshold":0.9}}'
 out=$(JEV_MOCK=unavailable run executive-lint.sh "$(sl "$GOOD")")
 eq "Jev unavailable fails open (enforce mode)" "$out" ""
@@ -366,6 +375,7 @@ out=$(run memory-dup-guard.sh "$(mw "$RE_MEMORY_DIR/prs-not-drafts.md" "$NEWMEM"
 has "enforce: additionalContext warns of duplicate" "$out" "Possible duplicate memory"
 has "enforce: names the closest entry" "$out" "pr-ready-not-draft.md"
 hasnt "never denies" "$out" "deny"
+eq "enforce: bg job skipped (rule is interactive-only)" "$(CLAUDE_JOB_DIR="$T/job" run memory-dup-guard.sh "$(mw "$RE_MEMORY_DIR/prs-not-drafts.md" "$NEWMEM")")" ""
 eq "MEMORY.md write ignored" "$(run memory-dup-guard.sh "$(mw "$RE_MEMORY_DIR/MEMORY.md" "x")")" ""
 eq "non-memory path ignored" "$(run memory-dup-guard.sh "$(mw "$T/other/notes.md" "$NEWMEM")")" ""
 printf x >"$RE_MEMORY_DIR/existing.md"
@@ -505,7 +515,7 @@ reset
 JEV_MOCK=unavailable run notification-urgency.sh "$(nf idle_prompt)" >/dev/null
 loghas '"verdict":"play-jev-unavailable"' && ok || bad "Jev unavailable: plays (fail open)"
 reset
-BARECLAUDE_AGENT_SLUG=dara run notification-urgency.sh "$(nf permission_prompt)" >/dev/null
+BARECLAUDE_AGENT_SLUG=clara run notification-urgency.sh "$(nf permission_prompt)" >/dev/null
 [[ ! -f "$LOG" ]] && ok || bad "fleet guard: never plays"
 CLAUDE_JOB_DIR=/x run notification-urgency.sh "$(nf permission_prompt)" >/dev/null
 [[ ! -f "$LOG" ]] && ok || bad "bg-job guard: never plays"
@@ -543,6 +553,15 @@ CLAUDE_JOB_DIR=/x speak '**ACTION · bg.**' && bad "bg job stays silent" || ok
 echo "== workflow helpers =="
 SKILLS="$SRC/skills"
 reset
+# --- re_mode honors the rule's scope ---------------------------------------------------
+rules '{"workflow-linear-presort":{"mode":"enforce","scope":["interactive"]},"papercut-dedupe":{"mode":"enforce","scope":["interactive","bgjob"]},"no-scope":{"mode":"enforce"}}'
+eq "re_mode: interactive rule enforces in interactive" "$(env -u CLAUDE_JOB_DIR -u BARECLAUDE_AGENT_SLUG bash -c '. "$1/rules-events-lib.sh"; re_mode "$2" shadow' _ "$HOOKS" workflow-linear-presort)" enforce
+eq "re_mode: interactive rule is off in a bg job" "$(env -u BARECLAUDE_AGENT_SLUG CLAUDE_JOB_DIR="$T/job" bash -c '. "$1/rules-events-lib.sh"; re_mode "$2" shadow' _ "$HOOKS" workflow-linear-presort)" off
+eq "re_mode: interactive rule is off in fleet" "$(env BARECLAUDE_AGENT_SLUG=lane-test bash -c '. "$1/rules-events-lib.sh"; re_mode "$2" shadow' _ "$HOOKS" workflow-linear-presort)" off
+eq "re_mode: bgjob in scope stays enforce" "$(env -u BARECLAUDE_AGENT_SLUG CLAUDE_JOB_DIR="$T/job" bash -c '. "$1/rules-events-lib.sh"; re_mode "$2" shadow' _ "$HOOKS" papercut-dedupe)" enforce
+eq "re_mode: no scope means every scope" "$(env BARECLAUDE_AGENT_SLUG=lane-test bash -c '. "$1/rules-events-lib.sh"; re_mode "$2" shadow' _ "$HOOKS" no-scope)" enforce
+eq "re_mode: unknown rule falls back to default" "$(bash -c '. "$1/rules-events-lib.sh"; re_mode "$2" shadow' _ "$HOOKS" not-a-rule)" shadow
+reset
 # --- process-linear presort -----------------------------------------------------------
 TK='[{"id":"ENG-1","title":"Approve spend","state":"Blocked"},{"id":"OPS-2","title":"Fix typo","state":"In Review"},{"id":"ENG-3","title":"Rotate key","state":"Blocked"}]'
 mock ps '{"answers":{"t0":{"type":"boolean","probability":0.9},"t1":{"type":"boolean","probability":0.1},"t2":{"type":"boolean","probability":0.7}}}'
@@ -578,6 +597,9 @@ mock br '{"answers":{"type":{"type":"choice","choice":"fix","probabilities":{"fi
 rules '{"workflow-branch-type":{"mode":"enforce"}}'
 out=$(cd "$CR" && bash "$SKILLS/commit/scripts/classify.sh" branch "fix-auth-bug")
 eq "branch classify enforce: type" "$(jq -r '.type' <<<"$out")" fix
+mock bl '{"answers":{"type":{"type":"choice","choice":"hotfix","probabilities":{"hotfix":0.5,"fix":0.4}},"mixed":{"type":"boolean","probability":0.1}}}'
+out=$(cd "$CR" && bash "$SKILLS/commit/scripts/classify.sh" branch "fix-auth-bug")
+eq "branch classify enforce: type below threshold withheld" "$(jq -r '.type // "none"' <<<"$out")" none
 out=$(cd "$CR" && JEV_MOCK=unavailable bash "$SKILLS/commit/scripts/classify.sh" commit)
 eq "classify fails open" "$(jq -r .mode <<<"$out")" unavailable
 # --- review depth ----------------------------------------------------------------------
@@ -590,13 +612,13 @@ git -C "$RR" checkout -q -b feat/x
 printf d >"$RR/docs/a.md" && git -C "$RR" add . && git -C "$RR" commit -qm doc
 out=$(cd "$RR" && bash "$SKILLS/review/scripts/depth.sh")
 eq "docs-only change: floor single" "$(jq -r '[.floor,.depth]|join(",")' <<<"$out")" single,single
-mock rd '{"answers":{"risk":{"type":"score","score":2.8,"level":3}}}'
+mock rd '{"answers":{"risk":{"type":"score","score":2.8,"probabilities":{"0":0.02,"1":0.08,"2":0.0,"3":0.9}}}}'
 out=$(cd "$RR" && bash "$SKILLS/review/scripts/depth.sh")
 eq "shadow: Jev risk never raises depth" "$(jq -r .depth <<<"$out")" single
 rules '{"workflow-review-depth":{"mode":"enforce"}}'
 out=$(cd "$RR" && bash "$SKILLS/review/scripts/depth.sh")
 eq "enforce: Jev level 3 raises to deep" "$(jq -r '[.depth,.risk_level]|join(",")' <<<"$out")" deep,3
-mock rd0 '{"answers":{"risk":{"type":"score","score":0.1,"level":0}}}'
+mock rd0 '{"answers":{"risk":{"type":"score","score":0.1,"probabilities":{"0":0.9,"1":0.1,"2":0.0,"3":0.0}}}}'
 out=$(cd "$RR" && bash "$SKILLS/review/scripts/depth.sh")
 eq "enforce: Jev level 0 keeps single" "$(jq -r .depth <<<"$out")" single
 printf h >"$RR/hooks/guard.sh" && git -C "$RR" add . && git -C "$RR" commit -qm hook

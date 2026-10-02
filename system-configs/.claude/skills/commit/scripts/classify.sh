@@ -76,7 +76,8 @@ JM=$(jq -r '.answers.mixed.probability // empty' <<<"$RESP" 2>/dev/null)
 re_log "$TYPE_RULE" "type=$JT p=$JTP mixed_p=$JM" "kind=$KIND type_mode=$TYPE_MODE mix_mode=$MIX_MODE"
 
 RES="$OUT"
-if [ "$TYPE_MODE" = enforce ] && [ -n "$JT" ]; then
+if [ "$TYPE_MODE" = enforce ] && [ -n "$JT" ] && \
+  awk -v p="${JTP:-0}" -v t="$(re_cfg "$TYPE_RULE" threshold 0.7)" 'BEGIN{exit !(p+0>=t+0)}'; then
   RES=$(jq -c --arg t "$JT" --arg p "${JTP:-0}" '. + {type:$t,type_p:($p|tonumber)}' <<<"$RES")
 fi
 if [ "$MIX_MODE" = enforce ] && [ -n "$JM" ]; then

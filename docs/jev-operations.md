@@ -14,7 +14,7 @@ registry. Layers, later wins (objects deep-merge key by key, arrays and scalars 
 2. `hooks/jev/rules.d/*.json` - modes, thresholds, scopes, tuning knobs (lexical file order)
 3. `hooks/jev/jev-rules.json` - your overrides, always last
 
-A rule that no layer registers is OFF. `exempt_agents` (default `dara`, `clara`) is read from the same
+A rule that no layer registers is OFF. `exempt_agents` (default `clara`) is read from the same
 registry by every hook. `JEV_RULES_FILE` (alias `JEV_RULES`) replaces all layers with one file (tests).
 
 The reader exists twice because the hooks are bash and the client is node: `hooks/jev/registry.sh`

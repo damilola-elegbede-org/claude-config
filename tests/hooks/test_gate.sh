@@ -118,8 +118,8 @@ echo "== registry sanity =="
 if jq -e . "$RULES" >/dev/null 2>&1; then pass; else fail "gate-rules.json is not valid JSON"; fi
 check "rule ids are unique" "0" "$(jq '[.rules[].id] | length - (unique | length)' "$RULES")"
 check "every rule has the required fields" "0" "$(jq '[.rules[] | select((.id and .class and .tools and .message and (.action == "deny") and (.scope | type == "array") and (.lanes | type == "object") and (.enforce | type == "boolean")) | not)] | length' "$RULES")"
-check "exempt agents come from the rules file" "dara,clara" "$(jq -r '.exempt_agents | join(",")' "$RULES")"
-if grep -qiE 'dara|clara' "$HOOKS_SRC/gate.sh"; then fail "gate.sh must not hard-code agent names"; else pass; fi
+check "exempt agents come from the rules file" "clara" "$(jq -r '.exempt_agents | join(",")' "$RULES")"
+if grep -qiE -- 'clara' "$HOOKS_SRC/gate.sh"; then fail "gate.sh must not hard-code agent names"; else pass; fi
 if [[ -x "$HOOKS_SRC/gate.sh" ]]; then pass; else fail "gate.sh is not executable"; fi
 
 echo "== fixtures (table-driven) =="
@@ -176,19 +176,19 @@ check_contains "bg job: do not retry" "$(reason)" "Do not retry"
 check_absent "bg job: no AskUserQuestion" "$(reason)" "AskUserQuestion"
 check_absent "bg job: no approve command" "$(reason)" "gate.sh approve"
 
-echo "== fleet: exempt agents (dara, clara never blocked) =="
+echo "== fleet: exempt agents (clara never blocked) =="
 H_EX=$(make_home exempt)
-run_gate "$H_EX" "$(bash_payload 'gh pr merge 12 --squash')" BARECLAUDE_AGENT_SLUG=dara
-check "dara + gh pr merge allowed" "" "$GOUT"
+run_gate "$H_EX" "$(bash_payload 'gh pr merge 12 --squash')" BARECLAUDE_AGENT_SLUG=clara
+check "clara + gh pr merge allowed" "" "$GOUT"
 run_gate "$H_EX" "$(payload mcp__claude_ai_Gmail__send_message '{"to":"d@example.com"}')" BARECLAUDE_AGENT_SLUG=clara
 check "clara + Gmail send allowed" "" "$GOUT"
 run_gate "$H_EX" "$(bash_payload 'rm -rf /srv/data')" BARECLAUDE_AGENT_SLUG=clara
 check "clara + rm -rf allowed (exempt)" "" "$GOUT"
 check_contains "clara rm -rf is still logged as exempt" "$(cat "$H_EX/.claude/gate-log.jsonl")" '"rule":"G1-rm","tool":"Bash","decision":"allow-exempt-agent","scope":"fleet"'
-run_gate "$H_EX" "$(bash_payload 'git push origin main')" BARECLAUDE_AGENT_SLUG=dara
-check "dara + push to main allowed (exempt, whole gate)" "" "$GOUT"
-run_gate "$H_EX" "$(bash_payload 'gh pr merge 12 --squash')" BARECLAUDE_AGENT_SLUG=tars
-check "tars + gh pr merge denied" "deny" "$(decision)"
+run_gate "$H_EX" "$(bash_payload 'git push origin main')" BARECLAUDE_AGENT_SLUG=clara
+check "clara + push to main allowed (exempt, whole gate)" "" "$GOUT"
+run_gate "$H_EX" "$(bash_payload 'git push origin main')" BARECLAUDE_AGENT_SLUG=tars
+check "tars + push to main denied" "deny" "$(decision)"
 check_contains "tars: needs input wording" "$(reason)" "needs input:"
 run_gate "$H_EX" "$(payload mcp__claude_ai_Gmail__send_message '{"to":"a@b.c"}')" BARECLAUDE_AGENT_SLUG=tars
 check "tars + Gmail send denied (no lane)" "deny" "$(decision)"
@@ -196,19 +196,28 @@ run_gate "$H_EX" "$(bash_payload 'ls -la')" BARECLAUDE_AGENT_SLUG=tars
 check "tars + harmless command allowed" "" "$GOUT"
 
 echo "== fleet: lanes mechanism (exempt list emptied to exercise it) =="
-H_LANE=$(make_home lanes '.exempt_agents = []')
-run_gate "$H_LANE" "$(bash_payload 'gh pr merge 12')" BARECLAUDE_AGENT_SLUG=dara
-check "lane: dara + gh pr merge allowed" "" "$GOUT"
+# D removed the merge gate (G3/G3-api, 2026-10-02): merging is no longer gated, and no shipped rule grants a lane.
+check "no shipped merge gate (class G3)" "0" "$(jq -r '[.rules[] | select(.class == "G3")] | length' "$RULES")"
+check "the only shipped lane is clara's G7-gmail" '[{"id":"G7-gmail","lanes":{"clara":"allow"}}]' "$(jq -c '[.rules[] | select((.lanes // {}) | length > 0) | {id, lanes}]' "$RULES")"
+run_gate "$H_EX" "$(bash_payload 'gh pr merge 12 --squash')" BARECLAUDE_AGENT_SLUG=tars
+check "merge not gated (fleet, non-exempt)" "" "$GOUT"
+run_gate "$H_EX" "$(bash_payload 'gh pr merge 12 --squash')" CLAUDE_JOB_DIR="$H_EX/job"
+check "merge not gated (bg job)" "" "$GOUT"
+run_gate "$H" "$(bash_payload 'gh api -X PUT repos/o/r/pulls/12/merge')"
+check "merge via API not gated (interactive)" "" "$GOUT"
+H_LANE=$(make_home lanes '.exempt_agents = [] | (.rules[] | select(.id == "G2-push-main") | .lanes) = {"lane-test": "allow"}')
+run_gate "$H_LANE" "$(bash_payload 'git push origin main')" BARECLAUDE_AGENT_SLUG=lane-test
+check "lane: lane-test + push to main allowed" "" "$GOUT"
 check_contains "lane: logged as allow-by-lane" "$(cat "$H_LANE/.claude/gate-log.jsonl")" '"decision":"allow-by-lane"'
-run_gate "$H_LANE" "$(bash_payload 'gh pr merge 12')" BARECLAUDE_AGENT_SLUG=clara
-check "lane: clara + gh pr merge denied" "deny" "$(decision)"
+run_gate "$H_LANE" "$(bash_payload 'git push origin main')" BARECLAUDE_AGENT_SLUG=clara
+check "lane: clara + push to main denied" "deny" "$(decision)"
 run_gate "$H_LANE" "$(payload mcp__claude_ai_Gmail__send_message '{}')" BARECLAUDE_AGENT_SLUG=clara
 check "lane: clara + Gmail send allowed" "" "$GOUT"
-run_gate "$H_LANE" "$(payload mcp__claude_ai_Gmail__send_message '{}')" BARECLAUDE_AGENT_SLUG=dara
-check "lane: dara + Gmail send denied" "deny" "$(decision)"
+run_gate "$H_LANE" "$(payload mcp__claude_ai_Gmail__send_message '{}')" BARECLAUDE_AGENT_SLUG=lane-test
+check "lane: lane-test + Gmail send denied" "deny" "$(decision)"
 run_gate "$H_LANE" "$(bash_payload 'rm -rf /srv/data')" BARECLAUDE_AGENT_SLUG=clara
 check "lane: clara + rm -rf denied (no lane)" "deny" "$(decision)"
-run_gate "$H_LANE" "$(bash_payload 'gh pr merge 12')" BARECLAUDE_AGENT_SLUG=dara CLAUDE_JOB_DIR="$H_LANE/job"
+run_gate "$H_LANE" "$(bash_payload 'git push origin main')" BARECLAUDE_AGENT_SLUG=lane-test CLAUDE_JOB_DIR="$H_LANE/job"
 check "lane: still applies for a fleet bg job" "" "$GOUT"
 
 echo "== per-rule enforce and scope =="

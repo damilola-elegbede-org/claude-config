@@ -32,8 +32,8 @@
     "scope": ["interactive"]
   },
   "executive-unsourced-claims": {
-    "mode": "shadow",
-    "threshold": 0.9,
+    "mode": "enforce",
+    "threshold": 0.85,
     "scope": ["interactive"]
   },
   "executive-scope-creep": {
@@ -42,77 +42,77 @@
     "scope": ["interactive"]
   },
   "papercut-nudge": {
-    "mode": "shadow",
+    "mode": "enforce",
     "threshold": 0.8,
     "scope": ["interactive"]
   },
   "papercut-dedupe": {
-    "mode": "shadow",
+    "mode": "enforce",
     "threshold": 0.9,
     "scope": ["interactive", "bgjob", "fleet"]
   },
   "memory-dup-guard": {
-    "mode": "shadow",
+    "mode": "enforce",
     "threshold": 0.9,
     "scope": ["interactive"]
   },
   "stopfailure-classify": {
-    "mode": "shadow",
+    "mode": "enforce",
     "threshold": 0.8,
     "scope": ["interactive"]
   },
   "session-project-memories": {
-    "mode": "shadow",
+    "mode": "enforce",
     "threshold": 0.8,
     "scope": ["interactive"]
   },
   "session-end-memory": {
-    "mode": "shadow",
+    "mode": "enforce",
     "threshold": 0.8,
     "scope": ["interactive"]
   },
   "notification-urgency": {
-    "mode": "shadow",
+    "mode": "enforce",
     "threshold": 0.5,
     "scope": ["interactive"]
   },
 
   "workflow-linear-presort": {
-    "mode": "shadow",
+    "mode": "enforce",
     "threshold": 0.5,
     "scope": ["interactive"]
   },
   "workflow-commit-type": {
-    "mode": "shadow",
+    "mode": "enforce",
     "threshold": 0.7,
     "scope": ["interactive", "bgjob"]
   },
   "workflow-commit-mixed": {
-    "mode": "shadow",
+    "mode": "enforce",
     "threshold": 0.8,
     "scope": ["interactive", "bgjob"]
   },
   "workflow-branch-type": {
-    "mode": "shadow",
+    "mode": "enforce",
     "threshold": 0.7,
     "scope": ["interactive", "bgjob"]
   },
   "workflow-review-depth": {
-    "mode": "shadow",
+    "mode": "enforce",
     "scope": ["interactive", "bgjob"]
   },
   "workflow-ci-class": {
-    "mode": "shadow",
+    "mode": "enforce",
     "threshold": 0.7,
     "scope": ["interactive", "bgjob"]
   },
   "workflow-verify-class": {
-    "mode": "shadow",
+    "mode": "enforce",
     "threshold": 0.7,
     "scope": ["interactive", "bgjob"]
   },
   "workflow-click-target": {
-    "mode": "shadow",
+    "mode": "enforce",
     "threshold": 0.7,
     "scope": ["interactive"]
   }

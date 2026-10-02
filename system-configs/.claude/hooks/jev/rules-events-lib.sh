@@ -37,12 +37,12 @@ re_scope() {
   fi
 }
 
-# Dara and Clara are fully exempt from every gate (D, 2026-09-30): log only. The list is the registry's
-# exempt_agents (default dara, clara), the same one gate.sh and the Jev gates read.
+# Clara is fully exempt from every gate (D, 2026-09-30): log only. The list is the registry's
+# exempt_agents (default clara), the same one gate.sh and the Jev gates read.
 re_is_exempt_agent() {
   [ -n "${BARECLAUDE_AGENT_SLUG:-}" ] || return 1
   re_need_jq || {
-    case "${BARECLAUDE_AGENT_SLUG:-}" in dara | clara) return 0 ;; esac
+    case "${BARECLAUDE_AGENT_SLUG:-}" in clara) return 0 ;; esac
     return 1
   }
   jev_reg_exempt "$BARECLAUDE_AGENT_SLUG"
@@ -63,10 +63,15 @@ re_cfg() {
   printf '%s' "$3"
 }
 
-# re_mode <rule> <default> — off | shadow | enforce (anything else → default).
+# re_mode <rule> <default> — off | shadow | enforce (anything else → default). A rule whose `scope`
+# array leaves out this session's scope (re_scope) is off here.
 re_mode() {
-  local m
-  m=$(re_cfg "$1" mode "$2")
+  local m=""
+  if re_need_jq; then
+    m=$(jev_reg_run -r --arg id "$1" --arg s "$(re_scope)" \
+      "$JEV_REG_MERGE | .[\$id] // {} | if (.scope | type) == \"array\" and (.scope | index(\$s)) == null then \"off\" else .mode // empty end")
+  fi
+  [ -n "$m" ] || m="$2"
   case "$m" in off | shadow | enforce) printf '%s' "$m" ;; *) printf '%s' "$2" ;; esac
 }
 

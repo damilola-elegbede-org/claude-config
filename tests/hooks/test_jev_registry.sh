@@ -68,19 +68,19 @@ parity "shipped layers"
 
 fresh layered
 printf '%s' '{"exempt_agents":["x"],"rules":{"G1-irreversible-local":{"threshold":0.99},"new-rule":{"mode":"shadow","scope":["interactive"]}}}' >"$J/rules.d/z50-extra.json"
-printf '%s' '{"flat-rule":{"mode":"off","threshold":0.5},"G3-merge":{"scope":["bgjob"]}}' >"$J/rules.d/z60-flat.json"
-printf '%s' '{"exempt_agents":["dara"],"rules":{"G1-irreversible-local":{"mode":"enforce"}}}' >"$J/jev-rules.json"
+printf '%s' '{"flat-rule":{"mode":"off","threshold":0.5},"G4-prod-infra":{"scope":["bgjob"]}}' >"$J/rules.d/z60-flat.json"
+printf '%s' '{"exempt_agents":["x-agent"],"rules":{"G1-irreversible-local":{"mode":"enforce"}}}' >"$J/jev-rules.json"
 parity "wrapped + flat rules.d layers and a user override"
 REG="$(shell_reg)"
 eq "later rules.d layer overrides one key" "0.99" "$(jq -r '."G1-irreversible-local".threshold' <<<"$REG")"
 eq "user jev-rules.json is the last layer" "enforce" "$(jq -r '."G1-irreversible-local".mode' <<<"$REG")"
 eq "deep merge keeps the questions layer's fields" "true" "$(jq -r '."G1-irreversible-local".instructions | type == "string"' <<<"$REG")"
-eq "deep merge keeps untouched keys of the rule" "shadow" "$(jq -r '."G3-merge".mode' <<<"$REG")"
-eq "arrays are replaced, not merged" '["bgjob"]' "$(jq -c '."G3-merge".scope' <<<"$REG")"
+eq "deep merge keeps untouched keys of the rule" "enforce" "$(jq -r '."G4-prod-infra".mode' <<<"$REG")"
+eq "arrays are replaced, not merged" '["bgjob"]' "$(jq -c '."G4-prod-infra".scope' <<<"$REG")"
 eq "flat layer rule registered" "off" "$(jq -r '."flat-rule".mode' <<<"$REG")"
-eq "exempt_agents comes from the last layer that sets it" '["dara"]' "$(jq -c '.exempt_agents' <<<"$REG")"
+eq "exempt_agents comes from the last layer that sets it" '["x-agent"]' "$(jq -c '.exempt_agents' <<<"$REG")"
 eq "approval-detector folded in with its question and mode" "true" "$(jq -r '."approval-detector" | (.mode == "shadow") and (.instructions | type == "string")' <<<"$REG")"
-eq "mcp-classifier folded in with its questions and mode" "true" "$(jq -r '."mcp-classifier" | (.mode == "shadow") and (.class_instructions | type == "string")' <<<"$REG")"
+eq "mcp-classifier folded in with its questions and mode" "true" "$(jq -r '."mcp-classifier" | (.mode == "enforce") and (.class_instructions | type == "string")' <<<"$REG")"
 eq "choice_questions are in the registry" "risk_class,scope" "$(jq -r '.choice_questions | keys | join(",")' <<<"$REG")"
 eq "an unregistered rule is absent (so off)" "null" "$(jq -c '."nope"' <<<"$REG")"
 
@@ -118,13 +118,13 @@ eq "jev_reg_value default when the rule is absent" "dflt" "$(run_reg 'jev_reg_va
 eq "jev_reg_rule one entry" '{"mode":"enforce","n":3,"scope":["a","b"]}' "$(run_reg 'jev_reg_rule x')"
 eq "jev_reg_rule unregistered is {}" "{}" "$(run_reg 'jev_reg_rule nope')"
 eq "jev_reg_exempt matches case-insensitively" "0" "$(run_reg 'jev_reg_exempt tars; echo $?')"
-eq "jev_reg_exempt rejects others" "1" "$(run_reg 'jev_reg_exempt dara; echo $?')"
+eq "jev_reg_exempt rejects others" "1" "$(run_reg 'jev_reg_exempt other-agent; echo $?')"
 fresh helpers-default
-eq "jev_reg_exempt defaults to dara/clara when no layer sets a list" "0" "$(run_reg 'jev_reg_exempt clara; echo $?')"
+eq "jev_reg_exempt defaults to clara when no layer sets a list" "0" "$(run_reg 'jev_reg_exempt clara; echo $?')"
 rm -f "$J/jev-rules.json"
 rm -rf "$J/rules.d"
 rm -f "$J/gate-questions.json"
-eq "jev_reg_exempt default list with no layers at all" "0" "$(run_reg 'jev_reg_exempt dara; echo $?')"
+eq "jev_reg_exempt default list with no layers at all" "0" "$(run_reg 'jev_reg_exempt clara; echo $?')"
 
 # ============================================================================
 # Kill switches: regular files only, gate.off is the master switch for gates
@@ -212,11 +212,11 @@ run_gate "$RM_PAYLOAD"
 eq "registry mode enforce still denies" "deny" "$(decision_of)"
 
 gate_home gate-exempt
-run_gate "$RM_PAYLOAD" BARECLAUDE_AGENT_SLUG=dara
-eq "dara exempt (gate-rules.json list)" "" "$GOUT"
+run_gate "$RM_PAYLOAD" BARECLAUDE_AGENT_SLUG=clara
+eq "clara exempt (gate-rules.json list)" "" "$GOUT"
 printf '%s' '{"exempt_agents":["tars"]}' >"$J/jev-rules.json"
-run_gate "$RM_PAYLOAD" BARECLAUDE_AGENT_SLUG=dara
-eq "a registry exempt_agents list replaces the shipped one (dara no longer exempt)" "deny" "$(decision_of)"
+run_gate "$RM_PAYLOAD" BARECLAUDE_AGENT_SLUG=clara
+eq "a registry exempt_agents list replaces the shipped one (clara no longer exempt)" "deny" "$(decision_of)"
 run_gate "$RM_PAYLOAD" BARECLAUDE_AGENT_SLUG=tars
 eq "a registry exempt_agents list exempts its members" "" "$GOUT"
 
