@@ -118,10 +118,12 @@ PYEOF
           EXTRA="${EXTRA}tag ${TAG} looks wrong: D's next move reads as ${JTAG}"$'\n'
         fi
       fi
-      JLVL=$(jq -r '.answers.unsourced.level // empty' <<<"$RESP" 2>/dev/null)
-      if [ -n "$JLVL" ]; then
-        re_log executive-unsourced-claims "level=$JLVL" ""
-        if [ "$SRC_MODE" = enforce ] && [ "$JLVL" -ge 2 ] 2>/dev/null; then
+      # Jev's score answer carries a probability per level, not a level: P(level>=2) = p["2"] + p["3"].
+      JSRC=$(jq -r '.answers.unsourced.probabilities // empty | ((."2" // 0) + (."3" // 0))' <<<"$RESP" 2>/dev/null)
+      if [ -n "$JSRC" ]; then
+        re_log executive-unsourced-claims "p=$JSRC" ""
+        if [ "$SRC_MODE" = enforce ] && \
+          awk -v p="$JSRC" -v t="$(re_cfg executive-unsourced-claims threshold 0.85)" 'BEGIN{exit !(p+0>=t+0)}'; then
           EXTRA="${EXTRA}claims D may act on lack sources — add file:line / command output / URL, or mark untested or inference"$'\n'
         fi
       fi

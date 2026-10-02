@@ -30,7 +30,7 @@ The skill presents the genuine D-decisions in one **two-tier triage table** (lin
 decision needed, an up-front recommendation, detail blocks below), answers drill-ins via `AskUserQuestion`, and
 bulk-handles everything else — while emitting a **suppression report** so the filtering itself stays auditable.
 
-The fleet's agents (Clara/ops, Dara/eng, TARS) create and work these tickets and delegate decisions back to D. This
+The fleet's agents (Clara/ops, TARS) create and work these tickets and delegate decisions back to D. This
 skill is the mechanism for clearing that decision backlog fast — without losing decision quality, and without letting
 the fleet's own labels decide what deserves D's attention.
 
@@ -220,7 +220,7 @@ or a keystone already resolved it, **skip it with a note** (idempotency + race s
   ENG-1478 — Fix Execute spec: remove phantom .claude/ write-guard
 
   Context: Execute's task-spec claims a write-guard blocks .claude/ writes in cron runs, so it drafts-and-blocks instead of writing.
-  Latest: 7/16 — Dara verified against the live runtime that no guard exists; PR #249 rewrites the spec to attempt-first. CI green, mergeable.
+  Latest: 7/16 — the owning agent verified against the live runtime that no guard exists; PR #249 rewrites the spec to attempt-first. CI green, mergeable.
   Why it matters: the phantom caused ~3 weeks of self-blocks and hides 42 of 154 Todo issues from Execute's pickup.
 
   Ask: Approve merging PR #249?
@@ -406,7 +406,7 @@ Date: <YYYY-MM-DD>
 5. **Re-run duplication** → `[triage-decision]` marker checked in step 6; keystone collapse (step 11); never
    double-decide a ticket.
 6. **Mislabeled state** → treat "this isn't really blocked/ready" as a valid answer; fix state, no fake decision.
-7. **Execution boundary (D rule, 2026-07-24)** → triage RECORDS decisions; the owning agent (Dara/Clara/TARS)
+7. **Execution boundary (D rule, 2026-07-24)** → triage RECORDS decisions; the owning agent (Clara/TARS)
    EXECUTES them. Do not merge PRs, send messages, or deploy on an approval — write the `[triage-decision]` and
    let the agent act on it. Act on D's behalf ONLY when the agent demonstrably cannot: D-only surfaces (billing
    dashboards, Google Search Console, D's accounts) or a live assist D explicitly requests in-session.

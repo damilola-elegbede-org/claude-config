@@ -129,9 +129,9 @@ printf x >"$REPO/plan.md"
 out=$(run file-org-guard.sh "$(tw "$REPO/plan.md")")
 eq "existing file (overwrite) allowed" "$out" ""
 rm -f "$REPO/plan.md"
-out=$(BARECLAUDE_AGENT_SLUG=dara run file-org-guard.sh "$(tw "$REPO/PLAN.md")")
-eq "dara exempt (allowed)" "$out" ""
-loghas allow-exempt-agent && ok || bad "dara exemption logged"
+out=$(BARECLAUDE_AGENT_SLUG=clara run file-org-guard.sh "$(tw "$REPO/PLAN.md")")
+eq "clara exempt (allowed)" "$out" ""
+loghas allow-exempt-agent && ok || bad "clara exemption logged"
 reset
 rules '{"file-org-guard":{"mode":"shadow"}}'
 out=$(run file-org-guard.sh "$(tw "$REPO/PLAN.md")")
@@ -252,17 +252,24 @@ loghas shadow-would-block && ok || bad "shadow-would-block logged"
 
 echo "== executive-lint: Jev shadow checks =="
 reset
-mock tag '{"answers":{"tag":{"type":"choice","choice":"DECISION","probabilities":{"DECISION":0.95,"FYI":0.05}},"unsourced":{"type":"score","score":2.4,"level":2}}}'
+mock tag '{"answers":{"tag":{"type":"choice","choice":"DECISION","probabilities":{"DECISION":0.95,"FYI":0.05}},"unsourced":{"type":"score","score":2.4,"probabilities":{"0":0.05,"1":0.15,"2":0.5,"3":0.3}}}}'
 export JEV_MOCK_CAPTURE="$T/capture"
 out=$(run executive-lint.sh "$(sl "$GOOD")")
 eq "Jev tag mismatch in shadow does not block" "$out" ""
 loghas '"rule":"executive-tag-correctness","verdict":"mismatch"' && ok || bad "tag mismatch logged" "$(cat "$LOG" 2>/dev/null)"
-loghas '"rule":"executive-unsourced-claims","verdict":"level=2"' && ok || bad "unsourced level logged"
+# Jev returns probabilities per level (never a "level" field): the hook logs P(level>=2) = 0.5 + 0.3.
+loghas '"rule":"executive-unsourced-claims","verdict":"p=0.8"' && ok || bad "unsourced P(level>=2) logged"
 [[ "$(wc -l <"$T/capture" | tr -d ' ')" == 1 ]] && ok || bad "exactly one jev-ask call per Stop"
 has "request carries the reply" "$(cat "$T/capture")" "All 18 tests pass"
 rules '{"executive-tag-correctness":{"mode":"enforce","threshold":0.9}}'
 out=$(run executive-lint.sh "$(sl "$GOOD")")
 has "enforce + high-confidence mismatch blocks" "$out" "looks wrong"
+rules '{"executive-unsourced-claims":{"mode":"enforce","threshold":0.75}}'
+out=$(run executive-lint.sh "$(sl "$GOOD")")
+has "enforce + P(level>=2) 0.8 >= threshold 0.75 blocks" "$out" "lack sources"
+rules '{"executive-unsourced-claims":{"mode":"enforce","threshold":0.85}}'
+out=$(run executive-lint.sh "$(sl "$GOOD")")
+eq "enforce + P(level>=2) 0.8 below threshold 0.85 does not block" "$out" ""
 rules '{"executive-tag-correctness":{"mode":"enforce","threshold":0.9}}'
 out=$(JEV_MOCK=unavailable run executive-lint.sh "$(sl "$GOOD")")
 eq "Jev unavailable fails open (enforce mode)" "$out" ""
@@ -507,7 +514,7 @@ reset
 JEV_MOCK=unavailable run notification-urgency.sh "$(nf idle_prompt)" >/dev/null
 loghas '"verdict":"play-jev-unavailable"' && ok || bad "Jev unavailable: plays (fail open)"
 reset
-BARECLAUDE_AGENT_SLUG=dara run notification-urgency.sh "$(nf permission_prompt)" >/dev/null
+BARECLAUDE_AGENT_SLUG=clara run notification-urgency.sh "$(nf permission_prompt)" >/dev/null
 [[ ! -f "$LOG" ]] && ok || bad "fleet guard: never plays"
 CLAUDE_JOB_DIR=/x run notification-urgency.sh "$(nf permission_prompt)" >/dev/null
 [[ ! -f "$LOG" ]] && ok || bad "bg-job guard: never plays"

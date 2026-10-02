@@ -33,7 +33,7 @@
   },
   "executive-unsourced-claims": {
     "mode": "enforce",
-    "threshold": 0.75,
+    "threshold": 0.85,
     "scope": ["interactive"]
   },
   "executive-scope-creep": {

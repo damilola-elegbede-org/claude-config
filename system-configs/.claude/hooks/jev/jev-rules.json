@@ -1,4 +1,4 @@
 {
-  "exempt_agents": ["dara", "clara"],
+  "exempt_agents": ["clara"],
   "rules": {}
 }

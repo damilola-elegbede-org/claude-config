@@ -80,7 +80,7 @@
 {"rule":"G2-push-main","expect":"deny","tool":"Bash","input":{"command":"git push -u origin HEAD:main"}}
 {"rule":"G2-push-main","expect":"deny","tool":"Bash","input":{"command":"git -C /repo push origin master"}}
 {"rule":"G2-push-main","expect":"deny","tool":"Bash","input":{"command":"git push origin HEAD:refs/heads/main"}}
-{"rule":"G2-push-main","expect":"deny","tool":"Bash","input":{"command":"infra/scripts/git-agent.sh dara push origin main"}}
+{"rule":"G2-push-main","expect":"deny","tool":"Bash","input":{"command":"infra/scripts/git-agent.sh clara push origin main"}}
 {"rule":"G2-push-main","expect":"allow","tool":"Bash","input":{"command":"git push origin feature/main"}}
 {"rule":"G2-push-main","expect":"allow","tool":"Bash","input":{"command":"git push -u origin feat/x"}}
 {"rule":"G2-push-main","expect":"allow","tool":"Bash","input":{"command":"git push origin main-fix"}}
@@ -106,18 +106,6 @@
 {"rule":"G2-stash","expect":"allow","tool":"Bash","input":{"command":"git stash push -u -m wip-tag"}}
 {"rule":"G2-stash","expect":"allow","tool":"Bash","input":{"command":"git stash drop stash@{2}"}}
 {"rule":"G2-stash","expect":"allow","tool":"Bash","input":{"command":"git stash list"}}
-{"rule":"G3","expect":"deny","tool":"Bash","input":{"command":"gh pr merge 12 --squash"}}
-{"rule":"G3","expect":"deny","tool":"Bash","input":{"command":"gh pr merge --auto"}}
-{"rule":"G3","expect":"deny","tool":"Bash","input":{"command":"gh -R o/r pr merge 3"}}
-{"rule":"G3","expect":"allow","tool":"Bash","input":{"command":"gh pr view 12"}}
-{"rule":"G3","expect":"allow","tool":"Bash","input":{"command":"gh pr checks 12"}}
-{"rule":"G3","expect":"allow","tool":"Bash","input":{"command":"gh pr list --state merged"}}
-{"rule":"G3-api","expect":"deny","tool":"Bash","input":{"command":"gh api -X PUT repos/o/r/pulls/12/merge"}}
-{"rule":"G3-api","expect":"deny","tool":"Bash","input":{"command":"gh api repos/o/r/merges -f base=main -f head=x"}}
-{"rule":"G3-api","expect":"deny","tool":"Bash","input":{"command":"gh api graphql -f query='mutation{mergePullRequest(input:{pullRequestId:\"x\"}){clientMutationId}}'"}}
-{"rule":"G3-api","expect":"allow","tool":"Bash","input":{"command":"gh api repos/o/r/pulls/12"}}
-{"rule":"G3-api","expect":"allow","tool":"Bash","input":{"command":"gh api -X GET repos/o/r/pulls/12/merge"}}
-{"rule":"G3-api","expect":"allow","tool":"Bash","input":{"command":"gh api repos/o/r/pulls/12/merge-upstream"}}
 {"rule":"G4","expect":"deny","tool":"Bash","input":{"command":"vercel deploy --prod --project alocubano"}}
 {"rule":"G4","expect":"deny","tool":"Bash","input":{"command":"vercel promote dpl_1 --project alocubano"}}
 {"rule":"G4","expect":"deny","tool":"Bash","input":{"command":"vercel rm old-deploy --project alocubano"}}
@@ -370,18 +358,18 @@
 {"rule": "G10-tamper", "expect": "allow", "tool": "Bash", "input": {"command": "python3 - <<'EOF'\np='/Users/x/.claude/projects/-Users-x/memory/MEMORY.md'\ns=open(p).read()\nopen(p,'w').write(s)\nEOF"}}
 {"rule": "G10-tamper", "expect": "allow", "tool": "Bash", "input": {"command": "python3 -c \"open('/Users/x/repos/c/.claude/worktrees/w/system-configs/.claude/hooks/gate.sh','w').write('x')\""}}
 {"rule": "G10-tamper", "expect": "deny", "tool": "Bash", "input": {"command": "cp ~/.claude/settings.json /tmp/b && python3 -c \"p='/Users/x/.claude/settings.json'; s=open(p).read(); open(p,'w').write(s)\""}}
-{"rule": "G10-identity", "expect": "deny", "tool": "Bash", "input": {"command": "env -u CLAUDE_JOB_DIR BARECLAUDE_AGENT_SLUG=dara claude -p 'rm -rf /srv/x' --permission-mode bypassPermissions"}}
+{"rule": "G10-identity", "expect": "deny", "tool": "Bash", "input": {"command": "env -u CLAUDE_JOB_DIR BARECLAUDE_AGENT_SLUG=clara claude -p 'rm -rf /srv/x' --permission-mode bypassPermissions"}}
 {"rule": "G10-identity", "expect": "deny", "tool": "Bash", "input": {"command": "export BARECLAUDE_AGENT_SLUG=clara; claude -p hi"}}
-{"rule": "G10-identity", "expect": "deny", "tool": "Bash", "input": {"command": "BARECLAUDE_AGENT_SLUG=dara bash ~/.claude/hooks/gate.sh < in.json"}}
+{"rule": "G10-identity", "expect": "deny", "tool": "Bash", "input": {"command": "BARECLAUDE_AGENT_SLUG=clara bash ~/.claude/hooks/gate.sh < in.json"}}
 {"rule": "G10-identity", "expect": "allow", "tool": "Bash", "input": {"command": "env -u BARECLAUDE_AGENT_SLUG claude -p hi"}}
 {"rule": "G10-identity", "expect": "allow", "tool": "Bash", "input": {"command": "[ -n \"$BARECLAUDE_AGENT_SLUG\" ] && echo fleet"}}
 {"rule": "G10-identity", "expect": "allow", "tool": "Bash", "input": {"command": "unset BARECLAUDE_AGENT_SLUG"}}
-{"rule": "G10-identity", "expect": "deny", "tool": "Bash", "input": {"command": "env BARECLAUDE_AGENT_SLUG\\=dara claude -p hi"}}
-{"rule": "G10-identity", "expect": "deny", "tool": "Bash", "input": {"command": "env 'BARECLAUDE_AGENT_SLUG'=dara claude -p hi"}}
-{"rule": "G10-identity", "expect": "deny", "tool": "Bash", "input": {"command": "env \"BARECLAUDE_AGENT_SLUG\"=\"dara\" claude -p hi"}}
-{"rule": "G10-identity", "expect": "deny", "tool": "Bash", "input": {"command": "printf -v BARECLAUDE_AGENT_SLUG dara; claude -p hi"}}
-{"rule": "G10-identity", "expect": "deny", "tool": "Bash", "input": {"command": "read BARECLAUDE_AGENT_SLUG <<< dara"}}
-{"rule": "G10-identity", "expect": "deny", "tool": "Bash", "input": {"command": "setenv BARECLAUDE_AGENT_SLUG dara"}}
+{"rule": "G10-identity", "expect": "deny", "tool": "Bash", "input": {"command": "env BARECLAUDE_AGENT_SLUG\\=clara claude -p hi"}}
+{"rule": "G10-identity", "expect": "deny", "tool": "Bash", "input": {"command": "env 'BARECLAUDE_AGENT_SLUG'=clara claude -p hi"}}
+{"rule": "G10-identity", "expect": "deny", "tool": "Bash", "input": {"command": "env \"BARECLAUDE_AGENT_SLUG\"=\"clara\" claude -p hi"}}
+{"rule": "G10-identity", "expect": "deny", "tool": "Bash", "input": {"command": "printf -v BARECLAUDE_AGENT_SLUG clara; claude -p hi"}}
+{"rule": "G10-identity", "expect": "deny", "tool": "Bash", "input": {"command": "read BARECLAUDE_AGENT_SLUG <<< clara"}}
+{"rule": "G10-identity", "expect": "deny", "tool": "Bash", "input": {"command": "setenv BARECLAUDE_AGENT_SLUG clara"}}
 {"rule": "G10-identity", "expect": "allow", "tool": "Bash", "input": {"command": "echo ${BARECLAUDE_AGENT_SLUG:-none}"}}
 {"rule": "G10-identity", "expect": "allow", "tool": "Bash", "input": {"command": "env --unset=BARECLAUDE_AGENT_SLUG claude -p hi"}}
 {"rule": "G10-jevsock", "expect": "deny", "tool": "Bash", "input": {"command": "printf '%s\\n' '{\"op\":\"evaluate\"}' | nc -U ~/.claude/hooks/jev/jev.sock"}}

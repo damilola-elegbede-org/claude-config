@@ -48,7 +48,6 @@ CWD=$(printf '%s' "$INPUT" | python3 -c "import json,sys; print(json.load(sys.st
 POLICY="$HOME/BareClaude/infra/model-policy.json"
 AGENT=""
 case "$CWD" in
-  "$HOME"/BareClaude/dara*)  AGENT="dara" ;;
   "$HOME"/BareClaude/clara*) AGENT="clara" ;;
   "$HOME"/BareClaude/tars*)  AGENT="tars" ;;
 esac

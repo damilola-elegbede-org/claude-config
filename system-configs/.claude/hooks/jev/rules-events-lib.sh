@@ -37,12 +37,12 @@ re_scope() {
   fi
 }
 
-# Dara and Clara are fully exempt from every gate (D, 2026-09-30): log only. The list is the registry's
-# exempt_agents (default dara, clara), the same one gate.sh and the Jev gates read.
+# Clara is fully exempt from every gate (D, 2026-09-30): log only. The list is the registry's
+# exempt_agents (default clara), the same one gate.sh and the Jev gates read.
 re_is_exempt_agent() {
   [ -n "${BARECLAUDE_AGENT_SLUG:-}" ] || return 1
   re_need_jq || {
-    case "${BARECLAUDE_AGENT_SLUG:-}" in dara | clara) return 0 ;; esac
+    case "${BARECLAUDE_AGENT_SLUG:-}" in clara) return 0 ;; esac
     return 1
   }
   jev_reg_exempt "$BARECLAUDE_AGENT_SLUG"

@@ -11,7 +11,7 @@
 #
 # Every rule ships mode "shadow": Jev is called and the verdict is logged, nothing is denied.
 # Fail mode: Jev unavailable -> allow with one warning per session (the regex gates in
-# gate.sh keep enforcing). Dara/Clara are exempt. Output is JSON on stdout, exit 0 always.
+# gate.sh keep enforcing). Clara is exempt. Output is JSON on stdout, exit 0 always.
 set -u
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

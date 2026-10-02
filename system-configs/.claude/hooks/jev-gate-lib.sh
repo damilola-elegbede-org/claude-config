@@ -42,7 +42,7 @@ jev_rules_json() {
   jev_reg_json
 }
 
-# jev_is_exempt RULES_JSON -> 0 when the fleet agent is on the exempt list (default dara, clara).
+# jev_is_exempt RULES_JSON -> 0 when the fleet agent is on the exempt list (default clara).
 jev_is_exempt() {
   [ -n "$JEV_SLUG" ] || return 1
   jev_reg_exempt "$JEV_SLUG" "$1"

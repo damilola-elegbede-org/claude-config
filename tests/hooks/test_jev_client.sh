@@ -77,7 +77,7 @@ has "exclude_paths has ~/Visa" "$(node -e "console.log(require('$SRC/jev-config.
 # shellcheck disable=SC2088 # literal tilde in a test description
 has "exclude_paths has ~/work" "$(node -e "console.log(require('$SRC/jev-config.json').exclude_paths.join(' '))")" "~/work"
 lacks "exclude_paths has no bare /work/ substring entry" "$(node -e "console.log(require('$SRC/jev-config.json').exclude_paths.join(' '))")" " /work/"
-eq "exempt_agents" "$(node -e "console.log(require('$SRC/jev-rules.json').exempt_agents.join(','))")" "dara,clara"
+eq "exempt_agents" "$(node -e "console.log(require('$SRC/jev-rules.json').exempt_agents.join(','))")" "clara"
 eq "rules map starts empty" "$(node -e "console.log(String(Object.keys(require('$SRC/jev-rules.json').rules).length))")" "0"
 
 echo "== mock mode"

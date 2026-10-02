@@ -9,7 +9,7 @@
     ]
   },
   "G3-merge": {
-    "mode": "enforce",
+    "mode": "off",
     "threshold": 0.85,
     "scope": [
       "interactive",

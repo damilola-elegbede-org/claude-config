@@ -136,10 +136,11 @@ line_tool_result() { jq -nc --arg u "$1" --arg id "$2" --arg t "$3" '{type:"user
 # Registry
 # ============================================================================
 new_home
-for id in G1-irreversible-local G3-merge G4-prod-infra G5-data-store G6-spend G7-outward-comms G8-sharing \
+for id in G1-irreversible-local G4-prod-infra G5-data-store G6-spend G7-outward-comms G8-sharing \
   G13-external-delete G15-untrusted-origin G16-ask-bundled G16-ask-channel mcp-classifier; do
   assert_eq "rules.d ships $id in enforce" "enforce" "$(jq -r --arg id "$id" '.[$id].mode' "$(rules_file)")"
 done
+assert_eq "rules.d ships G3-merge off (D removed the merge gate)" "off" "$(jq -r '."G3-merge".mode' "$(rules_file)")"
 for id in G14-non-routine approval-detector; do
   assert_eq "rules.d ships $id in shadow (D's choice)" "shadow" "$(jq -r --arg id "$id" '.[$id].mode' "$(rules_file)")"
 done
@@ -185,7 +186,7 @@ OUT=$(run_hook jev-gate.sh "$(bash_in 'rm -rf build/ data/')" BARECLAUDE_AGENT_S
 assert_contains "non-exempt fleet agent denied" "$OUT" 'needs input:'
 
 : >"$T/stub.log"
-for slug in dara clara DARA; do
+for slug in clara CLARA; do
   OUT=$(run_hook jev-gate.sh "$(bash_in 'rm -rf build/ data/')" BARECLAUDE_AGENT_SLUG=$slug)
   assert_empty "$slug is exempt" "$OUT"
 done
@@ -569,7 +570,7 @@ assert_contains "unavailable + unknown name: allow with warning" "$OUT" "systemM
 assert_not_contains "unknown name is not denied" "$OUT" "deny"
 assert_eq "heuristic results are not cached" "false" "$([[ -f "$T/home/.claude/hooks/jev/mcp-classes.json" ]] && echo true || echo false)"
 
-# job wording for mcp deny; dara exempt
+# job wording for mcp deny; clara exempt
 new_home
 set_mode mcp-classifier enforce
 mock_class outward 0.95
@@ -643,8 +644,8 @@ OUT=$(run_hook jev-ask-channel.sh "$STOP" CLAUDE_JOB_DIR=/tmp/j)
 assert_empty "bg jobs skipped (scope)" "$OUT"
 OUT=$(run_hook jev-ask-channel.sh "$STOP" BARECLAUDE_AGENT_SLUG=tars)
 assert_empty "fleet skipped (scope)" "$OUT"
-OUT=$(run_hook jev-ask-channel.sh "$STOP" BARECLAUDE_AGENT_SLUG=dara)
-assert_empty "dara exempt" "$OUT"
+OUT=$(run_hook jev-ask-channel.sh "$STOP" BARECLAUDE_AGENT_SLUG=clara)
+assert_empty "clara exempt" "$OUT"
 OUT=$(run_hook jev-ask-channel.sh "$(printf '%s' "$STOP" | jq -c '.last_assistant_message = "Merged and deployed. All checks are green."')")
 assert_empty "no question: prefilter skips Jev" "$OUT"
 OUT=$(run_hook jev-ask-channel.sh "$(printf '%s' "$STOP" | jq -c '.last_assistant_message = "needs input: should I ship or wait?"')")
@@ -733,7 +734,7 @@ assert_contains "baseline: shipped rules.d is enforce" "$OUT" '"permissionDecisi
 set_mode G1-irreversible-local shadow
 OUT=$(run_hook jev-gate.sh "$(bash_in 'rm -rf ~/Documents/old')")
 assert_empty "baseline: rules.d pinned to shadow does not deny" "$OUT"
-printf '{"exempt_agents":["dara","clara"],"rules":{"G1-irreversible-local":{"mode":"enforce"}}}' >"$T/home/.claude/hooks/jev/jev-rules.json"
+printf '{"exempt_agents":["clara"],"rules":{"G1-irreversible-local":{"mode":"enforce"}}}' >"$T/home/.claude/hooks/jev/jev-rules.json"
 OUT=$(run_hook jev-gate.sh "$(bash_in 'rm -rf ~/Documents/old')")
 assert_contains "jev-rules.json (wrapped) overrides rules.d, so the user can enforce a gate" "$OUT" '"permissionDecision":"deny"'
 printf '{"G1-irreversible-local":{"mode":"enforce"}}' >"$T/home/.claude/hooks/jev/jev-rules.json"
@@ -742,8 +743,8 @@ assert_contains "jev-rules.json (flat shape) overrides rules.d too" "$OUT" '"per
 printf '{"exempt_agents":["tars"],"rules":{"G1-irreversible-local":{"mode":"enforce"}}}' >"$T/home/.claude/hooks/jev/jev-rules.json"
 OUT=$(run_hook jev-gate.sh "$(bash_in 'rm -rf ~/Documents/old')" BARECLAUDE_AGENT_SLUG=tars)
 assert_empty "exempt_agents from jev-rules.json is honoured" "$OUT"
-OUT=$(run_hook jev-gate.sh "$(bash_in 'rm -rf ~/Documents/old')" BARECLAUDE_AGENT_SLUG=dara)
-assert_contains "exempt_agents replaced (dara no longer exempt)" "$OUT" '"permissionDecision":"deny"'
+OUT=$(run_hook jev-gate.sh "$(bash_in 'rm -rf ~/Documents/old')" BARECLAUDE_AGENT_SLUG=clara)
+assert_contains "exempt_agents replaced (clara no longer exempt)" "$OUT" '"permissionDecision":"deny"'
 printf '{"rules":{"G1-irreversible-local":{"mode":"off"}}}' >"$T/home/.claude/hooks/jev/jev-rules.json"
 : >"$T/stub.log"
 OUT=$(run_hook jev-gate.sh "$(bash_in 'rm -rf ~/Documents/old')")
