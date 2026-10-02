@@ -399,14 +399,14 @@ check "enforce: stderr/other fields preserved" out_jq '.hookSpecificOutput.updat
 check "enforce: emitted object has exactly the original keys (stdout, stderr, interrupted, isImage)" keys_kept
 check "enforce: never a plain-string updatedToolOutput" out_jq '.hookSpecificOutput.updatedToolOutput | type == "object"'
 B="$(calls)"
-for c in "cat build.log" "git diff HEAD~1" "git -C /x show abc" "sed -n 1,500p f" "tail -n 500 f" "cd /x && head -500 f" "FOO=1 cat f" "env cat f" "command cat f" "env LC_ALL=C git diff HEAD~1" "cd /x && FOO=1 tail -n 500 f" "FOO='a b' cat f" "FOO='a;b' cat f" "FOO=\"a b\" cat f" "FOO=a\\ b cat f" "env -i cat f" "env -i -u HOME cat f" "env --unset=HOME FOO=1 cat f" "command -p cat f" "FOO=\$(printf x y) cat f" "FOO=\$((1 + 2)) cat f" "FOO=\`echo a b\` cat f" "FOO=\${HOME} cat f"; do
+for c in "cat build.log" "git diff HEAD~1" "git -C /x show abc" "sed -n 1,500p f" "tail -n 500 f" "cd /x && head -500 f" "FOO=1 cat f" "env cat f" "command cat f" "env LC_ALL=C git diff HEAD~1" "cd /x && FOO=1 tail -n 500 f" "FOO='a b' cat f" "FOO='a;b' cat f" "FOO=\"a b\" cat f" "FOO=a\\ b cat f" "env -i cat f" "env -i -u HOME cat f" "env --unset=HOME FOO=1 cat f" "command -p cat f" "env -- cat f" "env - cat f" "env -i -- FOO=1 cat f" "FOO=\$(printf x y) cat f" "FOO=\$((1 + 2)) cat f" "FOO=\`echo a b\` cat f" "FOO=\${HOME} cat f"; do
   bash_input "$c" "$LOG"
   JEV_MOCK="$FIX" run_hook a3-bash-trim.sh "$IN"
   check "content-viewing command left alone: $c" out_empty
 done
 check "content-viewing commands made no Jev call" no_new_calls "$B"
 CV="$(bash -c 'eval "$(grep "^CONTENT_VIEW=" "$1")"; printf %s "$CONTENT_VIEW"' _ "$SRC/a3-bash-trim.sh")"
-for c in "FOO=1 npm run build" "environment cat f" "commander cat f" "FOO=1;echo cat f; npm test" "FOO=1&&echo cat f" "FOO=1|echo cat f" "FOO='a';echo cat f" "FOO=\"a\"|echo cat f" "env -u cat f" "FOO=\$(x);echo cat f"; do
+for c in "FOO=1 npm run build" "environment cat f" "commander cat f" "FOO=1;echo cat f; npm test" "FOO=1&&echo cat f" "FOO=1|echo cat f" "FOO='a';echo cat f" "FOO=\"a\"|echo cat f" "env -u cat f" "env --- cat f" "exec cat f" "FOO=\$(x);echo cat f"; do
   if [ -n "$CV" ] && ! printf '%s' "$c" | grep -Eq "$CV"; then pass "a prefix does not exempt a non-view command: $c"; else fail "a prefix does not exempt a non-view command: $c"; fi
 done
 bash_input "npm run build" "$LOG" '{"run_in_background":true}'
