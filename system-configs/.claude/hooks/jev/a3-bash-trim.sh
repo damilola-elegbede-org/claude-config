@@ -11,10 +11,11 @@
 # shellcheck source=ctx-lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/ctx-lib.sh" || exit 0
 
-# Ordinary prefixes (VAR=val, env, command) still mean a content view: FOO=1 cat f, env cat f,
-# command cat f, FOO='a b' cat f. A value is shell words (quoted, escaped or plain); an unquoted
-# ; & | ends it, so FOO=1;echo cat f is not a content view.
-CONTENT_VIEW="^[[:space:]]*((cd[[:space:]]+[^;&|]+(&&|;)[[:space:]]*)?)(([A-Za-z_][A-Za-z0-9_]*=('[^']*'|\"([^\"\\\\]|\\\\.)*\"|\\\\.|[^[:space:];&|'\"\\\\])*|env|command)[[:space:]]+)*(cat|bat|nl|sed|head|tail|less|more|diff|jq|git([[:space:]]+-C[[:space:]]+[^[:space:]]+)?[[:space:]]+(diff|show|blame|log[[:space:]]+-p))([[:space:]]|\$)"
+# Ordinary prefixes still mean a content view: FOO=1 cat f, FOO='a b' cat f, FOO=$(x y) cat f, env cat f,
+# env -i -u X cat f, command -p cat f. A value is shell words (quoted, escaped, plain, or one level of
+# $(...) / $((...)) / ${...} / `...`); an unquoted ; & | ends it, so FOO=1;echo cat f is not a view.
+# Best effort: a form this misses is trimmed, and A3 keeps the full output in the file its marker cites.
+CONTENT_VIEW="^[[:space:]]*((cd[[:space:]]+[^;&|]+(&&|;)[[:space:]]*)?)(([A-Za-z_][A-Za-z0-9_]*=(\\\$\\(\\([^()]*\\)\\)|\\\$\\([^()]*\\)|\\\$\\{[^}]*\\}|\`[^\`]*\`|'[^']*'|\"([^\"\\\\]|\\\\.)*\"|\\\\.|[^[:space:];&|'\"\\\\])*|env([[:space:]]+(-[iv0]+|--ignore-environment|--null|--debug|-u[[:space:]]*[^[:space:];&|]+|--unset=[^[:space:];&|]+|-C[[:space:]]*[^[:space:];&|]+|--chdir=[^[:space:];&|]+))*|command([[:space:]]+-p)?)[[:space:]]+)*(cat|bat|nl|sed|head|tail|less|more|diff|jq|git([[:space:]]+-C[[:space:]]+[^[:space:]]+)?[[:space:]]+(diff|show|blame|log[[:space:]]+-p))([[:space:]]|\$)"
 
 main() {
   ctx_bootstrap A3-bash-trim || return 0
