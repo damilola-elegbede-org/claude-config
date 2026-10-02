@@ -13,14 +13,16 @@
 
 # Content-view contract. Recognized, and ONLY these (a grep on the hot path, no parser):
 #   [cd DIR && | cd DIR ;]  then any run of prefix words  then a view command:
-#   - prefix words: NAME=VALUE; env with -i -0 -v -u NAME -C DIR, their long forms, - and --; command [-p]
-#   - VALUE: plain chars, '...', "..." with \ escapes, \x, one level of $(...) $((...)) ${...} `...`;
+#   - prefix words: NAME=VALUE; env with -i -0 -v -u NAME -C DIR and their long forms, then at most one
+#     - or -- that ends env's options; command [-p]
+#   - VALUE: plain chars, '...', "..." with \ escapes, \x, $NAME, one level of $(...) $((...)) ${...} `...`
+#     (an unclosed expansion matches nothing, so its contents never read as the command);
 #     an unquoted ; & | ends it, so FOO=1;echo cat f is not a view
 #   - view command: cat bat nl sed head tail less more diff jq, git [-C DIR] diff|show|blame|log -p
 # Not recognized, by design: other wrappers (exec nice time nohup sudo xargs), quoted or escaped command
 # names, redirections before the command, subshells, nested expansions. A miss is safe: the output is
 # trimmed, and the full output stays in the cache file every marker cites.
-CONTENT_VIEW="^[[:space:]]*((cd[[:space:]]+[^;&|]+(&&|;)[[:space:]]*)?)(([A-Za-z_][A-Za-z0-9_]*=(\\\$\\(\\([^()]*\\)\\)|\\\$\\([^()]*\\)|\\\$\\{[^}]*\\}|\`[^\`]*\`|'[^']*'|\"([^\"\\\\]|\\\\.)*\"|\\\\.|[^[:space:];&|'\"\\\\])*|env([[:space:]]+(--?|-[iv0]+|--ignore-environment|--null|--debug|-u[[:space:]]*[^[:space:];&|]+|--unset=[^[:space:];&|]+|-C[[:space:]]*[^[:space:];&|]+|--chdir=[^[:space:];&|]+))*|command([[:space:]]+-p)?)[[:space:]]+)*(cat|bat|nl|sed|head|tail|less|more|diff|jq|git([[:space:]]+-C[[:space:]]+[^[:space:]]+)?[[:space:]]+(diff|show|blame|log[[:space:]]+-p))([[:space:]]|\$)"
+CONTENT_VIEW="^[[:space:]]*((cd[[:space:]]+[^;&|]+(&&|;)[[:space:]]*)?)(([A-Za-z_][A-Za-z0-9_]*=(\\\$\\(\\([^()]*\\)\\)|\\\$\\([^()]*\\)|\\\$\\{[^}]*\\}|\`[^\`]*\`|\\\$[A-Za-z_][A-Za-z0-9_]*|\\\$[0-9@*#?\$!-]|'[^']*'|\"([^\"\\\\\$\`]|\\\\.|\\\$\\(\\([^()]*\\)\\)|\\\$\\([^()]*\\)|\\\$\\{[^}]*\\}|\`[^\`]*\`|\\\$[A-Za-z_][A-Za-z0-9_]*|\\\$[0-9@*#?\$!-])*\"|\\\\.|[^[:space:];&|'\"\\\\\$()\`<>])*|env([[:space:]]+(-[iv0]+|--ignore-environment|--null|--debug|-u[[:space:]]*[^[:space:];&|]+|--unset=[^[:space:];&|]+|-C[[:space:]]*[^[:space:];&|]+|--chdir=[^[:space:];&|]+))*([[:space:]]+--?)?|command([[:space:]]+-p)?)[[:space:]]+)*(cat|bat|nl|sed|head|tail|less|more|diff|jq|git([[:space:]]+-C[[:space:]]+[^[:space:]]+)?[[:space:]]+(diff|show|blame|log[[:space:]]+-p))([[:space:]]|\$)"
 
 main() {
   ctx_bootstrap A3-bash-trim || return 0
