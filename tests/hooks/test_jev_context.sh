@@ -406,7 +406,7 @@ for c in "cat build.log" "git diff HEAD~1" "git -C /x show abc" "sed -n 1,500p f
 done
 check "content-viewing commands made no Jev call" no_new_calls "$B"
 CV="$(sed -n "s/^CONTENT_VIEW='\\(.*\\)'$/\\1/p" "$SRC/a3-bash-trim.sh")"
-for c in "FOO=1 npm run build" "environment cat f" "commander cat f"; do
+for c in "FOO=1 npm run build" "environment cat f" "commander cat f" "FOO=1;echo cat f; npm test" "FOO=1&&echo cat f" "FOO=1|echo cat f"; do
   if [ -n "$CV" ] && ! printf '%s' "$c" | grep -Eq "$CV"; then pass "a prefix does not exempt a non-view command: $c"; else fail "a prefix does not exempt a non-view command: $c"; fi
 done
 bash_input "npm run build" "$LOG" '{"run_in_background":true}'
