@@ -553,6 +553,15 @@ CLAUDE_JOB_DIR=/x speak '**ACTION · bg.**' && bad "bg job stays silent" || ok
 echo "== workflow helpers =="
 SKILLS="$SRC/skills"
 reset
+# --- re_mode honors the rule's scope ---------------------------------------------------
+rules '{"workflow-linear-presort":{"mode":"enforce","scope":["interactive"]},"papercut-dedupe":{"mode":"enforce","scope":["interactive","bgjob"]},"no-scope":{"mode":"enforce"}}'
+eq "re_mode: interactive rule enforces in interactive" "$(env -u CLAUDE_JOB_DIR -u BARECLAUDE_AGENT_SLUG bash -c '. "$1/rules-events-lib.sh"; re_mode "$2" shadow' _ "$HOOKS" workflow-linear-presort)" enforce
+eq "re_mode: interactive rule is off in a bg job" "$(env -u BARECLAUDE_AGENT_SLUG CLAUDE_JOB_DIR="$T/job" bash -c '. "$1/rules-events-lib.sh"; re_mode "$2" shadow' _ "$HOOKS" workflow-linear-presort)" off
+eq "re_mode: interactive rule is off in fleet" "$(env BARECLAUDE_AGENT_SLUG=lane-test bash -c '. "$1/rules-events-lib.sh"; re_mode "$2" shadow' _ "$HOOKS" workflow-linear-presort)" off
+eq "re_mode: bgjob in scope stays enforce" "$(env -u BARECLAUDE_AGENT_SLUG CLAUDE_JOB_DIR="$T/job" bash -c '. "$1/rules-events-lib.sh"; re_mode "$2" shadow' _ "$HOOKS" papercut-dedupe)" enforce
+eq "re_mode: no scope means every scope" "$(env BARECLAUDE_AGENT_SLUG=lane-test bash -c '. "$1/rules-events-lib.sh"; re_mode "$2" shadow' _ "$HOOKS" no-scope)" enforce
+eq "re_mode: unknown rule falls back to default" "$(bash -c '. "$1/rules-events-lib.sh"; re_mode "$2" shadow' _ "$HOOKS" not-a-rule)" shadow
+reset
 # --- process-linear presort -----------------------------------------------------------
 TK='[{"id":"ENG-1","title":"Approve spend","state":"Blocked"},{"id":"OPS-2","title":"Fix typo","state":"In Review"},{"id":"ENG-3","title":"Rotate key","state":"Blocked"}]'
 mock ps '{"answers":{"t0":{"type":"boolean","probability":0.9},"t1":{"type":"boolean","probability":0.1},"t2":{"type":"boolean","probability":0.7}}}'

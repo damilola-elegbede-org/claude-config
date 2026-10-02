@@ -63,10 +63,15 @@ re_cfg() {
   printf '%s' "$3"
 }
 
-# re_mode <rule> <default> — off | shadow | enforce (anything else → default).
+# re_mode <rule> <default> — off | shadow | enforce (anything else → default). A rule whose `scope`
+# array leaves out this session's scope (re_scope) is off here.
 re_mode() {
-  local m
-  m=$(re_cfg "$1" mode "$2")
+  local m=""
+  if re_need_jq; then
+    m=$(jev_reg_run -r --arg id "$1" --arg s "$(re_scope)" \
+      "$JEV_REG_MERGE | .[\$id] // {} | if (.scope | type) == \"array\" and (.scope | index(\$s)) == null then \"off\" else .mode // empty end")
+  fi
+  [ -n "$m" ] || m="$2"
   case "$m" in off | shadow | enforce) printf '%s' "$m" ;; *) printf '%s' "$2" ;; esac
 }
 
