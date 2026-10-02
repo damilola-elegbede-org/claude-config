@@ -11,8 +11,10 @@
 # shellcheck source=ctx-lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/ctx-lib.sh" || exit 0
 
-# Ordinary prefixes (VAR=val, env, command) still mean a content view: FOO=1 cat f, env cat f, command cat f.
-CONTENT_VIEW='^[[:space:]]*((cd[[:space:]]+[^;&|]+(&&|;)[[:space:]]*)?)(([A-Za-z_][A-Za-z0-9_]*=[^[:space:];&|]*|env|command)[[:space:]]+)*(cat|bat|nl|sed|head|tail|less|more|diff|jq|git([[:space:]]+-C[[:space:]]+[^[:space:]]+)?[[:space:]]+(diff|show|blame|log[[:space:]]+-p))([[:space:]]|$)'
+# Ordinary prefixes (VAR=val, env, command) still mean a content view: FOO=1 cat f, env cat f,
+# command cat f, FOO='a b' cat f. A value is shell words (quoted, escaped or plain); an unquoted
+# ; & | ends it, so FOO=1;echo cat f is not a content view.
+CONTENT_VIEW="^[[:space:]]*((cd[[:space:]]+[^;&|]+(&&|;)[[:space:]]*)?)(([A-Za-z_][A-Za-z0-9_]*=('[^']*'|\"([^\"\\\\]|\\\\.)*\"|\\\\.|[^[:space:];&|'\"\\\\])*|env|command)[[:space:]]+)*(cat|bat|nl|sed|head|tail|less|more|diff|jq|git([[:space:]]+-C[[:space:]]+[^[:space:]]+)?[[:space:]]+(diff|show|blame|log[[:space:]]+-p))([[:space:]]|\$)"
 
 main() {
   ctx_bootstrap A3-bash-trim || return 0
