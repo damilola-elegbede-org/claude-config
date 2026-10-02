@@ -11,7 +11,29 @@
 # shellcheck source=ctx-lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/ctx-lib.sh" || exit 0
 
-CONTENT_VIEW='^[[:space:]]*((cd[[:space:]]+[^;&|]+(&&|;)[[:space:]]*)?)(cat|bat|nl|sed|head|tail|less|more|diff|jq|git([[:space:]]+-C[[:space:]]+[^[:space:]]+)?[[:space:]]+(diff|show|blame|log[[:space:]]+-p))([[:space:]]|$)'
+# Content-view contract. Recognized, and ONLY these (a grep on the hot path, no parser). The WHOLE
+# command must be one view, optionally piped into more views:
+#   [cd DIR && | cd DIR ;]  STAGE  [| STAGE]...  [ # comment]
+#   STAGE = NAME=VALUE...  [env OPTS [- | --] NAME=VALUE... | command [-p]]  VIEW ARGS
+#   - env OPTS: -i -v -u NAME -C DIR (bundled too: -iu NAME, -ivC DIR), --unset[=| ]NAME, --chdir[=| ]DIR; NAME, DIR and git's -C DIR are
+#     plain words (no quotes, escapes, $, `, { } * ? [ or redirections), and so is cd's DIR; not -0/--null:
+#     env refuses a command with it
+#   - NAME=VALUE after env is an ordinary argument (word-split, brace- and glob-expanded): expansions only
+#     inside "...", and no unquoted { } * ? [
+#   - VALUE and ARGS: plain chars, '...', "..." with \ escapes, \x, $NAME, one level of $(...) $((...))
+#     ${...} `...` with no backslash, $ or ` inside (no nesting), and N>&M; an unclosed expansion
+#     matches nothing; an unquoted ; & | ends the view
+#   - ARGS never hold <, except a plain input redirect (< file, <file): no <<, <<< or <(...)
+#   - VIEW: cat bat nl sed head tail less more diff jq, git [-C DIR] diff|show|blame|log -p
+# Words separate only on space and tab, as in bash ([[:blank:]], not [[:space:]]: \r \v \f are word chars).
+# So cat f && npm run build, a multi-line command, FOO=1;echo cat f, command FOO=1 cat f and
+# env -0 cat f are NOT views.
+# Not recognized, by design: other wrappers (exec nice time nohup sudo xargs), quoted or escaped command
+# names, subshells, nested expansions, pipes into non-view commands. A miss is safe: the output is
+# trimmed, and the full output stays in the cache file every marker cites.
+# Out of scope the other way: A3 classifies the command line, not what a view tool runs inside it
+# (sed 'e cmd', GIT_EXTERNAL_DIFF=cmd git diff). Such output stays untrimmed: a token cost, never data loss.
+CONTENT_VIEW="^[[:blank:]]*((cd[[:blank:]]+[^[:blank:];&|<>\\\\'\"\$\`{}*?[]+[[:blank:]]*(&&|;)[[:blank:]]*)?)([A-Za-z_][A-Za-z0-9_]*=(\\\$\\(\\([^()\\\\\$\`]*\\)\\)|\\\$\\([^()\\\\\$\`]*\\)|\\\$\\{[^}\\\\\$\`]*\\}|\`[^\`\\\\\$]*\`|\\\$[A-Za-z_][A-Za-z0-9_]*|\\\$[0-9@*#?\$!-]|'[^']*'|\"([^\"\\\\\$\`]|\\\\.|\\\$\\(\\([^()\\\\\$\`]*\\)\\)|\\\$\\([^()\\\\\$\`]*\\)|\\\$\\{[^}\\\\\$\`]*\\}|\`[^\`\\\\\$]*\`|\\\$[A-Za-z_][A-Za-z0-9_]*|\\\$[0-9@*#?\$!-])*\"|\\\\.|[^[:blank:];&|'\"\\\\\$()\`<>])*[[:blank:]]+)*(env([[:blank:]]+(-[iv]+|--ignore-environment|--debug|-[iv]*u[[:blank:]]*[^[:blank:];&|<>\\\\'\"\$\`{}*?[]+|--unset(=|[[:blank:]]+)[^[:blank:];&|<>\\\\'\"\$\`{}*?[]+|-[iv]*C[[:blank:]]*[^[:blank:];&|<>\\\\'\"\$\`{}*?[]+|--chdir(=|[[:blank:]]+)[^[:blank:];&|<>\\\\'\"\$\`{}*?[]+))*([[:blank:]]+--?)?[[:blank:]]+([A-Za-z_][A-Za-z0-9_]*=('[^']*'|\"([^\"\\\\\$\`]|\\\\.|\\\$\\(\\([^()\\\\\$\`]*\\)\\)|\\\$\\([^()\\\\\$\`]*\\)|\\\$\\{[^}\\\\\$\`]*\\}|\`[^\`\\\\\$]*\`|\\\$[A-Za-z_][A-Za-z0-9_]*|\\\$[0-9@*#?\$!-])*\"|\\\\.|[^[:blank:];&|'\"\\\\\$()\`<>{}*?[])*[[:blank:]]+)*|command([[:blank:]]+-p)?[[:blank:]]+)?(cat|bat|nl|sed|head|tail|less|more|diff|jq|git([[:blank:]]+-C[[:blank:]]+[^[:blank:];&|<>\\\\'\"\$\`{}*?[]+)?[[:blank:]]+(diff|show|blame|log[[:blank:]]+-p))([[:blank:]]+([0-9]*<|[0-9]*<(\\\$\\(\\([^()\\\\\$\`]*\\)\\)|\\\$\\([^()\\\\\$\`]*\\)|\\\$\\{[^}\\\\\$\`]*\\}|\`[^\`\\\\\$]*\`|\\\$[A-Za-z_][A-Za-z0-9_]*|\\\$[0-9@*#?\$!-]|'[^']*'|\"([^\"\\\\\$\`]|\\\\.|\\\$\\(\\([^()\\\\\$\`]*\\)\\)|\\\$\\([^()\\\\\$\`]*\\)|\\\$\\{[^}\\\\\$\`]*\\}|\`[^\`\\\\\$]*\`|\\\$[A-Za-z_][A-Za-z0-9_]*|\\\$[0-9@*#?\$!-])*\"|\\\\.|[^[:blank:];&|'\"\\\\\$()\`<>])+|[0-9]*>&[0-9-]|(\\\$\\(\\([^()\\\\\$\`]*\\)\\)|\\\$\\([^()\\\\\$\`]*\\)|\\\$\\{[^}\\\\\$\`]*\\}|\`[^\`\\\\\$]*\`|\\\$[A-Za-z_][A-Za-z0-9_]*|\\\$[0-9@*#?\$!-]|'[^']*'|\"([^\"\\\\\$\`]|\\\\.|\\\$\\(\\([^()\\\\\$\`]*\\)\\)|\\\$\\([^()\\\\\$\`]*\\)|\\\$\\{[^}\\\\\$\`]*\\}|\`[^\`\\\\\$]*\`|\\\$[A-Za-z_][A-Za-z0-9_]*|\\\$[0-9@*#?\$!-])*\"|\\\\.|[^[:blank:];&|'\"\\\\\$()\`<])+))*[[:blank:]]*(\\|[[:blank:]]*([A-Za-z_][A-Za-z0-9_]*=(\\\$\\(\\([^()\\\\\$\`]*\\)\\)|\\\$\\([^()\\\\\$\`]*\\)|\\\$\\{[^}\\\\\$\`]*\\}|\`[^\`\\\\\$]*\`|\\\$[A-Za-z_][A-Za-z0-9_]*|\\\$[0-9@*#?\$!-]|'[^']*'|\"([^\"\\\\\$\`]|\\\\.|\\\$\\(\\([^()\\\\\$\`]*\\)\\)|\\\$\\([^()\\\\\$\`]*\\)|\\\$\\{[^}\\\\\$\`]*\\}|\`[^\`\\\\\$]*\`|\\\$[A-Za-z_][A-Za-z0-9_]*|\\\$[0-9@*#?\$!-])*\"|\\\\.|[^[:blank:];&|'\"\\\\\$()\`<>])*[[:blank:]]+)*(env([[:blank:]]+(-[iv]+|--ignore-environment|--debug|-[iv]*u[[:blank:]]*[^[:blank:];&|<>\\\\'\"\$\`{}*?[]+|--unset(=|[[:blank:]]+)[^[:blank:];&|<>\\\\'\"\$\`{}*?[]+|-[iv]*C[[:blank:]]*[^[:blank:];&|<>\\\\'\"\$\`{}*?[]+|--chdir(=|[[:blank:]]+)[^[:blank:];&|<>\\\\'\"\$\`{}*?[]+))*([[:blank:]]+--?)?[[:blank:]]+([A-Za-z_][A-Za-z0-9_]*=('[^']*'|\"([^\"\\\\\$\`]|\\\\.|\\\$\\(\\([^()\\\\\$\`]*\\)\\)|\\\$\\([^()\\\\\$\`]*\\)|\\\$\\{[^}\\\\\$\`]*\\}|\`[^\`\\\\\$]*\`|\\\$[A-Za-z_][A-Za-z0-9_]*|\\\$[0-9@*#?\$!-])*\"|\\\\.|[^[:blank:];&|'\"\\\\\$()\`<>{}*?[])*[[:blank:]]+)*|command([[:blank:]]+-p)?[[:blank:]]+)?(cat|bat|nl|sed|head|tail|less|more|diff|jq|git([[:blank:]]+-C[[:blank:]]+[^[:blank:];&|<>\\\\'\"\$\`{}*?[]+)?[[:blank:]]+(diff|show|blame|log[[:blank:]]+-p))([[:blank:]]+([0-9]*<|[0-9]*<(\\\$\\(\\([^()\\\\\$\`]*\\)\\)|\\\$\\([^()\\\\\$\`]*\\)|\\\$\\{[^}\\\\\$\`]*\\}|\`[^\`\\\\\$]*\`|\\\$[A-Za-z_][A-Za-z0-9_]*|\\\$[0-9@*#?\$!-]|'[^']*'|\"([^\"\\\\\$\`]|\\\\.|\\\$\\(\\([^()\\\\\$\`]*\\)\\)|\\\$\\([^()\\\\\$\`]*\\)|\\\$\\{[^}\\\\\$\`]*\\}|\`[^\`\\\\\$]*\`|\\\$[A-Za-z_][A-Za-z0-9_]*|\\\$[0-9@*#?\$!-])*\"|\\\\.|[^[:blank:];&|'\"\\\\\$()\`<>])+|[0-9]*>&[0-9-]|(\\\$\\(\\([^()\\\\\$\`]*\\)\\)|\\\$\\([^()\\\\\$\`]*\\)|\\\$\\{[^}\\\\\$\`]*\\}|\`[^\`\\\\\$]*\`|\\\$[A-Za-z_][A-Za-z0-9_]*|\\\$[0-9@*#?\$!-]|'[^']*'|\"([^\"\\\\\$\`]|\\\\.|\\\$\\(\\([^()\\\\\$\`]*\\)\\)|\\\$\\([^()\\\\\$\`]*\\)|\\\$\\{[^}\\\\\$\`]*\\}|\`[^\`\\\\\$]*\`|\\\$[A-Za-z_][A-Za-z0-9_]*|\\\$[0-9@*#?\$!-])*\"|\\\\.|[^[:blank:];&|'\"\\\\\$()\`<])+))*[[:blank:]]*)*([[:blank:]]+#.*)?\$"
 
 main() {
   ctx_bootstrap A3-bash-trim || return 0
@@ -19,7 +41,8 @@ main() {
   [ "$(ctx_in .tool_input.run_in_background)" != "true" ] || return 0
   local cmd task n min state
   cmd="$(ctx_in .tool_input.command)"
-  if printf '%s' "$cmd" | grep -Eq "$CONTENT_VIEW"; then
+  # A newline separates commands and grep matches per line, so a multi-line command is never a view.
+  if [[ "$cmd" != *$'\n'* ]] && printf '%s' "$cmd" | grep -Eq "$CONTENT_VIEW"; then
     return 0
   fi
 
