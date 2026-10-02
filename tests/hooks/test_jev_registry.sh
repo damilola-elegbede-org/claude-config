@@ -109,7 +109,7 @@ eq "no layers means an empty registry" "{}" "$(shell_reg)"
 # jev_reg_value / jev_reg_rule / jev_reg_exempt
 # ============================================================================
 fresh helpers
-printf '%s' '{"exempt_agents":["Tars"],"rules":{"x":{"mode":"enforce","n":3,"scope":["a","b"]}}}' >"$J/jev-rules.json"
+printf '%s' '{"exempt_agents":["Fleet-Test"],"rules":{"x":{"mode":"enforce","n":3,"scope":["a","b"]}}}' >"$J/jev-rules.json"
 run_reg() { env -u JEV_DIR -u JEV_RULES -u JEV_RULES_FILE HOME="$H" bash -c '. "$HOME/.claude/hooks/jev/registry.sh"; '"$1"; }
 eq "jev_reg_value scalar" "enforce" "$(run_reg 'jev_reg_value x mode off')"
 eq "jev_reg_value number" "3" "$(run_reg 'jev_reg_value x n 0')"
@@ -117,7 +117,7 @@ eq "jev_reg_value default when the key is absent" "dflt" "$(run_reg 'jev_reg_val
 eq "jev_reg_value default when the rule is absent" "dflt" "$(run_reg 'jev_reg_value nope mode dflt')"
 eq "jev_reg_rule one entry" '{"mode":"enforce","n":3,"scope":["a","b"]}' "$(run_reg 'jev_reg_rule x')"
 eq "jev_reg_rule unregistered is {}" "{}" "$(run_reg 'jev_reg_rule nope')"
-eq "jev_reg_exempt matches case-insensitively" "0" "$(run_reg 'jev_reg_exempt tars; echo $?')"
+eq "jev_reg_exempt matches case-insensitively" "0" "$(run_reg 'jev_reg_exempt fleet-test; echo $?')"
 eq "jev_reg_exempt rejects others" "1" "$(run_reg 'jev_reg_exempt other-agent; echo $?')"
 fresh helpers-default
 eq "jev_reg_exempt defaults to clara when no layer sets a list" "0" "$(run_reg 'jev_reg_exempt clara; echo $?')"
@@ -214,10 +214,10 @@ eq "registry mode enforce still denies" "deny" "$(decision_of)"
 gate_home gate-exempt
 run_gate "$RM_PAYLOAD" BARECLAUDE_AGENT_SLUG=clara
 eq "clara exempt (gate-rules.json list)" "" "$GOUT"
-printf '%s' '{"exempt_agents":["tars"]}' >"$J/jev-rules.json"
+printf '%s' '{"exempt_agents":["fleet-test"]}' >"$J/jev-rules.json"
 run_gate "$RM_PAYLOAD" BARECLAUDE_AGENT_SLUG=clara
 eq "a registry exempt_agents list replaces the shipped one (clara no longer exempt)" "deny" "$(decision_of)"
-run_gate "$RM_PAYLOAD" BARECLAUDE_AGENT_SLUG=tars
+run_gate "$RM_PAYLOAD" BARECLAUDE_AGENT_SLUG=fleet-test
 eq "a registry exempt_agents list exempts its members" "" "$GOUT"
 
 gate_home gate-killswitch

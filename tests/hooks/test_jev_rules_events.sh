@@ -244,7 +244,7 @@ eq "stop_hook_active never blocks twice" "$(run executive-lint.sh "$(sl 'plain r
 loghas allow-stop-hook-active && ok || bad "stop_hook_active allow logged"
 eq "subagent (agent_id) skipped" "$(printf '%s' "$(jq -c '. + {agent_id:"a1"}' <<<"$(sl 'plain reply')")" | bash "$HOOKS/executive-lint.sh" 2>/dev/null)" ""
 eq "bg job skipped" "$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl 'plain reply')")" ""
-eq "fleet skipped" "$(BARECLAUDE_AGENT_SLUG=tars run executive-lint.sh "$(sl 'plain reply')")" ""
+eq "fleet skipped" "$(BARECLAUDE_AGENT_SLUG=fleet-test run executive-lint.sh "$(sl 'plain reply')")" ""
 eq "empty message skipped" "$(run executive-lint.sh "$(sl '')")" ""
 rules '{"executive-lint":{"mode":"shadow"}}'
 eq "shadow mode logs but does not block" "$(run executive-lint.sh "$(sl 'plain reply')")" ""
