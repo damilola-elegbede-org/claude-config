@@ -375,6 +375,7 @@ out=$(run memory-dup-guard.sh "$(mw "$RE_MEMORY_DIR/prs-not-drafts.md" "$NEWMEM"
 has "enforce: additionalContext warns of duplicate" "$out" "Possible duplicate memory"
 has "enforce: names the closest entry" "$out" "pr-ready-not-draft.md"
 hasnt "never denies" "$out" "deny"
+eq "enforce: bg job skipped (rule is interactive-only)" "$(CLAUDE_JOB_DIR="$T/job" run memory-dup-guard.sh "$(mw "$RE_MEMORY_DIR/prs-not-drafts.md" "$NEWMEM")")" ""
 eq "MEMORY.md write ignored" "$(run memory-dup-guard.sh "$(mw "$RE_MEMORY_DIR/MEMORY.md" "x")")" ""
 eq "non-memory path ignored" "$(run memory-dup-guard.sh "$(mw "$T/other/notes.md" "$NEWMEM")")" ""
 printf x >"$RE_MEMORY_DIR/existing.md"
@@ -587,6 +588,9 @@ mock br '{"answers":{"type":{"type":"choice","choice":"fix","probabilities":{"fi
 rules '{"workflow-branch-type":{"mode":"enforce"}}'
 out=$(cd "$CR" && bash "$SKILLS/commit/scripts/classify.sh" branch "fix-auth-bug")
 eq "branch classify enforce: type" "$(jq -r '.type' <<<"$out")" fix
+mock bl '{"answers":{"type":{"type":"choice","choice":"hotfix","probabilities":{"hotfix":0.5,"fix":0.4}},"mixed":{"type":"boolean","probability":0.1}}}'
+out=$(cd "$CR" && bash "$SKILLS/commit/scripts/classify.sh" branch "fix-auth-bug")
+eq "branch classify enforce: type below threshold withheld" "$(jq -r '.type // "none"' <<<"$out")" none
 out=$(cd "$CR" && JEV_MOCK=unavailable bash "$SKILLS/commit/scripts/classify.sh" commit)
 eq "classify fails open" "$(jq -r .mode <<<"$out")" unavailable
 # --- review depth ----------------------------------------------------------------------
