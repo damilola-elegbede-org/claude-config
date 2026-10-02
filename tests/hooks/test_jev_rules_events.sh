@@ -55,11 +55,13 @@ run() { # script, stdin-json  (env passes through)
 bool_ans() { printf '{"answers":{"%s":{"type":"boolean","probability":%s}}}' "$1" "$2"; }
 
 echo "== registry, rules.d and settings wiring =="
-# --- shipped rule modes: Jev rules ship shadow, regex rules enforce -------------
+# --- shipped rule modes: every rule ships enforce (Jev and regex) -------------
 RJ="$HOOKS/rules.d/rules-events.json"
 jq -e . "$RJ" >/dev/null 2>&1 && ok || bad "rules-events.json is valid JSON"
-NONSHADOW=$(jq -r 'to_entries[] | select(.value.threshold != null and .value.mode != "shadow") | .key' "$RJ")
-eq "every Jev rule (has threshold) ships shadow" "$NONSHADOW" ""
+NONENFORCE=$(jq -r 'to_entries[] | select(.value.threshold != null and .value.mode != "enforce") | .key' "$RJ" | sort | paste -sd, -)
+eq "every Jev rule (has threshold) ships enforce except the two D kept in shadow" "$NONENFORCE" "executive-scope-creep,executive-tag-correctness"
+eq "executive-tag-correctness ships shadow" "$(jq -r '."executive-tag-correctness".mode' "$RJ")" "shadow"
+eq "executive-scope-creep ships shadow" "$(jq -r '."executive-scope-creep".mode' "$RJ")" "shadow"
 for r in file-org-guard pr-draft-guard executive-lint retry-counter papercut-grep; do
   eq "regex rule $r ships enforce" "$(jq -r --arg r "$r" '.[$r].mode' "$RJ")" enforce
 done

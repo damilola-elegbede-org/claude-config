@@ -1,6 +1,6 @@
 {
   "G1-irreversible-local": {
-    "mode": "shadow",
+    "mode": "enforce",
     "threshold": 0.8,
     "scope": [
       "interactive",
@@ -9,7 +9,7 @@
     ]
   },
   "G3-merge": {
-    "mode": "shadow",
+    "mode": "enforce",
     "threshold": 0.85,
     "scope": [
       "interactive",
@@ -18,7 +18,7 @@
     ]
   },
   "G4-prod-infra": {
-    "mode": "shadow",
+    "mode": "enforce",
     "threshold": 0.85,
     "scope": [
       "interactive",
@@ -27,7 +27,7 @@
     ]
   },
   "G5-data-store": {
-    "mode": "shadow",
+    "mode": "enforce",
     "threshold": 0.7,
     "scope": [
       "interactive",
@@ -36,7 +36,7 @@
     ]
   },
   "G6-spend": {
-    "mode": "shadow",
+    "mode": "enforce",
     "threshold": 0.8,
     "scope": [
       "interactive",
@@ -45,7 +45,7 @@
     ]
   },
   "G7-outward-comms": {
-    "mode": "shadow",
+    "mode": "enforce",
     "threshold": 0.7,
     "scope": [
       "interactive",
@@ -54,7 +54,7 @@
     ]
   },
   "G8-sharing": {
-    "mode": "shadow",
+    "mode": "enforce",
     "threshold": 0.7,
     "scope": [
       "interactive",
@@ -63,7 +63,7 @@
     ]
   },
   "G13-external-delete": {
-    "mode": "shadow",
+    "mode": "enforce",
     "threshold": 0.8,
     "scope": [
       "interactive",
@@ -81,7 +81,7 @@
     ]
   },
   "G15-untrusted-origin": {
-    "mode": "shadow",
+    "mode": "enforce",
     "threshold": 0.85,
     "scope": [
       "interactive",
@@ -90,21 +90,21 @@
     ]
   },
   "G16-ask-bundled": {
-    "mode": "shadow",
+    "mode": "enforce",
     "threshold": 0.7,
     "scope": [
       "interactive"
     ]
   },
   "G16-ask-channel": {
-    "mode": "shadow",
+    "mode": "enforce",
     "threshold": 0.85,
     "scope": [
       "interactive"
     ]
   },
   "mcp-classifier": {
-    "mode": "shadow",
+    "mode": "enforce",
     "threshold": 0.7,
     "scope": [
       "interactive",

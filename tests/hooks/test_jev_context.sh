@@ -135,7 +135,10 @@ FIX="$TEST_HOME/fix.json"
 bool_fixture "$FIX" c0=0.1 c1=0.1 c2=0.9 c3=0.8 c4=0.05 c5=0.1 will_edit=0.05
 read_input "$BIG" "$TR"
 
-# shadow (the shipped default): logs what it would trim, prints nothing, saves nothing
+# shadow (pinned explicitly; rules.d ships enforce): logs what it would trim, prints nothing, saves nothing
+# The fixture's 6 chunks and 200-line budget assume the pre-retune knobs; rules.d now ships chunk 50 /
+# threshold 0.15 / budget 300-800, so pin the old values here rather than loosen the assertions.
+set_rule A1-read-trim '{"mode":"shadow","threshold":0.35,"chunk_lines":100,"budget_floor":200,"budget_ceiling":600,"budget_frac":0.35}'
 JEV_MOCK="$FIX" run_hook a1-read-trim.sh "$IN"
 check "shadow: exit 0" test "$HOOK_RC" -eq 0
 check "shadow: no stdout, output untouched" out_empty
@@ -291,6 +294,8 @@ numbered_lines 150 src/file >"$HITS"
 jq -cn --rawfile c "$HITS" --arg t "$TR" '{session_id:"s2", cwd:"/tmp", transcript_path:$t, tool_name:"Grep",
   tool_input:{pattern:"retry", output_mode:"content"},
   tool_response:{mode:"content", numFiles:0, filenames:[], content:$c, numLines:150}}' >"$IN"
+# pin shadow plus the pre-retune A2 knobs (rules.d now ships 0.25 / 150-300 / 0.3) so kept_lines stays 75
+set_rule A2-search-rank '{"mode":"shadow","threshold":0.35,"budget_floor":100,"budget_ceiling":100,"budget_frac":0}'
 JEV_MOCK="$FIX" run_hook a2-search-rank.sh "$IN"
 check "Grep shadow: nothing printed" out_empty
 check "Grep shadow: would-trim logged (75 of 150 hits)" shadow_jq '.rule=="A2-search-rank" and .detail.decision=="would-trim" and .detail.kept_lines==75'
@@ -374,6 +379,7 @@ bash_input() { # bash_input <command> <log> [extra tool_input]
     tool_input:({command:$cmd} + $ti), tool_response:{stdout:$c, stderr:"", interrupted:false, isImage:false}}' >"$IN"
 }
 bash_input "npm run build" "$LOG"
+set_mode A3-bash-trim shadow
 JEV_MOCK="$FIX" run_hook a3-bash-trim.sh "$IN"
 check "shadow: nothing printed" out_empty
 check "shadow: would-trim logged, tail 40 + 1 chunk kept" shadow_jq '.rule=="A3-bash-trim" and .detail.decision=="would-trim" and .detail.kept_lines==90'
@@ -470,6 +476,7 @@ stop_input() { # stop_input <transcript> [session] [active]
   jq -cn --arg t "$1" --arg s "${2:-s4}" --argjson a "${3:-false}" '{session_id:$s, cwd:"/tmp", transcript_path:$t, stop_hook_active:$a, hook_event_name:"Stop", last_assistant_message:"Shipped. All checks pass."}' >"$IN"
 }
 stop_input "$TEST_HOME/big.jsonl"
+set_mode A4-task-boundary shadow
 JEV_MOCK="$TEST_HOME/done.json" run_hook a4-task-boundary.sh "$IN"
 check "shadow: prints nothing, never blocks" bash -c "[ ! -s '$OUTF' ] && [ '$HOOK_RC' = 0 ]"
 check "shadow: verdict logged with size estimate" shadow_jq '.rule=="A4-task-boundary" and .detail.phase=="task_completed" and .detail.est_tokens>150000'
@@ -567,11 +574,12 @@ bool_fixture "$FIX" r0=0.3 r1=0.1 r2=0.9 m0=0.8 m1=0.1
 mkdir -p "$HOME/.claude/jev-cache/state"
 echo mem.md >"$HOME/.claude/jev-cache/state/s5.mem"
 compact_input "$REPO"
+set_mode A5-compact-reinject shadow
 PATH="$STUBBIN:$PATH" JEV_MOCK="$FIX" run_hook a5-compact-reinject.sh "$IN"
 check "default modes: deterministic state is injected as SessionStart additionalContext" out_jq '.hookSpecificOutput.hookEventName=="SessionStart" and (.hookSpecificOutput.additionalContext|test("branch feat/retry"))'
 check "state names the worktree path" out_jq ".hookSpecificOutput.additionalContext | contains(\"$(cd "$REPO" && pwd -P)\")"
 check "state names the open PR" out_jq '.hookSpecificOutput.additionalContext | test("open PR #12 \"Retry backoff\" https://example.com/pr/12")'
-check "Jev ranking ships in shadow: nothing ranked is injected" out_jq '.hookSpecificOutput.additionalContext | test("Re-injected") | not'
+check "Jev ranking in shadow: nothing ranked is injected" out_jq '.hookSpecificOutput.additionalContext | test("Re-injected") | not'
 check "shadow: ranking verdict logged with picks" shadow_jq '.rule=="A5-compact-reinject" and (.detail.picked|map(.id))==["r2","m0"]'
 check "request: boolean per rule section + memory entry, 5 candidates" jq -e '(.questions|length)==5 and (.state.candidates.r2|test("Verification"))' "$STUB_LAST"
 check "memory ledger reset on compaction" test ! -e "$HOME/.claude/jev-cache/state/s5.mem"
@@ -646,6 +654,7 @@ agent_input() { # agent_input <subagent_type|""> <prompt>
 PROMPT="Review the diff for security vulnerabilities and injection risks in the auth module"
 agent_input general-purpose "$PROMPT"
 choice_fixture "$TEST_HOME/sec.json" best_type security-auditor 0.91
+set_mode A6-agent-router shadow
 JEV_MOCK="$TEST_HOME/sec.json" run_hook a6-agent-router.sh "$IN"
 check "shadow: nothing printed" out_empty
 check "shadow: verdict logged" shadow_jq '.rule=="A6-agent-router" and .detail.requested=="general-purpose" and .detail.pick=="security-auditor"'
@@ -713,6 +722,8 @@ mixed_fixture() { # mixed_fixture <out> <skill> <skill-p> <name=p>...
 }
 mixed_fixture "$TEST_HOME/mix.json" verify 0.85 m0=0.9 m1=0.8 m2=0.1
 prompt_input "please verify the config change works end to end"
+set_mode A7-memory-inject shadow
+set_mode A8-skill-picker shadow
 JEV_MOCK="$TEST_HOME/mix.json" run_hook a7-a8-prompt-context.sh "$IN"
 check "shadow: nothing printed" out_empty
 check "ONE Jev call carries both A7 and A8 questions" jq -e '(.questions|has("skill")) and (.questions|has("m0") and has("m1") and has("m2"))' "$STUB_LAST"
@@ -777,7 +788,7 @@ echo "registry + wiring"
 RULES="$SRC/rules.d/context.json"
 check "rules.d/context.json is valid JSON" jq -e . "$RULES"
 check "every Phase 3 rule is registered under the \"rules\" key" jq -e '.rules | has("A1-read-trim") and has("A2-search-rank") and has("A3-bash-trim") and has("A4-task-boundary") and has("A5-compact-reinject") and has("A5b-compact-state") and has("A6-agent-router") and has("A7-memory-inject") and has("A8-skill-picker")' "$RULES"
-check "every Jev rule ships in shadow (only the deterministic A5b is enforce)" jq -e '.rules | to_entries | all(.value.mode == "shadow" or .key == "A5b-compact-state")' "$RULES"
+check "every Jev rule ships enforce" jq -e '.rules | to_entries | all(.value.mode == "enforce")' "$RULES"
 check "every rule declares a scope" jq -e '.rules | to_entries | all(.value.scope | type == "array" and length > 0)' "$RULES"
 SETTINGS="$REPO_ROOT/system-configs/.claude/settings.json"
 for s in a1-read-trim a2-search-rank a3-bash-trim a4-task-boundary a5-compact-reinject a6-agent-router a7-a8-prompt-context; do

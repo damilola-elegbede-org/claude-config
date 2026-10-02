@@ -137,14 +137,18 @@ line_tool_result() { jq -nc --arg u "$1" --arg id "$2" --arg t "$3" '{type:"user
 # ============================================================================
 new_home
 for id in G1-irreversible-local G3-merge G4-prod-infra G5-data-store G6-spend G7-outward-comms G8-sharing \
-  G13-external-delete G14-non-routine G15-untrusted-origin G16-ask-bundled G16-ask-channel mcp-classifier approval-detector; do
-  assert_eq "rules.d ships $id in shadow" "shadow" "$(jq -r --arg id "$id" '.[$id].mode' "$(rules_file)")"
+  G13-external-delete G15-untrusted-origin G16-ask-bundled G16-ask-channel mcp-classifier; do
+  assert_eq "rules.d ships $id in enforce" "enforce" "$(jq -r --arg id "$id" '.[$id].mode' "$(rules_file)")"
+done
+for id in G14-non-routine approval-detector; do
+  assert_eq "rules.d ships $id in shadow (D's choice)" "shadow" "$(jq -r --arg id "$id" '.[$id].mode' "$(rules_file)")"
 done
 
 # ============================================================================
 # G1 shadow / enforce / thresholds / candidates
 # ============================================================================
 new_home
+set_mode G1-irreversible-local shadow
 mock '{"G1-irreversible-local":0.95}'
 OUT=$(run_hook jev-gate.sh "$(bash_in 'rm -rf ~/Documents/old')")
 assert_empty "shadow mode never denies" "$OUT"
@@ -528,6 +532,7 @@ mock_class delete 0.9
 OUT=$(run_hook jev-gate.sh "$(mcp_in mcp__claude_ai_Google_Drive__trash_file)")
 assert_contains "delete class denied" "$OUT" "deletes data"
 mock_class write 0.9 0.95
+set_mode G4-prod-infra shadow
 OUT=$(run_hook jev-gate.sh "$(mcp_in mcp__claude_ai_Vercel__update_project)")
 assert_empty "write+prod passes while G4 rule is shadow" "$OUT"
 set_mode G4-prod-infra enforce
@@ -541,6 +546,7 @@ assert_empty "below-threshold class passes" "$OUT"
 
 # shadow: classified + cached, never denied
 new_home
+set_mode mcp-classifier shadow
 mock_class outward 0.99
 OUT=$(run_hook jev-gate.sh "$(mcp_in mcp__claude_ai_Slack__slack_send_message)")
 assert_empty "shadow mcp-classifier never denies" "$OUT"
@@ -668,6 +674,7 @@ if command -v node >/dev/null 2>&1; then
   shadow_log() { cat "$T/home/.claude/jev-shadow.jsonl" 2>/dev/null || true; }
 
   real_client_home
+  set_mode G1-irreversible-local shadow
   mock '{"G1-irreversible-local":0.95}'
   OUT=$(run_hook jev-gate.sh "$(bash_in 'rm -rf ~/Documents/old')")
   assert_empty "real client: shadow mode never denies" "$OUT"
@@ -722,7 +729,10 @@ assert_eq "stub accepts gates/Bash" "0" "$(jq -nc '{rule:"gates/Bash", state:{},
 new_home
 mock '{"G1-irreversible-local":0.95}'
 OUT=$(run_hook jev-gate.sh "$(bash_in 'rm -rf ~/Documents/old')")
-assert_empty "baseline: shipped rules.d is shadow" "$OUT"
+assert_contains "baseline: shipped rules.d is enforce" "$OUT" '"permissionDecision":"deny"'
+set_mode G1-irreversible-local shadow
+OUT=$(run_hook jev-gate.sh "$(bash_in 'rm -rf ~/Documents/old')")
+assert_empty "baseline: rules.d pinned to shadow does not deny" "$OUT"
 printf '{"exempt_agents":["dara","clara"],"rules":{"G1-irreversible-local":{"mode":"enforce"}}}' >"$T/home/.claude/hooks/jev/jev-rules.json"
 OUT=$(run_hook jev-gate.sh "$(bash_in 'rm -rf ~/Documents/old')")
 assert_contains "jev-rules.json (wrapped) overrides rules.d, so the user can enforce a gate" "$OUT" '"permissionDecision":"deny"'
@@ -816,7 +826,8 @@ assert_eq "the claim is a directory under approvals.d" "1" "$(find "$T/home/.cla
 # G15 is judged independently of the MCP class hits
 # ============================================================================
 new_home
-# mcp-classifier stays in shadow; only G15 enforces
+# mcp-classifier pinned to shadow; only G15 enforces
+set_mode mcp-classifier shadow
 set_mode G15-untrusted-origin enforce
 {
   line_user u1 "look at the open issues"
