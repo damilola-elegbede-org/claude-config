@@ -49,7 +49,6 @@ POLICY="$HOME/BareClaude/infra/model-policy.json"
 AGENT=""
 case "$CWD" in
   "$HOME"/BareClaude/clara*) AGENT="clara" ;;
-  "$HOME"/BareClaude/tars*)  AGENT="tars" ;;
 esac
 if [ -n "$AGENT" ] && [ -f "$POLICY" ]; then
   AV=$(jq -r --arg a "$AGENT" '.telegram_media.tts.voices[$a] | if type == "object" then .id else . end // empty' "$POLICY" 2>/dev/null)

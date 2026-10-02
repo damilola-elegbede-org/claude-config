@@ -182,7 +182,7 @@ assert_contains "bg job denies" "$OUT" '"permissionDecision":"deny"'
 assert_contains "bg job wording ends in needs input" "$OUT" 'needs input:'
 assert_not_contains "bg job does not tell it to AskUserQuestion" "$OUT" "Put this to D via AskUserQuestion"
 
-OUT=$(run_hook jev-gate.sh "$(bash_in 'rm -rf build/ data/')" BARECLAUDE_AGENT_SLUG=tars)
+OUT=$(run_hook jev-gate.sh "$(bash_in 'rm -rf build/ data/')" BARECLAUDE_AGENT_SLUG=fleet-test)
 assert_contains "non-exempt fleet agent denied" "$OUT" 'needs input:'
 
 : >"$T/stub.log"
@@ -655,7 +655,7 @@ OUT=$(run_hook jev-ask-channel.sh "$(printf '%s' "$STOP" | jq -c '. + {agent_id:
 assert_empty "subagents skipped" "$OUT"
 OUT=$(run_hook jev-ask-channel.sh "$STOP" CLAUDE_JOB_DIR=/tmp/j)
 assert_empty "bg jobs skipped (scope)" "$OUT"
-OUT=$(run_hook jev-ask-channel.sh "$STOP" BARECLAUDE_AGENT_SLUG=tars)
+OUT=$(run_hook jev-ask-channel.sh "$STOP" BARECLAUDE_AGENT_SLUG=fleet-test)
 assert_empty "fleet skipped (scope)" "$OUT"
 OUT=$(run_hook jev-ask-channel.sh "$STOP" BARECLAUDE_AGENT_SLUG=clara)
 assert_empty "clara exempt" "$OUT"
@@ -753,8 +753,8 @@ assert_contains "jev-rules.json (wrapped) overrides rules.d, so the user can enf
 printf '{"G1-irreversible-local":{"mode":"enforce"}}' >"$T/home/.claude/hooks/jev/jev-rules.json"
 OUT=$(run_hook jev-gate.sh "$(bash_in 'rm -rf ~/Documents/old')")
 assert_contains "jev-rules.json (flat shape) overrides rules.d too" "$OUT" '"permissionDecision":"deny"'
-printf '{"exempt_agents":["tars"],"rules":{"G1-irreversible-local":{"mode":"enforce"}}}' >"$T/home/.claude/hooks/jev/jev-rules.json"
-OUT=$(run_hook jev-gate.sh "$(bash_in 'rm -rf ~/Documents/old')" BARECLAUDE_AGENT_SLUG=tars)
+printf '{"exempt_agents":["fleet-test"],"rules":{"G1-irreversible-local":{"mode":"enforce"}}}' >"$T/home/.claude/hooks/jev/jev-rules.json"
+OUT=$(run_hook jev-gate.sh "$(bash_in 'rm -rf ~/Documents/old')" BARECLAUDE_AGENT_SLUG=fleet-test)
 assert_empty "exempt_agents from jev-rules.json is honoured" "$OUT"
 OUT=$(run_hook jev-gate.sh "$(bash_in 'rm -rf ~/Documents/old')" BARECLAUDE_AGENT_SLUG=clara)
 assert_contains "exempt_agents replaced (clara no longer exempt)" "$OUT" '"permissionDecision":"deny"'

@@ -187,19 +187,19 @@ check "clara + rm -rf allowed (exempt)" "" "$GOUT"
 check_contains "clara rm -rf is still logged as exempt" "$(cat "$H_EX/.claude/gate-log.jsonl")" '"rule":"G1-rm","tool":"Bash","decision":"allow-exempt-agent","scope":"fleet"'
 run_gate "$H_EX" "$(bash_payload 'git push origin main')" BARECLAUDE_AGENT_SLUG=clara
 check "clara + push to main allowed (exempt, whole gate)" "" "$GOUT"
-run_gate "$H_EX" "$(bash_payload 'git push origin main')" BARECLAUDE_AGENT_SLUG=tars
-check "tars + push to main denied" "deny" "$(decision)"
-check_contains "tars: needs input wording" "$(reason)" "needs input:"
-run_gate "$H_EX" "$(payload mcp__claude_ai_Gmail__send_message '{"to":"a@b.c"}')" BARECLAUDE_AGENT_SLUG=tars
-check "tars + Gmail send denied (no lane)" "deny" "$(decision)"
-run_gate "$H_EX" "$(bash_payload 'ls -la')" BARECLAUDE_AGENT_SLUG=tars
-check "tars + harmless command allowed" "" "$GOUT"
+run_gate "$H_EX" "$(bash_payload 'git push origin main')" BARECLAUDE_AGENT_SLUG=fleet-test
+check "fleet-test + push to main denied" "deny" "$(decision)"
+check_contains "fleet-test: needs input wording" "$(reason)" "needs input:"
+run_gate "$H_EX" "$(payload mcp__claude_ai_Gmail__send_message '{"to":"a@b.c"}')" BARECLAUDE_AGENT_SLUG=fleet-test
+check "fleet-test + Gmail send denied (no lane)" "deny" "$(decision)"
+run_gate "$H_EX" "$(bash_payload 'ls -la')" BARECLAUDE_AGENT_SLUG=fleet-test
+check "fleet-test + harmless command allowed" "" "$GOUT"
 
 echo "== fleet: lanes mechanism (exempt list emptied to exercise it) =="
 # D removed the merge gate (G3/G3-api, 2026-10-02): merging is no longer gated, and no shipped rule grants a lane.
 check "no shipped merge gate (class G3)" "0" "$(jq -r '[.rules[] | select(.class == "G3")] | length' "$RULES")"
 check "the only shipped lane is clara's G7-gmail" '[{"id":"G7-gmail","lanes":{"clara":"allow"}}]' "$(jq -c '[.rules[] | select((.lanes // {}) | length > 0) | {id, lanes}]' "$RULES")"
-run_gate "$H_EX" "$(bash_payload 'gh pr merge 12 --squash')" BARECLAUDE_AGENT_SLUG=tars
+run_gate "$H_EX" "$(bash_payload 'gh pr merge 12 --squash')" BARECLAUDE_AGENT_SLUG=fleet-test
 check "merge not gated (fleet, non-exempt)" "" "$GOUT"
 run_gate "$H_EX" "$(bash_payload 'gh pr merge 12 --squash')" CLAUDE_JOB_DIR="$H_EX/job"
 check "merge not gated (bg job)" "" "$GOUT"
@@ -406,7 +406,7 @@ APPROVE_ARG="abc"; approve; check "approve: short hash rejected" "1" "$?"
 APPROVE_ARG="$(printf '0%.0s' $(seq 1 64))"; approve; check "approve: unknown hash rejected" "1" "$?"
 run_gate "$H_AP" "$P"
 APPROVE_ARG=$(hash_from_reason); approve CLAUDE_JOB_DIR=/x/job; check "approve: refused inside a bg job" "1" "$?"
-approve BARECLAUDE_AGENT_SLUG=tars; check "approve: refused for fleet agents" "1" "$?"
+approve BARECLAUDE_AGENT_SLUG=fleet-test; check "approve: refused for fleet agents" "1" "$?"
 # shellcheck disable=SC2088 # the literal tilde form must be accepted by the gate
 run_gate "$H_AP" "$(bash_payload "~/.claude/hooks/gate.sh approve $APPROVE_ARG")"
 check "approve: the approve command itself is not gated" "" "$GOUT"
