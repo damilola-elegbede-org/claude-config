@@ -119,7 +119,7 @@ if jq -e . "$RULES" >/dev/null 2>&1; then pass; else fail "gate-rules.json is no
 check "rule ids are unique" "0" "$(jq '[.rules[].id] | length - (unique | length)' "$RULES")"
 check "every rule has the required fields" "0" "$(jq '[.rules[] | select((.id and .class and .tools and .message and (.action == "deny") and (.scope | type == "array") and (.lanes | type == "object") and (.enforce | type == "boolean")) | not)] | length' "$RULES")"
 check "exempt agents come from the rules file" "clara" "$(jq -r '.exempt_agents | join(",")' "$RULES")"
-if grep -qiE 'clara'"$HOOKS_SRC/gate.sh"; then fail "gate.sh must not hard-code agent names"; else pass; fi
+if grep -qiE -- 'clara' "$HOOKS_SRC/gate.sh"; then fail "gate.sh must not hard-code agent names"; else pass; fi
 if [[ -x "$HOOKS_SRC/gate.sh" ]]; then pass; else fail "gate.sh is not executable"; fi
 
 echo "== fixtures (table-driven) =="

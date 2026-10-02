@@ -71,9 +71,9 @@
       "text": "Back every claim D may act on with its source: file:line, the command and its output, a URL, or a quote.",
       "enforcement": "jev",
       "hook": "executive-lint.sh",
-      "mode": "shadow",
+      "mode": "enforce",
       "coverage": "partial",
-      "note": "Jev score executive-unsourced-claims over the final reply; shadow only."
+      "note": "Jev score executive-unsourced-claims over the final reply; enforce, blocks once at P(level>=2) >= 0.85."
     },
     {
       "id": "CLAUDE-EVD-2",
@@ -82,7 +82,7 @@
       "text": "Say \"untested\" when something wasn't tested.",
       "enforcement": "jev",
       "hook": "executive-lint.sh",
-      "mode": "shadow",
+      "mode": "enforce",
       "coverage": "partial",
       "note": "Covered by the same unsourced-claims score."
     },
@@ -93,7 +93,7 @@
       "text": "Label inference as inference.",
       "enforcement": "jev",
       "hook": "executive-lint.sh",
-      "mode": "shadow",
+      "mode": "enforce",
       "coverage": "partial",
       "note": "Covered by the same unsourced-claims score."
     },
@@ -104,7 +104,7 @@
       "text": "Never present a guess as fact.",
       "enforcement": "jev",
       "hook": "executive-lint.sh",
-      "mode": "shadow",
+      "mode": "enforce",
       "coverage": "partial",
       "note": "Covered by the same unsourced-claims score."
     },
@@ -202,9 +202,9 @@
       "text": "When friction costs time, append one factual line as soon as you hit it with papercut.sh.",
       "enforcement": "jev",
       "hook": "papercut-nudge.sh",
-      "mode": "shadow",
+      "mode": "enforce",
       "coverage": "partial",
-      "note": "Jev boolean at Stop: did friction cost time this turn; shadow only."
+      "note": "Jev boolean at Stop: did friction cost time this turn; enforce."
     },
     {
       "id": "CLAUDE-PAP-5",
@@ -225,7 +225,7 @@
       "hook": "papercut-dedupe.sh",
       "mode": "enforce",
       "coverage": "partial",
-      "note": "Exact-symptom match enforced inside the wrapper; Jev near-duplicate check is shadow. Only effective when the wrapper is used instead of papercut.sh."
+      "note": "Exact-symptom match enforced inside the wrapper; Jev near-duplicate check is enforced too. Only effective when the wrapper is used instead of papercut.sh."
     },
     {
       "id": "EXEC-01",
@@ -408,9 +408,9 @@
       "text": "Source every claim D may act on: file:line, command and result, URL, or quote.",
       "enforcement": "jev",
       "hook": "executive-lint.sh",
-      "mode": "shadow",
+      "mode": "enforce",
       "coverage": "partial",
-      "note": "Jev score executive-unsourced-claims; shadow only."
+      "note": "Jev score executive-unsourced-claims; enforce, blocks once at P(level>=2) >= 0.85."
     },
     {
       "id": "EXEC-19",
@@ -419,7 +419,7 @@
       "text": "Mark untested and inference explicitly.",
       "enforcement": "jev",
       "hook": "executive-lint.sh",
-      "mode": "shadow",
+      "mode": "enforce",
       "coverage": "partial",
       "note": "Same unsourced-claims score."
     },
@@ -798,7 +798,7 @@
       "text": "Evidence or nothing: every claim D acts on cites its source; say untested; label inference.",
       "enforcement": "jev",
       "hook": "executive-lint.sh",
-      "mode": "shadow",
+      "mode": "enforce",
       "coverage": "partial",
       "note": "Same unsourced-claims score; duplicates EXEC-18."
     },

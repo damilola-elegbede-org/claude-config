@@ -599,13 +599,13 @@ git -C "$RR" checkout -q -b feat/x
 printf d >"$RR/docs/a.md" && git -C "$RR" add . && git -C "$RR" commit -qm doc
 out=$(cd "$RR" && bash "$SKILLS/review/scripts/depth.sh")
 eq "docs-only change: floor single" "$(jq -r '[.floor,.depth]|join(",")' <<<"$out")" single,single
-mock rd '{"answers":{"risk":{"type":"score","score":2.8,"level":3}}}'
+mock rd '{"answers":{"risk":{"type":"score","score":2.8,"probabilities":{"0":0.02,"1":0.08,"2":0.0,"3":0.9}}}}'
 out=$(cd "$RR" && bash "$SKILLS/review/scripts/depth.sh")
 eq "shadow: Jev risk never raises depth" "$(jq -r .depth <<<"$out")" single
 rules '{"workflow-review-depth":{"mode":"enforce"}}'
 out=$(cd "$RR" && bash "$SKILLS/review/scripts/depth.sh")
 eq "enforce: Jev level 3 raises to deep" "$(jq -r '[.depth,.risk_level]|join(",")' <<<"$out")" deep,3
-mock rd0 '{"answers":{"risk":{"type":"score","score":0.1,"level":0}}}'
+mock rd0 '{"answers":{"risk":{"type":"score","score":0.1,"probabilities":{"0":0.9,"1":0.1,"2":0.0,"3":0.0}}}}'
 out=$(cd "$RR" && bash "$SKILLS/review/scripts/depth.sh")
 eq "enforce: Jev level 0 keeps single" "$(jq -r .depth <<<"$out")" single
 printf h >"$RR/hooks/guard.sh" && git -C "$RR" add . && git -C "$RR" commit -qm hook

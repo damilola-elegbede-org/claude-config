@@ -42,7 +42,8 @@ if ! RESP=$(re_jev_req workflow-review-depth "$STATE" "$Q" 2000 | re_jev_call 2>
   jq -c '. + {mode:"unavailable"}' <<<"$BASEOUT"
   exit 0
 fi
-LVL=$(jq -r '.answers.risk.level // empty' <<<"$RESP" 2>/dev/null)
+# Jev's score answer carries a probability per level, not a level: take the most likely level.
+LVL=$(jq -r '.answers.risk.probabilities // empty | to_entries | max_by(.value) | .key' <<<"$RESP" 2>/dev/null)
 re_log workflow-review-depth "level=$LVL floor=$FLOOR" "mode=$MODE"
 if [ "$MODE" = enforce ] && [ -n "$LVL" ]; then
   DEPTH="$FLOOR"
