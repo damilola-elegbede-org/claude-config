@@ -1120,7 +1120,7 @@
       "hook": "settings.json",
       "mode": "enforce",
       "coverage": "full",
-      "note": "Allow-list in the inline settings.json guard: any force push is blocked unless the whole command is `git push [-u] --force-with-lease[=...] <remote> [<src>:]<branch>` with a plain branch that is not main, master or HEAD. Gate rule G2-push-main also denies every push naming main.",
+      "note": "Allow-list in the inline settings.json guard: any force push is blocked unless the whole command is `git push [-u] --force-with-lease[=...] <remote> [<src>:]<branch>` with a plain branch that is not main, master or HEAD. Multi-line input containing a force push is blocked. Gate rule G2-push-main also denies every push naming main.",
       "hook_marker": "--force-with-lease(=[^[:space:];&|]+)?"
     },
     {
