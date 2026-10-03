@@ -22,7 +22,7 @@ against \<X\>". A bare comparative aside ("make the button as good as the homepa
 this skill on its own — see Guardrails; this pipeline is expensive and unbounded by default, so it only fires
 on a request that is clearly asking for that.
 
-This is a different mechanism from this repo's built-in `loop` skill (which runs a prompt or command on a
+This is a different mechanism from Claude Code's built-in `loop` skill (which runs a prompt or command on a
 recurring interval). "Loop" here means the per-aspect build → critic → revise iteration inside a single run,
 never scheduling or recurrence.
 
@@ -86,7 +86,7 @@ Claude: (PLAYBACK dialog — assembled Gauntlet Prompt played back verbatim:
         [Launch it (Recommended)] [Fix something]
 User: Launch it
 Claude: Gauntlet Prompt assembled and saved to
-        ./.claude/gauntlet-loop/plans/gauntlet-pricing-page-20260806-1420.md
+        ./.tmp/plans/gauntlet-pricing-page-20260806-1420.md
         Launching now — 4 aspects, unbounded rounds, single fresh harsh
         critic per round, final 3-panelist panel gates completion.
         (Workflow runs as a background task; per-aspect round narration
@@ -217,8 +217,8 @@ confirms it in this same interview) is what keeps that gap from becoming a looph
   critic → revise, using a defect-list verdict (Behavior 5), not a pass/fail vibe. The same builder sub-agent
   persists across rounds within one aspect's loop — it is not re-spawned fresh each round like the critic — so
   it retains memory of what it already fixed and why; this is what the anti-regression ledger in Behavior 5
-  relies on. Builder sub-agents work at maximum thoroughness on every pass, not a quick draft — the direct
-  analog of the source prompt's "ultracode" instruction, and it applies every round, not just the first. Every
+  relies on. Each builder pass returns finished work, not a draft, in every round. If the run needs deeper
+  builder reasoning, set the builder's effort rather than adding prose. Every
   builder and critic sub-agent prompt explicitly instructs it not to deploy, publish, send, purchase, or write to
   production or shared systems. This is advisory, not a technical enforcement mechanism: `Workflow`-spawned
   sub-agents inherit the parent session's own permissions and sandboxing, and there is no documented
@@ -246,10 +246,10 @@ a short, well-formatted, real-but-minor defect list and wave the build through w
 to be harsh, so format rigor alone is not a substitute for it.
 
 Each revision round spawns exactly one critic — a fresh agent instance with no memory of the build conversation
-and no visibility into prior rounds' verdicts (kills anchoring and sycophancy drift). Three same-model critics
-voting every round was the naive design; it was dropped after review because same-model panelists are correlated
-noise, not independent judgment — tripling cost for near-zero added signal while raising deadlock risk inside an
-unbounded loop. That objection is about redundancy: three instances independently re-answering the _identical_
+and no visibility into prior rounds' verdicts (kills anchoring and sycophancy drift). Each round uses one critic.
+Same-model critics re-answering the identical question are correlated noise, not independent judgment, so adding
+more triples the cost for almost no extra signal and raises deadlock risk inside an unbounded loop. That objection is
+about redundancy: three instances independently re-answering the _identical_
 question every round adds cost without adding signal. It does not apply to the final panel (Behavior 6) — those
 critics each answer a different, non-overlapping question (a distinct rubric slice), so there is no redundant
 vote to be correlated in the first place.

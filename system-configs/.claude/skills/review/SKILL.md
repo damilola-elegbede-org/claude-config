@@ -1,6 +1,6 @@
 ---
 name: review
-description: Comprehensive code review using code-reviewer agent with assertive analysis. Use when reviewing code changes.
+description: Comprehensive code review by reviewer subagents with assertive analysis. Use when reviewing code changes.
 argument-hint: "[--full|--deep]"
 context: fork
 metadata:
@@ -19,7 +19,7 @@ metadata:
 
 ## Description
 
-Comprehensive code review that launches a code-reviewer agent with a thorough,
+Comprehensive code review that launches a general-purpose reviewer subagent with a thorough,
 assertive review prompt covering security, bugs, performance, best practices,
 and code quality.
 
@@ -120,12 +120,12 @@ Go to Step 4.
 
 ### Step 3b: Single Reviewer (Default)
 
-Launch a single code-reviewer agent with the comprehensive review prompt
+Launch a single general-purpose reviewer subagent with the comprehensive review prompt
 in `references/single-review-prompt.md`.
 
 ```yaml
 Task tool:
-  subagent_type: "code-reviewer"
+  subagent_type: "general-purpose"
   description: "Run comprehensive code review"
   prompt: contents of `references/single-review-prompt.md`, with `{file_list}` from Step 2, `{current_branch}`, and `{ISO timestamp}` substituted
 ```
@@ -218,7 +218,7 @@ Mode: Branch delta review (5 files)
 
 Spawning 3 reviewer subagents in parallel...
 
-   ✓ code-reviewer: 4 issues found
+   ✓ code-quality-reviewer: 4 issues found
    ✓ security-reviewer: 2 issues found
    ✓ a11y-reviewer: 1 issue found
 
@@ -251,9 +251,5 @@ Launching interactive triage...
 - `--deep` fans out three subagents in parallel for multi-perspective analysis
 - Code and security reviewers carry no `model:` pin (they use the settings.json subagent model);
   a11y-reviewer pins `model: "haiku"` (checklist-driven, structured output)
-- Reviewer prompts carry their own standards inline; the former `git-conventions` and
-  `security-checklist` reference skills were removed as general knowledge Claude already has
+- Reviewer prompts carry their own standards inline
 - Subagents are ephemeral — no cleanup needed after they return
-- When [#24316][tc] lands, replace `subagent_type: "general-purpose"` with custom agent types
-
-[tc]: https://github.com/anthropics/claude-code/issues/24316

@@ -143,10 +143,10 @@ waiting for user input that can never be delivered.
 
 ```text
 # Bad: /review (context: fork) calls /resolve-comments without --auto → hangs
-Skill tool: skill="resolve-comments", args="--code-rabbit --local"
+Skill tool: skill="resolve-comments", args="--local"
 
 # Good: --auto bypasses unreachable prompts
-Skill tool: skill="resolve-comments", args="--code-rabbit --local --auto"
+Skill tool: skill="resolve-comments", args="--local --auto"
 ```
 
 ## Directory Structure
@@ -320,7 +320,7 @@ Don't create a skill when:
 ```text
 /commit - Single responsibility: stage, generate message, commit
 /review - Clear phases: lint, security, quality, summary
-feature-lifecycle - Reference: spec-to-PR lifecycle, preloaded by feature-agent
+feature-lifecycle - Reference: spec-to-PR lifecycle, run in the main session
 ```
 
 **Bad:** Too broad, overlaps with agents

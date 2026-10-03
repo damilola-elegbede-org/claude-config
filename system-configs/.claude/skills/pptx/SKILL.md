@@ -175,11 +175,7 @@ font with personality and pair it with a clean body font.
 
 ## QA (Required)
 
-**Assume there are problems. Your job is to find them.**
-
-Your first render is almost never correct. Approach QA as a bug hunt, not a
-confirmation step. If you found zero issues on first inspection, you weren't
-looking hard enough.
+Treat QA as a bug hunt, not a confirmation step: check every slide against the list below.
 
 ### Content QA
 
@@ -237,13 +233,12 @@ Report ALL issues found, including minor ones.
 ### Verification Loop
 
 1. Generate slides → Convert to images → Inspect
-2. **List issues found** (if none found, look again more critically)
+2. **List issues found**
 3. Fix issues
 4. **Re-verify affected slides** — one fix often creates another problem
 5. Repeat until a full pass reveals no new issues
 
-**Do not declare success until you've completed at least one fix-and-verify
-cycle.**
+**Declare success only after a full render-and-inspect pass finds no new issues.**
 
 ---
 

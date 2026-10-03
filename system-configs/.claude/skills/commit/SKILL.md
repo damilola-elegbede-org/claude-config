@@ -20,8 +20,7 @@ metadata:
 Creates git commits with intelligently generated conventional commit messages. Analyzes staged and unstaged changes,
 maintains repository commit style consistency, and leverages git's built-in pre-commit hooks for quality validation.
 
-**CRITICAL**: This command NEVER uses `--no-verify`. Quality gates exist to protect code integrity and must always be
-respected. If pre-commit hooks fail, the error is reported for manual resolution.
+This command does not use `--no-verify`: hooks are the project's quality gates, so a failing hook is reported for the user to fix, not bypassed.
 
 ## Behavior
 
@@ -135,7 +134,7 @@ Repository Hygiene Issues:
     2. Add to .gitignore: *.log, .DS_Store, node_modules/
     3. Clean staging area before committing
 
-Continue with commit? (These files will be included if not removed)
+[AskUserQuestion: "Commit with these files staged?" — Unstage them first (Recommended) / Commit as-is]
 ```
 
 ## Commit Message Format
@@ -262,10 +261,7 @@ Cannot amend: Commit already pushed to remote
 
 ## Notes
 
-- Streamlined design focuses on commit creation, not complex orchestration
 - Trusts git's pre-commit hooks for quality validation
-- Reports errors clearly without auto-remediation waves
-- Fast execution: typically <5 seconds
 - Repository hygiene warnings help maintain clean git history
 - Conventional commit format ensures consistency
 - Claude Code attribution maintains transparency

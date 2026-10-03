@@ -39,10 +39,10 @@ Claude directly analyzes the input prompt across three dimensions:
 
 Apply optimization improvements:
 
-- Remove unnecessary words and phrases
-- Structure with bullets or numbered lists for clarity
+- Remove filler and restated defaults; keep context, constraints, and their reasons
+- Use lists for reference data (requirements, inputs); use prose for behavioral guidance so each rule keeps its reason
 - Use active voice and action-oriented language
-- Ensure every word serves a purpose
+- Ensure every sentence earns its place — context the model can't infer always does
 - Apply SCOPE framework structure
 
 ### Validation Phase
@@ -63,7 +63,7 @@ OPTIMIZED PROMPT:
 [Clean optimized text following SCOPE framework]
 
 OPTIMIZATION IMPROVEMENTS:
-- Reduced from X to Y words (Z% reduction)
+- What changed and why (each edit tied to a reason: ambiguity removed, missing context added, dated emphasis dialed down)
 - Applied SCOPE structure
 - Enhanced clarity and readability
 - Improved specificity and precision
@@ -77,7 +77,9 @@ ALTERNATIVE VARIATIONS:
 
 ### Before/After Example
 
-**Original (52 words):**
+Illustrative.
+
+**Original:**
 
 ```text
 I need you to please help me write a Python function that can validate
@@ -85,25 +87,23 @@ email addresses and return true if they're valid or false if they're not.
 It should handle various edge cases and be robust.
 ```
 
-**Optimized (18 words):**
+**Optimized:**
 
 ```text
-Write Python email validation function.
-
-Requirements:
-- Return boolean (True/False)
-- Handle RFC 5322 edge cases
-- Production-ready robustness
+Write a Python function that validates an email address and returns True or
+False. It will be used to check sign-up form input, so favor rejecting
+obviously malformed addresses over full RFC compliance. Include tests for
+empty strings, missing @, and multiple @.
 ```
 
-**Result**: 65% shorter, enhanced specificity, improved structure
+**Result**: Goal, use context, and success criteria made explicit; no requirements invented.
 
 ## Behavior
 
 ### SCOPE Framework Integration
 
 ```yaml
-S - Situation: Context (only if essential for clarity)
+S - Situation: Audience, purpose, environment, and the reasons behind constraints (REQUIRED — the model can't infer what only the author knows)
 C - Constraints: Requirements, limitations, technical specifications
 O - Objective: Single clear goal (REQUIRED)
 P - Persona: Role needed (optional)
@@ -115,10 +115,10 @@ E - Examples: Input/output (if ambiguous)
 1. **Remove unnecessary elements**:
    - Eliminate filler words ("please", "I need you to")
    - Remove redundant phrases
-   - Cut verbose explanations
+   - Remove filler and restated defaults; keep context, constraints, and their reasons
 
 2. **Enhance structure**:
-   - Use bullets or numbered lists
+   - Lists for reference data, prose for behavior
    - Group related requirements
    - Apply logical flow
 
@@ -131,6 +131,10 @@ E - Examples: Input/output (if ambiguous)
    - Use active voice
    - Choose concrete over abstract terms
    - Ensure single, clear objective
+
+5. **Calibrate emphasis**: rewrite CAPS/CRITICAL/MUST and stacked NEVERs to plain statements with their reason; drop
+   'think step by step' and scratchpad-tag instructions (current models reason natively); keep emphasis only on one
+   demonstrably underweighted instruction.
 
 ### Interactive Mode
 
@@ -153,31 +157,7 @@ The command succeeds when direct execution delivers:
 - **Comprehensive Analysis** - Clarity, structure, and objective alignment evaluated
 - **SCOPE Applied** - Framework structure implemented effectively
 - **Clean Output** - Optimized prompt ready for immediate use
-- **Improvement Metrics** - Quantified enhancements documented
+- **Change rationale** - Each edit has a stated reason
 - **Alternative Variations** - Multiple optimized versions provided
 - **No Execution** - Command returns optimized text only, no actions taken
 - **System Boundary Maintained** - Operation limited to optimization scope
-
-## Implementation Notes
-
-### Optimization Strategy
-
-Direct analysis and enhancement focusing on:
-
-- **Technical Clarity**: Remove ambiguity, improve structure
-- **User Experience**: Reduce cognitive load, enhance comprehension
-- **Objective Alignment**: Ensure efficiency and clear goals
-
-### Quality Assurance
-
-- Maintain original intent while improving effectiveness
-- Generate multiple variations for different contexts
-- Provide implementation guidance when helpful
-- Ensure copy-ready output
-
-### Notes
-
-- **Direct Execution**: Streamlined optimization without complex orchestration
-- **SCOPE Framework**: Systematic structure for effective prompts
-- **Copy-Ready Output**: Immediately usable optimized prompts
-- **Single Purpose**: Text optimization only, no execution or side effects

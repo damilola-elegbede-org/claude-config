@@ -671,7 +671,7 @@ If many evaluations fail:
 
 If tasks are timing out:
 
-- Use a more capable model (e.g., `claude-sonnet-4-6`)
+- Pass a more capable model than the default with `-m`
 - Check if tools are returning too much data
 - Verify pagination is working correctly
 - Consider simplifying complex questions

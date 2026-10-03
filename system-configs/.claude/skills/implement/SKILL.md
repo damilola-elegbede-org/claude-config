@@ -1,7 +1,7 @@
 ---
 name: implement
 description: Implement features from markdown specs. Use when building features from a specification.
-argument-hint: "[spec-file.md] [--backend|--frontend|--full-stack]"
+argument-hint: "[spec-file.md] [--dry-run|--incremental]"
 context: fork
 metadata:
   category: workflow
@@ -46,18 +46,9 @@ judgment: if there is behavior to verify, use TDD.
 
 ## Execution Steps
 
+Track the four steps below with the task tools. A failed step stays open with its failure noted; never mark it completed.
+
 ### Step 1: Parse Specification
-
-```text
-TaskCreate: "Parse specification" (no blockers)
-TaskCreate: "Classify tasks by domain" (blockedBy: parse)
-TaskCreate: "Deploy implementation" (blockedBy: classify)
-TaskCreate: "Verify implementation" (blockedBy: deploy)
-```
-
-```text
-TaskUpdate: "Parse specification" → in_progress
-```
 
 Read the specification file and extract:
 
@@ -69,15 +60,7 @@ If `--incremental`: filter to only unchecked/incomplete tasks.
 
 If `--dry-run`: skip to Dry-Run Output after classification (Step 2).
 
-```text
-TaskUpdate: "Parse specification" → completed
-```
-
 ### Step 2: Classify Tasks by Domain
-
-```text
-TaskUpdate: "Classify tasks by domain" → in_progress
-```
 
 Assign each task to a domain based on content:
 
@@ -92,15 +75,7 @@ Assign each task to a domain based on content:
 Identify shared files (types, configs, utilities) that span domains. Assign each shared
 file to exactly one domain to prevent conflicts.
 
-```text
-TaskUpdate: "Classify tasks by domain" → completed
-```
-
 ### Step 3: Deploy Implementation
-
-```text
-TaskUpdate: "Deploy implementation" → in_progress
-```
 
 **Decision: Fan-Out vs Single Agent**
 
@@ -162,18 +137,11 @@ Task tool:
 ```
 
 ```text
-IF: agent completed successfully
-  TaskUpdate: "Deploy implementation" → completed
-ELSE:
+IF: agent failed
   OUTPUT: "Implementation agent failed — review output for errors"
-  TaskUpdate: "Deploy implementation" → completed (with note: "agent failed, manual review needed")
 ```
 
 ### Step 4: Verify Implementation
-
-```text
-TaskUpdate: "Verify implementation" → in_progress
-```
 
 ```bash
 # Run project tests
@@ -185,14 +153,8 @@ Report results:
 ```text
 IF: tests pass
   OUTPUT: "All tests passing"
-  TaskUpdate: "Verify implementation" → completed
 ELSE:
   OUTPUT: "Test failures detected — review output"
-  TaskUpdate: "Verify implementation" → completed (with note about failures)
-```
-
-```text
-TaskList: show final status of all phases
 ```
 
 ## Expected Output
@@ -282,11 +244,8 @@ Ready to proceed? Run without --dry-run
 - Parallel subagent fan-out for 2+ domains (multiple Task calls in a single message); single Task for 1 domain
 - Subagents carry no `model:` pin, so they use the settings.json subagent model
   (`env.CLAUDE_CODE_SUBAGENT_MODEL`) and one settings line moves them all
-- Docs-domain tasks use `model: "haiku"` (template-following, structured output)
-- Well-scoped implementation tasks can be delegated to Codex via `/codex` for cost savings
 - File ownership prevents conflicts between subagents working in parallel
 - Shared files (types, configs) assigned to exactly one domain
 - Subagents are ephemeral — no cleanup needed after they return
-- When [#24316](https://github.com/anthropics/claude-code/issues/24316) lands, replace `subagent_type: "general-purpose"` with custom agent types
 - Respects task dependencies within and across domains
 - Use `--incremental` to resume partial implementations

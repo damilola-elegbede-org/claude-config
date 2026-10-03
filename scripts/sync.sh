@@ -665,6 +665,23 @@ sync_files() {
         fi
     fi
 
+    # Sync rules (*.md only). --exclude='local-*.md' keeps a rule authored
+    # directly in ~/.claude/rules/ alive through --delete, as for output styles.
+    if [ "$(manifest_flag rules)" != "true" ]; then
+        echo "  ⏭  Rules: skipped by $STATION manifest"
+    elif [ -d "$SOURCE_DIR/rules" ]; then
+        mkdir -p "$TARGET_DIR/rules"
+        rsync_output=""
+        if rsync_output=$(rsync -a --delete --exclude='local-*.md' --include='*/' --include='*.md' --exclude='*' "$SOURCE_DIR/rules/" "$TARGET_DIR/rules/" 2>&1); then
+            RULE_COUNT=$(find "$SOURCE_DIR/rules" -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
+            echo "  ✅ Rules: $RULE_COUNT files → ~/.claude/rules/"
+        else
+            echo "  ❌ Failed to sync rules"
+            printf "    %s\n" "$rsync_output"
+            return 1
+        fi
+    fi
+
     # Sync settings.json per station policy: replace (default), key-scoped
     # merge (fleet nodes — repo wins only on owned keys), or skip.
     SETTINGS_MODE=$(settings_mode)
@@ -890,6 +907,9 @@ main() {
         echo "📋 Files to sync:"
         echo "  - $(find "$SOURCE_DIR/agents" -name "*.md" 2>/dev/null | wc -l | tr -d ' ') agent files → ~/.claude/agents/"
         echo "  - $(find "$SOURCE_DIR/skills" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ') skills → ~/.claude/skills/"
+        if [ "$(manifest_flag rules)" = "true" ] && [ -d "$SOURCE_DIR/rules" ]; then
+            echo "  - $(find "$SOURCE_DIR/rules" -name "*.md" 2>/dev/null | wc -l | tr -d ' ') rule files → ~/.claude/rules/ (--delete; local-*.md kept)"
+        fi
         SETTINGS_MODE=$(settings_mode)
         echo "  - settings.json → ~/.claude/settings.json (mode: $SETTINGS_MODE)"
         if [ "$SETTINGS_MODE" = "merge" ] && [ -f "$TARGET_DIR/settings.json" ] && command -v jq >/dev/null 2>&1; then

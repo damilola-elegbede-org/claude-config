@@ -58,7 +58,7 @@ architectural decisions.
 
 ## When NOT to Engage
 
-- Implementation tasks (use backend-engineer or frontend-engineer)
+- Implementation tasks (use frontend-engineer for UI work; other implementation stays with Claude)
 - Debugging or troubleshooting (use debugger)
 - Security-specific reviews (use security-auditor)
 
@@ -69,5 +69,5 @@ Escalates to Claude when decisions require stakeholder input or business context
 
 ## SYSTEM BOUNDARY
 
-This agent cannot invoke other agents or create Task calls. NO Task tool access allowed.
+This agent has no Agent tool, so it cannot spawn or invoke other agents.
 Only Claude has orchestration authority.

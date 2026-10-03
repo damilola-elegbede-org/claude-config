@@ -21,12 +21,12 @@ metadata:
 
 ## Description
 
-Build comprehensive repository understanding using researcher agent. Analyzes structure, technology stack, and development patterns.
+Build repository understanding: structure, technology stack, and development patterns.
 
 ## Behavior
 
 1. **Discover**: Scan repository structure and dependencies
-2. **Analyze**: Deploy researcher agent for deep analysis
+2. **Analyze**: Read the key entry points, configs, and docs (fan out an `Explore` subagent for large repos)
 3. **Synthesize**: Generate actionable context summary
 
 ### Modes
@@ -46,8 +46,6 @@ Build comprehensive repository understanding using researcher agent. Analyzes st
 User: /prime
 
 Analyzing repository...
-
-Deploying researcher agent...
 
 Repository: my-react-app
 
@@ -113,7 +111,5 @@ Recommendations:
 
 ## Notes
 
-- Uses researcher agent for analysis
 - Results optimized for development productivity
-- Auto-runs on Claude Code startup (disable with .claude/noautoprime)
 - Typical execution: 1-5 minutes

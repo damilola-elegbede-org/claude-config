@@ -3,10 +3,10 @@
 ## Overview
 
 This guide covers strategies for maximizing parallel agent execution with the current
-8-agent ecosystem. The principle is parallel-first: independent tasks run concurrently,
+7-agent ecosystem. The principle is parallel-first: independent tasks run concurrently,
 quality gates run alongside implementation, and wave-based workflows minimize wait time.
 
-## Core Agents (8)
+## Core Agents (7)
 
 | Agent | Model | Domain |
 |-------|-------|--------|
@@ -14,7 +14,6 @@ quality gates run alongside implementation, and wave-based workflows minimize wa
 | code-reviewer | sonnet | Code quality, security review |
 | debugger | sonnet | Bug investigation, performance |
 | devops | sonnet | CI/CD, infrastructure, deployment |
-| feature-agent | opus | End-to-end feature orchestration |
 | frontend-engineer | sonnet | UI, React, CSS, accessibility |
 | security-auditor | sonnet | Security audits, OWASP compliance |
 | test-engineer | sonnet | Testing strategy, coverage, automation |

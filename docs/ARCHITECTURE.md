@@ -78,12 +78,12 @@ Performance Metrics:
 
 ### 2. Agent Ecosystem Architecture
 
-A focused set of 8 specialized agents covering the core software development lifecycle.
+A focused set of 7 specialized agents covering the core software development lifecycle.
 
 #### Agent Roster
 
 ```yaml
-Agents (8):
+Agents (7):
   architect (opus):
     - System-wide architecture design
     - Technical roadmaps and planning
@@ -102,10 +102,6 @@ Agents (8):
     - CI/CD pipelines
     - Infrastructure as code
     - Deployment automation
-
-  feature-agent (opus):
-    - End-to-end feature orchestration
-    - Multi-agent workflow coordination
 
   frontend-engineer (sonnet):
     - UI components, React, CSS
@@ -230,7 +226,7 @@ Sync Process Flow:
 Directory Structure:
   Source: system-configs/
     ├── CLAUDE.md (Core configuration)
-    ├── .claude/agents/ (8 agent definitions)
+    ├── .claude/agents/ (7 agent definitions)
     ├── .claude/skills/ (skill definitions)
     └── settings.json (Audio and preferences)
 

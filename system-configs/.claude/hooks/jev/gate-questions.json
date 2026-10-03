@@ -99,13 +99,13 @@
           "outward_comms"
         ]
       },
-      "instructions": "Does this action send a message or content outward on D's behalf to other people or external systems (email, chat message, issue or PR comment or review, calendar invite, public post, webhook to a third party)?",
+      "instructions": "Does this action send a message outward on D's behalf to people outside GitHub (email, chat message, calendar invite, public post, webhook to a third party)? GitHub activity (PRs, issues, comments, reviews, releases) is routine work, not outward communication.",
       "criteria": {
-        "true": "gh pr/issue comment|review|create|edit|close, posting to Slack/Linear/Notion/Discord APIs, sending mail, creating a release or public gist, triggering a webhook that notifies people.",
-        "false": "Local-only operations, read-only API calls, drafting text on disk, listing or viewing comments."
+        "true": "Sending mail, posting to Slack/Linear/Notion/Discord APIs, a public post, or triggering a webhook that notifies people.",
+        "false": "Any GitHub activity (gh pr/issue/release/api, comments, reviews), local-only operations, read-only API calls, drafting text on disk."
       },
       "candidates": {
-        "Bash": "\\bgh\\s+(?:pr|issue)\\s+(?:comment|review|create|close|reopen|edit|ready)\\b|\\bgh\\s+(?:release|gist)\\s+create\\b|\\bgh\\s+api\\b[^\\n]*(?:-X|--method)\\s*(?:POST|PATCH|PUT)\\b[^\\n]*(?:comment|review|issues|pulls|statuses|dispatches)|(?:hooks\\.slack\\.com|slack\\.com/api/chat\\.|api\\.linear\\.app|api\\.notion\\.com|discord(?:app)?\\.com/api/webhooks|api\\.sendgrid|api\\.mailgun|api\\.twilio|api\\.resend\\.com|api\\.twitter|api\\.x\\.com)|(?:^|[\\s;&|(`])(?:sendmail|msmtp|mailx?|mutt|swaks|twilio|tweet)\\b|\\bosascript\\b[^\\n]*(?:Mail|Messages|Slack|send)"
+        "Bash": "(?:hooks\\.slack\\.com|slack\\.com/api/chat\\.|api\\.linear\\.app|api\\.notion\\.com|discord(?:app)?\\.com/api/webhooks|api\\.sendgrid|api\\.mailgun|api\\.twilio|api\\.resend\\.com|api\\.twitter|api\\.x\\.com)|(?:^|[\\s;&|(`])(?:sendmail|msmtp|mailx?|mutt|swaks|twilio|tweet)\\b|\\bosascript\\b[^\\n]*(?:Mail|Messages|Slack|send)"
       }
     },
     "G8-sharing": {

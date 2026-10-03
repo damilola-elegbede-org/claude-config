@@ -47,13 +47,12 @@ NON_AGENT_FILES = [
 
 # Complex/consolidated agents that may exceed standard file length limits
 # These agents combine functionality from multiple merged agents
-# Total agents: 8
+# Total agents: 7
 COMPLEX_AGENTS = [
     'architect',           # System design, API architecture, cloud infrastructure
     'code-reviewer',       # Pre-commit review, security vulnerability detection
     'debugger',            # Bug investigation, performance optimization
     'devops',              # CI/CD, Kubernetes, Infrastructure as Code
-    'feature-agent',       # Autonomous feature lifecycle orchestration
     'frontend-engineer',   # UI/React, design systems, client-side performance
     'security-auditor',    # Vulnerability detection, threat modeling, compliance
     'test-engineer',       # Test strategy, automation, coverage analysis

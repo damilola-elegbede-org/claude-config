@@ -128,8 +128,15 @@ Execute branch creation with minimal overhead:
    # Check current repository state
    git status --porcelain
 
-   # Handle uncommitted changes if needed
-   git stash push -m "Auto-stash before branch creation"
+   # Handle uncommitted changes if needed (-u includes untracked files)
+   stashed=false
+   if ! git diff --quiet || ! git diff --cached --quiet || [ -n "$(git ls-files --others --exclude-standard)" ]; then
+     # PID + random suffix: two runs in the same second must never share a tag (the stash is shared)
+     tag="Auto-stash before branch creation $(date +%Y%m%d-%H%M%S)-$$-$RANDOM"
+     git stash push -u -m "$tag"
+     stash_sha=$(git stash list --format='%H %gs' | grep -F "$tag" | head -1 | cut -d' ' -f1)
+     stashed=true
+   fi
 
    # Switch to main branch (with fallback to master)
    git checkout main 2>/dev/null || git checkout master
@@ -139,6 +146,11 @@ Execute branch creation with minimal overhead:
 
    # Create and switch to new branch from updated main
    git checkout -b <generated-branch-name>
+
+   # Restore only the stash this run created (the stash stack is shared across worktrees)
+   if [ "$stashed" = true ]; then
+     git stash apply "$stash_sha" && echo "Restored stash $stash_sha; drop it by its stash@{n} once confirmed"
+   fi
 
    # Confirm creation
    git branch --show-current
@@ -163,11 +175,9 @@ When no arguments provided:
    - Provide naming templates for common patterns
    - Offer guided branch creation
 
-3. **User Selection (MANDATORY PAUSE)**
-   - Present categorized options
-   - **MANDATORY**: Use the `AskUserQuestion` tool to present branch type options
+3. **User Selection**
+   - Present the branch-type options through `AskUserQuestion` and create the branch only after the user picks one
    - Allow custom input with pattern assistance
-   - WAIT for user selection before creating branch
    - Apply selected pattern and create branch
 
 ### Error Handling
@@ -177,9 +187,9 @@ Handle common scenarios gracefully:
 ```yaml
 Uncommitted Changes:
   - Check git status
-  - Auto-stash with descriptive message
+  - Auto-stash with a unique message (timestamp, PID, random suffix) via `git stash push -u`
   - Proceed with branch creation
-  - Remind user about stashed changes
+  - Restore that stash with `git stash apply <sha>`; if it conflicts, stop and report the stash entry
 
 Naming Conflicts:
   - Detect existing branch with same name
@@ -228,24 +238,3 @@ Simple and effective branch creation:
 - Clear confirmation of branch creation
 - Guidance for next steps provided
 - Minimal execution time and complexity
-
-## Command Philosophy
-
-Transform branch creation from manual naming decisions to intelligent, context-aware automation while maintaining
-simplicity and speed. Focus on direct execution rather than complex orchestration.
-
-```yaml
-Direct Execution Benefits:
-  - Fast branch creation (seconds, not minutes)
-  - Clear, predictable naming patterns
-  - Minimal system overhead
-  - Easy to understand and debug
-  - Consistent behavior across environments
-
-Key Capabilities Preserved:
-  - Intelligent naming based on context
-  - Pattern recognition for different branch types
-  - Conflict resolution with fallback naming
-  - Interactive mode for guidance
-  - Error handling for common scenarios
-```

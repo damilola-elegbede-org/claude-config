@@ -36,15 +36,15 @@ Fan out debugger subagents in parallel to investigate each failure. Each debugge
 
 Route fixes to domain experts based on diagnosis:
 
-| Domain       | Fix Agent         | Examples                                               |
-| ------------ | ----------------- | ------------------------------------------------------ |
-| test         | test-engineer     | Test failures, missing mocks, assertion errors         |
-| security     | security-auditor  | Auth issues, credential problems, vulnerability fixes  |
-| frontend     | frontend-engineer | React/Vue errors, CSS issues, client-side bugs         |
-| backend      | backend-engineer  | API errors, server logic, microservice issues          |
-| data         | data-engineer     | Database errors, migration issues, query problems      |
-| pipeline     | devops            | Workflow syntax, CI config, deployment issues          |
-| architecture | architect         | Design issues, unclear domains, cross-cutting concerns |
+| Domain       | Fixer (general-purpose) | Examples                                               |
+| ------------ | ----------------------- | ------------------------------------------------------ |
+| test         | fixer-test              | Test failures, missing mocks, assertion errors         |
+| security     | fixer-security          | Auth issues, credential problems, vulnerability fixes  |
+| frontend     | fixer-frontend          | React/Vue errors, CSS issues, client-side bugs         |
+| backend      | fixer-backend           | API errors, server logic, microservice issues          |
+| data         | fixer-data              | Database errors, migration issues, query problems      |
+| pipeline     | fixer-pipeline          | Workflow syntax, CI config, deployment issues          |
+| architecture | fixer-architecture      | Design issues, unclear domains, cross-cutting concerns |
 
 ## Workflow
 
@@ -80,23 +80,7 @@ Route fixes to domain experts based on diagnosis:
 
 ## Execution Steps
 
-### Step 1: Create Task Plan
-
-```text
-TaskCreate: "Fetch CI failure details"
-TaskCreate: "Diagnose failures"
-TaskCreate: "Fix failures"
-TaskCreate: "Verify CI passes"
-TaskUpdate: "Diagnose failures" → blockedBy: fetch
-TaskUpdate: "Fix failures" → blockedBy: diagnose
-TaskUpdate: "Verify CI passes" → blockedBy: fix
-```
-
-### Step 2: Fetch CI Failures
-
-```text
-TaskUpdate: "Fetch CI failure details" → in_progress
-```
+### Step 1: Fetch CI Failures
 
 ```bash
 # Get latest failed run (or use provided run-id)
@@ -110,15 +94,7 @@ Optional, before any retry: pipe each failed job's log tail through
 `${HOME}/.claude/hooks/jev/failure-classify.sh ci` and follow its `steer` when `class` is `infra` or `flaky`
 (one `gh run rerun <run-id> --failed` before diagnosing). `real` or `unknown` changes nothing.
 
-```text
-TaskUpdate: "Fetch CI failure details" → completed
-```
-
-### Step 3: Diagnose (Parallel Subagents)
-
-```text
-TaskUpdate: "Diagnose failures" → in_progress
-```
+### Step 2: Diagnose (Parallel Subagents)
 
 Fan out one diagnoser subagent per failure **in a SINGLE message with multiple
 Agent tool calls**. Assign each failure a sequential index (1..N) and pass it to
@@ -130,17 +106,7 @@ Agent tool call 1:
   subagent_type: "general-purpose"
   description: "Diagnose <job-1-name>"
   prompt: |
-    You are an expert debugging and performance specialist. Your capabilities:
-
-    **Bug Investigation:**
-    - Intermittent bug investigation: Race conditions, timing issues, heisenbug tracking
-    - Production forensics: Log analysis, distributed tracing, failure cascade investigation
-    - Memory leak detection: Heap analysis, garbage collection patterns, allocation tracking
-    - Root cause analysis: Systematic investigation, evidence correlation, failure timeline
-
-    **Performance Engineering:**
-    - Performance profiling: CPU, memory, I/O profiling and bottleneck identification
-    - Optimization strategies: Algorithm optimization, caching, query optimization
+    You are diagnosing a single failed GitHub Actions job. Find the root cause from the log and the source, not the symptom.
 
     ## Your Task
 
@@ -176,15 +142,7 @@ Wait for all diagnoser subagents to return. Read diagnosis JSON files
 (`.tmp/diagnosis-1.json` … `.tmp/diagnosis-N.json`) — each includes the
 original `job_name` field so log output can reference it.
 
-```text
-TaskUpdate: "Diagnose failures" → completed
-```
-
-### Step 4: Classify and Fix (Parallel Subagents)
-
-```text
-TaskUpdate: "Fix failures" → in_progress
-```
+### Step 3: Classify and Fix (Parallel Subagents)
 
 Group diagnosis results by domain. Fan out one fixer subagent per domain
 **in a SINGLE message with multiple Agent tool calls**:
@@ -216,15 +174,7 @@ Agent tool call:
 
 Wait for all fixer subagents to return.
 
-```text
-TaskUpdate: "Fix failures" → completed
-```
-
-### Step 5: Commit and Verify
-
-```text
-TaskUpdate: "Verify CI passes" → in_progress
-```
+### Step 4: Commit and Verify
 
 ```bash
 # Stage and commit fixes (use explicit file list from diagnosis, never git add -A)
@@ -236,24 +186,16 @@ git push
 gh run watch
 ```
 
-```text
-TaskUpdate: "Verify CI passes" → completed
-```
-
-### Step 6: Iterate if Needed
+### Step 5: Iterate if Needed
 
 If CI still fails after the fix is pushed:
 
-1. **Return to Step 2** — re-fetch CI failure details. The new run's failures
+1. **Return to Step 1** — re-fetch CI failure details. The new run's failures
    may be different (different jobs, different error messages), so don't reuse
    the previous failure list. Overwrite the previous `.tmp/diagnosis-N.json`
    files to avoid mixing stale and fresh diagnoses.
-2. Proceed through Steps 3–5 again (diagnose, fix, verify).
-3. Continue until green.
-
-```text
-TaskList: show final status of all phases
-```
+2. Proceed through Steps 2–4 again (diagnose, fix, verify).
+3. Stop after 3 fix iterations that leave CI red, and report the still-failing jobs with their latest diagnoses.
 
 ## Expected Output
 
@@ -302,30 +244,8 @@ User: /fix-ci
 
 ### Learn Mode
 
-```text
-User: /fix-ci --learn
-
-📊 Historical Fix Patterns (last 30 days):
-
-By Domain:
-  test        │ ████████████████ │ 42% (21 fixes)
-  frontend    │ ████████         │ 22% (11 fixes)
-  pipeline    │ ██████           │ 16% (8 fixes)
-  backend     │ ████             │ 10% (5 fixes)
-  security    │ ██               │  6% (3 fixes)
-  data        │ ██               │  4% (2 fixes)
-
-Success Rate by Agent:
-  test-engineer      │ 95% (20/21)
-  frontend-engineer  │ 91% (10/11)
-  devops             │ 88% (7/8)
-  backend-engineer   │ 80% (4/5)
-
-Common Root Causes:
-  1. Outdated test mocks (18 occurrences)
-  2. Lint violations (12 occurrences)
-  3. Missing dependencies (6 occurrences)
-```
+`--learn`: summarize past `fix(ci):` commits on this branch's history (`git log --grep='^fix(ci)'`) by domain and root
+cause. If none exist, say so — don't estimate.
 
 ## Notes
 
@@ -333,22 +253,13 @@ Common Root Causes:
 - Parallelism via subagent fan-out (multiple Task calls in a single message) — no team scaffolding
 - Subagents carry no `model:` pin, so they use the settings.json subagent model
   (`env.CLAUDE_CODE_SUBAGENT_MODEL`) and one settings line moves them all
-- Fixer subagents for simple domains (docs, lint, config) can use `model: "haiku"` for cost savings
-- Debugger identity and capabilities embedded in diagnoser spawn prompts (prompt-based specialization)
+- Diagnoser spawn prompts carry a one-line role plus the job's log, URL, and output schema
 - Domain-specific context embedded in fixer spawn prompts
 - Subagents are ephemeral — no cleanup needed after they return
-- When [#24316][tc] fully ships (i.e. when all teammate inheritance behavior is
-  supported), replace `subagent_type: "general-purpose"` with custom agent
-  types. The issue is still open and partial inheritance already works (system
-  prompt, tools, model are inherited via `subagent_type`); the remaining gap is
-  full inheritance of custom `.claude/agents/` definitions, which would let us
-  use the project's domain-specific agents instead of `general-purpose`.
 - Subagent thinking level: spawned subagents inherit Claude Code's session
   thinking-mode setting. `ultrathink` is a valid session-level keyword, but
   there is no per-agent `thinking-level`/`thinking-tokens` frontmatter in this
   repo anymore (reasoning depth is controlled by model + effort — see
   `docs/agents/AGENT_TEMPLATE.md`); include `ultrathink` directly in the
   subagent prompt if a specific diagnosis warrants deeper reasoning.
-- Iterates until GitHub shows all checks green
-
-[tc]: https://github.com/anthropics/claude-code/issues/24316
+- Iterates up to 3 times, then reports what is still failing

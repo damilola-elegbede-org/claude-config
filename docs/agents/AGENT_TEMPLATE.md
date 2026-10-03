@@ -10,7 +10,7 @@
 #   one settings line moves every such agent
 #   * code-reviewer, debugger, devops, frontend-engineer, test-engineer
 # - inherit: follows the session's model (sonnet by default)
-#   * architect (system-wide design), feature-agent (orchestration),
+#   * architect (system-wide design),
 #     security-auditor (adversarial review)
 # - opus/sonnet/haiku/fable: a fixed pin that ignores settings.json — only for a
 #   deliberate cost or capability pin
@@ -49,7 +49,7 @@ Expert [role] specializing in [2-3 specific technical domains]. [One sentence de
 
 ## Complexity Factors - OPTIONAL SECTION
 
-This agent requires deep reasoning due to:
+The judgment calls in this work:
 
 - **[Complexity factor 1]**: [Specific reasoning why this requires deep thinking]
 - **[Complexity factor 2]**: [Another aspect requiring enhanced reasoning]
@@ -76,7 +76,7 @@ Escalates to Claude when [specific condition or blocker].
 
 ## SYSTEM BOUNDARY
 
-This agent cannot invoke other agents or create Task calls. Only Claude has orchestration authority.
+This agent has no Agent tool, so it cannot spawn or invoke other agents. Only Claude has orchestration authority.
 
 ---
 
@@ -134,10 +134,9 @@ skills: feature-lifecycle
 - Reference skills should have `user-invocable: false` in their frontmatter
 - User-invocable skills can also be listed but will add to context size
 
-## Production Agents (8)
+## Production Agents (7)
 
 | Agent             | Model   | Category      | Skills              |
 | ----------------- | ------- | ------------- | ------------------- |
 | debugger          | default | development   | -                   |
-| feature-agent     | inherit | orchestration | `feature-lifecycle` |
 | frontend-engineer | default | development   | -                   |

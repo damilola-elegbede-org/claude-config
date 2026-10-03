@@ -21,8 +21,7 @@ metadata:
 Safely pushes changes to remote repository with basic validation checks. Runs tests if configured, executes git push,
 and reports results. Leverages git's pre-push hooks for quality validation.
 
-**CRITICAL**: This command NEVER uses `--no-verify`. Pre-push hooks are the last line of defense before code reaches
-the remote repository. If hooks fail, issues must be fixed, not bypassed.
+This command does not use `--no-verify`: pre-push hooks are the last check before code reaches the remote, so a failing hook gets fixed, not bypassed.
 
 ## Behavior
 
@@ -64,7 +63,7 @@ the remote repository. If hooks fail, issues must be fixed, not bypassed.
 
 1. **Safety Checks**
    - Verify not on main/master branch
-   - Confirm user understands risks
+   - Confirm via `AskUserQuestion` before pushing
    - Check for uncommitted changes
 
 2. **Execute Force Push**
@@ -74,6 +73,7 @@ the remote repository. If hooks fail, issues must be fixed, not bypassed.
    ```
 
    - Uses --force-with-lease for safety
+   - Feature branches only: hooks block any push to main/master, forced or not
    - Reports result
 
 **Warning:** Force push rewrites remote history. Only use when necessary and coordinated with team.
@@ -190,7 +190,7 @@ Risks:
   - Collaborators may have pulled old commits
   - Requires team coordination
 
-Proceed with force push? (yes/no)
+[AskUserQuestion: "Force-push origin/feature/experiment?" — Cancel (Recommended) / Force push (with lease)]
 ```
 
 ### Dry Run Output
@@ -340,12 +340,9 @@ If no test command detected, skip test phase and proceed to push.
 
 ## Notes
 
-- Streamlined design focuses on push operation essentials
 - Trusts git's pre-push hooks for validation
 - Runs tests if configured, skips if not
-- Fast execution: typically 10-30 seconds (depends on tests)
 - CI/CD monitoring handled by CI system, not this command
-- Reports errors clearly without auto-recovery complexity
 - Safe defaults with --force-with-lease for force pushes
 - Automatic upstream branch configuration when needed
 - Clear next steps guidance after successful push

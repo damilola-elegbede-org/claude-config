@@ -27,7 +27,7 @@ its historical name. Its contents are source-agnostic: each record names its own
 }
 ```
 
-`/ship-it` reads this file to acknowledge what was consciously not fixed.
+`/pr` and `/ship-it` read this file to acknowledge what was consciously not fixed.
 
 ## Context compatibility
 
@@ -86,22 +86,19 @@ Resolved 3 comments: 2 fixed, 1 acknowledged
 ### File mode
 
 ```text
-User: /resolve-comments --code-rabbit --local
+User: /resolve-comments --local
 
-Loaded 3 CodeRabbit issues
-Loaded 2 AI reviewer issues
+Loaded 3 AI reviewer issues
 
 Review Issues:
 
 | # | Src | Description | Action |
 |---|-----|-------------|--------|
-| 1 | CR | auth.ts:45 - Missing error handling | FIX |
-| 2 | CR | api.ts:12 - Add input validation | FIX |
-| 3 | Agent | db.ts:78 - SQL injection risk | FIX |
-| 4 | Agent | perf.ts:23 - N+1 query detected | FIX |
-| 5 | CR | utils.ts:8 - Use const vs let | SKIP |
+| 1 | Agent | db.ts:78 - SQL injection risk | FIX |
+| 2 | Agent | perf.ts:23 - N+1 query detected | FIX |
+| 3 | Agent | utils.ts:8 - Use const vs let | SKIP |
 
-Summary: 4 to fix, 1 to skip
+Summary: 2 to fix, 1 to skip
 
 [Interactive triage continues...]
 ```

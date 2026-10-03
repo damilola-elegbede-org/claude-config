@@ -1,32 +1,25 @@
 # File mode — triage `/review` output from `.tmp/`
 
-Active when `--code-rabbit` and/or `--local` is passed. `--local` reads the file `/review` writes.
+Active when `--local` is passed. Reads the file `/review` writes (`.tmp/review-local.json`).
 
 ## STEP 1: Load issues
 
-Both sources follow the same shape. `CURRENT_SCHEMA_VERSION = "1.0"`.
+`CURRENT_SCHEMA_VERSION = "1.0"`.
 
 ```text
 issues = []
 
-IF: --code-rabbit flag
-  READ: .tmp/review-coderabbit.json
-  IF: not found
-    OUTPUT: "Warning: No CodeRabbit issues file found (.tmp/review-coderabbit.json)"
-    CONTINUE            # check the other source; do not END
+IF: --local flag
+  READ: .tmp/review-local.json
+  IF: not found → skip to the empty check below
   VALIDATE: schema_version exists AND == CURRENT_SCHEMA_VERSION
     IF: missing or mismatched
-      COPY: file → .tmp/review-coderabbit.backup-{timestamp}.json
-      DELETE: .tmp/review-coderabbit.json
-      OUTPUT: "⚠️ Schema version mismatch in review-coderabbit.json (found: {v}, expected: {CURRENT}).
-               Backed up to {backup_path}. Re-run /review --code-rabbit to regenerate."
-      CONTINUE          # skip this source, do not END
-  APPEND: issues with source="coderabbit"
-  OUTPUT: "Loaded {count} CodeRabbit issues"
-
-IF: --local flag
-  Same flow against .tmp/review-local.json, source="code-reviewer",
-  regeneration hint "Re-run /review to regenerate."
+      COPY: file → .tmp/review-local.backup-{timestamp}.json
+      DELETE: .tmp/review-local.json
+      OUTPUT: "⚠️ Schema version mismatch in review-local.json (found: {v}, expected: {CURRENT}).
+               Backed up to {backup_path}. Re-run /review to regenerate."
+      END
+  APPEND: issues with source="code-reviewer"
   OUTPUT: "Loaded {count} AI reviewer issues"
 
 IF: issues empty
@@ -59,7 +52,7 @@ IF: fixes applied AND fix_count > 0
 
 IF: skipped_issues not empty
   WRITE: .tmp/coderabbit-ignored.json (schema_version "1.0" — see schemas.md)
-  OUTPUT: "Saved {count} skipped issues (will be posted to PR via /ship-it)"
+  OUTPUT: "Saved {count} skipped issues (posted to the PR by /pr or /ship-it)"
 
 OUTPUT: "Fixed {fix_count} issues, skipped {skip_count}"
 ```

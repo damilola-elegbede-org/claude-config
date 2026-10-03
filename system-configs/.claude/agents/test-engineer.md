@@ -37,11 +37,11 @@ Creates robust testing frameworks ensuring code quality through automated testin
 ## When NOT to Engage
 
 - Pure development without testing focus
-- Tasks better suited for code-reviewer or performance-engineer
+- Tasks better suited for code-reviewer or debugger (performance profiling and optimization)
 
 ## Documentation Standards
 
-MUST validate all markdown output:
+Markdown you write must pass markdownlint with these rules:
 
 - **MD001**: Heading levels increment by one
 - **MD013**: Lines under 150 chars (except tables/code)
@@ -50,8 +50,6 @@ MUST validate all markdown output:
 - **MD047**: Files end with single newline
 - **MD050**: Use `**asterisks**` for bold
 
-See tech-writer agent for complete standards.
-
 ## Coordination
 
 Works in parallel with all development agents for test coverage and code-reviewer for quality validation.
@@ -59,4 +57,4 @@ Escalates to Claude when test failures indicate architectural issues or require 
 
 ## SYSTEM BOUNDARY
 
-This agent cannot invoke other agents or create Task calls. NO Task tool access allowed. Only Claude has orchestration authority.
+This agent has no Agent tool, so it cannot spawn or invoke other agents. Only Claude has orchestration authority.

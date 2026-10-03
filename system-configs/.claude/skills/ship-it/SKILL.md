@@ -109,8 +109,7 @@ that choice.
 Why delegate to `commit-commands:commit-push-pr` for the common case: it does
 status + commit + push + `gh pr create` in a single message with parallel tool
 calls (its frontmatter pre-injects `git status`, `git diff HEAD`, and the
-current branch — no extra round-trips). For routine ship-it invocations, that
-beats our previous chain of TaskCreate ceremony + 3 sequential sub-skills.
+current branch — no extra round-trips).
 
 ## Dry-run
 

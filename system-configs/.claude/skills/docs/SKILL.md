@@ -24,7 +24,8 @@ metadata:
 
 ## Description
 
-Generate and update documentation using tech-writer agent. Simple updates handled directly; comprehensive docs delegated to agent.
+Generate and update documentation. Handle simple updates directly. For `--full` runs with several independent
+sections, fan out one `general-purpose` subagent per section in a single message.
 
 ## Protected Files
 
@@ -80,7 +81,7 @@ User: /docs readme
 
 Analyzing README.md...
 
-Deploying tech-writer agent...
+Delegating to subagent...
 
 README.md updated:
   - Updated installation steps for Node 18+
@@ -113,17 +114,17 @@ For comprehensive documentation, `/docs --full` can leverage parallel execution:
 
 ```yaml
 Parallel Execution Strategy:
-  # When multiple doc sections need updates, deploy tech-writers in parallel
+  # When multiple doc sections need updates, deploy general-purpose subagents in parallel
 
   Phase 1 - Analysis (sequential):
     - Scan codebase for documentation gaps
     - Identify sections: API, Architecture, Setup, README
 
   Phase 2 - Generation (parallel):
-    # Launch multiple tech-writers in SINGLE message for parallel execution
-    - tech-writer: "Generate API documentation"
-    - tech-writer: "Generate architecture documentation"
-    - tech-writer: "Update setup guides"
+    # Launch multiple general-purpose subagents in SINGLE message for parallel execution
+    - general-purpose: "Generate API documentation"
+    - general-purpose: "Generate architecture documentation"
+    - general-purpose: "Update setup guides"
 
   Phase 3 - Synthesis (sequential):
     - Verify consistency across docs
@@ -136,7 +137,7 @@ User: /docs --full
 
 Comprehensive documentation scan...
 
-Deploying tech-writer agents in parallel...
+Delegating to subagents in parallel...
 
 Analysis complete:
   - 12 source files scanned
@@ -162,7 +163,7 @@ User: /docs api
 Analyzing API documentation needs...
   Found 8 undocumented endpoints
 
-Deploying tech-writer agent...
+Delegating to subagent...
 
 Generated:
   - docs/api/README.md (endpoint overview)
@@ -172,7 +173,7 @@ Generated:
 
 ## Notes
 
-- Uses tech-writer agent for comprehensive docs
+- Fans out general-purpose subagents for multi-section docs
 - Simple updates (typos, versions) handled directly
 - CLAUDE.md files explicitly protected
 - Typical execution: 1-5 minutes

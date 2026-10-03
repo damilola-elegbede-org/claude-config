@@ -1,7 +1,7 @@
 ---
 name: resolve-comments
 description: Resolve review comments from any source. Use when addressing PR review feedback.
-argument-hint: "[pr-number] [--code-rabbit|--local|--auto|--dry-run]"
+argument-hint: "[pr-number] [--local|--auto|--dry-run]"
 metadata:
   category: orchestration
 ---
@@ -13,9 +13,7 @@ metadata:
 ```bash
 /resolve-comments                        # Fetch and resolve PR comments (default)
 /resolve-comments $ARGUMENTS             # Specific PR or flags
-/resolve-comments --code-rabbit          # Triage CodeRabbit issues from .tmp/
 /resolve-comments --local                # Triage AI reviewer issues from .tmp/
-/resolve-comments --code-rabbit --local  # Triage both sources from .tmp/
 /resolve-comments --auto                 # Auto-apply all recommended fixes
 /resolve-comments --dry-run              # Analysis only, no changes
 ```
@@ -26,10 +24,9 @@ Resolves review comments from multiple sources with interactive triage.
 
 Parse flags from the current invocation only — never inherit them from a prior run or from context.
 
-- **PR mode** (no `--code-rabbit`/`--local`): fetch every unresolved review thread on the GitHub PR —
+- **PR mode** (no `--local`): fetch every unresolved review thread on the GitHub PR —
   CodeRabbit, Codex, other bots, and human reviewers alike. → `references/pr-mode.md`
-- **File mode** (`--code-rabbit` and/or `--local`): triage issues from the JSON files `/review` writes
-  under `.tmp/`. → `references/file-mode.md`
+- **File mode** (`--local`): triage issues from `.tmp/review-local.json`, which `/review` writes. → `references/file-mode.md`
 
 Announce the resolved mode (`"Mode: pr (default)"` / `"Mode: file"`) before proceeding.
 
@@ -51,7 +48,7 @@ Schemas, caller flags, and worked examples: → `references/schemas.md`.
   awaiting CodeRabbit (after a wait — CodeRabbit is asynchronous). Human threads are reported,
   never waited on, never a failure. Other reviewers' open threads are reported too, never a
   failure.
-- **Skipped issues are recorded, not dropped** — `.tmp/coderabbit-ignored.json`, for `/ship-it`.
+- **Skipped issues are recorded, not dropped** — `.tmp/coderabbit-ignored.json`, for `/pr` and `/ship-it`.
 - PR mode commits, pushes, and comments on the PR. File mode commits only — there may be no PR yet.
 
 ## Expected Output

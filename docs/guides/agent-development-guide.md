@@ -68,7 +68,7 @@ Choose a category that best reflects the agent's primary domain:
 | architecture | purple | System design and technical planning | architect |
 | development | blue | Core programming and implementation | frontend-engineer, debugger |
 | infrastructure | orange | Systems, operations, and deployment | devops |
-| orchestration | cyan | Multi-agent workflow coordination | feature-agent |
+| orchestration | cyan | Multi-agent workflow coordination | none (the main session orchestrates) |
 | quality | green | Testing, review, and validation | code-reviewer, test-engineer |
 | security | red | Security assessment and compliance | security-auditor |
 

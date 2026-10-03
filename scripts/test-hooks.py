@@ -80,7 +80,17 @@ def _with_py_convention_no_companion(tmp):
 CASES = [
     # destructive git guard — fires everywhere
     ("commit skipping hooks", "Bash", {"command": "git commit --no-verify -m 'x'"}, DESTRUCTIVE, None),
-    ("force push", "Bash", {"command": "git push --force origin main"}, DESTRUCTIVE, None),
+    ("force push to main", "Bash", {"command": "git push --force origin main"}, DESTRUCTIVE, None),
+    ("force push +refspec to main", "Bash", {"command": "git push origin +main"}, DESTRUCTIVE, None),
+    ("force-with-lease on a feature branch", "Bash", {"command": "git push --force-with-lease origin feat/x"}, None, None),
+    ("unleased force push on a feature branch", "Bash", {"command": "git push --force origin feat/x"}, DESTRUCTIVE, None),
+    ("+refspec force push on a feature branch", "Bash", {"command": "git push origin +feat/x"}, DESTRUCTIVE, None),
+    ("leased force push with no destination", "Bash", {"command": "git push --force-with-lease"}, DESTRUCTIVE, None),
+    ("leased force push to HEAD", "Bash", {"command": "git push --force-with-lease origin HEAD"}, DESTRUCTIVE, None),
+    ("leased force push HEAD to a named feature branch", "Bash", {"command": "git push --force-with-lease origin HEAD:feat/x"}, None, None),
+    ("leased force push with the matching refspec", "Bash", {"command": "git push --force-with-lease origin :"}, DESTRUCTIVE, None),
+    ("leased force push inside a compound command", "Bash", {"command": "cd repo && git push --force-with-lease origin feat/x"}, DESTRUCTIVE, None),
+    ("allowed force push followed by a second line", "Bash", {"command": "git push --force-with-lease origin feat/safe\ngit push --force origin feat/victim"}, DESTRUCTIVE, None),
     ("hard reset", "Bash", {"command": "git reset --hard HEAD~1"}, DESTRUCTIVE, None),
     ("force branch delete", "Bash", {"command": "git branch -D feature/old"}, DESTRUCTIVE, None),
 

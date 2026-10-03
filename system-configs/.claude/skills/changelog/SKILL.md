@@ -28,7 +28,7 @@ this skill lets the user ask for it again at any point in the session.
 ### Default (`/changelog`)
 
 1. **Read the persisted slice** at `$HOME/.claude/cache/last_upgrade.md`.
-   This file is written by `~/.claude/session_start_version_check.sh` whenever
+   This file is written by `~/.claude/hooks/session_start_version_check.sh` whenever
    a real upgrade is detected. Format:
 
    ```text
@@ -46,9 +46,8 @@ this skill lets the user ask for it again at any point in the session.
    and the body (the raw changelog slice), then present:
 
    - A one-line header: `Claude Code <from> → <to> (upgraded <detected_at>)`
-   - A themed summary: **Features**, **Improvements**, **Fixes**. 5–8 bullets
-     total. Prioritize user-facing changes over internal fixes — match the
-     style the session-start greeting uses.
+   - A themed summary: **Features**, **Improvements**, **Fixes**, short enough to scan at a glance. Prioritize
+     user-facing changes over internal fixes — match the style the session-start greeting uses.
    - A one-line footer: `Reply '/changelog --full' to see the raw entries.`
 
 3. **If the file does NOT exist**, no upgrade has been observed on this
@@ -67,16 +66,9 @@ user wants to see every bullet.
 1. Skip `last_upgrade.md` entirely.
 2. Read the cached full changelog at `$HOME/.claude/cache/claude-code-changelog.md`
    (maintained by the hook).
-3. **Do not fetch.** This skill is read-only with respect to the cache —
-   the hook owns network I/O so TLS hardening, sanity checks, and error
-   handling live in one place. If the cache file does not exist, tell
-   the user: *"The cached CHANGELOG is missing. Start a new Claude Code
-   session to refresh it — the SessionStart hook will refetch — then
-   re-run `/changelog <version>`."* Do not run `curl`. The hook refreshes
-   the cache on session start when the file is more than 24h old, so
-   "start a new session" is the user-visible refresh mechanism. The
-   skill itself has no way to inspect the cache's age (Read gives
-   contents, not mtime), so it must not make freshness claims.
+3. If the cache file does not exist, tell the user: *"The cached CHANGELOG is missing. Start a new Claude Code session
+   to refresh it — the SessionStart hook will refetch — then re-run `/changelog <version>`."* The skill can't see the
+   cache's age (Read gives contents, not mtime), so make no freshness claims.
 4. Extract the section for the requested version. Scan `##` headings
    and pull the first semver found in each (so `## 2.1.99`,
    `## [2.1.99]`, and `## 2.1.99 (2026-04-10)` all match version
@@ -98,9 +90,7 @@ user wants to see every bullet.
 - Never write to `~/.claude/cache/last_upgrade.md` or
   `~/.claude/cache/claude-code-changelog.md`. This skill is strictly
   read-only with respect to hook state. The hook owns those files.
-- When summarizing, group bullets by theme and cap at 8 bullets. If the slice
-  contains many fixes, collapse similar ones into a single bullet
-  (e.g. "Several `/resume` picker fixes" rather than listing each).
+- When summarizing, group bullets by theme and collapse similar fixes into one bullet (e.g. "Several `/resume` picker fixes" rather than listing each).
 - Be faithful: only summarize entries that appear in the source. Do not
   extrapolate from version numbers.
 
