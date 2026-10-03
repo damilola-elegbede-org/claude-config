@@ -1,6 +1,6 @@
 # PR mode — fetch, resolve, verify
 
-Default mode: no `--code-rabbit` / `--local` flag.
+Default mode: no `--local` flag.
 
 ## STEP 1: Determine PR number
 

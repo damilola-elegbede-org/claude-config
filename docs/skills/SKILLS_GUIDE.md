@@ -143,10 +143,10 @@ waiting for user input that can never be delivered.
 
 ```text
 # Bad: /review (context: fork) calls /resolve-comments without --auto → hangs
-Skill tool: skill="resolve-comments", args="--code-rabbit --local"
+Skill tool: skill="resolve-comments", args="--local"
 
 # Good: --auto bypasses unreachable prompts
-Skill tool: skill="resolve-comments", args="--code-rabbit --local --auto"
+Skill tool: skill="resolve-comments", args="--local --auto"
 ```
 
 ## Directory Structure
