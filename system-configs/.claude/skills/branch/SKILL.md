@@ -131,7 +131,8 @@ Execute branch creation with minimal overhead:
    # Handle uncommitted changes if needed (-u includes untracked files)
    stashed=false
    if ! git diff --quiet || ! git diff --cached --quiet || [ -n "$(git ls-files --others --exclude-standard)" ]; then
-     tag="Auto-stash before branch creation $(date +%Y%m%d-%H%M%S)"
+     # PID + random suffix: two runs in the same second must never share a tag (the stash is shared)
+     tag="Auto-stash before branch creation $(date +%Y%m%d-%H%M%S)-$$-$RANDOM"
      git stash push -u -m "$tag"
      stash_sha=$(git stash list --format='%H %gs' | grep -F "$tag" | head -1 | cut -d' ' -f1)
      stashed=true
@@ -186,7 +187,7 @@ Handle common scenarios gracefully:
 ```yaml
 Uncommitted Changes:
   - Check git status
-  - Auto-stash with a unique timestamped message (`git stash push -u`)
+  - Auto-stash with a unique message (timestamp, PID, random suffix) via `git stash push -u`
   - Proceed with branch creation
   - Restore that stash with `git stash apply <sha>`; if it conflicts, stop and report the stash entry
 
