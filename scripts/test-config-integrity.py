@@ -24,8 +24,10 @@ COMMANDS_DIR = PROJECT_ROOT / "system-configs" / ".claude" / "commands"
 SKILLS_DIR = PROJECT_ROOT / "system-configs" / ".claude" / "skills"
 
 # Expected counts
-# 8 agents: architect, code-reviewer, debugger, devops, feature-agent,
+# 7 agents: architect, code-reviewer, debugger, devops,
 #   frontend-engineer, security-auditor, test-engineer
+#   (feature-agent removed — /feature-lifecycle runs in the main session,
+#    which can spawn the agents it needs; a subagent cannot)
 #   (fable-advisor removed — the native advisor tool, configured via
 #    advisorModel in settings.json, replaces it; the subagent had no way to
 #    return a result to its caller)
@@ -44,7 +46,7 @@ SKILLS_DIR = PROJECT_ROOT / "system-configs" / ".claude" / "skills"
 #    removed: 1043 lines of general knowledge preloaded into 5 agents' context on
 #    every invocation, with nothing project-specific in them)
 # Note: sync and skills-import are project-local (.claude/skills/), not in system-configs
-EXPECTED_AGENT_COUNT = 8
+EXPECTED_AGENT_COUNT = 7
 EXPECTED_SKILL_COUNT = 39
 
 # Non-agent/command documentation files to skip

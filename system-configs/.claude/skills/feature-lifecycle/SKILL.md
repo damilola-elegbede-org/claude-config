@@ -220,14 +220,6 @@ claude -p "/feature-lifecycle docs/specs/rate-limiting.md"
 claude -p "/feature-lifecycle --issue 42"
 ```
 
-### Lead Agent Delegation
-
-```text
-Use the Task tool to delegate to feature-agent:
-  "Implement the feature described in docs/specs/rate-limiting.md
-   using /feature-lifecycle. Report back with the PR URL when complete."
-```
-
 ### CI/CD (GitHub Actions)
 
 ```yaml

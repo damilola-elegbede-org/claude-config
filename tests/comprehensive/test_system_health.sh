@@ -119,13 +119,12 @@ fi
 # Test 5: Agent system integrity
 echo "Checking agent system integrity..."
 
-# Check for critical agent categories (8 core agents after cleanup)
+# Check for critical agent categories (7 core agents after cleanup)
 CRITICAL_AGENTS=(
     "architect"
     "code-reviewer"
     "debugger"
     "devops"
-    "feature-agent"
     "frontend-engineer"
     "security-auditor"
     "test-engineer"

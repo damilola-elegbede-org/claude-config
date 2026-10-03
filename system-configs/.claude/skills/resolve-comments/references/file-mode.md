@@ -51,7 +51,7 @@ IF: fixes applied AND fix_count > 0
 
 IF: skipped_issues not empty
   WRITE: .tmp/coderabbit-ignored.json (schema_version "1.0" — see schemas.md)
-  OUTPUT: "Saved {count} skipped issues (will be posted to PR via /ship-it)"
+  OUTPUT: "Saved {count} skipped issues (posted to the PR by /pr or /ship-it)"
 
 OUTPUT: "Fixed {fix_count} issues, skipped {skip_count}"
 ```

@@ -134,7 +134,7 @@ Repository Hygiene Issues:
     2. Add to .gitignore: *.log, .DS_Store, node_modules/
     3. Clean staging area before committing
 
-Continue with commit? (These files will be included if not removed)
+[AskUserQuestion: "Commit with these files staged?" — Unstage them first (Recommended) / Commit as-is]
 ```
 
 ## Commit Message Format

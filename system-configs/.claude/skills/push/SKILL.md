@@ -63,7 +63,7 @@ This command does not use `--no-verify`: pre-push hooks are the last check befor
 
 1. **Safety Checks**
    - Verify not on main/master branch
-   - Confirm user understands risks
+   - Confirm via `AskUserQuestion` before pushing
    - Check for uncommitted changes
 
 2. **Execute Force Push**
@@ -73,6 +73,8 @@ This command does not use `--no-verify`: pre-push hooks are the last check befor
    ```
 
    - Uses --force-with-lease for safety
+   - A PreToolUse guard in settings.json blocks `git push --force*` in Claude sessions; when it
+     does, give D the command to run with `!` instead of retrying
    - Reports result
 
 **Warning:** Force push rewrites remote history. Only use when necessary and coordinated with team.
@@ -189,7 +191,7 @@ Risks:
   - Collaborators may have pulled old commits
   - Requires team coordination
 
-Proceed with force push? (yes/no)
+[AskUserQuestion: "Force-push origin/feature/experiment?" — Cancel (Recommended) / Force push (with lease)]
 ```
 
 ### Dry Run Output

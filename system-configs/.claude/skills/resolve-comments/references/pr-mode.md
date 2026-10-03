@@ -225,7 +225,7 @@ IF: skipped_issues not empty
   WRITE: .tmp/coderabbit-ignored.json (schema_version "1.0" at top level — see schemas.md)
     Filename is a cross-skill contract read by `/pr` and `/ship-it` — it keeps its historical name
     while holding skipped issues from every source. Each record carries its own `source` field.
-  OUTPUT: "Saved {count} skipped issues for /ship-it acknowledgment"
+  OUTPUT: "Saved {count} skipped issues for /pr and /ship-it to acknowledge"
 
 IF: fixes applied
   ASK (AskUserQuestion, header "Commit+push"):

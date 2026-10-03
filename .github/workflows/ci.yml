@@ -379,7 +379,6 @@ jobs:
           "code-reviewer"
           "debugger"
           "devops"
-          "feature-agent"
           "frontend-engineer"
           "security-auditor"
           "test-engineer"

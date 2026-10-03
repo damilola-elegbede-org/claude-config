@@ -49,7 +49,7 @@ Expert [role] specializing in [2-3 specific technical domains]. [One sentence de
 
 ## Complexity Factors - OPTIONAL SECTION
 
-This agent requires deep reasoning due to:
+The judgment calls in this work:
 
 - **[Complexity factor 1]**: [Specific reasoning why this requires deep thinking]
 - **[Complexity factor 2]**: [Another aspect requiring enhanced reasoning]
@@ -76,7 +76,7 @@ Escalates to Claude when [specific condition or blocker].
 
 ## SYSTEM BOUNDARY
 
-This agent cannot invoke other agents or create Task calls. Only Claude has orchestration authority.
+This agent has no Agent tool, so it cannot spawn or invoke other agents. Only Claude has orchestration authority.
 
 ---
 

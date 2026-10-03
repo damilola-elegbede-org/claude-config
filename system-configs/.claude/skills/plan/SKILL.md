@@ -2,7 +2,6 @@
 name: plan
 description: Shape a task into a complete PRD and task files by walking the decision tree in the open — self-answering with software-engineering best practices and streaming each decision for live override. Use when planning a feature, project, or task.
 argument-hint: "[task] [--simple|--no-execute|--file]"
-context: fork
 metadata:
   category: workflow
 ---
@@ -138,7 +137,7 @@ Next: /implement .tmp/plans/my-app/rate-limiting/phase_1_pr_1_limiter.md
 
 ## Notes
 
-- `context: fork` — the tree walk runs in a forked context; only the streamed decisions and final paths surface.
+- The tree walk runs in the main session, so each streamed decision is visible and can be overridden as it lands.
 - Every task file carries an `## Acceptance` section — it is the contract `/implement` verifies against and the gate `/feature-lifecycle` loops until.
 - Interactive only at two points: capturing the idea (if not given) and any override you inject mid-stream.
 - `--simple` produces a single slice; larger plans fan out into multiple `phase_*` files with `depends on:` ordering.

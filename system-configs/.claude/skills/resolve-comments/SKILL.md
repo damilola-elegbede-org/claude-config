@@ -48,7 +48,7 @@ Schemas, caller flags, and worked examples: → `references/schemas.md`.
   awaiting CodeRabbit (after a wait — CodeRabbit is asynchronous). Human threads are reported,
   never waited on, never a failure. Other reviewers' open threads are reported too, never a
   failure.
-- **Skipped issues are recorded, not dropped** — `.tmp/coderabbit-ignored.json`, for `/ship-it`.
+- **Skipped issues are recorded, not dropped** — `.tmp/coderabbit-ignored.json`, for `/pr` and `/ship-it`.
 - PR mode commits, pushes, and comments on the PR. File mode commits only — there may be no PR yet.
 
 ## Expected Output

@@ -27,7 +27,7 @@ its historical name. Its contents are source-agnostic: each record names its own
 }
 ```
 
-`/ship-it` reads this file to acknowledge what was consciously not fixed.
+`/pr` and `/ship-it` read this file to acknowledge what was consciously not fixed.
 
 ## Context compatibility
 

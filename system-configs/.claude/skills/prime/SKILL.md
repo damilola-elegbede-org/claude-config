@@ -112,5 +112,4 @@ Recommendations:
 ## Notes
 
 - Results optimized for development productivity
-- Auto-runs on Claude Code startup (disable with .claude/noautoprime)
 - Typical execution: 1-5 minutes

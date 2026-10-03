@@ -53,14 +53,6 @@ python scripts/office/soffice.py --headless --convert-to pdf document.docx
 pdftoppm -jpeg -r 150 document.pdf page
 ```
 
-### Accepting Tracked Changes
-
-To produce a clean document with all tracked changes accepted (requires LibreOffice):
-
-```bash
-python scripts/accept_changes.py input.docx output.docx
-```
-
 ---
 
 ## Creating New Documents
@@ -374,17 +366,6 @@ apostrophes or quotes, use XML entities to produce smart quotes:
 | `&#x201C;` | " (left double) |
 | `&#x201D;` | " (right double) |
 
-**Adding comments:** Use `comment.py` to handle boilerplate across multiple
-XML files (text must be pre-escaped XML):
-
-```bash
-python scripts/comment.py unpacked/ 0 "Comment text with &amp; and &#x2019;"
-python scripts/comment.py unpacked/ 1 "Reply text" --parent 0  # reply
-python scripts/comment.py unpacked/ 0 "Text" --author "Custom Author"
-```
-
-Then add markers to document.xml (see Comments in XML Reference).
-
 ### Step 3: Pack
 
 ```bash
@@ -506,44 +487,6 @@ their deletion):
 </w:ins>
 ```
 
-### Comments
-
-After running `comment.py` (see Step 2), add markers to document.xml. For
-replies, use `--parent` flag and nest markers inside the parent's.
-
-**CRITICAL: `<w:commentRangeStart>` and `<w:commentRangeEnd>` are siblings of
-`<w:r>`, never inside `<w:r>`.**
-
-```xml
-<!-- Comment markers are direct children of w:p, never inside w:r -->
-<w:commentRangeStart w:id="0"/>
-<w:del w:id="1" w:author="Claude"
-  w:date="2025-01-01T00:00:00Z">
-  <w:r><w:delText>deleted</w:delText></w:r>
-</w:del>
-<w:r><w:t> more text</w:t></w:r>
-<w:commentRangeEnd w:id="0"/>
-<w:r>
-  <w:rPr><w:rStyle w:val="CommentReference"/></w:rPr>
-  <w:commentReference w:id="0"/>
-</w:r>
-
-<!-- Comment 0 with reply 1 nested inside -->
-<w:commentRangeStart w:id="0"/>
-  <w:commentRangeStart w:id="1"/>
-  <w:r><w:t>text</w:t></w:r>
-  <w:commentRangeEnd w:id="1"/>
-<w:commentRangeEnd w:id="0"/>
-<w:r>
-  <w:rPr><w:rStyle w:val="CommentReference"/></w:rPr>
-  <w:commentReference w:id="0"/>
-</w:r>
-<w:r>
-  <w:rPr><w:rStyle w:val="CommentReference"/></w:rPr>
-  <w:commentReference w:id="1"/>
-</w:r>
-```
-
 ### Images
 
 1. Add image file to `word/media/`
@@ -588,15 +531,12 @@ replies, use `--parent` flag and nest markers inside the parent's.
   via `scripts/office/soffice.py`)
 - **Poppler**: `pdftoppm` for images
 
-### Bundled Scripts (from upstream)
+### Bundled Scripts
 
-The following scripts are referenced in this skill but are bundled with the upstream
-[anthropics/skills](https://github.com/anthropics/skills) docx skill. If not present
-locally, import via `/skills-import docx`:
+The `scripts/office/` files are shims that load the shared implementations in
+`office-common/scripts/office/`:
 
 - `scripts/office/soffice.py` — LibreOffice wrapper for conversion
 - `scripts/office/unpack.py` — DOCX unpacker (ZIP → XML)
 - `scripts/office/pack.py` — DOCX repacker (XML → ZIP) with validation
 - `scripts/office/validate.py` — DOCX schema validator
-- `scripts/comment.py` — Comment helper for XML editing
-- `scripts/accept_changes.py` — Tracked changes acceptance helper

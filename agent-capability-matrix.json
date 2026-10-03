@@ -172,29 +172,6 @@
     "memory": "local"
   },
   {
-    "name": "feature-agent",
-    "file": "feature-agent.md",
-    "capabilities": [
-      "Spec parsing: Extracts structured requirements from markdown specs, GitHub issues, or inline descriptions",
-      "Plan generation: Creates implementation plans with task breakdowns and agent assignments",
-      "Lifecycle orchestration: Drives plan, implement, test, ship, monitor, and merge phases sequentially",
-      "CI/review monitoring: Watches PR checks and review feedback, auto-fixing failures up to 5 iterations",
-      "Multi-input support: Works from spec files, GitHub issues, inline descriptions, or interactive prompts"
-    ],
-    "when_to_use": [
-      "Complete feature implementation requested from a spec or issue",
-      "User wants autonomous end-to-end delivery (plan through merge)",
-      "GitHub issue needs full implementation lifecycle",
-      "Bug fix or refactor requires the full ship cycle"
-    ],
-    "description": "Specializes in autonomous end-to-end feature implementation from spec to merged PR. Use PROACTIVELY for complete feature lifecycles.",
-    "color": "purple",
-    "permissionMode": "acceptEdits",
-    "skills": [
-      "feature-lifecycle"
-    ]
-  },
-  {
     "name": "frontend-engineer",
     "file": "frontend-engineer.md",
     "capabilities": [

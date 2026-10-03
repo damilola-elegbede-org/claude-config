@@ -128,8 +128,14 @@ Execute branch creation with minimal overhead:
    # Check current repository state
    git status --porcelain
 
-   # Handle uncommitted changes if needed
-   git stash push -m "Auto-stash before branch creation"
+   # Handle uncommitted changes if needed (-u includes untracked files)
+   stashed=false
+   if ! git diff --quiet || ! git diff --cached --quiet || [ -n "$(git ls-files --others --exclude-standard)" ]; then
+     tag="Auto-stash before branch creation $(date +%Y%m%d-%H%M%S)"
+     git stash push -u -m "$tag"
+     stash_sha=$(git stash list --format='%H %gs' | grep -F "$tag" | head -1 | cut -d' ' -f1)
+     stashed=true
+   fi
 
    # Switch to main branch (with fallback to master)
    git checkout main 2>/dev/null || git checkout master
@@ -139,6 +145,11 @@ Execute branch creation with minimal overhead:
 
    # Create and switch to new branch from updated main
    git checkout -b <generated-branch-name>
+
+   # Restore only the stash this run created (the stash stack is shared across worktrees)
+   if [ "$stashed" = true ]; then
+     git stash apply "$stash_sha" && echo "Restored stash $stash_sha; drop it by its stash@{n} once confirmed"
+   fi
 
    # Confirm creation
    git branch --show-current
@@ -175,9 +186,9 @@ Handle common scenarios gracefully:
 ```yaml
 Uncommitted Changes:
   - Check git status
-  - Auto-stash with descriptive message
+  - Auto-stash with a unique timestamped message (`git stash push -u`)
   - Proceed with branch creation
-  - Remind user about stashed changes
+  - Restore that stash with `git stash apply <sha>`; if it conflicts, stop and report the stash entry
 
 Naming Conflicts:
   - Detect existing branch with same name
