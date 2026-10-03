@@ -226,7 +226,7 @@ Sync Process Flow:
 Directory Structure:
   Source: system-configs/
     ├── CLAUDE.md (Core configuration)
-    ├── .claude/agents/ (8 agent definitions)
+    ├── .claude/agents/ (7 agent definitions)
     ├── .claude/skills/ (skill definitions)
     └── settings.json (Audio and preferences)
 

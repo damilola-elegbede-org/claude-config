@@ -1120,7 +1120,7 @@
       "hook": "settings.json",
       "mode": "enforce",
       "coverage": "full",
-      "note": "Inline settings.json guard blocks any force-push to main/master and any unleased force-push (--force, -f, +refspec) elsewhere; gate rule G2-push-main also denies every push to main. A leased force push that names no destination branch is blocked too (it would go to the upstream).",
+      "note": "Inline settings.json guard blocks any force-push to main/master and any unleased force-push (--force, -f, +refspec) elsewhere; gate rule G2-push-main also denies every push to main. A leased force push that names no destination branch, or targets HEAD/@ without one, is blocked too (it would go to the current branch's upstream).",
       "hook_marker": "push[[:space:]]([^;&|]*[[:space:]])?(--force"
     },
     {

@@ -86,6 +86,8 @@ CASES = [
     ("unleased force push on a feature branch", "Bash", {"command": "git push --force origin feat/x"}, DESTRUCTIVE, None),
     ("+refspec force push on a feature branch", "Bash", {"command": "git push origin +feat/x"}, DESTRUCTIVE, None),
     ("leased force push with no destination", "Bash", {"command": "git push --force-with-lease"}, DESTRUCTIVE, None),
+    ("leased force push to HEAD", "Bash", {"command": "git push --force-with-lease origin HEAD"}, DESTRUCTIVE, None),
+    ("leased force push HEAD to a named feature branch", "Bash", {"command": "git push --force-with-lease origin HEAD:feat/x"}, None, None),
     ("hard reset", "Bash", {"command": "git reset --hard HEAD~1"}, DESTRUCTIVE, None),
     ("force branch delete", "Bash", {"command": "git branch -D feature/old"}, DESTRUCTIVE, None),
 
