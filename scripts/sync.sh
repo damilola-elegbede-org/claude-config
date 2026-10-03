@@ -676,7 +676,9 @@ sync_files() {
             RULE_COUNT=$(find "$SOURCE_DIR/rules" -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
             echo "  ✅ Rules: $RULE_COUNT files → ~/.claude/rules/"
         else
-            print_warning "Failed to sync rules: $rsync_output"
+            echo "  ❌ Failed to sync rules"
+            printf "    %s\n" "$rsync_output"
+            return 1
         fi
     fi
 
@@ -905,6 +907,9 @@ main() {
         echo "📋 Files to sync:"
         echo "  - $(find "$SOURCE_DIR/agents" -name "*.md" 2>/dev/null | wc -l | tr -d ' ') agent files → ~/.claude/agents/"
         echo "  - $(find "$SOURCE_DIR/skills" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ') skills → ~/.claude/skills/"
+        if [ "$(manifest_flag rules)" = "true" ] && [ -d "$SOURCE_DIR/rules" ]; then
+            echo "  - $(find "$SOURCE_DIR/rules" -name "*.md" 2>/dev/null | wc -l | tr -d ' ') rule files → ~/.claude/rules/ (--delete; local-*.md kept)"
+        fi
         SETTINGS_MODE=$(settings_mode)
         echo "  - settings.json → ~/.claude/settings.json (mode: $SETTINGS_MODE)"
         if [ "$SETTINGS_MODE" = "merge" ] && [ -f "$TARGET_DIR/settings.json" ] && command -v jq >/dev/null 2>&1; then

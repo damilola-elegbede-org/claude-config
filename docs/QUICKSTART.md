@@ -22,7 +22,7 @@ claude-code
 /sync
 ```
 
-**Done!** You now have 8 specialized agents and the full skill library available.
+**Done!** You now have 7 specialized agents and the full skill library available.
 
 ## 🧪 Test the Setup (30 seconds)
 
@@ -51,14 +51,14 @@ claude-code
 | `/commit` | Smart git commits with quality gates | `/commit` |
 | `/debug` | Systematic bug investigation | `/debug "login fails"` |
 
-## Agents (8 Total)
+## Agents (7 Total)
 
 - **Architecture**: architect
 - **Development**: frontend-engineer, debugger
 - **Quality**: code-reviewer, test-engineer
 - **Security**: security-auditor
 - **Infrastructure**: devops
-- **Orchestration**: feature-agent
+- **Orchestration**: the main session (`/feature-lifecycle`), since subagents cannot spawn agents
 
 ## 🔄 Keep Your Setup Current
 

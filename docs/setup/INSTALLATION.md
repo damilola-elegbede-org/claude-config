@@ -19,7 +19,7 @@ claude-code
 /audit --scope agents
 ```
 
-**You're done!** You now have access to 8 specialized agents and the full skill library.
+**You're done!** You now have access to 7 specialized agents and the full skill library.
 
 ## Detailed Installation Options
 
@@ -125,7 +125,7 @@ claude-code
 ##### Advantages:
 
 - Complete setup in under 2 minutes
-- All 8 agents and skill library available immediately
+- All 7 agents and skill library available immediately
 - Includes audio notifications and quality gates
 - Automatic backup of existing configurations
 
@@ -193,12 +193,11 @@ After installation, your configuration structure will be:
 ```text
 ~/.claude/
 ├── CLAUDE.md                    # Core Claude configuration
-├── agents/                      # 8 specialized agents
+├── agents/                      # 7 specialized agents
 │   ├── architect.md
 │   ├── code-reviewer.md
 │   ├── debugger.md
 │   ├── devops.md
-│   ├── feature-agent.md
 │   ├── frontend-engineer.md
 │   ├── security-auditor.md
 │   └── test-engineer.md
@@ -702,4 +701,4 @@ After successful installation:
 5. **Best Practices**: [Development Guidelines](../development/AGENT_SELECTION_GUIDE.md)
 
 Welcome to the Claude Configuration Repository ecosystem! You now have access to a production-ready
-Smart Agent Orchestration Framework with 8 specialized agents and full skill library.
+Smart Agent Orchestration Framework with 7 specialized agents and full skill library.

@@ -1,6 +1,6 @@
 # Claude Configuration Repository Documentation
 
-Portable Claude Code configuration with 8 specialized agents and a full skill library.
+Portable Claude Code configuration with 7 specialized agents and a full skill library.
 
 ## Quick Start
 
@@ -38,7 +38,7 @@ New to the system? Start here:
 - **[Audio Hook README](setup/AUDIO_HOOK_README.md)** - Audio notification setup
 - **[Configuration Management](setup/CONFIGURATION_MANAGEMENT.md)** - Managing configurations
 
-### Agent System (8 Agents)
+### Agent System (7 Agents)
 
 | Agent | Model | Domain |
 |-------|-------|--------|
@@ -46,7 +46,6 @@ New to the system? Start here:
 | code-reviewer | sonnet | Code quality, security review |
 | debugger | sonnet | Bug investigation, root cause analysis |
 | devops | sonnet | CI/CD, infrastructure, deployment |
-| feature-agent | opus | End-to-end feature orchestration |
 | frontend-engineer | sonnet | UI, React, CSS, accessibility |
 | security-auditor | sonnet | Security audits, OWASP compliance |
 | test-engineer | sonnet | Testing strategy, coverage, automation |

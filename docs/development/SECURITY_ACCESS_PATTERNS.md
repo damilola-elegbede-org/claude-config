@@ -5,7 +5,7 @@
 This document defines the security access patterns for the current 8-agent ecosystem,
 ensuring appropriate tool restrictions while maintaining functional capabilities.
 
-## Current Agents (8)
+## Current Agents (7)
 
 | Agent | Model | Access Level |
 |-------|-------|-------------|
@@ -13,7 +13,6 @@ ensuring appropriate tool restrictions while maintaining functional capabilities
 | code-reviewer | sonnet | Read + Analysis |
 | debugger | sonnet | Read + Analysis |
 | devops | sonnet | Full |
-| feature-agent | opus | Full |
 | frontend-engineer | sonnet | Full |
 | security-auditor | sonnet | Read + Analysis |
 | test-engineer | sonnet | Full |
@@ -22,7 +21,7 @@ ensuring appropriate tool restrictions while maintaining functional capabilities
 
 ### 1. Full Access (Implementation Agents)
 
-**Agents**: architect, devops, feature-agent, frontend-engineer, test-engineer
+**Agents**: architect, devops, frontend-engineer, test-engineer
 **Tools**: Read, Write, Edit, Grep, Glob, Bash, TodoWrite (plus tool-specific additions)
 **Security Rationale**: Implementation agents require full tool access to write code,
 run tests, and manage infrastructure. They operate under "trusted implementation" with
@@ -72,9 +71,6 @@ during security reviews or debugging sessions.
 
 - **devops**: Manages infrastructure automation, CI/CD, and deployment scripts;
   requires full system access
-
-- **feature-agent**: Orchestrates end-to-end feature delivery across multiple files;
-  requires full access for coordination
 
 - **frontend-engineer**: Implements UI components, tests, and build configuration;
   requires full implementation toolset

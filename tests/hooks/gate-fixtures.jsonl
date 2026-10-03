@@ -302,6 +302,10 @@
 {"rule":"G1-rm","expect":"deny","tool":"Bash","input":{"command":"sh -ec 'rm -rf data'"}}
 {"rule":"G1-rm","expect":"deny","tool":"Bash","input":{"command":"echo 'x; rm -rf data' | sh"}}
 {"rule":"G2-push-main","expect":"deny","tool":"Bash","input":{"command":"echo done; git push origin main"}}
+{"rule":"G2-push-main","expect":"deny","tool":"Bash","input":{"command":"git push --force origin main"}}
+{"rule":"G2-push-main","expect":"deny","tool":"Bash","input":{"command":"git push origin +main"}}
+{"rule":"G2-push-main","expect":"allow","tool":"Bash","input":{"command":"git push --force-with-lease origin feat/x"}}
+{"rule":"G2-push-main","expect":"allow","tool":"Bash","input":{"command":"git push origin +feat/x"}}
 {"rule":"G10-tamper","expect":"deny","tool":"Bash","input":{"command":"mkdir ~/.claude/gate.off"}}
 {"rule":"G10-tamper","expect":"deny","tool":"Bash","input":{"command":"cd ~/.claude && touch gate.off"}}
 {"rule":"G10-tamper","expect":"deny","tool":"Bash","input":{"command":"echo x > ~/.claude/jev.off"}}

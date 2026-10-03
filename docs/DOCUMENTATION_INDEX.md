@@ -49,7 +49,7 @@ docs/
 - **[Agent Template](agents/AGENT_TEMPLATE.md)** - Template for new agents
 - **[Agent Development Guide](guides/agent-development-guide.md)** - Authoring guide
 
-### Current Agents (8)
+### Current Agents (7)
 
 | Agent | Model | Domain |
 |-------|-------|--------|
@@ -57,7 +57,6 @@ docs/
 | code-reviewer | sonnet | Code quality, security review |
 | debugger | sonnet | Bug investigation |
 | devops | sonnet | CI/CD, infrastructure |
-| feature-agent | opus | End-to-end feature orchestration |
 | frontend-engineer | sonnet | UI, React, CSS |
 | security-auditor | sonnet | Security audits, OWASP |
 | test-engineer | sonnet | Testing strategy, coverage |

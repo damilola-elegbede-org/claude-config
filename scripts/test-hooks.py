@@ -80,7 +80,9 @@ def _with_py_convention_no_companion(tmp):
 CASES = [
     # destructive git guard — fires everywhere
     ("commit skipping hooks", "Bash", {"command": "git commit --no-verify -m 'x'"}, DESTRUCTIVE, None),
-    ("force push", "Bash", {"command": "git push --force origin main"}, DESTRUCTIVE, None),
+    ("force push to main", "Bash", {"command": "git push --force origin main"}, DESTRUCTIVE, None),
+    ("force push +refspec to main", "Bash", {"command": "git push origin +main"}, DESTRUCTIVE, None),
+    ("force-with-lease on a feature branch", "Bash", {"command": "git push --force-with-lease origin feat/x"}, None, None),
     ("hard reset", "Bash", {"command": "git reset --hard HEAD~1"}, DESTRUCTIVE, None),
     ("force branch delete", "Bash", {"command": "git branch -D feature/old"}, DESTRUCTIVE, None),
 

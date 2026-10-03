@@ -14,7 +14,6 @@ role boundaries.
 | code-reviewer | Read + Analysis | Read, Grep, Glob, Bash (read-only) | Write, Edit |
 | debugger | Read + Analysis | Read, Grep, Glob, Bash (read-only) | Write, Edit |
 | devops | Full | Read, Write, Edit, Grep, Glob, Bash, TodoWrite | - |
-| feature-agent | Full | Read, Write, Edit, Grep, Glob, Bash, TodoWrite | - |
 | frontend-engineer | Full | Read, Write, Edit, Grep, Glob, Bash, TodoWrite | - |
 | security-auditor | Read + Analysis | Read, Grep, Glob, Bash (read-only) | Write, Edit |
 | test-engineer | Full | Read, Write, Edit, Grep, Glob, Bash, TodoWrite | - |
@@ -23,7 +22,7 @@ role boundaries.
 
 ### Full Access Agents
 
-**Agents**: architect, devops, feature-agent, frontend-engineer, test-engineer
+**Agents**: architect, devops, frontend-engineer, test-engineer
 
 **Justification**: These agents build, configure, and deploy. They must modify code,
 manage infrastructure, and create artifacts to deliver working solutions. Full tool
@@ -36,9 +35,6 @@ access is required to fulfill their core responsibilities.
 
 - **devops**: Manages CI/CD pipelines, infrastructure code, and deployment scripts;
   requires system execution and file modification
-
-- **feature-agent**: Orchestrates end-to-end feature delivery; requires full access to
-  coordinate implementation across the codebase
 
 - **frontend-engineer**: Implements UI components, configures build systems, and writes
   tests; requires complete implementation toolset
@@ -104,7 +100,7 @@ Tool restrictions enable clear audit trails:
 
 ### File Modification (Edit, Write)
 
-- **Allowed**: architect, devops, feature-agent, frontend-engineer, test-engineer
+- **Allowed**: architect, devops, frontend-engineer, test-engineer
 - **Forbidden**: code-reviewer, debugger, security-auditor — to maintain objectivity
   and role separation
 

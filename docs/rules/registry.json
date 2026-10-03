@@ -783,13 +783,13 @@
       "id": "MEM-REV-2",
       "source": "memory/d-review-cycle-consolidate-first.md:27",
       "anchor": "Expect to `git fetch` + rebase before pushing",
-      "text": "Expect to git fetch and rebase before pushing; never force-push.",
+      "text": "Expect to git fetch and rebase before pushing; force-push only feature branches, with --force-with-lease.",
       "enforcement": "regex",
       "hook": "settings.json",
-      "hook_marker": "push[[:space:]]+--force",
+      "hook_marker": "push[[:space:]]([^;&|]*[[:space:]])?(--force",
       "mode": "enforce",
       "coverage": "partial",
-      "note": "Inline PreToolUse Bash guard in settings.json blocks git push --force / -f (existing, not part of this branch). Fetch+rebase before push is not checked."
+      "note": "Inline PreToolUse Bash guard in settings.json blocks force-pushes to main/master. Fetch+rebase before push and the lease flag are not checked."
     },
     {
       "id": "MEM-EXEC-1",
@@ -1114,14 +1114,14 @@
     {
       "id": "RULE-GIT-2",
       "source": "system-configs/.claude/rules/git-safety.md:4",
-      "anchor": "Never force-push",
-      "text": "Never force-push; after a history rewrite, ask D and hand D the command.",
+      "anchor": "Force-push only a feature branch",
+      "text": "Force-push only a feature branch, with --force-with-lease; never main or master.",
       "enforcement": "regex",
       "hook": "settings.json",
       "mode": "enforce",
       "coverage": "partial",
-      "hook_marker": "push[[:space:]]+--force",
-      "note": "Same inline guard as MEM-REV-2: blocks `git push --force*` and `-f` placed right after push; a flag after the refspec is not matched."
+      "note": "Inline settings.json guard and gate rule G2-push-main block force-pushes to main/master; --force-with-lease on feature branches is not checked.",
+      "hook_marker": "push[[:space:]]([^;&|]*[[:space:]])?(--force"
     },
     {
       "id": "RULE-GIT-3",

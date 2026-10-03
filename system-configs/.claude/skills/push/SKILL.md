@@ -73,8 +73,7 @@ This command does not use `--no-verify`: pre-push hooks are the last check befor
    ```
 
    - Uses --force-with-lease for safety
-   - A PreToolUse guard in settings.json blocks `git push --force*` in Claude sessions; when it
-     does, give D the command to run with `!` instead of retrying
+   - Feature branches only: hooks block any push to main/master, forced or not
    - Reports result
 
 **Warning:** Force push rewrites remote history. Only use when necessary and coordinated with team.
