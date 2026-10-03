@@ -1098,6 +1098,142 @@
       "hook": null,
       "mode": "none",
       "coverage": "none"
+    },
+    {
+      "id": "RULE-GIT-1",
+      "source": "system-configs/.claude/rules/git-safety.md:3",
+      "anchor": "Never pass `--no-verify`",
+      "text": "Never pass --no-verify; fix a failing hook instead of bypassing it.",
+      "enforcement": "regex",
+      "hook": "settings.json",
+      "mode": "enforce",
+      "coverage": "full",
+      "hook_marker": "--no-verify",
+      "note": "Inline PreToolUse Bash guard in settings.json blocks --no-verify."
+    },
+    {
+      "id": "RULE-GIT-2",
+      "source": "system-configs/.claude/rules/git-safety.md:4",
+      "anchor": "Never force-push",
+      "text": "Never force-push; after a history rewrite, ask D and hand D the command.",
+      "enforcement": "regex",
+      "hook": "settings.json",
+      "mode": "enforce",
+      "coverage": "partial",
+      "hook_marker": "push[[:space:]]+--force",
+      "note": "Same inline guard as MEM-REV-2: blocks `git push --force*` and `-f` placed right after push; a flag after the refspec is not matched."
+    },
+    {
+      "id": "RULE-GIT-3",
+      "source": "system-configs/.claude/rules/git-safety.md:5",
+      "anchor": "Stash with `git stash push -u",
+      "text": "Stash with a unique tag, restore by SHA with apply, drop by explicit stash@{n}.",
+      "enforcement": "regex",
+      "hook": "hooks/gate.sh",
+      "mode": "enforce",
+      "coverage": "partial",
+      "note": "Gate rule G2-stash denies bare stash pop/drop and stash clear; the unique tag and -u are not checked."
+    },
+    {
+      "id": "RULE-GIT-4",
+      "source": "system-configs/.claude/rules/git-safety.md:6",
+      "anchor": "Stage files by name",
+      "text": "Stage files by name; never git add -A or git add .",
+      "enforcement": "none",
+      "hook": null,
+      "mode": "none",
+      "coverage": "none"
+    },
+    {
+      "id": "RULE-GIT-5",
+      "source": "system-configs/.claude/rules/git-safety.md:7",
+      "anchor": "Never commit or push to main or master",
+      "text": "Never commit or push to main or master directly.",
+      "enforcement": "regex",
+      "hook": "hooks/gate.sh",
+      "mode": "enforce",
+      "coverage": "partial",
+      "note": "Gate rule G2-push-main denies pushes to main/master; committing on main is not checked."
+    },
+    {
+      "id": "RULE-PROMPT-1",
+      "source": "system-configs/.claude/rules/prompt-authoring.md:12",
+      "anchor": "State each constraint plainly",
+      "text": "State each constraint plainly with its reason; reserve caps for a measured underweighting.",
+      "enforcement": "none",
+      "hook": null,
+      "mode": "none",
+      "coverage": "none"
+    },
+    {
+      "id": "RULE-PROMPT-2",
+      "source": "system-configs/.claude/rules/prompt-authoring.md:13",
+      "anchor": "Describe the goal, constraints",
+      "text": "Describe goal, constraints and verification; number steps only where order matters.",
+      "enforcement": "none",
+      "hook": null,
+      "mode": "none",
+      "coverage": "none"
+    },
+    {
+      "id": "RULE-PROMPT-3",
+      "source": "system-configs/.claude/rules/prompt-authoring.md:14",
+      "anchor": "Write current rules only",
+      "text": "Write current rules only: no PR numbers, incident stories, dates, or history.",
+      "enforcement": "none",
+      "hook": null,
+      "mode": "none",
+      "coverage": "none"
+    },
+    {
+      "id": "RULE-PROMPT-4",
+      "source": "system-configs/.claude/rules/prompt-authoring.md:15",
+      "anchor": "Don't pin model IDs in prose",
+      "text": "Don't pin model IDs in prose; name the setting that controls the model.",
+      "enforcement": "none",
+      "hook": null,
+      "mode": "none",
+      "coverage": "none"
+    },
+    {
+      "id": "RULE-PROMPT-5",
+      "source": "system-configs/.claude/rules/prompt-authoring.md:16",
+      "anchor": "Before naming an agent, skill",
+      "text": "Confirm a named agent, skill, script, flag or path exists before naming it.",
+      "enforcement": "none",
+      "hook": null,
+      "mode": "none",
+      "coverage": "none"
+    },
+    {
+      "id": "RULE-PROMPT-6",
+      "source": "system-configs/.claude/rules/prompt-authoring.md:17",
+      "anchor": "Example outputs get copied",
+      "text": "Label example outputs illustrative and keep them consistent with the rules.",
+      "enforcement": "none",
+      "hook": null,
+      "mode": "none",
+      "coverage": "none"
+    },
+    {
+      "id": "RULE-PROMPT-7",
+      "source": "system-configs/.claude/rules/prompt-authoring.md:18",
+      "anchor": "Delegate a retired specialist role",
+      "text": "Delegate retired specialist roles to general-purpose with an inline role prompt.",
+      "enforcement": "none",
+      "hook": null,
+      "mode": "none",
+      "coverage": "none"
+    },
+    {
+      "id": "RULE-PROMPT-8",
+      "source": "system-configs/.claude/rules/prompt-authoring.md:19",
+      "anchor": "Context and reasons are never cruft",
+      "text": "Don't shorten a prompt for length alone; context and reasons stay.",
+      "enforcement": "none",
+      "hook": null,
+      "mode": "none",
+      "coverage": "none"
     }
   ]
 }

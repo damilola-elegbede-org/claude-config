@@ -665,6 +665,21 @@ sync_files() {
         fi
     fi
 
+    # Sync rules (*.md only). --exclude='local-*.md' keeps a rule authored
+    # directly in ~/.claude/rules/ alive through --delete, as for output styles.
+    if [ "$(manifest_flag rules)" != "true" ]; then
+        echo "  ⏭  Rules: skipped by $STATION manifest"
+    elif [ -d "$SOURCE_DIR/rules" ]; then
+        mkdir -p "$TARGET_DIR/rules"
+        rsync_output=""
+        if rsync_output=$(rsync -a --delete --exclude='local-*.md' --include='*/' --include='*.md' --exclude='*' "$SOURCE_DIR/rules/" "$TARGET_DIR/rules/" 2>&1); then
+            RULE_COUNT=$(find "$SOURCE_DIR/rules" -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
+            echo "  ✅ Rules: $RULE_COUNT files → ~/.claude/rules/"
+        else
+            print_warning "Failed to sync rules: $rsync_output"
+        fi
+    fi
+
     # Sync settings.json per station policy: replace (default), key-scoped
     # merge (fleet nodes — repo wins only on owned keys), or skip.
     SETTINGS_MODE=$(settings_mode)
