@@ -18,7 +18,6 @@ file.
 | File | Written by | Read by |
 | --- | --- | --- |
 | `.tmp/review-local.json` | `review/SKILL.md` | `resolve-comments/SKILL.md` |
-| `.tmp/review-coderabbit.json` | `review/SKILL.md` | `resolve-comments/SKILL.md` |
 | `.tmp/review-code.json` | `review/SKILL.md` | `review/SKILL.md` (merge step) |
 | `.tmp/review-security.json` | `review/SKILL.md` | `review/SKILL.md` (merge step) |
 | `.tmp/review-accessibility.json` | `review/SKILL.md` | `review/SKILL.md` (merge step) |
@@ -34,7 +33,6 @@ All of these files **must** include `schema_version` at the top level.
 
 ```text
 review-local.json          → schema_version: "1.0"
-review-coderabbit.json     → schema_version: "1.0"
 review-code.json           → schema_version: "1.0"
 review-security.json       → schema_version: "1.0"
 review-accessibility.json  → schema_version: "1.0"
@@ -112,8 +110,7 @@ The following files now have `schema_version` validation on read, added in PR #1
 
 | File | Read location | Validation |
 | --- | --- | --- |
-| `.tmp/review-local.json` | `resolve-comments/SKILL.md` STEP 3 | Exact match check |
-| `.tmp/review-coderabbit.json` | `resolve-comments/SKILL.md` STEP 2 | Exact match check |
+| `.tmp/review-local.json` | `resolve-comments/references/file-mode.md` STEP 1 | Exact match check |
 | `.tmp/review-code.json` | `review/SKILL.md` merge step | Exact match check |
 | `.tmp/review-security.json` | `review/SKILL.md` merge step | Exact match check |
 | `.tmp/review-accessibility.json` | `review/SKILL.md` merge step | Exact match check |
@@ -127,8 +124,7 @@ All `.tmp/` JSON state files now have read-time `schema_version` validation.
 ### Immediate — ✅ Done in PR #176
 
 1. **✅ Validation added to `resolve-comments/SKILL.md`** when reading:
-   - `.tmp/review-local.json` (STEP 3 / STEP 2 fetch path)
-   - `.tmp/review-coderabbit.json` (STEP 2 fetch path)
+   - `.tmp/review-local.json` (file-mode STEP 1)
 
 2. **✅ Validation added to `review/SKILL.md`** when merging:
    - `.tmp/review-code.json`

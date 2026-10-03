@@ -786,10 +786,10 @@
       "text": "Expect to git fetch and rebase before pushing; force-push only feature branches, with --force-with-lease.",
       "enforcement": "regex",
       "hook": "settings.json",
-      "hook_marker": "push[[:space:]]([^;&|]*[[:space:]])?(--force",
+      "hook_marker": "--force-with-lease(=[^[:space:];&|]+)?",
       "mode": "enforce",
       "coverage": "partial",
-      "note": "Inline PreToolUse Bash guard in settings.json blocks force-pushes to main/master. Fetch+rebase before push and the lease flag are not checked."
+      "note": "Inline settings.json guard allows a force push only as a standalone leased push to a named feature branch. Fetch+rebase before push is not checked."
     },
     {
       "id": "MEM-EXEC-1",
@@ -1114,14 +1114,14 @@
     {
       "id": "RULE-GIT-2",
       "source": "system-configs/.claude/rules/git-safety.md:4",
-      "anchor": "Force-push only a feature branch",
-      "text": "Force-push only a feature branch, with --force-with-lease; never main or master.",
+      "anchor": "Force-push only as a standalone",
+      "text": "Force-push only as a standalone git push [-u] --force-with-lease <remote> [<src>:]<feature-branch>.",
       "enforcement": "regex",
       "hook": "settings.json",
       "mode": "enforce",
       "coverage": "full",
-      "note": "Inline settings.json guard blocks any force-push to main/master and any unleased force-push (--force, -f, +refspec) elsewhere; gate rule G2-push-main also denies every push to main. A leased force push that names no destination branch, or targets HEAD/@ without one, is blocked too (it would go to the current branch's upstream).",
-      "hook_marker": "push[[:space:]]([^;&|]*[[:space:]])?(--force"
+      "note": "Allow-list in the inline settings.json guard: any force push is blocked unless the whole command is `git push [-u] --force-with-lease[=...] <remote> [<src>:]<branch>` with a plain branch that is not main, master or HEAD. Gate rule G2-push-main also denies every push naming main.",
+      "hook_marker": "--force-with-lease(=[^[:space:];&|]+)?"
     },
     {
       "id": "RULE-GIT-3",
