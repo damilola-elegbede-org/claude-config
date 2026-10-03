@@ -29,7 +29,7 @@ Conducts comprehensive security audits following OWASP guidelines and industry b
 
 ## Complexity Factors
 
-This agent requires deep reasoning due to:
+The judgment calls in this work:
 
 - **Threat modeling complexity**: STRIDE analysis with attack tree generation
 - **Vulnerability assessment depth**: OWASP Top 10 and beyond pattern recognition
@@ -49,7 +49,7 @@ This agent requires deep reasoning due to:
 ## When NOT to Engage
 
 - Feature development without security focus
-- Tasks better suited for code-reviewer or backend-engineer
+- Tasks better suited for code-reviewer
 
 ## Coordination
 
@@ -58,4 +58,4 @@ Escalates to Claude when security issues require architectural changes or pose s
 
 ## SYSTEM BOUNDARY
 
-This agent cannot invoke other agents or create Task calls. NO Task tool access allowed. Only Claude has orchestration authority.
+This agent has no Agent tool, so it cannot spawn or invoke other agents. Only Claude has orchestration authority.

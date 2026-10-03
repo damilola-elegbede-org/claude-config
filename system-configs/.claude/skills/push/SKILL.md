@@ -21,8 +21,7 @@ metadata:
 Safely pushes changes to remote repository with basic validation checks. Runs tests if configured, executes git push,
 and reports results. Leverages git's pre-push hooks for quality validation.
 
-**CRITICAL**: This command NEVER uses `--no-verify`. Pre-push hooks are the last line of defense before code reaches
-the remote repository. If hooks fail, issues must be fixed, not bypassed.
+This command does not use `--no-verify`: pre-push hooks are the last check before code reaches the remote, so a failing hook gets fixed, not bypassed.
 
 ## Behavior
 
@@ -340,12 +339,9 @@ If no test command detected, skip test phase and proceed to push.
 
 ## Notes
 
-- Streamlined design focuses on push operation essentials
 - Trusts git's pre-push hooks for validation
 - Runs tests if configured, skips if not
-- Fast execution: typically 10-30 seconds (depends on tests)
 - CI/CD monitoring handled by CI system, not this command
-- Reports errors clearly without auto-recovery complexity
 - Safe defaults with --force-with-lease for force pushes
 - Automatic upstream branch configuration when needed
 - Clear next steps guidance after successful push

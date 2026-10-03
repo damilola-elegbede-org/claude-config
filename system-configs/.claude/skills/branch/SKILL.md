@@ -163,11 +163,9 @@ When no arguments provided:
    - Provide naming templates for common patterns
    - Offer guided branch creation
 
-3. **User Selection (MANDATORY PAUSE)**
-   - Present categorized options
-   - **MANDATORY**: Use the `AskUserQuestion` tool to present branch type options
+3. **User Selection**
+   - Present the branch-type options through `AskUserQuestion` and create the branch only after the user picks one
    - Allow custom input with pattern assistance
-   - WAIT for user selection before creating branch
    - Apply selected pattern and create branch
 
 ### Error Handling
@@ -228,24 +226,3 @@ Simple and effective branch creation:
 - Clear confirmation of branch creation
 - Guidance for next steps provided
 - Minimal execution time and complexity
-
-## Command Philosophy
-
-Transform branch creation from manual naming decisions to intelligent, context-aware automation while maintaining
-simplicity and speed. Focus on direct execution rather than complex orchestration.
-
-```yaml
-Direct Execution Benefits:
-  - Fast branch creation (seconds, not minutes)
-  - Clear, predictable naming patterns
-  - Minimal system overhead
-  - Easy to understand and debug
-  - Consistent behavior across environments
-
-Key Capabilities Preserved:
-  - Intelligent naming based on context
-  - Pattern recognition for different branch types
-  - Conflict resolution with fallback naming
-  - Interactive mode for guidance
-  - Error handling for common scenarios
-```

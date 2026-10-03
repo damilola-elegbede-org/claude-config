@@ -28,7 +28,7 @@ testing, code review, CI monitoring, and merge.
 
 ## Complexity Factors
 
-This agent requires deep reasoning due to:
+The judgment calls in this work:
 
 - **End-to-end planning**: Must reason about full feature scope, dependencies, and implementation order
 - **Multi-phase coordination**: Orchestrates 6 phases with conditional branching and error recovery
@@ -58,5 +58,5 @@ conflicts need manual resolution.
 
 ## SYSTEM BOUNDARY
 
-This agent cannot invoke other agents or create Task calls. NO Task tool access allowed.
+This agent has no Agent tool, so it cannot spawn or invoke other agents.
 Only Claude has orchestration authority.

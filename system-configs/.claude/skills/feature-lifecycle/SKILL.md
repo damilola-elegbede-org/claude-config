@@ -63,15 +63,7 @@ STEP 2: Generate implementation plan
   INPUT: Normalized spec from Phase 0
   OUTPUT: PRD + phase_*.md task files, each with a ## Tasks list and ## Acceptance section
 
-STEP 3: Self-review loop
-  REVIEW: Does the plan cover all acceptance criteria?
-  REVIEW: Are there missing edge cases or error handling?
-  REVIEW: Is the task ordering correct (dependencies respected)?
-  IF: gaps found → refine plan and re-review (max 2 iterations)
-
-STEP 4: Save plan
-  RUN: mkdir -p .tmp/plans
-  SAVE: .tmp/plans/implementation-plan-<branch-name>.md
+STEP 3: Record plan paths — note the `prd.md` and `phase_*.md` paths `/plan` printed
 ```
 
 ## Phase 2: Implement
@@ -82,7 +74,7 @@ Two modes: a single pass (default), or an autonomous per-slice loop (`--afk`).
 
 ```text
 STEP 1: Implement features
-  INVOKE: /implement with the saved plan
+  INVOKE: /implement on each phase file in `depends on:` order
   TRACK: Progress via task system
 
 STEP 2: Run tests
@@ -226,40 +218,6 @@ claude -p "/feature-lifecycle docs/specs/rate-limiting.md"
 
 # From GitHub issue
 claude -p "/feature-lifecycle --issue 42"
-```
-
-### Agent SDK (Python)
-
-```python
-import anthropic
-
-client = anthropic.Anthropic()
-message = client.messages.create(
-    model="claude-sonnet-5-5",
-    max_tokens=16384,
-    messages=[{
-        "role": "user",
-        "content": "/feature-lifecycle --issue 42"
-    }]
-)
-```
-
-### Agent SDK (TypeScript)
-
-```typescript
-import Anthropic from "@anthropic-ai/sdk";
-
-const client = new Anthropic();
-const message = await client.messages.create({
-  model: "claude-sonnet-5-5",
-  max_tokens: 16384,
-  messages: [
-    {
-      role: "user",
-      content: "/feature-lifecycle --issue 42",
-    },
-  ],
-});
 ```
 
 ### Lead Agent Delegation

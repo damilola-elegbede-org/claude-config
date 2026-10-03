@@ -350,15 +350,11 @@ async def search_users(params: UserSearchInput) -> str:
         "Error: <error message>" or
         "No users found matching '<query>'"
 
-    Examples:
-        - Use when: "Find all marketing team members"
-          -> params with query="team:marketing"
-        - Use when: "Search for John's account"
-          -> params with query="john"
-        - Don't use when: You need to create a user
-          (use example_create_user instead)
-        - Don't use when: You have a user ID and need full details
-          (use example_get_user instead)
+    When to use:
+        - Finding users by name, email, or team. `query` accepts a `team:<name>` prefix to filter by team.
+    When not to use:
+        - Creating a user (use example_create_user)
+        - Fetching full details for a known user ID (use example_get_user)
 
     Error Handling:
         - Input validation errors are handled by Pydantic model

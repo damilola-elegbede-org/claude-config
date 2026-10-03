@@ -40,8 +40,8 @@ test_prime_content() {
     assert_file_contains "$prime_file" "repository" \
         "Should mention repository analysis"
 
-    assert_file_contains "$prime_file" "researcher" \
-        "Should mention researcher agent"
+    assert_file_contains "$prime_file" "Explore" \
+        "Should mention Explore subagent for large repos"
 
     assert_file_contains "$prime_file" "Lite Mode" \
         "Should mention lite mode"

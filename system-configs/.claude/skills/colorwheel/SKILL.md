@@ -335,9 +335,6 @@ review.
 Fail closed. A wave that is silently incomplete is the worst outcome this skill can produce, because the run still
 emits a confident verdict — just one with a lens missing that nobody noticed.
 
-This is not hypothetical. The skill's own first run lost all four Wave A agents to silent result-delivery failure,
-and the gap was caught by a reviewer rather than by the spec.
-
 - **Every spawned team is accounted for before the next wave starts.** The orchestrator holds an explicit roster
   and checks each team returned. Blue does not run on a partial Red. White does not run on a partial ledger.
 - **A team that returns nothing, times out, or returns output that does not parse into findings is retried up to

@@ -167,13 +167,15 @@ STEP 1: Check for existing PR
 
 STEP 2: Parse $ARGUMENTS
   PARSE: $ARGUMENTS for target_branch, --draft, --force flags
+  IF: no target_branch given
+    SET: target_branch = main (or master if the repo has no main)
 
 STEP 3: Analyze and create PR
-  RUN: git diff main...HEAD
-  RUN: git log main..HEAD
+  RUN: git diff {target_branch}...HEAD
+  RUN: git log {target_branch}..HEAD
   GENERATE: title using conventional commit pattern
   GENERATE: description summarizing changes
-  RUN: gh pr create --title "..." --body "..."
+  RUN: gh pr create --base {target_branch} --title "..." --body "..." [--draft]
   SET: pr_url = created PR URL
 
 STEP 4: Post review acknowledgments
@@ -224,22 +226,6 @@ STEP 5: Report success
 - `target_branch` (optional): Target branch for PR (default: main/master)
 - `--draft`: Create as draft PR
 - `--force`: Create PR even if one already exists for this branch
-
-## Performance
-
-### Execution Time
-
-- **Change analysis**: 1-2 seconds
-- **Content generation**: 1-2 seconds
-- **PR creation**: 1 second
-- **Total**: 3-5 seconds
-
-### Benefits of Streamlined Approach
-
-- **Faster execution**: 3-5 seconds vs 6-8 seconds
-- **Focused functionality**: Core PR creation without overhead
-- **Clear output**: Simple, readable PR descriptions
-- **Minimal agents**: Only use agents when truly needed
 
 ## Notes
 

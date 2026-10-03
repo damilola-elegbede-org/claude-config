@@ -197,10 +197,10 @@ Returns:
     "next_offset": number
   }
 
-Examples:
-  - "Find all marketing team members" -> query="team:marketing"
-  - "Search for John's account" -> query="john"
-  - Don't use when creating a user (use example_create_user)
+When to use:
+  - Finding users by name, email, or team. `query` accepts a `team:<name>` prefix to filter by team.
+When not to use:
+  - Creating a user (use example_create_user)
 
 Error Handling:
   - Returns "Error: Rate limit exceeded" for 429 status
@@ -961,7 +961,7 @@ Before finalizing your Node/TypeScript MCP server implementation, ensure:
 - [ ] All tools use Zod schemas for runtime input validation with `.strict()` enforcement
 - [ ] All Zod schemas have proper constraints and descriptive error messages
 - [ ] All tools have comprehensive descriptions with explicit input/output types
-- [ ] Descriptions include return value examples and complete schema documentation
+- [ ] Descriptions document the full return schema
 - [ ] Error messages are clear, actionable, and educational
 
 ### TypeScript Quality

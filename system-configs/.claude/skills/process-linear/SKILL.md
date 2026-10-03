@@ -199,8 +199,8 @@ or a keystone already resolved it, **skip it with a note** (idempotency + race s
   prose above it. Prose around the question carries only the clickable links, the post-decision record, and the
   standing interaction affordances below (`skip`/`defer`/`show me the source`, which can't be spent as option
   slots); never park load-bearing recommendation context there.
-- **Dialog question text follows D's ask format** (mirrors the framework in
-  `infra/references/d-facing-ask-template.md`). Structured and scannable, in exactly this order, each part 1-2 short
+- **Dialog question text follows the `ask` skill's cold-scaffold format.**
+  Structured and scannable, in exactly this order, each part 1-2 short
   lines — never a run-on paragraph of inlined figures and ticket IDs (that density is the failure mode this format
   replaced):
 
@@ -420,7 +420,7 @@ Every ticket reference shown to D is a clickable markdown link built from the MC
 and `Link` columns carry these links (ticket ID + the PR/artifact/issue D would open to judge), and the tier-2
 detail blocks may add more.
 
-**A grouped row links every ticket it covers, individually.** When one decision spans N tickets (step 9's
+**A grouped row links every ticket it covers, individually.** When one decision spans N tickets (steps 4 and 7's
 grouping rule), the `Ticket` cell carries N separate links — `[OPS-345](<url>) [OPS-346](<url>)`, never a
 collapsed `[OPS-345/6](<url>)` or an abbreviated range. A collapsed form gives the second and later tickets no
 destination, which is the bare-ID failure wearing a link's clothes: D can't open what the row is asking them to
