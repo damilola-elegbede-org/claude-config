@@ -236,12 +236,13 @@ def build_gate_request(qdoc, ex, cands, style="choice"):
         if (not ex.get("tracked")) or (not ex.get("clean")):
             ids.append("G1-irreversible-local")
     ids = sorted(set(ids))
-    if not ids:
-        return None, []
     turns = ex.get("turns", [])
     untrusted = ex.get("untrusted", [])
+    # Like jev-gate.sh: G15 is judged whenever untrusted content is present, even if no class regex matched.
     if untrusted:
         ids.append("G15-untrusted-origin")
+    if not ids:
+        return None, []
     ctx = "interactive"
     if kind == "bash":
         cmd = trim(redact(strip_heredocs(ex["command"])), 700)
