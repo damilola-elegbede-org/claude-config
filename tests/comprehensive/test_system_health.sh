@@ -217,7 +217,7 @@ fi
 # Test 8: System metrics
 echo ""
 echo "System Health Metrics:"
-echo "  Total agents: $(find "$AGENTS_DIR" -name "*.md" -not -name "*TEMPLATE*" -not -name "README.md" | wc -l | tr -d ' ') (expected ~8)"
+echo "  Total agents: $(find "$AGENTS_DIR" -name "*.md" -not -name "*TEMPLATE*" -not -name "README.md" | wc -l | tr -d ' ') (expected ~7)"
 echo "  Total skills: $(find "$SKILLS_DIR" -mindepth 1 -maxdepth 1 -type d ! -name '.*' 2>/dev/null | wc -l | tr -d ' ')"
 echo "  Total scripts: $(find "$ORIGINAL_DIR/scripts" -name "*.sh" -o -name "*.py" | wc -l | tr -d ' ')"
 echo "  Total tests: $(find "$ORIGINAL_DIR/tests" -name "*.sh" | wc -l | tr -d ' ')"
