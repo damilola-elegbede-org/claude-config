@@ -18,6 +18,7 @@ IF: --local flag
       DELETE: .tmp/review-local.json
       OUTPUT: "⚠️ Schema version mismatch in review-local.json (found: {v}, expected: {CURRENT}).
                Backed up to {backup_path}. Re-run /review to regenerate."
+      END
   APPEND: issues with source="code-reviewer"
   OUTPUT: "Loaded {count} AI reviewer issues"
 

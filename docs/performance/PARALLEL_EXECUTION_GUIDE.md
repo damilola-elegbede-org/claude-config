@@ -3,7 +3,7 @@
 ## Overview
 
 This guide covers strategies for maximizing parallel agent execution with the current
-8-agent ecosystem. The principle is parallel-first: independent tasks run concurrently,
+7-agent ecosystem. The principle is parallel-first: independent tasks run concurrently,
 quality gates run alongside implementation, and wave-based workflows minimize wait time.
 
 ## Core Agents (7)

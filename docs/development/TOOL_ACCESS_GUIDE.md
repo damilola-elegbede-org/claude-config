@@ -3,7 +3,7 @@
 ## Overview
 
 This guide explains the rationale behind tool access restrictions for each of the
-8 current agents, ensuring appropriate capabilities while maintaining security and
+7 current agents, ensuring appropriate capabilities while maintaining security and
 role boundaries.
 
 ## Current Agent Tool Access

@@ -2,7 +2,7 @@
 
 ## Agent Tool Access Security Framework
 
-This document defines the security access patterns for the current 8-agent ecosystem,
+This document defines the security access patterns for the current 7-agent ecosystem,
 ensuring appropriate tool restrictions while maintaining functional capabilities.
 
 ## Current Agents (7)

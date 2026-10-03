@@ -1119,8 +1119,8 @@
       "enforcement": "regex",
       "hook": "settings.json",
       "mode": "enforce",
-      "coverage": "partial",
-      "note": "Inline settings.json guard and gate rule G2-push-main block force-pushes to main/master; --force-with-lease on feature branches is not checked.",
+      "coverage": "full",
+      "note": "Inline settings.json guard blocks any force-push to main/master and any unleased force-push (--force, -f, +refspec) elsewhere; gate rule G2-push-main also denies every push to main.",
       "hook_marker": "push[[:space:]]([^;&|]*[[:space:]])?(--force"
     },
     {
