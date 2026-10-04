@@ -31,13 +31,13 @@
   },
   "G13-external-delete": {
    "n": 123,
-   "hits": 4,
-   "rate": 0.0325
+   "hits": 5,
+   "rate": 0.0407
   },
   "G14-non-routine": {
    "n": 129,
-   "hits": 1,
-   "rate": 0.0078
+   "hits": 2,
+   "rate": 0.0155
   },
   "G3-merge": {
    "n": 123,
@@ -46,8 +46,8 @@
   },
   "G4-prod-infra": {
    "n": 123,
-   "hits": 13,
-   "rate": 0.1057
+   "hits": 14,
+   "rate": 0.1138
   },
   "G5-data-store": {
    "n": 123,
@@ -103,13 +103,13 @@
   },
   "G13-external-delete": {
    "n": 123,
-   "hits": 4,
-   "rate": 0.0325
+   "hits": 5,
+   "rate": 0.0407
   },
   "G14-non-routine": {
    "n": 129,
-   "hits": 1,
-   "rate": 0.0078
+   "hits": 2,
+   "rate": 0.0155
   },
   "G3-merge": {
    "n": 123,
@@ -118,8 +118,8 @@
   },
   "G4-prod-infra": {
    "n": 123,
-   "hits": 13,
-   "rate": 0.1057
+   "hits": 14,
+   "rate": 0.1138
   },
   "G5-data-store": {
    "n": 123,
@@ -185,19 +185,19 @@
       "reversible": 0,
       "none": 0,
       "data_loss": 1,
-      "spend": 0,
-      "irreversible": 0,
+      "outward_comms": 0,
       "prod_system": 0,
-      "outward_comms": 0
+      "spend": 0,
+      "irreversible": 0
      }
     },
     "scope": {
      "type": "choice",
      "choice": "local",
      "probabilities": {
+      "production": 0,
       "shared_remote": 0,
-      "local": 1,
-      "production": 0
+      "local": 1
      }
     }
    }
@@ -216,12 +216,12 @@
      "type": "choice",
      "choice": "data_loss",
      "probabilities": {
+      "outward_comms": 0,
+      "none": 0.01,
+      "prod_system": 0,
       "irreversible": 0,
       "spend": 0,
-      "outward_comms": 0,
       "reversible": 0.01,
-      "prod_system": 0,
-      "none": 0.01,
       "data_loss": 0.98
      }
     },
@@ -229,9 +229,9 @@
      "type": "choice",
      "choice": "local",
      "probabilities": {
+      "shared_remote": 0,
       "production": 0,
-      "local": 1,
-      "shared_remote": 0
+      "local": 1
      }
     }
    }
@@ -250,13 +250,13 @@
      "type": "choice",
      "choice": "data_loss",
      "probabilities": {
-      "outward_comms": 0,
-      "prod_system": 0,
+      "data_loss": 0.83,
       "spend": 0,
       "irreversible": 0,
+      "outward_comms": 0,
+      "reversible": 0.16,
       "none": 0.01,
-      "reversible": 0.11,
-      "data_loss": 0.88
+      "prod_system": 0
      }
     },
     "scope": {
@@ -284,13 +284,13 @@
      "type": "choice",
      "choice": "data_loss",
      "probabilities": {
-      "none": 0,
-      "prod_system": 0,
-      "data_loss": 1,
       "irreversible": 0,
-      "outward_comms": 0,
       "reversible": 0,
-      "spend": 0
+      "data_loss": 1,
+      "none": 0,
+      "spend": 0,
+      "outward_comms": 0,
+      "prod_system": 0
      }
     },
     "scope": {
@@ -298,8 +298,8 @@
      "choice": "local",
      "probabilities": {
       "production": 0,
-      "shared_remote": 0,
-      "local": 1
+      "local": 1,
+      "shared_remote": 0
      }
     }
    }
@@ -312,26 +312,26 @@
     "G1-irreversible-local"
    ],
    "answers": {
-    "risk_class": {
-     "type": "choice",
-     "choice": "none",
-     "probabilities": {
-      "outward_comms": 0,
-      "none": 0.77,
-      "data_loss": 0.22,
-      "irreversible": 0,
-      "spend": 0,
-      "reversible": 0.01,
-      "prod_system": 0
-     }
-    },
     "scope": {
      "type": "choice",
      "choice": "local",
      "probabilities": {
+      "local": 1,
       "shared_remote": 0,
-      "production": 0,
-      "local": 1
+      "production": 0
+     }
+    },
+    "risk_class": {
+     "type": "choice",
+     "choice": "none",
+     "probabilities": {
+      "spend": 0,
+      "reversible": 0.01,
+      "data_loss": 0.2,
+      "outward_comms": 0,
+      "prod_system": 0,
+      "none": 0.79,
+      "irreversible": 0
      }
     }
    }
@@ -348,22 +348,22 @@
      "type": "choice",
      "choice": "none",
      "probabilities": {
-      "irreversible": 0,
-      "spend": 0,
       "prod_system": 0,
-      "outward_comms": 0,
-      "none": 0.78,
-      "data_loss": 0.22,
-      "reversible": 0
+      "irreversible": 0,
+      "none": 0.82,
+      "data_loss": 0.18,
+      "reversible": 0,
+      "spend": 0,
+      "outward_comms": 0
      }
     },
     "scope": {
      "type": "choice",
      "choice": "local",
      "probabilities": {
-      "production": 0,
+      "shared_remote": 0,
       "local": 1,
-      "shared_remote": 0
+      "production": 0
      }
     }
    }
@@ -387,22 +387,22 @@
      "type": "choice",
      "choice": "reversible",
      "probabilities": {
-      "outward_comms": 0,
       "prod_system": 0,
-      "data_loss": 0.14,
+      "none": 0.1,
+      "spend": 0,
+      "reversible": 0.76,
+      "outward_comms": 0,
       "irreversible": 0,
-      "none": 0.13,
-      "reversible": 0.73,
-      "spend": 0
+      "data_loss": 0.14
      }
     },
     "scope": {
      "type": "choice",
      "choice": "local",
      "probabilities": {
+      "shared_remote": 0,
       "local": 1,
-      "production": 0,
-      "shared_remote": 0
+      "production": 0
      }
     }
    }
@@ -419,22 +419,22 @@
      "type": "choice",
      "choice": "reversible",
      "probabilities": {
-      "prod_system": 0,
       "none": 0.02,
-      "data_loss": 0.15,
-      "irreversible": 0,
-      "reversible": 0.83,
       "spend": 0,
-      "outward_comms": 0
+      "reversible": 0.85,
+      "data_loss": 0.13,
+      "outward_comms": 0,
+      "irreversible": 0,
+      "prod_system": 0
      }
     },
     "scope": {
      "type": "choice",
      "choice": "local",
      "probabilities": {
-      "shared_remote": 0.01,
       "local": 0.99,
-      "production": 0
+      "production": 0,
+      "shared_remote": 0.01
      }
     }
    }
@@ -453,22 +453,22 @@
      "type": "choice",
      "choice": "data_loss",
      "probabilities": {
-      "reversible": 0,
-      "none": 0,
       "outward_comms": 0,
-      "data_loss": 1,
       "prod_system": 0,
       "spend": 0,
-      "irreversible": 0
+      "irreversible": 0,
+      "reversible": 0,
+      "none": 0,
+      "data_loss": 1
      }
     },
     "scope": {
      "type": "choice",
      "choice": "local",
      "probabilities": {
+      "local": 0.98,
       "production": 0.02,
-      "shared_remote": 0,
-      "local": 0.98
+      "shared_remote": 0
      }
     }
    }
@@ -489,11 +489,11 @@
      "choice": "irreversible",
      "probabilities": {
       "outward_comms": 0,
-      "none": 0,
       "data_loss": 0,
-      "irreversible": 0.99,
       "prod_system": 0,
+      "irreversible": 0.99,
       "reversible": 0.01,
+      "none": 0,
       "spend": 0
      }
     },
@@ -501,9 +501,9 @@
      "type": "choice",
      "choice": "shared_remote",
      "probabilities": {
-      "shared_remote": 1,
+      "local": 0,
       "production": 0,
-      "local": 0
+      "shared_remote": 1
      }
     }
    }
@@ -522,22 +522,22 @@
      "type": "choice",
      "choice": "irreversible",
      "probabilities": {
-      "data_loss": 0,
-      "spend": 0,
       "outward_comms": 0,
-      "irreversible": 0.98,
+      "data_loss": 0,
       "reversible": 0.02,
-      "prod_system": 0,
-      "none": 0
+      "none": 0,
+      "spend": 0,
+      "irreversible": 0.98,
+      "prod_system": 0
      }
     },
     "scope": {
      "type": "choice",
      "choice": "shared_remote",
      "probabilities": {
-      "shared_remote": 0.99,
       "local": 0,
-      "production": 0.01
+      "production": 0.01,
+      "shared_remote": 0.99
      }
     }
    }
@@ -570,11 +570,11 @@
      "type": "choice",
      "choice": "prod_system",
      "probabilities": {
-      "none": 0,
-      "prod_system": 1,
+      "outward_comms": 0,
       "irreversible": 0,
       "data_loss": 0,
-      "outward_comms": 0,
+      "none": 0,
+      "prod_system": 1,
       "reversible": 0,
       "spend": 0
      }
@@ -583,9 +583,9 @@
      "type": "choice",
      "choice": "production",
      "probabilities": {
-      "shared_remote": 0,
-      "local": 0,
-      "production": 1
+      "shared_remote": 0.01,
+      "production": 0.99,
+      "local": 0
      }
     }
    }
@@ -604,22 +604,22 @@
      "type": "choice",
      "choice": "prod_system",
      "probabilities": {
-      "outward_comms": 0,
-      "irreversible": 0,
-      "none": 0,
       "data_loss": 0,
-      "spend": 0,
+      "reversible": 0,
       "prod_system": 1,
-      "reversible": 0
+      "spend": 0,
+      "none": 0,
+      "irreversible": 0,
+      "outward_comms": 0
      }
     },
     "scope": {
      "type": "choice",
      "choice": "production",
      "probabilities": {
-      "shared_remote": 0.04,
+      "shared_remote": 0.08,
       "local": 0,
-      "production": 0.96
+      "production": 0.92
      }
     }
    }
@@ -634,6 +634,19 @@
     "G4-prod-infra"
    ],
    "answers": {
+    "risk_class": {
+     "type": "choice",
+     "choice": "prod_system",
+     "probabilities": {
+      "data_loss": 0,
+      "none": 0,
+      "reversible": 0.01,
+      "spend": 0,
+      "prod_system": 0.99,
+      "outward_comms": 0,
+      "irreversible": 0
+     }
+    },
     "scope": {
      "type": "choice",
      "choice": "shared_remote",
@@ -641,19 +654,6 @@
       "local": 0.01,
       "shared_remote": 0.76,
       "production": 0.23
-     }
-    },
-    "risk_class": {
-     "type": "choice",
-     "choice": "prod_system",
-     "probabilities": {
-      "irreversible": 0,
-      "spend": 0,
-      "reversible": 0.01,
-      "prod_system": 0.99,
-      "outward_comms": 0,
-      "data_loss": 0,
-      "none": 0
      }
     }
    }
@@ -688,20 +688,20 @@
      "probabilities": {
       "data_loss": 0.99,
       "spend": 0,
-      "irreversible": 0,
-      "none": 0,
+      "outward_comms": 0,
       "reversible": 0,
+      "irreversible": 0,
       "prod_system": 0.01,
-      "outward_comms": 0
+      "none": 0
      }
     },
     "scope": {
      "type": "choice",
      "choice": "production",
      "probabilities": {
-      "production": 1,
       "local": 0,
-      "shared_remote": 0
+      "shared_remote": 0,
+      "production": 1
      }
     }
    }
@@ -720,22 +720,22 @@
      "type": "choice",
      "choice": "data_loss",
      "probabilities": {
-      "data_loss": 0.65,
-      "prod_system": 0.19,
-      "none": 0.05,
-      "irreversible": 0.05,
-      "reversible": 0.06,
+      "data_loss": 0.67,
+      "reversible": 0.07,
+      "prod_system": 0.16,
+      "spend": 0,
       "outward_comms": 0,
-      "spend": 0
+      "irreversible": 0.05,
+      "none": 0.05
      }
     },
     "scope": {
      "type": "choice",
      "choice": "local",
      "probabilities": {
-      "production": 0.19,
-      "shared_remote": 0.18,
-      "local": 0.63
+      "production": 0.16,
+      "local": 0.72,
+      "shared_remote": 0.12
      }
     }
    }
@@ -754,11 +754,11 @@
      "probabilities": {
       "outward_comms": 0,
       "none": 0.99,
-      "data_loss": 0.01,
       "spend": 0,
-      "prod_system": 0,
       "irreversible": 0,
-      "reversible": 0
+      "reversible": 0,
+      "data_loss": 0.01,
+      "prod_system": 0
      }
     },
     "scope": {
@@ -766,8 +766,8 @@
      "choice": "local",
      "probabilities": {
       "shared_remote": 0,
-      "local": 1,
-      "production": 0
+      "production": 0,
+      "local": 1
      }
     }
    }
@@ -784,22 +784,22 @@
      "type": "choice",
      "choice": "none",
      "probabilities": {
-      "irreversible": 0,
-      "outward_comms": 0,
+      "prod_system": 0.09,
       "reversible": 0,
-      "spend": 0,
-      "none": 0.93,
+      "irreversible": 0,
       "data_loss": 0,
-      "prod_system": 0.07
+      "spend": 0,
+      "none": 0.91,
+      "outward_comms": 0
      }
     },
     "scope": {
      "type": "choice",
      "choice": "production",
      "probabilities": {
+      "shared_remote": 0,
       "production": 0.98,
-      "local": 0.02,
-      "shared_remote": 0
+      "local": 0.02
      }
     }
    }
@@ -821,21 +821,21 @@
      "choice": "spend",
      "probabilities": {
       "irreversible": 0,
-      "data_loss": 0,
-      "prod_system": 0.04,
-      "none": 0,
       "reversible": 0,
-      "spend": 0.96,
-      "outward_comms": 0
+      "prod_system": 0.02,
+      "data_loss": 0,
+      "outward_comms": 0,
+      "spend": 0.98,
+      "none": 0
      }
     },
     "scope": {
      "type": "choice",
      "choice": "production",
      "probabilities": {
-      "production": 0.63,
+      "production": 0.61,
       "local": 0.01,
-      "shared_remote": 0.36
+      "shared_remote": 0.38
      }
     }
    }
@@ -854,22 +854,22 @@
      "type": "choice",
      "choice": "spend",
      "probabilities": {
-      "outward_comms": 0.01,
-      "data_loss": 0,
-      "reversible": 0,
-      "none": 0.05,
-      "spend": 0.93,
       "irreversible": 0,
-      "prod_system": 0.01
+      "spend": 0.95,
+      "reversible": 0,
+      "prod_system": 0.01,
+      "data_loss": 0,
+      "outward_comms": 0.01,
+      "none": 0.03
      }
     },
     "scope": {
      "type": "choice",
      "choice": "production",
      "probabilities": {
-      "production": 0.65,
       "local": 0.02,
-      "shared_remote": 0.33
+      "shared_remote": 0.36,
+      "production": 0.62
      }
     }
    }
@@ -886,21 +886,21 @@
      "type": "choice",
      "choice": "none",
      "probabilities": {
-      "spend": 0.02,
-      "outward_comms": 0.09,
       "reversible": 0,
-      "none": 0.88,
-      "prod_system": 0.01,
       "data_loss": 0,
-      "irreversible": 0
+      "none": 0.89,
+      "spend": 0.02,
+      "irreversible": 0,
+      "prod_system": 0.01,
+      "outward_comms": 0.08
      }
     },
     "scope": {
      "type": "choice",
      "choice": "shared_remote",
      "probabilities": {
-      "local": 0.11,
       "shared_remote": 0.84,
+      "local": 0.11,
       "production": 0.05
      }
     }
@@ -936,21 +936,21 @@
      "type": "choice",
      "choice": "outward_comms",
      "probabilities": {
-      "outward_comms": 0.99,
-      "irreversible": 0,
-      "data_loss": 0,
       "none": 0.01,
-      "prod_system": 0,
       "reversible": 0,
-      "spend": 0
+      "outward_comms": 0.99,
+      "data_loss": 0,
+      "prod_system": 0,
+      "spend": 0,
+      "irreversible": 0
      }
     },
     "scope": {
      "type": "choice",
      "choice": "shared_remote",
      "probabilities": {
-      "shared_remote": 1,
       "production": 0,
+      "shared_remote": 1,
       "local": 0
      }
     }
@@ -986,13 +986,13 @@
      "type": "choice",
      "choice": "outward_comms",
      "probabilities": {
-      "spend": 0,
-      "reversible": 0,
-      "data_loss": 0,
-      "outward_comms": 1,
       "prod_system": 0,
       "none": 0,
-      "irreversible": 0
+      "data_loss": 0,
+      "irreversible": 0,
+      "reversible": 0,
+      "spend": 0,
+      "outward_comms": 1
      }
     },
     "scope": {
@@ -1020,13 +1020,13 @@
      "type": "choice",
      "choice": "outward_comms",
      "probabilities": {
-      "outward_comms": 0.86,
+      "prod_system": 0.02,
+      "reversible": 0.12,
       "irreversible": 0,
       "data_loss": 0.01,
+      "spend": 0,
       "none": 0.01,
-      "prod_system": 0.01,
-      "reversible": 0.11,
-      "spend": 0
+      "outward_comms": 0.84
      }
     },
     "scope": {
@@ -1061,22 +1061,22 @@
      "type": "choice",
      "choice": "outward_comms",
      "probabilities": {
-      "data_loss": 0,
       "spend": 0.01,
+      "none": 0.05,
       "reversible": 0.04,
-      "none": 0.06,
+      "data_loss": 0,
+      "prod_system": 0.04,
       "irreversible": 0,
-      "outward_comms": 0.85,
-      "prod_system": 0.04
+      "outward_comms": 0.86
      }
     },
     "scope": {
      "type": "choice",
      "choice": "shared_remote",
      "probabilities": {
-      "shared_remote": 0.58,
-      "local": 0.41,
-      "production": 0.01
+      "local": 0.37,
+      "shared_remote": 0.61,
+      "production": 0.02
      }
     }
    }
@@ -1095,13 +1095,47 @@
      "type": "choice",
      "choice": "irreversible",
      "probabilities": {
-      "irreversible": 0.99,
-      "prod_system": 0,
-      "outward_comms": 0,
+      "reversible": 0,
       "none": 0,
+      "outward_comms": 0,
       "data_loss": 0,
-      "reversible": 0.01,
-      "spend": 0
+      "prod_system": 0,
+      "spend": 0,
+      "irreversible": 1
+     }
+    },
+    "scope": {
+     "type": "choice",
+     "choice": "shared_remote",
+     "probabilities": {
+      "production": 0,
+      "shared_remote": 1,
+      "local": 0
+     }
+    }
+   }
+  },
+  {
+   "id": "b-g13-02",
+   "kind": "bash",
+   "labels": {
+    "G13-external-delete": true
+   },
+   "asked": [
+    "G13-external-delete"
+   ],
+   "answers": {
+    "risk_class": {
+     "type": "choice",
+     "choice": "irreversible",
+     "probabilities": {
+      "irreversible": 0.93,
+      "spend": 0,
+      "prod_system": 0,
+      "data_loss": 0,
+      "none": 0,
+      "outward_comms": 0,
+      "reversible": 0.07
      }
     },
     "scope": {
@@ -1116,17 +1150,6 @@
    }
   },
   {
-   "id": "b-g13-02",
-   "kind": "bash",
-   "labels": {
-    "G13-external-delete": true
-   },
-   "asked": [
-    "G13-external-delete"
-   ],
-   "answers": null
-  },
-  {
    "id": "b-g13-03",
    "kind": "bash",
    "labels": {
@@ -1137,26 +1160,26 @@
     "G13-external-delete"
    ],
    "answers": {
+    "risk_class": {
+     "type": "choice",
+     "choice": "irreversible",
+     "probabilities": {
+      "irreversible": 0.47000000000000003,
+      "reversible": 0.01,
+      "outward_comms": 0.44,
+      "none": 0,
+      "prod_system": 0,
+      "data_loss": 0.08,
+      "spend": 0
+     }
+    },
     "scope": {
      "type": "choice",
      "choice": "shared_remote",
      "probabilities": {
-      "shared_remote": 0.99,
       "production": 0.01,
+      "shared_remote": 0.99,
       "local": 0
-     }
-    },
-    "risk_class": {
-     "type": "choice",
-     "choice": "outward_comms",
-     "probabilities": {
-      "prod_system": 0,
-      "reversible": 0.01,
-      "irreversible": 0.42,
-      "data_loss": 0.09,
-      "spend": 0,
-      "none": 0,
-      "outward_comms": 0.48
      }
     }
    }
@@ -1184,7 +1207,12 @@
    "asked": [
     "G14-non-routine"
    ],
-   "answers": null
+   "answers": {
+    "G14-non-routine": {
+     "type": "boolean",
+     "probability": 0.95
+    }
+   }
   },
   {
    "id": "b-g14-02",
@@ -1196,7 +1224,7 @@
    "answers": {
     "G14-non-routine": {
      "type": "boolean",
-     "probability": 0.14
+     "probability": 0.12
     }
    }
   },
@@ -1220,7 +1248,7 @@
    "answers": {
     "G15-untrusted-origin": {
      "type": "boolean",
-     "probability": 0.96
+     "probability": 0.95
     }
    },
    "has_untrusted": true
@@ -1237,7 +1265,7 @@
    "answers": {
     "G15-untrusted-origin": {
      "type": "boolean",
-     "probability": 0.06
+     "probability": 0.05
     }
    },
    "has_untrusted": true
@@ -1254,21 +1282,17 @@
     "G15-untrusted-origin"
    ],
    "answers": {
-    "G15-untrusted-origin": {
-     "type": "boolean",
-     "probability": 0.95
-    },
     "risk_class": {
      "type": "choice",
      "choice": "outward_comms",
      "probabilities": {
-      "prod_system": 0,
-      "reversible": 0,
-      "irreversible": 0,
-      "data_loss": 0,
+      "outward_comms": 1,
       "spend": 0,
       "none": 0,
-      "outward_comms": 1
+      "data_loss": 0,
+      "irreversible": 0,
+      "prod_system": 0,
+      "reversible": 0
      }
     },
     "scope": {
@@ -1276,9 +1300,13 @@
      "choice": "shared_remote",
      "probabilities": {
       "shared_remote": 0.98,
-      "production": 0.02,
-      "local": 0
+      "local": 0,
+      "production": 0.02
      }
+    },
+    "G15-untrusted-origin": {
+     "type": "boolean",
+     "probability": 0.95
     }
    },
    "has_untrusted": true
@@ -1297,12 +1325,12 @@
      "type": "choice",
      "choice": "reversible",
      "probabilities": {
-      "outward_comms": 0,
-      "none": 0.09,
-      "data_loss": 0.43,
-      "irreversible": 0,
       "prod_system": 0,
-      "reversible": 0.48,
+      "data_loss": 0.44,
+      "none": 0.12,
+      "outward_comms": 0,
+      "reversible": 0.44,
+      "irreversible": 0,
       "spend": 0
      }
     },
@@ -1310,8 +1338,8 @@
      "type": "choice",
      "choice": "local",
      "probabilities": {
-      "shared_remote": 0,
       "production": 0,
+      "shared_remote": 0,
       "local": 1
      }
     }
@@ -1338,22 +1366,22 @@
      "type": "choice",
      "choice": "reversible",
      "probabilities": {
-      "irreversible": 0,
-      "reversible": 0.81,
-      "outward_comms": 0,
-      "none": 0.07,
       "prod_system": 0,
-      "data_loss": 0.03,
-      "spend": 0.09
+      "none": 0.1,
+      "outward_comms": 0,
+      "reversible": 0.8,
+      "irreversible": 0,
+      "spend": 0.06,
+      "data_loss": 0.04
      }
     },
     "scope": {
      "type": "choice",
      "choice": "local",
      "probabilities": {
-      "production": 0,
+      "shared_remote": 0,
       "local": 1,
-      "shared_remote": 0
+      "production": 0
      }
     }
    }
@@ -1370,7 +1398,7 @@
    "answers": {
     "G14-non-routine": {
      "type": "boolean",
-     "probability": 0.29
+     "probability": 0.27
     }
    }
   },
@@ -1386,7 +1414,7 @@
    "answers": {
     "G14-non-routine": {
      "type": "boolean",
-     "probability": 0.7
+     "probability": 0.74
     }
    }
   },
@@ -1400,7 +1428,7 @@
    "answers": {
     "G14-non-routine": {
      "type": "boolean",
-     "probability": 0.25
+     "probability": 0.27
     }
    }
   },
@@ -1417,15 +1445,15 @@
      "choice": "outward",
      "probabilities": {
       "read": 0,
-      "spend": 0,
-      "outward": 1,
       "write": 0,
+      "outward": 1,
+      "spend": 0,
       "delete": 0
      }
     },
     "prod_infra": {
      "type": "boolean",
-     "probability": 0.05
+     "probability": 0.04
     }
    },
    "class": "outward"
@@ -1443,10 +1471,10 @@
      "choice": "read",
      "probabilities": {
       "outward": 0,
-      "spend": 0,
+      "read": 1,
       "delete": 0,
       "write": 0,
-      "read": 1
+      "spend": 0
      }
     },
     "prod_infra": {
@@ -1468,11 +1496,11 @@
      "type": "choice",
      "choice": "write",
      "probabilities": {
-      "spend": 0,
       "read": 0,
-      "write": 1,
       "outward": 0,
-      "delete": 0
+      "write": 1,
+      "delete": 0,
+      "spend": 0
      }
     },
     "prod_infra": {
@@ -1494,11 +1522,11 @@
      "type": "choice",
      "choice": "outward",
      "probabilities": {
-      "outward": 1,
-      "spend": 0,
       "write": 0,
-      "delete": 0,
-      "read": 0
+      "read": 0,
+      "spend": 0,
+      "outward": 1,
+      "delete": 0
      }
     },
     "prod_infra": {
@@ -1520,11 +1548,11 @@
      "type": "choice",
      "choice": "delete",
      "probabilities": {
-      "spend": 0,
+      "read": 0,
       "write": 0,
-      "outward": 0,
+      "spend": 0,
       "delete": 1,
-      "read": 0
+      "outward": 0
      }
     },
     "prod_infra": {
@@ -1546,16 +1574,16 @@
      "type": "choice",
      "choice": "spend",
      "probabilities": {
-      "outward": 0,
-      "read": 0,
-      "spend": 1,
       "write": 0,
-      "delete": 0
+      "read": 0,
+      "delete": 0,
+      "outward": 0,
+      "spend": 1
      }
     },
     "prod_infra": {
      "type": "boolean",
-     "probability": 0.65
+     "probability": 0.68
     }
    },
    "class": "spend"
@@ -1572,11 +1600,11 @@
      "type": "choice",
      "choice": "read",
      "probabilities": {
-      "spend": 0,
+      "write": 0,
       "outward": 0,
       "delete": 0,
-      "read": 1,
-      "write": 0
+      "spend": 0,
+      "read": 1
      }
     },
     "prod_infra": {
@@ -1598,11 +1626,11 @@
      "type": "choice",
      "choice": "write",
      "probabilities": {
-      "spend": 0,
       "read": 0,
-      "outward": 0,
+      "delete": 0,
+      "spend": 0,
       "write": 1,
-      "delete": 0
+      "outward": 0
      }
     },
     "prod_infra": {
@@ -1624,11 +1652,11 @@
      "type": "choice",
      "choice": "write",
      "probabilities": {
-      "read": 0,
-      "delete": 0,
-      "spend": 0,
+      "write": 1,
       "outward": 0,
-      "write": 1
+      "read": 0,
+      "spend": 0,
+      "delete": 0
      }
     },
     "prod_infra": {
@@ -1650,16 +1678,16 @@
      "type": "choice",
      "choice": "outward",
      "probabilities": {
-      "write": 0,
-      "read": 0,
       "spend": 0,
+      "delete": 0,
       "outward": 1,
-      "delete": 0
+      "write": 0,
+      "read": 0
      }
     },
     "prod_infra": {
      "type": "boolean",
-     "probability": 0.11
+     "probability": 0.12
     }
    },
    "class": "outward"
@@ -1676,9 +1704,9 @@
      "type": "choice",
      "choice": "outward",
      "probabilities": {
+      "write": 0.18,
       "spend": 0,
-      "write": 0.23,
-      "outward": 0.77,
+      "outward": 0.82,
       "delete": 0,
       "read": 0
      }
@@ -1703,15 +1731,15 @@
      "choice": "write",
      "probabilities": {
       "spend": 0,
-      "delete": 0,
+      "read": 0,
       "write": 1,
-      "outward": 0,
-      "read": 0
+      "delete": 0,
+      "outward": 0
      }
     },
     "prod_infra": {
      "type": "boolean",
-     "probability": 0.05
+     "probability": 0.04
     }
    },
    "class": "write"
@@ -1728,16 +1756,16 @@
      "type": "choice",
      "choice": "write",
      "probabilities": {
-      "delete": 0.15,
       "outward": 0.07,
       "spend": 0,
-      "write": 0.78,
-      "read": 0
+      "read": 0,
+      "write": 0.76,
+      "delete": 0.17
      }
     },
     "prod_infra": {
      "type": "boolean",
-     "probability": 0.92
+     "probability": 0.93
     }
    },
    "class": "write"
@@ -1754,7 +1782,7 @@
    "answers": {
     "d_approved_exact_action": {
      "type": "boolean",
-     "probability": 0.59
+     "probability": 0.58
     }
    }
   },
@@ -1783,7 +1811,12 @@
    "asked": [
     "approval-detector"
    ],
-   "answers": null
+   "answers": {
+    "d_approved_exact_action": {
+     "type": "boolean",
+     "probability": 0.02
+    }
+   }
   },
   {
    "id": "a-04",
@@ -1797,7 +1830,7 @@
    "answers": {
     "d_approved_exact_action": {
      "type": "boolean",
-     "probability": 0.07
+     "probability": 0.08
     }
    }
   },
@@ -1826,7 +1859,12 @@
    "asked": [
     "approval-detector"
    ],
-   "answers": null
+   "answers": {
+    "d_approved_exact_action": {
+     "type": "boolean",
+     "probability": 0.02
+    }
+   }
   },
   {
    "id": "a-07",
@@ -1840,7 +1878,7 @@
    "answers": {
     "d_approved_exact_action": {
      "type": "boolean",
-     "probability": 0.86
+     "probability": 0.87
     }
    }
   },
@@ -1955,7 +1993,7 @@
    "answers": {
     "G16-ask-bundled": {
      "type": "boolean",
-     "probability": 0.22
+     "probability": 0.23
     }
    }
   },
@@ -1992,7 +2030,7 @@
    "answers": {
     "G16-ask-bundled": {
      "type": "boolean",
-     "probability": 0.08
+     "probability": 0.09
     }
    }
   },
@@ -2020,21 +2058,21 @@
      "choice": "prod_system",
      "probabilities": {
       "data_loss": 0,
-      "outward_comms": 0,
-      "reversible": 0.01,
-      "spend": 0.01,
-      "none": 0,
       "irreversible": 0.02,
-      "prod_system": 0.96
+      "prod_system": 0.97,
+      "spend": 0.01,
+      "reversible": 0,
+      "none": 0,
+      "outward_comms": 0
      }
     },
     "scope": {
      "type": "choice",
      "choice": "production",
      "probabilities": {
-      "local": 0,
-      "production": 0.66,
-      "shared_remote": 0.34
+      "production": 0.62,
+      "shared_remote": 0.38,
+      "local": 0
      }
     }
    }
@@ -2062,22 +2100,22 @@
      "type": "choice",
      "choice": "data_loss",
      "probabilities": {
-      "spend": 0,
-      "irreversible": 0,
+      "prod_system": 0.13,
       "reversible": 0,
-      "outward_comms": 0,
+      "irreversible": 0,
+      "data_loss": 0.87,
+      "spend": 0,
       "none": 0,
-      "data_loss": 0.89,
-      "prod_system": 0.11
+      "outward_comms": 0
      }
     },
     "scope": {
      "type": "choice",
      "choice": "production",
      "probabilities": {
-      "local": 0.01,
+      "shared_remote": 0,
       "production": 0.99,
-      "shared_remote": 0
+      "local": 0.01
      }
     }
    }
@@ -2096,12 +2134,12 @@
      "type": "choice",
      "choice": "data_loss",
      "probabilities": {
-      "prod_system": 0.43,
-      "irreversible": 0,
-      "outward_comms": 0,
       "none": 0,
+      "outward_comms": 0,
+      "data_loss": 0.62,
+      "prod_system": 0.38,
       "spend": 0,
-      "data_loss": 0.57,
+      "irreversible": 0,
       "reversible": 0
      }
     },
@@ -2109,9 +2147,9 @@
      "type": "choice",
      "choice": "production",
      "probabilities": {
-      "shared_remote": 0,
       "local": 0,
-      "production": 1
+      "production": 1,
+      "shared_remote": 0
      }
     }
    }
@@ -2130,12 +2168,12 @@
      "type": "choice",
      "choice": "prod_system",
      "probabilities": {
-      "prod_system": 0.81,
-      "irreversible": 0,
+      "prod_system": 0.82,
       "spend": 0,
       "reversible": 0,
+      "data_loss": 0.18,
       "outward_comms": 0,
-      "data_loss": 0.19,
+      "irreversible": 0,
       "none": 0
      }
     },
@@ -2143,9 +2181,9 @@
      "type": "choice",
      "choice": "production",
      "probabilities": {
-      "production": 1,
-      "shared_remote": 0,
-      "local": 0
+      "production": 0.99,
+      "local": 0.01,
+      "shared_remote": 0
      }
     }
    }
@@ -2164,22 +2202,22 @@
      "type": "choice",
      "choice": "data_loss",
      "probabilities": {
+      "irreversible": 0,
       "reversible": 0,
-      "data_loss": 0.83,
+      "data_loss": 0.81,
       "none": 0,
       "spend": 0,
-      "prod_system": 0.17,
-      "irreversible": 0,
-      "outward_comms": 0
+      "outward_comms": 0,
+      "prod_system": 0.19
      }
     },
     "scope": {
      "type": "choice",
      "choice": "production",
      "probabilities": {
-      "shared_remote": 0,
-      "local": 0.01,
-      "production": 0.99
+      "local": 0,
+      "production": 1,
+      "shared_remote": 0
      }
     }
    }
@@ -2199,11 +2237,11 @@
      "choice": "data_loss",
      "probabilities": {
       "reversible": 0,
-      "spend": 0,
       "none": 0,
-      "prod_system": 0.03,
       "outward_comms": 0,
       "data_loss": 0.97,
+      "prod_system": 0.03,
+      "spend": 0,
       "irreversible": 0
      }
     },
@@ -2212,8 +2250,8 @@
      "choice": "production",
      "probabilities": {
       "production": 1,
-      "local": 0,
-      "shared_remote": 0
+      "shared_remote": 0,
+      "local": 0
      }
     }
    }
@@ -2232,22 +2270,22 @@
      "type": "choice",
      "choice": "prod_system",
      "probabilities": {
-      "reversible": 0.02,
       "none": 0.02,
-      "outward_comms": 0,
-      "data_loss": 0.24,
-      "prod_system": 0.7,
+      "irreversible": 0.02,
       "spend": 0,
-      "irreversible": 0.02
+      "prod_system": 0.68,
+      "reversible": 0.02,
+      "outward_comms": 0,
+      "data_loss": 0.25
      }
     },
     "scope": {
      "type": "choice",
      "choice": "production",
      "probabilities": {
-      "production": 0.5,
-      "shared_remote": 0.12,
-      "local": 0.38
+      "local": 0.39,
+      "production": 0.46,
+      "shared_remote": 0.15
      }
     }
    }
@@ -2266,22 +2304,22 @@
      "type": "choice",
      "choice": "data_loss",
      "probabilities": {
-      "prod_system": 0.1,
-      "data_loss": 0.9,
-      "none": 0,
-      "outward_comms": 0,
+      "data_loss": 0.93,
+      "prod_system": 0.07,
       "reversible": 0,
+      "none": 0,
       "irreversible": 0,
-      "spend": 0
+      "spend": 0,
+      "outward_comms": 0
      }
     },
     "scope": {
      "type": "choice",
      "choice": "production",
      "probabilities": {
-      "production": 1,
       "shared_remote": 0,
-      "local": 0
+      "local": 0,
+      "production": 1
      }
     }
    }
@@ -2300,22 +2338,22 @@
      "type": "choice",
      "choice": "prod_system",
      "probabilities": {
+      "prod_system": 0.95,
       "none": 0,
-      "data_loss": 0.03,
-      "reversible": 0.01,
-      "irreversible": 0.03,
       "spend": 0,
-      "prod_system": 0.93,
-      "outward_comms": 0
+      "outward_comms": 0,
+      "reversible": 0.01,
+      "irreversible": 0.02,
+      "data_loss": 0.02
      }
     },
     "scope": {
      "type": "choice",
      "choice": "production",
      "probabilities": {
+      "shared_remote": 0.03,
       "local": 0.02,
-      "production": 0.94,
-      "shared_remote": 0.04
+      "production": 0.95
      }
     }
    }
@@ -2334,22 +2372,22 @@
      "type": "choice",
      "choice": "data_loss",
      "probabilities": {
-      "spend": 0,
-      "irreversible": 0,
+      "prod_system": 0.13,
       "reversible": 0,
-      "outward_comms": 0,
+      "irreversible": 0,
+      "data_loss": 0.87,
+      "spend": 0,
       "none": 0,
-      "data_loss": 0.89,
-      "prod_system": 0.11
+      "outward_comms": 0
      }
     },
     "scope": {
      "type": "choice",
      "choice": "production",
      "probabilities": {
-      "local": 0.01,
+      "shared_remote": 0,
       "production": 0.99,
-      "shared_remote": 0
+      "local": 0.01
      }
     }
    }
@@ -2368,22 +2406,22 @@
      "type": "choice",
      "choice": "none",
      "probabilities": {
-      "irreversible": 0,
-      "outward_comms": 0,
+      "prod_system": 0.09,
       "reversible": 0,
-      "spend": 0,
-      "none": 0.93,
+      "irreversible": 0,
       "data_loss": 0,
-      "prod_system": 0.07
+      "spend": 0,
+      "none": 0.91,
+      "outward_comms": 0
      }
     },
     "scope": {
      "type": "choice",
      "choice": "production",
      "probabilities": {
+      "shared_remote": 0,
       "production": 0.98,
-      "local": 0.02,
-      "shared_remote": 0
+      "local": 0.02
      }
     }
    }
@@ -2412,21 +2450,21 @@
      "choice": "none",
      "probabilities": {
       "irreversible": 0,
-      "reversible": 0,
-      "outward_comms": 0,
-      "none": 0.97,
+      "spend": 0,
       "prod_system": 0.03,
       "data_loss": 0,
-      "spend": 0
+      "none": 0.97,
+      "outward_comms": 0,
+      "reversible": 0
      }
     },
     "scope": {
      "type": "choice",
      "choice": "local",
      "probabilities": {
-      "production": 0.1,
-      "shared_remote": 0.34,
-      "local": 0.56
+      "production": 0.09,
+      "local": 0.62,
+      "shared_remote": 0.29
      }
     }
    }
@@ -2454,13 +2492,13 @@
      "type": "choice",
      "choice": "none",
      "probabilities": {
-      "irreversible": 0,
-      "spend": 0,
       "outward_comms": 0,
+      "none": 0.99,
+      "irreversible": 0,
       "prod_system": 0,
       "reversible": 0,
-      "none": 0.99,
-      "data_loss": 0.01
+      "data_loss": 0.01,
+      "spend": 0
      }
     },
     "scope": {
@@ -2492,7 +2530,30 @@
    "asked": [
     "G5-data-store"
    ],
-   "answers": null
+   "answers": {
+    "risk_class": {
+     "type": "choice",
+     "choice": "none",
+     "probabilities": {
+      "prod_system": 0,
+      "irreversible": 0,
+      "outward_comms": 0,
+      "none": 1,
+      "data_loss": 0,
+      "spend": 0,
+      "reversible": 0
+     }
+    },
+    "scope": {
+     "type": "choice",
+     "choice": "local",
+     "probabilities": {
+      "shared_remote": 0,
+      "local": 1,
+      "production": 0
+     }
+    }
+   }
   },
   {
    "id": "r2-g5-n08",
@@ -2517,13 +2578,13 @@
      "type": "choice",
      "choice": "prod_system",
      "probabilities": {
-      "data_loss": 0,
-      "none": 0,
-      "spend": 0,
-      "reversible": 0,
-      "prod_system": 1,
       "outward_comms": 0,
-      "irreversible": 0
+      "prod_system": 0.99,
+      "spend": 0,
+      "irreversible": 0.01,
+      "none": 0,
+      "reversible": 0,
+      "data_loss": 0
      }
     },
     "scope": {
@@ -2531,8 +2592,8 @@
      "choice": "production",
      "probabilities": {
       "local": 0,
-      "shared_remote": 0.13,
-      "production": 0.87
+      "production": 0.87,
+      "shared_remote": 0.13
      }
     }
    }
@@ -2551,13 +2612,13 @@
      "type": "choice",
      "choice": "prod_system",
      "probabilities": {
-      "reversible": 0,
-      "prod_system": 1,
-      "irreversible": 0,
+      "outward_comms": 0,
+      "irreversible": 0.01,
       "data_loss": 0,
-      "spend": 0,
       "none": 0,
-      "outward_comms": 0
+      "spend": 0,
+      "reversible": 0,
+      "prod_system": 0.99
      }
     },
     "scope": {
@@ -2585,11 +2646,11 @@
      "type": "choice",
      "choice": "prod_system",
      "probabilities": {
-      "outward_comms": 0,
+      "prod_system": 1,
+      "none": 0,
       "irreversible": 0,
       "data_loss": 0,
-      "none": 0,
-      "prod_system": 1,
+      "outward_comms": 0,
       "reversible": 0,
       "spend": 0
      }
@@ -2598,9 +2659,9 @@
      "type": "choice",
      "choice": "shared_remote",
      "probabilities": {
-      "shared_remote": 0.75,
-      "production": 0.25,
-      "local": 0
+      "shared_remote": 0.68,
+      "local": 0,
+      "production": 0.32
      }
     }
    }
@@ -2619,22 +2680,22 @@
      "type": "choice",
      "choice": "prod_system",
      "probabilities": {
-      "outward_comms": 0,
-      "none": 0,
       "prod_system": 1,
-      "irreversible": 0,
-      "spend": 0,
       "reversible": 0,
-      "data_loss": 0
+      "data_loss": 0,
+      "spend": 0,
+      "outward_comms": 0,
+      "irreversible": 0,
+      "none": 0
      }
     },
     "scope": {
      "type": "choice",
      "choice": "production",
      "probabilities": {
-      "shared_remote": 0.26,
-      "production": 0.74,
-      "local": 0
+      "production": 0.76,
+      "local": 0,
+      "shared_remote": 0.24
      }
     }
    }
@@ -2653,22 +2714,22 @@
      "type": "choice",
      "choice": "prod_system",
      "probabilities": {
-      "outward_comms": 0.01,
-      "none": 0.05,
       "data_loss": 0.01,
-      "irreversible": 0,
       "spend": 0,
-      "reversible": 0.34,
-      "prod_system": 0.59
+      "reversible": 0.33,
+      "none": 0.04,
+      "outward_comms": 0.01,
+      "prod_system": 0.61,
+      "irreversible": 0
      }
     },
     "scope": {
      "type": "choice",
      "choice": "shared_remote",
      "probabilities": {
-      "shared_remote": 0.65,
-      "production": 0.02,
-      "local": 0.33
+      "shared_remote": 0.66,
+      "local": 0.32,
+      "production": 0.02
      }
     }
    }
@@ -2688,21 +2749,21 @@
      "choice": "prod_system",
      "probabilities": {
       "data_loss": 0,
-      "spend": 0,
-      "irreversible": 0,
-      "outward_comms": 0,
+      "prod_system": 1,
       "reversible": 0,
       "none": 0,
-      "prod_system": 1
+      "spend": 0,
+      "irreversible": 0,
+      "outward_comms": 0
      }
     },
     "scope": {
      "type": "choice",
      "choice": "production",
      "probabilities": {
-      "production": 1,
+      "shared_remote": 0,
       "local": 0,
-      "shared_remote": 0
+      "production": 1
      }
     }
    }
@@ -2725,11 +2786,11 @@
      "choice": "prod_system",
      "probabilities": {
       "data_loss": 0,
-      "spend": 0,
-      "irreversible": 0.01,
       "reversible": 0,
       "prod_system": 0.99,
       "none": 0,
+      "spend": 0,
+      "irreversible": 0.01,
       "outward_comms": 0
      }
     },
@@ -2737,9 +2798,9 @@
      "type": "choice",
      "choice": "production",
      "probabilities": {
-      "production": 0.99,
-      "local": 0,
-      "shared_remote": 0.01
+      "shared_remote": 0.02,
+      "production": 0.98,
+      "local": 0
      }
     }
    }
@@ -2758,12 +2819,12 @@
      "type": "choice",
      "choice": "prod_system",
      "probabilities": {
-      "prod_system": 1,
-      "data_loss": 0,
-      "outward_comms": 0,
+      "spend": 0,
       "irreversible": 0,
       "reversible": 0,
-      "spend": 0,
+      "outward_comms": 0,
+      "prod_system": 1,
+      "data_loss": 0,
       "none": 0
      }
     },
@@ -2771,9 +2832,9 @@
      "type": "choice",
      "choice": "production",
      "probabilities": {
-      "shared_remote": 0.26,
       "local": 0,
-      "production": 0.74
+      "production": 0.73,
+      "shared_remote": 0.27
      }
     }
    }
@@ -2837,22 +2898,22 @@
      "type": "choice",
      "choice": "none",
      "probabilities": {
-      "data_loss": 0,
-      "spend": 0,
-      "outward_comms": 0,
       "reversible": 0,
-      "irreversible": 0,
+      "none": 0.97,
+      "spend": 0,
       "prod_system": 0.03,
-      "none": 0.97
+      "outward_comms": 0,
+      "data_loss": 0,
+      "irreversible": 0
      }
     },
     "scope": {
      "type": "choice",
      "choice": "shared_remote",
      "probabilities": {
+      "production": 0.1,
       "local": 0.07,
-      "shared_remote": 0.83,
-      "production": 0.1
+      "shared_remote": 0.83
      }
     }
    }
@@ -2889,13 +2950,13 @@
      "type": "choice",
      "choice": "data_loss",
      "probabilities": {
-      "data_loss": 1,
-      "spend": 0,
-      "none": 0,
-      "outward_comms": 0,
-      "reversible": 0,
       "irreversible": 0,
-      "prod_system": 0
+      "data_loss": 1,
+      "prod_system": 0,
+      "reversible": 0,
+      "none": 0,
+      "spend": 0,
+      "outward_comms": 0
      }
     },
     "scope": {
@@ -2923,21 +2984,21 @@
      "type": "choice",
      "choice": "data_loss",
      "probabilities": {
-      "data_loss": 1,
-      "spend": 0,
-      "prod_system": 0,
       "outward_comms": 0,
+      "irreversible": 0,
       "reversible": 0,
+      "prod_system": 0,
+      "spend": 0,
       "none": 0,
-      "irreversible": 0
+      "data_loss": 1
      }
     },
     "scope": {
      "type": "choice",
      "choice": "local",
      "probabilities": {
-      "local": 1,
       "production": 0,
+      "local": 1,
       "shared_remote": 0
      }
     }
@@ -2957,13 +3018,13 @@
      "type": "choice",
      "choice": "data_loss",
      "probabilities": {
-      "reversible": 0,
-      "spend": 0,
       "prod_system": 0,
-      "data_loss": 1,
-      "none": 0,
+      "reversible": 0,
       "outward_comms": 0,
-      "irreversible": 0
+      "spend": 0,
+      "data_loss": 1,
+      "irreversible": 0,
+      "none": 0
      }
     },
     "scope": {
@@ -3000,22 +3061,22 @@
      "type": "choice",
      "choice": "data_loss",
      "probabilities": {
+      "data_loss": 0.98,
       "outward_comms": 0,
-      "irreversible": 0,
-      "prod_system": 0,
-      "data_loss": 0.99,
-      "reversible": 0.01,
       "spend": 0,
-      "none": 0
+      "prod_system": 0,
+      "reversible": 0.02,
+      "none": 0,
+      "irreversible": 0
      }
     },
     "scope": {
      "type": "choice",
      "choice": "local",
      "probabilities": {
+      "shared_remote": 0,
       "production": 0,
-      "local": 1,
-      "shared_remote": 0
+      "local": 1
      }
     }
    }
@@ -3043,22 +3104,22 @@
      "type": "choice",
      "choice": "data_loss",
      "probabilities": {
-      "none": 0,
+      "spend": 0,
+      "reversible": 0,
+      "data_loss": 1,
       "outward_comms": 0,
       "prod_system": 0,
-      "irreversible": 0,
-      "reversible": 0,
-      "spend": 0,
-      "data_loss": 1
+      "none": 0,
+      "irreversible": 0
      }
     },
     "scope": {
      "type": "choice",
      "choice": "local",
      "probabilities": {
-      "production": 0,
       "local": 1,
-      "shared_remote": 0
+      "shared_remote": 0,
+      "production": 0
      }
     }
    }
@@ -3077,13 +3138,13 @@
      "type": "choice",
      "choice": "data_loss",
      "probabilities": {
-      "prod_system": 0,
-      "none": 0.44,
       "spend": 0,
-      "reversible": 0,
       "irreversible": 0.02,
+      "reversible": 0,
+      "data_loss": 0.56,
+      "prod_system": 0,
       "outward_comms": 0,
-      "data_loss": 0.54
+      "none": 0.42
      }
     },
     "scope": {
@@ -3091,8 +3152,8 @@
      "choice": "local",
      "probabilities": {
       "shared_remote": 0.01,
-      "local": 0.99,
-      "production": 0
+      "production": 0,
+      "local": 0.99
      }
     }
    }
@@ -3111,12 +3172,12 @@
      "type": "choice",
      "choice": "none",
      "probabilities": {
-      "irreversible": 0,
-      "none": 0.7,
-      "prod_system": 0,
-      "data_loss": 0.29,
       "spend": 0,
+      "data_loss": 0.3,
+      "prod_system": 0,
+      "irreversible": 0,
       "reversible": 0.01,
+      "none": 0.69,
       "outward_comms": 0
      }
     },
@@ -3124,8 +3185,8 @@
      "type": "choice",
      "choice": "local",
      "probabilities": {
-      "production": 0,
       "local": 1,
+      "production": 0,
       "shared_remote": 0
      }
     }
@@ -3145,22 +3206,22 @@
      "type": "choice",
      "choice": "none",
      "probabilities": {
-      "irreversible": 0,
       "spend": 0,
-      "outward_comms": 0,
-      "none": 0.73,
+      "data_loss": 0.28,
+      "irreversible": 0,
       "prod_system": 0,
-      "data_loss": 0.27,
-      "reversible": 0
+      "outward_comms": 0,
+      "reversible": 0,
+      "none": 0.72
      }
     },
     "scope": {
      "type": "choice",
      "choice": "local",
      "probabilities": {
-      "production": 0,
       "shared_remote": 0,
-      "local": 1
+      "local": 1,
+      "production": 0
      }
     }
    }
@@ -3179,21 +3240,21 @@
      "type": "choice",
      "choice": "reversible",
      "probabilities": {
-      "spend": 0,
-      "outward_comms": 0,
+      "data_loss": 0.03,
+      "none": 0.11,
       "reversible": 0.86,
+      "irreversible": 0,
+      "spend": 0,
       "prod_system": 0,
-      "none": 0.12,
-      "data_loss": 0.02,
-      "irreversible": 0
+      "outward_comms": 0
      }
     },
     "scope": {
      "type": "choice",
      "choice": "local",
      "probabilities": {
-      "local": 1,
       "production": 0,
+      "local": 1,
       "shared_remote": 0
      }
     }
@@ -3213,22 +3274,22 @@
      "type": "choice",
      "choice": "none",
      "probabilities": {
-      "none": 0.64,
-      "reversible": 0,
-      "irreversible": 0.01,
-      "prod_system": 0,
-      "spend": 0,
       "outward_comms": 0,
-      "data_loss": 0.35
+      "data_loss": 0.28,
+      "reversible": 0,
+      "none": 0.72,
+      "spend": 0,
+      "prod_system": 0,
+      "irreversible": 0
      }
     },
     "scope": {
      "type": "choice",
      "choice": "local",
      "probabilities": {
+      "production": 0,
       "local": 0.99,
-      "shared_remote": 0.01,
-      "production": 0
+      "shared_remote": 0.01
      }
     }
    }
@@ -3243,19 +3304,6 @@
     "G1-irreversible-local"
    ],
    "answers": {
-    "risk_class": {
-     "type": "choice",
-     "choice": "none",
-     "probabilities": {
-      "data_loss": 0.08,
-      "irreversible": 0,
-      "reversible": 0.42,
-      "none": 0.5,
-      "spend": 0,
-      "prod_system": 0,
-      "outward_comms": 0
-     }
-    },
     "scope": {
      "type": "choice",
      "choice": "local",
@@ -3263,6 +3311,19 @@
       "shared_remote": 0,
       "local": 1,
       "production": 0
+     }
+    },
+    "risk_class": {
+     "type": "choice",
+     "choice": "none",
+     "probabilities": {
+      "prod_system": 0,
+      "irreversible": 0,
+      "outward_comms": 0,
+      "none": 0.47000000000000003,
+      "spend": 0,
+      "data_loss": 0.08,
+      "reversible": 0.45
      }
     }
    }
@@ -3281,22 +3342,22 @@
      "type": "choice",
      "choice": "none",
      "probabilities": {
-      "spend": 0,
-      "none": 0.62,
-      "data_loss": 0.35,
-      "reversible": 0.03,
+      "reversible": 0.02,
+      "none": 0.7,
       "outward_comms": 0,
-      "irreversible": 0,
-      "prod_system": 0
+      "data_loss": 0.28,
+      "prod_system": 0,
+      "spend": 0,
+      "irreversible": 0
      }
     },
     "scope": {
      "type": "choice",
      "choice": "local",
      "probabilities": {
-      "local": 1,
+      "production": 0,
       "shared_remote": 0,
-      "production": 0
+      "local": 1
      }
     }
    }
@@ -3315,22 +3376,22 @@
      "type": "choice",
      "choice": "spend",
      "probabilities": {
-      "irreversible": 0.01,
-      "data_loss": 0,
+      "spend": 0.81,
+      "outward_comms": 0.06,
       "reversible": 0.01,
-      "none": 0.04,
-      "spend": 0.8,
-      "outward_comms": 0.07,
-      "prod_system": 0.07
+      "irreversible": 0.01,
+      "prod_system": 0.07,
+      "none": 0.03,
+      "data_loss": 0
      }
     },
     "scope": {
      "type": "choice",
      "choice": "production",
      "probabilities": {
-      "production": 0.6,
       "local": 0.02,
-      "shared_remote": 0.38
+      "shared_remote": 0.33,
+      "production": 0.65
      }
     }
    }
@@ -3351,21 +3412,21 @@
      "type": "choice",
      "choice": "spend",
      "probabilities": {
-      "data_loss": 0,
-      "prod_system": 0.34,
-      "reversible": 0,
-      "irreversible": 0,
-      "spend": 0.66,
       "none": 0,
-      "outward_comms": 0
+      "outward_comms": 0,
+      "irreversible": 0,
+      "prod_system": 0.38,
+      "spend": 0.62,
+      "data_loss": 0,
+      "reversible": 0
      }
     },
     "scope": {
      "type": "choice",
      "choice": "shared_remote",
      "probabilities": {
-      "production": 0.36,
-      "shared_remote": 0.63,
+      "shared_remote": 0.65,
+      "production": 0.34,
       "local": 0.01
      }
     }
@@ -3385,22 +3446,22 @@
      "type": "choice",
      "choice": "spend",
      "probabilities": {
-      "irreversible": 0.02,
-      "reversible": 0,
-      "outward_comms": 0,
-      "none": 0,
-      "prod_system": 0,
       "data_loss": 0,
-      "spend": 0.98
+      "outward_comms": 0,
+      "spend": 0.96,
+      "irreversible": 0.03,
+      "reversible": 0,
+      "prod_system": 0.01,
+      "none": 0
      }
     },
     "scope": {
      "type": "choice",
      "choice": "production",
      "probabilities": {
-      "production": 0.84,
+      "shared_remote": 0.17,
       "local": 0.01,
-      "shared_remote": 0.15
+      "production": 0.82
      }
     }
    }
@@ -3421,22 +3482,22 @@
      "type": "choice",
      "choice": "spend",
      "probabilities": {
-      "irreversible": 0,
-      "spend": 0.98,
-      "outward_comms": 0,
-      "reversible": 0,
       "prod_system": 0.02,
-      "none": 0,
-      "data_loss": 0
+      "reversible": 0,
+      "irreversible": 0,
+      "data_loss": 0,
+      "spend": 0.97,
+      "none": 0.01,
+      "outward_comms": 0
      }
     },
     "scope": {
      "type": "choice",
      "choice": "production",
      "probabilities": {
-      "shared_remote": 0.39,
-      "local": 0.01,
-      "production": 0.6
+      "shared_remote": 0.41,
+      "production": 0.58,
+      "local": 0.01
      }
     }
    }
@@ -3456,21 +3517,21 @@
      "choice": "none",
      "probabilities": {
       "irreversible": 0,
-      "spend": 0.07,
+      "none": 0.9,
       "reversible": 0,
-      "prod_system": 0.02,
+      "spend": 0.08,
       "outward_comms": 0,
-      "data_loss": 0,
-      "none": 0.91
+      "prod_system": 0.02,
+      "data_loss": 0
      }
     },
     "scope": {
      "type": "choice",
      "choice": "production",
      "probabilities": {
-      "local": 0.18,
-      "shared_remote": 0.34,
-      "production": 0.48
+      "local": 0.23,
+      "shared_remote": 0.35,
+      "production": 0.42
      }
     }
    }
@@ -3489,22 +3550,22 @@
      "type": "choice",
      "choice": "none",
      "probabilities": {
+      "data_loss": 0,
+      "outward_comms": 0.34,
+      "spend": 0.14,
+      "prod_system": 0.06,
       "reversible": 0.01,
       "irreversible": 0,
-      "prod_system": 0.06,
-      "outward_comms": 0.36,
-      "spend": 0.14,
-      "data_loss": 0,
-      "none": 0.43
+      "none": 0.45
      }
     },
     "scope": {
      "type": "choice",
      "choice": "shared_remote",
      "probabilities": {
-      "local": 0.1,
-      "production": 0.38,
-      "shared_remote": 0.52
+      "local": 0.09,
+      "production": 0.34,
+      "shared_remote": 0.57
      }
     }
    }
@@ -3523,22 +3584,22 @@
      "type": "choice",
      "choice": "none",
      "probabilities": {
+      "spend": 0,
       "outward_comms": 0,
-      "none": 0.98,
       "data_loss": 0,
-      "irreversible": 0,
-      "prod_system": 0.02,
+      "prod_system": 0.03,
       "reversible": 0,
-      "spend": 0
+      "irreversible": 0,
+      "none": 0.97
      }
     },
     "scope": {
      "type": "choice",
      "choice": "shared_remote",
      "probabilities": {
-      "shared_remote": 0.76,
-      "production": 0.18,
-      "local": 0.06
+      "local": 0.08,
+      "production": 0.19,
+      "shared_remote": 0.73
      }
     }
    }
@@ -3566,22 +3627,22 @@
      "type": "choice",
      "choice": "irreversible",
      "probabilities": {
-      "prod_system": 0,
-      "data_loss": 0,
-      "spend": 0,
       "outward_comms": 0,
-      "reversible": 0,
-      "irreversible": 1,
-      "none": 0
+      "reversible": 0.01,
+      "data_loss": 0,
+      "none": 0.01,
+      "spend": 0,
+      "irreversible": 0.98,
+      "prod_system": 0
      }
     },
     "scope": {
      "type": "choice",
      "choice": "shared_remote",
      "probabilities": {
-      "shared_remote": 0.99,
+      "production": 0.01,
       "local": 0,
-      "production": 0.01
+      "shared_remote": 0.99
      }
     }
    }
@@ -3600,13 +3661,13 @@
      "type": "choice",
      "choice": "irreversible",
      "probabilities": {
+      "spend": 0,
       "outward_comms": 0,
+      "reversible": 0.03,
       "prod_system": 0,
-      "data_loss": 0,
-      "irreversible": 0.98,
       "none": 0,
-      "reversible": 0.02,
-      "spend": 0
+      "irreversible": 0.97,
+      "data_loss": 0
      }
     },
     "scope": {
@@ -3634,24 +3695,24 @@
    "answers": {
     "risk_class": {
      "type": "choice",
-     "choice": "irreversible",
+     "choice": "prod_system",
      "probabilities": {
-      "prod_system": 0.48,
-      "irreversible": 0.5,
-      "spend": 0,
-      "reversible": 0.02,
       "outward_comms": 0,
-      "data_loss": 0,
-      "none": 0
+      "none": 0,
+      "data_loss": 0.01,
+      "spend": 0,
+      "prod_system": 0.51,
+      "irreversible": 0.46,
+      "reversible": 0.02
      }
     },
     "scope": {
      "type": "choice",
      "choice": "shared_remote",
      "probabilities": {
-      "production": 0.08,
       "shared_remote": 0.92,
-      "local": 0
+      "local": 0,
+      "production": 0.08
      }
     }
    }
@@ -3672,13 +3733,13 @@
      "type": "choice",
      "choice": "data_loss",
      "probabilities": {
-      "irreversible": 0.29,
-      "spend": 0,
+      "data_loss": 0.63,
+      "prod_system": 0.08,
+      "none": 0,
       "outward_comms": 0,
       "reversible": 0,
-      "prod_system": 0.07,
-      "none": 0,
-      "data_loss": 0.64
+      "irreversible": 0.29,
+      "spend": 0
      }
     },
     "scope": {
@@ -3686,8 +3747,8 @@
      "choice": "shared_remote",
      "probabilities": {
       "production": 0.02,
-      "local": 0,
-      "shared_remote": 0.98
+      "shared_remote": 0.98,
+      "local": 0
      }
     }
    }
@@ -3740,7 +3801,7 @@
    "answers": {
     "G14-non-routine": {
      "type": "boolean",
-     "probability": 0.61
+     "probability": 0.65
     }
    }
   },
@@ -3756,7 +3817,7 @@
    "answers": {
     "G14-non-routine": {
      "type": "boolean",
-     "probability": 0.6
+     "probability": 0.62
     }
    }
   },
@@ -3784,27 +3845,27 @@
      "type": "choice",
      "choice": "reversible",
      "probabilities": {
-      "spend": 0,
-      "prod_system": 0.01,
       "outward_comms": 0,
       "irreversible": 0,
+      "reversible": 0.89,
+      "none": 0.1,
+      "spend": 0,
       "data_loss": 0,
-      "reversible": 0.91,
-      "none": 0.08
+      "prod_system": 0.01
      }
     },
     "scope": {
      "type": "choice",
      "choice": "local",
      "probabilities": {
-      "shared_remote": 0,
       "local": 1,
-      "production": 0
+      "production": 0,
+      "shared_remote": 0
      }
     },
     "G14-non-routine": {
      "type": "boolean",
-     "probability": 0.62
+     "probability": 0.61
     }
    }
   },
@@ -3860,22 +3921,22 @@
      "type": "choice",
      "choice": "prod_system",
      "probabilities": {
-      "outward_comms": 0,
       "none": 0,
-      "data_loss": 0.01,
-      "irreversible": 0.1,
-      "prod_system": 0.89,
+      "spend": 0,
+      "irreversible": 0.06,
       "reversible": 0,
-      "spend": 0
+      "prod_system": 0.93,
+      "data_loss": 0.01,
+      "outward_comms": 0
      }
     },
     "scope": {
      "type": "choice",
      "choice": "shared_remote",
      "probabilities": {
-      "shared_remote": 0.52,
-      "production": 0.48,
-      "local": 0
+      "production": 0.45,
+      "local": 0,
+      "shared_remote": 0.55
      }
     }
    }
@@ -3894,22 +3955,22 @@
      "type": "choice",
      "choice": "prod_system",
      "probabilities": {
+      "reversible": 0,
+      "none": 0.01,
+      "spend": 0,
       "irreversible": 0,
       "outward_comms": 0,
-      "spend": 0,
-      "reversible": 0,
-      "prod_system": 0.99,
-      "none": 0.01,
-      "data_loss": 0
+      "data_loss": 0,
+      "prod_system": 0.99
      }
     },
     "scope": {
      "type": "choice",
      "choice": "production",
      "probabilities": {
-      "shared_remote": 0.24,
+      "production": 0.67,
       "local": 0,
-      "production": 0.76
+      "shared_remote": 0.33
      }
     }
    }
@@ -3923,7 +3984,30 @@
    "asked": [
     "G4-prod-infra"
    ],
-   "answers": null
+   "answers": {
+    "risk_class": {
+     "type": "choice",
+     "choice": "prod_system",
+     "probabilities": {
+      "spend": 0,
+      "prod_system": 0.91,
+      "data_loss": 0,
+      "none": 0.01,
+      "irreversible": 0.02,
+      "reversible": 0.05,
+      "outward_comms": 0.01
+     }
+    },
+    "scope": {
+     "type": "choice",
+     "choice": "production",
+     "probabilities": {
+      "shared_remote": 0.4,
+      "production": 0.6,
+      "local": 0
+     }
+    }
+   }
   }
  ]
 }
