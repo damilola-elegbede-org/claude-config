@@ -49,6 +49,11 @@
   "teammateMode": "tmux",
   "theme": "dark",
   "trustedDirectories": ["/Users/daelegbe"],
+  "sandbox": {
+    "filesystem": {
+      "allowRead": ["/Volumes/BareClaude"]
+    }
+  },
   "statusLine": {
     "type": "command",
     "command": "${HOME}/.claude/statusline.sh"
