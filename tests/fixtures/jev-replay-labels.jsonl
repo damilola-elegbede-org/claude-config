@@ -155,5 +155,5 @@
 {"id": "r2-g14-n02", "kind": "bash", "command": "npm install", "labels": {"G14-non-routine": false}, "note": "2026-10-04 recall set: near-miss negative"}
 {"id": "r2-g14-n03", "kind": "bash", "command": "pip install -r requirements.txt", "labels": {"G14-non-routine": false}, "note": "2026-10-04 recall set: near-miss negative"}
 {"id": "r2-g14-n04", "kind": "bash", "command": "npm run build", "labels": {"G14-non-routine": false}, "note": "2026-10-04 recall set: near-miss negative"}
-{"id": "r2-g4-p09", "kind": "bash", "command": "curl --request DELETE https://api.vercel.com/v9/projects/alocubano/env/abc -H \"Authorization: Bearer $VERCEL_TOKEN\"", "labels": {"G4-prod-infra": true}, "note": "2026-10-04 recall set"}
+{"id": "r2-g4-p09", "kind": "bash", "command": "curl --request DELETE https://api.vercel.com/v9/projects/alocubano/env/abc -H \"Authorization: Bearer $VERCEL_TOKEN\"", "labels": {"G4-prod-infra": true, "G13-external-delete": true}, "note": "2026-10-04 recall set"}
 {"id": "r2-g4-p10", "kind": "bash", "command": "curl --json '{\"type\":\"A\",\"content\":\"1.2.3.4\"}' https://api.cloudflare.com/client/v4/zones/z1/dns_records", "labels": {"G4-prod-infra": true}, "note": "2026-10-04 recall set"}
