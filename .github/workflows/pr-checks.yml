@@ -279,8 +279,7 @@ jobs:
             --exclude-dir=scripts \
             --exclude-dir=tests \
             --exclude="*.md" \
-            --exclude="setup-hooks.sh" \
-            --exclude="gate-questions.json" | \
+            --exclude="setup-hooks.sh" | \
             grep -v -E "example|sample|test|fake|dummy|mock|pattern|demonstration"; then
             echo "❌ Found potential sensitive data matching pattern: $pattern"
             found_issues=true
