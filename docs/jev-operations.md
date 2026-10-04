@@ -66,7 +66,7 @@ jq -r 'select(.gate | startswith("G")) | [.ts, .gate, .mode, .outcome] | @tsv' ~
 
 ## Replay and the regression guard
 
-`scripts/jev-replay.py` replays the 87 labelled examples in `tests/fixtures/jev-replay-labels.jsonl`
+`scripts/jev-replay.py` replays the 160 labelled examples in `tests/fixtures/jev-replay-labels.jsonl`
 through the same request builder the gates use and reports per-rule precision and recall. The recorded
 answers, thresholds and accepted block rates live in `tests/fixtures/jev-replay-results.json`.
 
