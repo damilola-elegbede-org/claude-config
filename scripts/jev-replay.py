@@ -43,7 +43,7 @@ Usage:
   scripts/jev-replay.py                         # labelled replay (auto backend) + history scan
   scripts/jev-replay.py --backend mock          # offline smoke test
   scripts/jev-replay.py --no-history            # labelled set only
-  scripts/jev-replay.py --max-calls 100         # hard cap on live calls (default 100)
+  scripts/jev-replay.py --max-calls 200         # hard cap on live calls (default 200)
   scripts/jev-replay.py --style boolean         # legacy per-gate boolean questions
   scripts/jev-replay.py --write-results         # live run, then record the results file (accepts a new baseline)
   scripts/jev-replay.py --check                 # CI: guard against a stale or drifted results file
@@ -957,7 +957,7 @@ def cmd_check(args):
     if results.get("questions_sha") != questions_fingerprint(qdoc):
         problems.append(
             "the questions, criteria, expected classes or candidate regexes in gate-questions.json changed since the recorded live replay "
-            "(fingerprint mismatch): re-run `scripts/jev-replay.py --write-results` live (<=120 calls, key from ~/.zshrc) and commit the results file"
+            "(fingerprint mismatch): re-run `scripts/jev-replay.py --write-results` live (<=200 calls, key from ~/.zshrc) and commit the results file"
         )
     if results.get("labels_sha") != labels_fingerprint(args.labels):
         problems.append("the labelled set changed since the recorded live replay: re-run `scripts/jev-replay.py --write-results` live and commit the results file")
@@ -1021,7 +1021,7 @@ def main():
     ap.add_argument("--rescore", action="store_true", help="offline: re-score the recorded answers at the current thresholds and rewrite the results file")
     ap.add_argument("--write-results", action="store_true", help="after a live run, record the results file and accept the current thresholds as the baseline")
     ap.add_argument("--backend", choices=["auto", "client", "inline", "mock"], default="auto")
-    ap.add_argument("--max-calls", type=int, default=100)
+    ap.add_argument("--max-calls", type=int, default=200)
     ap.add_argument("--no-history", action="store_true")
     ap.add_argument("--cache", help="JSONL response cache (re-scoring is then free); stores answers only, never state")
     ap.add_argument("--kinds", help="comma list of example kinds to run (bash,write,edit,workflow,mcp,approval,stop,ask)")

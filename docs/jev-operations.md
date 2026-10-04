@@ -88,7 +88,7 @@ produces a report to read, and a human decides whether to accept a new baseline.
 
 ```text
 # crontab -e   (monthly, 06:17 on the 1st; about 100 Jev calls)
-17 6 1 * * cd "$HOME/repos/claude-config" && python3 scripts/jev-replay.py --backend inline --no-history --max-calls 120 --ai-dir "$HOME/.claude/hooks/jev" --cache "$HOME/.tmp/jev-replay-cache.jsonl" --out "$HOME/.tmp/reports/jev-replay-$(date +\%F).md" >> "$HOME/.tmp/reports/jev-replay-cron.log" 2>&1
+17 6 1 * * cd "$HOME/repos/claude-config" && python3 scripts/jev-replay.py --backend inline --no-history --max-calls 200 --ai-dir "$HOME/.claude/hooks/jev" --cache "$HOME/.tmp/jev-replay-cache.jsonl" --out "$HOME/.tmp/reports/jev-replay-$(date +\%F).md" >> "$HOME/.tmp/reports/jev-replay-cron.log" 2>&1
 ```
 
 Untested as a cron entry: the inline backend reads the key from `~/.zshrc` itself, but this was not run
