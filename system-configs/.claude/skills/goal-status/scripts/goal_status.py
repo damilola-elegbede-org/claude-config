@@ -54,7 +54,9 @@ def text_of(content):
 
 def goals_in(path):
     goals, cur, proposed = [], None, set()
-    for line in open(path, encoding="utf-8"):
+    with open(path, encoding="utf-8") as fh:
+        lines = fh.readlines()
+    for line in lines:
         try:
             o = json.loads(line)
         except ValueError:
@@ -123,6 +125,8 @@ def current_session(args):
     sid = args.session or os.environ.get("CLAUDE_CODE_SESSION_ID")
     if not sid:
         die("no session id: pass --session or run inside Claude Code (CLAUDE_CODE_SESSION_ID)")
+    if sid != os.path.basename(sid) or sid in (".", "..") or glob.has_magic(sid):
+        die("invalid session id")
     return sid
 
 
@@ -136,7 +140,11 @@ def cmd_report(args):
     rows = []
     files = sorted(glob.glob(os.path.join(os.path.dirname(path), "*.jsonl")), key=os.path.getmtime, reverse=True)
     for f in files[: args.limit]:
-        for g in goals_in(f):
+        try:
+            found = goals_in(f)
+        except (OSError, UnicodeDecodeError, ValueError):
+            continue  # one unreadable transcript must not sink the whole table
+        for g in found:
             g.pop("checks")
             rows.append({"session": os.path.basename(f)[:-6], **g})
     rows.sort(key=lambda r: r["set_at"] or "", reverse=True)
@@ -160,21 +168,37 @@ def cmd_criteria(args):
             die("no goal in this session")
         condition = goals[-1]["condition"]
     p = pin_path(sid)
-    pins = json.load(open(p)) if os.path.exists(p) else {}
+    pins = {}
+    if os.path.exists(p):
+        try:
+            with open(p, encoding="utf-8") as fh:
+                pins = json.load(fh)
+        except ValueError:
+            die(f"pin file {p} is corrupt; remove it and re-pin")
     key = cond_key(condition)
     if args.action == "get":
         print(json.dumps(pins.get(key)))
         return
     if not args.json:
         die("criteria set needs --json (a JSON list, or - to read it from stdin)")
-    criteria = json.loads(sys.stdin.read() if args.json == "-" else args.json)
-    if not isinstance(criteria, list) or not 1 <= len(criteria) <= 7:
-        die("criteria must be a JSON list of 1-7 items")
+    try:
+        criteria = json.loads(sys.stdin.read() if args.json == "-" else args.json)
+    except ValueError as e:
+        die(f"criteria JSON does not parse: {e}")
+    valid = isinstance(criteria, list) and 3 <= len(criteria) <= 7 and all(
+        isinstance(c, dict) and c.get("id") is not None and isinstance(c.get("text"), str) and c["text"].strip()
+        for c in criteria
+    )
+    if not valid:
+        die('criteria must be a JSON list of 3-7 objects, each {"id": ..., "text": "<non-empty>"}')
     if key in pins:
         die("criteria already pinned for this goal; they never change while the goal stands")
     os.makedirs(PINS, exist_ok=True)
     pins[key] = {"condition": condition, "pinned_at": datetime.now(timezone.utc).isoformat(), "criteria": criteria}
-    json.dump(pins, open(p, "w"), indent=2)
+    tmp = f"{p}.tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(pins, fh, indent=2)
+    os.replace(tmp, p)  # atomic: an interrupted write never leaves a corrupt pin file
     print(json.dumps(pins[key]))
 
 
