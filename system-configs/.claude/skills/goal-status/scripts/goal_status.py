@@ -69,6 +69,16 @@ def goals_in(path):
                         if cond:
                             proposed.add(cond.strip())
                 continue
+            if o.get("type") == "user":
+                # A typed message resumes a paused goal at once; tool results and meta turns don't.
+                content = o.get("message", {}).get("content")
+                typed = isinstance(content, str) or (
+                    isinstance(content, list)
+                    and not any(isinstance(c, dict) and c.get("type") == "tool_result" for c in content)
+                )
+                if typed and not o.get("isMeta") and cur:
+                    cur["paused"] = None
+                continue
             if o.get("type") == "system" and cur and cur["state"] == "active":
                 msg = text_of(o.get("content"))
                 if PAUSE_PREFIX in msg:
