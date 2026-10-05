@@ -23,8 +23,9 @@ import os
 import sys
 from datetime import datetime, timezone
 
-PROJECTS = os.path.expanduser("~/.claude/projects")
-PINS = os.environ.get("GOAL_STATUS_DIR") or os.path.expanduser("~/.claude/goal-status")
+CONFIG_DIR = os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude")
+PROJECTS = os.path.join(CONFIG_DIR, "projects")
+PINS = os.environ.get("GOAL_STATUS_DIR") or os.path.join(CONFIG_DIR, "goal-status")
 PAUSE_PREFIX = "Goal paused"
 
 
@@ -55,59 +56,58 @@ def text_of(content):
 def goals_in(path):
     goals, cur, proposed = [], None, set()
     with open(path, encoding="utf-8") as fh:
-        lines = fh.readlines()
-    for line in lines:
-        try:
-            o = json.loads(line)
-        except ValueError:
-            continue
-        ts = o.get("timestamp")
-        if o.get("type") == "assistant":
-            for c in o.get("message", {}).get("content", []) or []:
-                if isinstance(c, dict) and c.get("type") == "tool_use" and c.get("name") == "ProposeGoal":
-                    cond = (c.get("input") or {}).get("condition")
-                    if cond:
-                        proposed.add(cond.strip())
-            continue
-        if o.get("type") == "system" and cur and cur["state"] == "active":
-            msg = text_of(o.get("content"))
-            if PAUSE_PREFIX in msg:
-                cur["paused"] = msg.strip()[:300]
-            continue
-        a = o.get("attachment") or {}
-        if o.get("type") != "attachment" or a.get("type") != "goal_status":
-            continue
-        cond = a.get("condition", "")
-        if a.get("sentinel") and not a.get("met"):
-            if cur and cur["state"] == "active":
-                cur["state"], cur["ended_at"] = "replaced", ts
-            cur = {
-                "condition": cond,
-                "origin": "proposed by Claude" if cond.strip() in proposed else "typed /goal",
-                "set_at": ts,
-                "ended_at": None,
-                "state": "active",
-                "checks": [],
-                "paused": None,
-                "iterations": None,
-                "duration_ms": None,
-                "tokens": None,
-            }
-            goals.append(cur)
-            continue
-        if cur is None or cond != cur["condition"]:
-            continue
-        if a.get("sentinel") and a.get("met"):
-            cur["state"], cur["ended_at"] = "cleared", ts
-            continue
-        cur["paused"] = None
-        cur["checks"].append({"at": ts, "met": bool(a.get("met")), "reason": a.get("reason", "")})
-        if a.get("met") or a.get("failed"):
-            cur["state"] = "achieved" if a.get("met") else "impossible"
-            cur["ended_at"] = ts
-            cur["iterations"] = a.get("iterations")
-            cur["duration_ms"] = a.get("durationMs")
-            cur["tokens"] = a.get("tokens")
+        for line in fh:
+            try:
+                o = json.loads(line)
+            except ValueError:
+                continue
+            ts = o.get("timestamp")
+            if o.get("type") == "assistant":
+                for c in o.get("message", {}).get("content", []) or []:
+                    if isinstance(c, dict) and c.get("type") == "tool_use" and c.get("name") == "ProposeGoal":
+                        cond = (c.get("input") or {}).get("condition")
+                        if cond:
+                            proposed.add(cond.strip())
+                continue
+            if o.get("type") == "system" and cur and cur["state"] == "active":
+                msg = text_of(o.get("content"))
+                if PAUSE_PREFIX in msg:
+                    cur["paused"] = msg.strip()[:300]
+                continue
+            a = o.get("attachment") or {}
+            if o.get("type") != "attachment" or a.get("type") != "goal_status":
+                continue
+            cond = a.get("condition", "")
+            if a.get("sentinel") and not a.get("met"):
+                if cur and cur["state"] == "active":
+                    cur["state"], cur["ended_at"] = "replaced", ts
+                cur = {
+                    "condition": cond,
+                    "origin": "proposed by Claude" if cond.strip() in proposed else "typed /goal",
+                    "set_at": ts,
+                    "ended_at": None,
+                    "state": "active",
+                    "checks": [],
+                    "paused": None,
+                    "iterations": None,
+                    "duration_ms": None,
+                    "tokens": None,
+                }
+                goals.append(cur)
+                continue
+            if cur is None or cond != cur["condition"]:
+                continue
+            if a.get("sentinel") and a.get("met"):
+                cur["state"], cur["ended_at"] = "cleared", ts
+                continue
+            cur["paused"] = None
+            cur["checks"].append({"at": ts, "met": bool(a.get("met")), "reason": a.get("reason", "")})
+            if a.get("met") or a.get("failed"):
+                cur["state"] = "achieved" if a.get("met") else "impossible"
+                cur["ended_at"] = ts
+                cur["iterations"] = a.get("iterations")
+                cur["duration_ms"] = a.get("durationMs")
+                cur["tokens"] = a.get("tokens")
     now = datetime.now(timezone.utc)
     for g in goals:
         start = parse_ts(g["set_at"])

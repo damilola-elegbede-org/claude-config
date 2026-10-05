@@ -32,12 +32,14 @@ Trap worth knowing: `/goal status` (with a space) does not show status — `/goa
 ## Data
 
 `scripts/goal_status.py` (next to this file) reads the session transcript, located through
-`$CLAUDE_CODE_SESSION_ID`. Run it with Bash:
+`$CLAUDE_CODE_SESSION_ID` under `$CLAUDE_CONFIG_DIR` (default `~/.claude`). Run it with Bash:
 
 ```bash
-python3 ~/.claude/skills/goal-status/scripts/goal_status.py report          # current session
-python3 ~/.claude/skills/goal-status/scripts/goal_status.py report --all    # project-wide
+python3 "${CLAUDE_SKILL_DIR}/scripts/goal_status.py" report          # current session
+python3 "${CLAUDE_SKILL_DIR}/scripts/goal_status.py" report --all    # project-wide
 ```
+
+If `${CLAUDE_SKILL_DIR}` isn't set, use the directory holding this SKILL.md.
 
 Each goal in the JSON has: `condition`, `origin` (typed /goal or proposed by Claude), `set_at`,
 `state` (`active`, `paused`, `achieved`, `impossible`, `cleared`, `replaced`), `checks[]`
@@ -57,7 +59,7 @@ Each goal in the JSON has: `condition`, `origin` (typed /goal or proposed by Cla
      dependencies come later. Save through stdin so quotes in the text cannot break the shell:
 
      ```bash
-     python3 ~/.claude/skills/goal-status/scripts/goal_status.py criteria set --json - <<'JSON'
+     python3 "${CLAUDE_SKILL_DIR}/scripts/goal_status.py" criteria set --json - <<'JSON'
      [{"id": 1, "text": "..."}, {"id": 2, "text": "..."}]
      JSON
      ```
