@@ -60,7 +60,7 @@ Each goal in the JSON has: `condition`, `origin` (typed /goal or proposed by Cla
 
      ```bash
      python3 "${CLAUDE_SKILL_DIR}/scripts/goal_status.py" criteria set --json - <<'JSON'
-     [{"id": 1, "text": "..."}, {"id": 2, "text": "..."}]
+     [{"id": 1, "text": "..."}, {"id": 2, "text": "..."}, {"id": 3, "text": "..."}]
      JSON
      ```
 
