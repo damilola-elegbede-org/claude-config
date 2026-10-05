@@ -48,13 +48,22 @@ Each goal in the JSON has: `condition`, `origin` (typed /goal or proposed by Cla
 
 1. Run `report` (or `report --all` when asked). On an `error`, show it in one line and stop.
 2. **No goals:** one line — "No goal set this session. Set one with `/goal <condition>`." Stop.
-3. Take the last goal in the list. For `active` or `paused`, pin criteria:
-   - `criteria get --session <id> --condition "<condition>"`. If it returns criteria, use them.
+   **`--all`:** go straight to the `--all` layout; no pinning, verification or bar.
+3. Take the last goal in the list. For `active` or `paused`, pin criteria. Both `criteria`
+   commands default to the current session's latest goal, so never pass the condition text:
+   - `criteria get`. If it returns criteria, use them.
    - If `null`, split the condition into 3–7 criteria. Each one is a single fact a read-only
      command or file read can confirm ("CI green on PR #276", not "work is done"). Order them so
-     dependencies come later. Save with
-     `criteria set --session <id> --condition "<condition>" --json '[{"id":1,"text":"..."}, ...]'`.
+     dependencies come later. Save through stdin so quotes in the text cannot break the shell:
+
+     ```bash
+     python3 ~/.claude/skills/goal-status/scripts/goal_status.py criteria set --json - <<'JSON'
+     [{"id": 1, "text": "..."}, {"id": 2, "text": "..."}]
+     JSON
+     ```
+
      Never re-split a pinned goal; the script refuses anyway.
+
 4. Verify each criterion now, read-only: `git`, `gh … view/checks/list`, `ls`, `rg`, running the
    project's tests only if they are fast and side-effect free. Status words, not emoji:
    - `met` — evidence confirms it

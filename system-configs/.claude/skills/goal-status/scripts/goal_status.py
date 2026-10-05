@@ -10,8 +10,9 @@
 
 Subcommands:
   report [--session ID] [--all]      JSON report of goals (default: current session)
-  criteria get --session ID --condition TEXT
-  criteria set --session ID --condition TEXT --json '[...]'
+  criteria get [--session ID] [--condition TEXT]
+  criteria set [--session ID] [--condition TEXT] --json '[...]'
+                                     (condition defaults to the session's latest goal)
   bar DONE TOTAL                     render a progress bar line
 """
 import argparse
@@ -118,10 +119,15 @@ def goals_in(path):
     return goals
 
 
-def cmd_report(args):
+def current_session(args):
     sid = args.session or os.environ.get("CLAUDE_CODE_SESSION_ID")
     if not sid:
         die("no session id: pass --session or run inside Claude Code (CLAUDE_CODE_SESSION_ID)")
+    return sid
+
+
+def cmd_report(args):
+    sid = current_session(args)
     path = session_file(sid)
     if not args.all:
         goals = goals_in(path)
@@ -146,19 +152,28 @@ def cond_key(condition):
 
 
 def cmd_criteria(args):
-    p = pin_path(args.session)
+    sid = current_session(args)
+    condition = args.condition
+    if condition is None:
+        goals = goals_in(session_file(sid))
+        if not goals:
+            die("no goal in this session")
+        condition = goals[-1]["condition"]
+    p = pin_path(sid)
     pins = json.load(open(p)) if os.path.exists(p) else {}
-    key = cond_key(args.condition)
+    key = cond_key(condition)
     if args.action == "get":
         print(json.dumps(pins.get(key)))
         return
-    criteria = json.loads(args.json)
+    if not args.json:
+        die("criteria set needs --json (a JSON list, or - to read it from stdin)")
+    criteria = json.loads(sys.stdin.read() if args.json == "-" else args.json)
     if not isinstance(criteria, list) or not 1 <= len(criteria) <= 7:
         die("criteria must be a JSON list of 1-7 items")
     if key in pins:
         die("criteria already pinned for this goal; they never change while the goal stands")
     os.makedirs(PINS, exist_ok=True)
-    pins[key] = {"condition": args.condition, "pinned_at": datetime.now(timezone.utc).isoformat(), "criteria": criteria}
+    pins[key] = {"condition": condition, "pinned_at": datetime.now(timezone.utc).isoformat(), "criteria": criteria}
     json.dump(pins, open(p, "w"), indent=2)
     print(json.dumps(pins[key]))
 
@@ -178,8 +193,8 @@ def main():
     r.add_argument("--limit", type=int, default=30, help="max transcripts scanned with --all")
     c = sub.add_parser("criteria")
     c.add_argument("action", choices=["get", "set"])
-    c.add_argument("--session", required=True)
-    c.add_argument("--condition", required=True)
+    c.add_argument("--session")
+    c.add_argument("--condition")
     c.add_argument("--json")
     b = sub.add_parser("bar")
     b.add_argument("done", type=int)
