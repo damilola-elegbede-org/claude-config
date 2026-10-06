@@ -47,6 +47,16 @@
     },
     { "skill": "bro", "prompt": "/bro" },
 
+    { "skill": "goal-status", "prompt": "/goal-status" },
+    {
+      "skill": "goal-status",
+      "prompt": "How's the goal going? What's left before it's met?"
+    },
+    {
+      "skill": "goal-status",
+      "prompt": "Show me progress on the goal you're working toward, with a bar and what's still failing."
+    },
+
     {
       "skill": "colorwheel",
       "prompt": "Red team this plan for me and tell me if it holds up before we build it."
