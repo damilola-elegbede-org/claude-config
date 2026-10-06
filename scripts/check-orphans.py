@@ -91,6 +91,8 @@ def extract_agent_references(content):
                 "high-level", "low-level", "built-in", "opt-in", "opt-out",
                 "run-time", "compile-time", "type-safe", "type-check",
                 "hot-reload", "hot-module", "tree-shaking",
+                # Prose compounds in vendored skills (not agent names)
+                "one-line", "ad-style", "q-prefixed", "tie-breakers",
             ]
             # Skip numbered agent references (e.g., debugger-2, test-engineer-4)
             if re.match(r"^[\w-]+-\d+$", match.lower()):
@@ -108,6 +110,9 @@ def check_skills_for_orphans(valid_agents, verbose=False):
     if not SKILLS_DIR.exists():
         return orphans
 
+    # A skill may point at another skill ("use higgsfield-generate"); that is not an orphaned agent.
+    skill_names = {d.name for d in SKILLS_DIR.iterdir() if d.is_dir()}
+
     for skill_dir in SKILLS_DIR.iterdir():
         if not skill_dir.is_dir() or skill_dir.name.startswith('.'):
             continue
@@ -119,7 +124,7 @@ def check_skills_for_orphans(valid_agents, verbose=False):
         references = extract_agent_references(content)
 
         for ref in references:
-            if ref not in valid_agents and len(ref) > 3:
+            if ref not in valid_agents and ref not in skill_names and len(ref) > 3:
                 # Additional filtering for false positives
                 if ref not in ["debug", "test", "build", "deploy", "review"]:
                     orphans.append({
