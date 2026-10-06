@@ -682,6 +682,26 @@ sync_files() {
         fi
     fi
 
+    # Sync mods: plugin folders of function hooks (glassbox, ...), loaded by
+    # every session because settings.json's env sets CLAUDE_CODE_PLUGIN_DIRS
+    # to ~/.claude/mods. A mod's tests stay in the repo; the type files and
+    # tsconfig.json the engine lays into a loaded mod are its own, so --delete
+    # leaves them be. A local-* folder is yours, as for output styles and rules.
+    if [ "$(manifest_flag mods)" != "true" ]; then
+        echo "  ⏭  Mods: skipped by $STATION manifest"
+    elif [ -d "$SOURCE_DIR/mods" ]; then
+        mkdir -p "$TARGET_DIR/mods"
+        rsync_output=""
+        if rsync_output=$(rsync -a --delete --exclude='local-*' --exclude='/*/tests/' --exclude='/*/.claude-plugin/types/' --exclude='/*/tsconfig.json' "$SOURCE_DIR/mods/" "$TARGET_DIR/mods/" 2>&1); then
+            MOD_COUNT=$(find "$SOURCE_DIR/mods" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')
+            echo "  ✅ Mods: $MOD_COUNT mods → ~/.claude/mods/"
+        else
+            echo "  ❌ Failed to sync mods"
+            printf "    %s\n" "$rsync_output"
+            return 1
+        fi
+    fi
+
     # Sync settings.json per station policy: replace (default), key-scoped
     # merge (fleet nodes — repo wins only on owned keys), or skip.
     SETTINGS_MODE=$(settings_mode)
@@ -909,6 +929,9 @@ main() {
         echo "  - $(find "$SOURCE_DIR/skills" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ') skills → ~/.claude/skills/"
         if [ "$(manifest_flag rules)" = "true" ] && [ -d "$SOURCE_DIR/rules" ]; then
             echo "  - $(find "$SOURCE_DIR/rules" -name "*.md" 2>/dev/null | wc -l | tr -d ' ') rule files → ~/.claude/rules/ (--delete; local-*.md kept)"
+        fi
+        if [ "$(manifest_flag mods)" = "true" ] && [ -d "$SOURCE_DIR/mods" ]; then
+            echo "  - $(find "$SOURCE_DIR/mods" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ') mods → ~/.claude/mods/ (--delete; local-* kept)"
         fi
         SETTINGS_MODE=$(settings_mode)
         echo "  - settings.json → ~/.claude/settings.json (mode: $SETTINGS_MODE)"

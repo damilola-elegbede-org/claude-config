@@ -1,0 +1,7 @@
+{
+  "name": "glassbox",
+  "version": "0.1.0",
+  "description": "Watch Claude work: progress bar, live checklist, subagents you can drill into, and the reasoning feed",
+  "author": { "name": "Damilola Elegbede" },
+  "types": "./types/index.d.ts"
+}

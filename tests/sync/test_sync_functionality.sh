@@ -70,6 +70,27 @@ if ! grep -q "exclude='local-\*\.md'" "${ORIGINAL_DIR}/scripts/sync.sh"; then
 fi
 echo -e "${GREEN}✓${NC} Locally-authored local-*.md styles survive --delete"
 
+# Mods only load because settings.json points CLAUDE_CODE_PLUGIN_DIRS at the
+# folder sync fills. Either half alone deploys a mod nothing ever loads.
+if ! grep -q 'rsync .*--delete .*"\$SOURCE_DIR/mods/" "\$TARGET_DIR/mods/"' "${ORIGINAL_DIR}/scripts/sync.sh"; then
+    echo -e "${RED}✗${NC} sync.sh no longer rsyncs mods to ~/.claude/mods/"
+    exit 1
+fi
+# The literal tilde is the point: Claude Code expands it, so one value fits
+# every station's home directory.
+# shellcheck disable=SC2088
+if [ "$(jq -r '.env.CLAUDE_CODE_PLUGIN_DIRS // ""' "$SOURCE_DIR/.claude/settings.json")" != "~/.claude/mods" ]; then
+    echo -e "${RED}✗${NC} settings.json env does not load ~/.claude/mods — synced mods would never run"
+    exit 1
+fi
+for mod in "$SOURCE_DIR"/.claude/mods/*/; do
+    if [ ! -f "$mod.claude-plugin/plugin.json" ] || [ ! -f "${mod}hooks/hooks.json" ]; then
+        echo -e "${RED}✗${NC} $(basename "$mod") is missing .claude-plugin/plugin.json or hooks/hooks.json"
+        exit 1
+    fi
+done
+echo -e "${GREEN}✓${NC} Mods are deployed by sync and loaded via CLAUDE_CODE_PLUGIN_DIRS"
+
 # Test 4: Test backup functionality
 echo "Testing backup functionality..."
 

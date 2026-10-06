@@ -285,7 +285,7 @@ Performance: 5x faster than sequential validation
 | **`/docs`**                | Documentation orchestration with parallel processors              | 3-4x faster            | 6 document instances, automated generation                              |
 | **`/plan`**                | Strategic project planning with principal-architect               | Enhanced quality       | TDD methodology, architectural guidance                                 |
 | **`/debug`**               | Systematic investigation with evidence gathering                  | Improved accuracy      | Hypothesis testing, systematic debugging                                |
-| **`/resolve-comments`**          | Intelligent PR resolution based on comment analysis               | Context-aware          | Multi-agent deployment, automated fixes                                 |
+| **`/resolve-comments`**    | Intelligent PR resolution based on comment analysis               | Context-aware          | Multi-agent deployment, automated fixes                                 |
 | **`/deps`**                | Security-first dependency management                              | Vulnerability scanning | Multi-language support, security assessment                             |
 | **`/fix-ci`**              | Automated CI/CD failure resolution                                | Pattern recognition    | DevOps expertise, automated remediation                                 |
 | **`/pr`**                  | Intelligent PR creation with tech-writer collaboration            | Enhanced descriptions  | Context-aware analysis, professional documentation                      |
@@ -414,6 +414,7 @@ The sync process deploys the complete framework configuration:
 - **12 Agent Definitions**: All specialist agents to `~/.claude/agents/`
 - **20 Command Definitions**: Essential commands to `~/.claude/commands/`
 - **Output Styles**: Formatting configurations to `~/.claude/output-styles/`
+- **Mods**: Hook-module plugins (e.g. `glassbox`, a live view of Claude's work) to `~/.claude/mods/`, loaded via `CLAUDE_CODE_PLUGIN_DIRS`
 - **System Settings**: Audio notifications and preferences to `~/.claude/settings.json`
 - **MCP Server Configuration**: Model Context Protocol server integration
 - **Statusline Integration**: Intelligent terminal statusline for development context
@@ -521,6 +522,7 @@ claude-config/
 │   │   │   ├── verify.md
 │   │   │   └── ... (15 more commands)
 │   │   ├── output-styles/         # Formatting configurations
+│   │   ├── mods/                  # Hook-module plugins (glassbox)
 │   │   ├── settings.json          # Hook configuration and audio preferences
 │   │   ├── statusline.sh          # Terminal statusline integration
 │   │   ├── exit_hook.sh           # SessionEnd cleanup hook

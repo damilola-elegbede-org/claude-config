@@ -108,6 +108,7 @@ Files Synced:
   - skills/*/             -> ~/.claude/skills/*/ (entire skill directories)
     - Includes: SKILL.md, references/, scripts/, assets/, etc.
   - output-styles/*.md    -> ~/.claude/output-styles/
+  - mods/*/               -> ~/.claude/mods/*/ (hook-module plugins; loaded via settings env CLAUDE_CODE_PLUGIN_DIRS)
   - settings.json         -> ~/.claude/settings.json
   - statusline.sh         -> ~/.claude/statusline.sh
   - exit_hook.sh          -> ~/.claude/exit_hook.sh (optional, validated with sh -n)
