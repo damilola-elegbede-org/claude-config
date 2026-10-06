@@ -76,7 +76,8 @@ jev_redact() {
     s/\bglpat-[A-Za-z0-9_-]{16,}/[REDACTED]/g;
     s/\b(Bearer|Basic|token)\s+[A-Za-z0-9._~+\/=-]{12,}/$1 [REDACTED]/gi;
     s{(://)[^/\s:@\\"]+:[^/\s@\\"]+@}{$1\[REDACTED\]@}g;
-    s/(\b[A-Za-z0-9_]*(?:key|token|secret|passw(?:or)?d|pwd|credential)[A-Za-z0-9_]*\s*[=:]\s*(?:\\"|\\\x27)?)[^\s"\x27\\]+/$1\[REDACTED\]/gi; # assignment pattern: NAME=value or NAME: value
+    s{(\b[A-Za-z0-9_-]*(?:key|token|secret|pass|pwd|credential|auth)[A-Za-z0-9_-]*\s*[=:]\s*)(?:(\\"|")[^"\\]*|(\x27)[^\x27\\"]*|[^\s"\x27\\]+)}{$1.(defined $2 ? $2 : defined $3 ? $3 : "")."[REDACTED]"}gie; # NAME=value, NAME: value, export NAME=..., --flag=value: any length, quoted or not
+    s{(--[A-Za-z0-9_-]*(?:key|token|secret|pass|pwd|credential|auth)[A-Za-z0-9_-]*\s+)(?!-)(?:(\\"|")[^"\\]*|(\x27)[^\x27\\"]*|[^\s"\x27\\]+)}{$1.(defined $2 ? $2 : defined $3 ? $3 : "")."[REDACTED]"}gie; # --password VALUE
     s/[A-Za-z0-9+_=-]{40,}/[REDACTED-LONG]/g;
   '
 }
@@ -339,15 +340,19 @@ jev_deny_reason() {
 # jev_g1_context COMMAND -> JSON {deleted_paths, created_in_command, script_calls} when the command deletes
 # (rm, rmdir, unlink, shred, srm), else nothing. Plain statement-level parsing, no shell evaluation: paths
 # written by redirects, mkdir, touch, tee and the target of cp/mv/install count as created; script_calls
-# lists interpreter or ./script invocations. scripts/jev-replay.py g1_context() mirrors this exactly.
+# lists interpreter or ./script invocations. A path counts as created only if it does not exist yet (this runs
+# before the command): relative paths resolve against CWD (2nd arg, default $CWD from jev-gate.sh) and are omitted
+# when the cwd is unknown, after a cd, or when the path has expansions. scripts/jev-replay.py g1_context() mirrors this.
 jev_g1_context() {
-  printf '%s' "$1" | jev_redact | perl -MJSON::PP -0777 -ne '
-    my (@del, @new, @scr);
+  printf '%s' "$1" | jev_redact | JEV_G1_CWD="${2:-${CWD:-}}" perl -MJSON::PP -0777 -ne '
+    my (@del, @new, @scr, %cdat);
+    my $cdseen = 0;
     my $add = sub {
       my ($l, $v) = @_;
       $v =~ s/^["\x27]+//;
       $v =~ s/["\x27]+$//;
       return if $v eq "" || length($v) > 160;
+      $cdat{$v} = $cdseen if $l == \@new && !exists $cdat{$v};
       push @$l, $v unless grep { $_ eq $v } @$l;
     };
     foreach my $stmt (split /\|\||&&|[;&|\n]/) {
@@ -363,6 +368,7 @@ jev_g1_context() {
       my @w = $s =~ /"[^"]*"|\x27[^\x27]*\x27|\S+/g;
       my $cmd = shift @w;
       next unless defined $cmd;
+      $cdseen = 1 if $cmd =~ /^(?:cd|pushd)$/;
       my @args = grep { !/^-/ } @w;
       if ($cmd =~ /^(?:rm|rmdir|unlink|shred|srm)$/) { $add->(\@del, $_) for @args; }
       elsif ($cmd =~ /^(?:mkdir|touch|tee)$/) { $add->(\@new, $_) for @args; }
@@ -371,6 +377,18 @@ jev_g1_context() {
       elsif ($cmd =~ m{^\./}) { push @scr, substr($s, 0, 80) if @scr < 3; }
     }
     if (@del) {
+      my $cwd = $ENV{JEV_G1_CWD}; $cwd = "" if !defined $cwd || $cwd !~ m{^/};
+      my @keep;
+      foreach my $v (@new) {
+        my $p = $v;
+        if ($p =~ m{^~(?:/|$)}) { next unless length($ENV{HOME} // ""); $p =~ s{^~}{$ENV{HOME}}; }
+        next if $p =~ m{^~};
+        next if $p =~ /[\$`*?\[\]{}\\]/;
+        if ($p !~ m{^/}) { next if $cwd eq "" || $cdat{$v}; $p = "$cwd/$p"; }
+        next if -e $p || -l $p;
+        push @keep, $v;
+      }
+      @new = @keep;
       splice(@del, 6) if @del > 6;
       splice(@new, 8) if @new > 8;
       print JSON::PP->new->canonical->encode({deleted_paths => \@del, created_in_command => \@new, script_calls => \@scr});

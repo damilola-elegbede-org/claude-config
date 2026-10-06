@@ -244,7 +244,8 @@ def build_actions(raw, prefixes):
             n_excl += 1
             continue
         red = trim(redact(text))
-        key = (r["tool"], red)
+        # cwd is part of the identity: the same text in two directories is two actions, scored separately.
+        key = (r["tool"], red, os.path.normpath(r["cwd"]) if r["cwd"] else "")
         a = actions.get(key)
         if a is None:
             a = actions[key] = {"tool": r["tool"], "text": red, "cwd": r["cwd"], "path": r.get("path"), "seen": []}
@@ -323,10 +324,36 @@ def best_risk(probs):
 # ---------------------------------------------------------------- join with the gates
 
 
-def blocked_by(action, blocks):
-    """True when every occurrence of the action is matched by a block row (same session when the row has
-    one, within JOIN_WINDOW_S, and by logged action text when the row has any)."""
+TRUNC_LEN = 199  # the gate cuts `action` to 195 as head(136) + " ... " + tail(58); see jev_trim in jev-gate-lib.sh
+TRUNC_HEAD = 136
+TRUNC_MARK = " ... "
+
+
+def _norm(text):
+    return " ".join(redact(text).split())
+
+
+def blocked_by(action, blocks, used=None):
+    """True when every occurrence of the action is matched by its own block row: same session when the row
+    has one, within JOIN_WINDOW_S, and by logged action text when the row has any (exact, or head and tail
+    when the logged text is the gate's truncated form). Each block row satisfies at most one occurrence;
+    `used` (a set of row indexes) is shared across actions and only updated when the whole action matched."""
     mine = " ".join(action["text"].split())
+    taken = set(used) if used is not None else set()
+
+    def text_matches(blk):
+        logged = blk.get("action") if isinstance(blk.get("action"), str) else blk.get("target")
+        if not (isinstance(logged, str) and logged):
+            return None
+        prefix = action["tool"] + " " if action["tool"] in PATH_ACTION_TOOLS else ""
+        truncated = len(logged) == TRUNC_LEN and logged[TRUNC_HEAD:TRUNC_HEAD + len(TRUNC_MARK)] == TRUNC_MARK
+        parts = (logged[:TRUNC_HEAD], logged[TRUNC_HEAD + len(TRUNC_MARK):]) if truncated else (logged, "")
+        head = _norm(parts[0])
+        if prefix and head.startswith(prefix):
+            head = head[len(prefix):]
+        if not truncated:
+            return mine == head
+        return mine.startswith(head) and mine.endswith(_norm(parts[1]))
 
     def matches(blk, session, dt):
         sid = blk.get("session_id")
@@ -334,15 +361,17 @@ def blocked_by(action, blocks):
             return False
         if abs((blk["_dt"] - dt).total_seconds()) > JOIN_WINDOW_S:
             return False
-        logged = blk.get("action") if isinstance(blk.get("action"), str) else blk.get("target")
-        if isinstance(logged, str) and logged:
-            logged = " ".join(redact(logged).split())
-            if action["tool"] in PATH_ACTION_TOOLS and logged.startswith(action["tool"] + " "):
-                logged = logged[len(action["tool"]) + 1:]
-            return mine.startswith(logged) or logged.startswith(mine)
-        return bool(sid)
+        t = text_matches(blk)
+        return bool(sid) if t is None else t
 
-    return all(any(matches(b, session, dt) for b in blocks) for session, dt in action["seen"])
+    for session, dt in sorted(action["seen"], key=lambda x: x[1]):
+        cands = [(abs((b["_dt"] - dt).total_seconds()), i) for i, b in enumerate(blocks) if i not in taken and matches(b, session, dt)]
+        if not cands:
+            return False
+        taken.add(min(cands)[1])
+    if used is not None:
+        used.update(taken)
+    return True
 
 
 # ---------------------------------------------------------------- report
@@ -473,11 +502,11 @@ def main(argv=None):
 
     day_rows = S.load_rows(args.log, day)
     blocks = S.block_events(day_rows)
-    flagged, blocked_hits = [], 0
+    flagged, blocked_hits, used_blocks = [], 0, set()
     for a in scored:
         if a["score"] < args.threshold:
             continue
-        if blocked_by(a, blocks):
+        if blocked_by(a, blocks, used_blocks):
             blocked_hits += 1
         else:
             flagged.append(a)

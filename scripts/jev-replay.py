@@ -102,12 +102,14 @@ def redact(text: str) -> str:
     t = re.sub(r"\bglpat-[A-Za-z0-9_-]{16,}", "[REDACTED]", t)
     t = re.sub(r"\b(Bearer|Basic|token)\s+[A-Za-z0-9._~+/=-]{12,}", r"\1 [REDACTED]", t, flags=re.I)
     t = re.sub(r"(://)[^/\s:@]+:[^/\s@]+@", r"\1[REDACTED]@", t)
-    t = re.sub(
-        r"(\b[A-Za-z0-9_]*(?:key|token|secret|passw(?:or)?d|pwd|credential)[A-Za-z0-9_]*\s*[=:]\s*)[^\s\"']+",
-        r"\1[REDACTED]",
-        t,
-        flags=re.I,
-    )
+    _val = r"""(?:(\\"|")[^"\\]*|(')[^'\\"]*|[^\s"'\\]+)"""
+    _nm = r"[A-Za-z0-9_-]*(?:key|token|secret|pass|pwd|credential|auth)[A-Za-z0-9_-]*"
+
+    def _rep(m):
+        return m.group(1) + (m.group(2) or m.group(3) or "") + "[REDACTED]"
+
+    t = re.sub(r"(\b" + _nm + r"\s*[=:]\s*)" + _val, _rep, t, flags=re.I)
+    t = re.sub(r"(--" + _nm + r"\s+)(?!-)" + _val, _rep, t, flags=re.I)
     return re.sub(r"[A-Za-z0-9+_=-]{40,}", "[REDACTED-LONG]", t)
 
 
@@ -135,17 +137,21 @@ DELETE_WORDS = re.compile(r"(^|[^A-Za-z0-9_])(rm|rmdir|unlink|shred|srm)([^A-Za-
 _REDIRECT = r"(?<![<>0-9&])>>?\s*([^\s;&|<>()]+)"
 
 
-def g1_context(cmd: str) -> dict:
+def g1_context(cmd: str, cwd: str = "", home: str = "") -> dict:
     """Mirror of jev_g1_context (hooks/jev-gate-lib.sh): for a command that deletes, the paths it deletes, the paths it
     creates itself (redirects, mkdir, touch, tee, cp/mv/install targets) and the scripts it runs; {} otherwise."""
     cmd = redact(cmd)
     dele, new, scr = [], [], []
+    cdat: dict = {}
+    cdseen = False
 
     def add(lst, v):
         v = re.sub(r"^[\"']+", "", v)
         v = re.sub(r"[\"']+$", "", v)
         if v == "" or len(v) > 160:
             return
+        if lst is new and v not in cdat:
+            cdat[v] = cdseen
         if v not in lst:
             lst.append(v)
 
@@ -166,6 +172,8 @@ def g1_context(cmd: str) -> dict:
         if not w:
             continue
         c, rest = w[0], w[1:]
+        if c in ("cd", "pushd"):
+            cdseen = True
         args = [a for a in rest if not a.startswith("-")]
         if re.fullmatch(r"rm|rmdir|unlink|shred|srm", c):
             for a in args:
@@ -184,6 +192,26 @@ def g1_context(cmd: str) -> dict:
                 scr.append(s[:80])
     if not dele:
         return {}
+    # Only paths that do not exist yet count as created (mirrors the hook; unknown cwd or expansions are omitted).
+    cwd = cwd if cwd.startswith("/") else ""
+    home = home or os.environ.get("HOME", "")
+    keep = []
+    for v in new:
+        p = v
+        if re.match(r"~(/|$)", p):
+            if not home:
+                continue
+            p = home + p[1:]
+        if p.startswith("~") or re.search(r"[$`*?\[\]{}\\]", p):
+            continue
+        if not p.startswith("/"):
+            if cwd == "" or cdat.get(v):
+                continue
+            p = cwd + "/" + p
+        if os.path.lexists(p):
+            continue
+        keep.append(v)
+    new = keep
     return {"created_in_command": new[:8], "deleted_paths": dele[:6], "script_calls": scr}
 
 

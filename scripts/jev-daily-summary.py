@@ -118,19 +118,38 @@ def is_client(row):
 
 
 def block_events(rows):
-    """Deny and hit-enforce rows, one per blocked call. A Jev gate logs a hit-enforce row and a deny
-    row for the same call; the deny row wins, a hit-enforce row without one still counts."""
+    """Deny and hit-enforce rows, one per blocked call. A Jev gate logs a hit-enforce row per matching gate
+    and a deny row (gate "G1,G3" when several matched) for the same call. The call is identified without
+    the gate id (session, action sha or text, second); the deny row wins, and hit-enforce rows without a
+    deny merge into one event that lists every gate. Rows with no identity stay separate."""
     events = [r for r in rows if r.get("outcome") in BLOCK_OUTCOMES]
 
     def key(r):
-        return (r.get("gate"), r.get("action_sha") or r.get("target") or r.get("action"), str(r.get("ts"))[:19])
+        ident = r.get("action_sha") or r.get("target") or r.get("action")
+        return (r.get("session_id"), ident, str(r.get("ts"))[:19]) if ident else None
 
-    deny_keys = {key(r) for r in events if r["outcome"] == "deny"}
+    groups = collections.OrderedDict()
     out = []
     for r in events:
-        if r["outcome"] == "hit-enforce" and key(r) in deny_keys:
+        k = key(r)
+        if k is None:
+            out.append(r)
+        else:
+            groups.setdefault(k, []).append(r)
+    for g in groups.values():
+        denies = [r for r in g if r["outcome"] == "deny"]
+        if denies:
+            out.append(denies[0])
             continue
-        out.append(r)
+        merged = dict(g[0])
+        gates = []
+        for r in g:
+            for part in str(r.get("gate") or "").split(","):
+                if part and part not in gates:
+                    gates.append(part)
+        if gates:
+            merged["gate"] = ",".join(gates)
+        out.append(merged)
     return out
 
 

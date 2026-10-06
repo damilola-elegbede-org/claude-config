@@ -975,6 +975,49 @@ if command -v python3 >/dev/null 2>&1; then
   done
 fi
 
+# created_in_command only lists paths that did not exist before the command
+mkdir -p "$T/g1cwd"
+: >"$T/g1cwd/critical.db"
+g1_cwd() { # command -> g1 context with the hook's cwd set to the scratch dir
+  HOME="$T/home" bash -c '. "$HOME/.claude/hooks/jev-gate-lib.sh"; jev_g1_context "$1" "$2"' _ "$1" "$T/g1cwd"
+}
+OUT=$(g1_cwd 'touch critical.db; rm critical.db')
+assert_eq "an existing file touched then removed is not a created path" '[]' "$(printf '%s' "$OUT" | jq -c '.created_in_command')"
+assert_eq "the deletion itself is still listed" '["critical.db"]' "$(printf '%s' "$OUT" | jq -c '.deleted_paths')"
+OUT=$(g1_cwd 'touch fresh.tmp; rm fresh.tmp')
+assert_eq "a file that did not exist stays labelled created" '["fresh.tmp"]' "$(printf '%s' "$OUT" | jq -c '.created_in_command')"
+OUT=$(g1_cwd 'echo x > critical.db; rm critical.db')
+assert_eq "an existing file overwritten by a redirect is not created" '[]' "$(printf '%s' "$OUT" | jq -c '.created_in_command')"
+OUT=$(g1_cwd "touch $T/g1cwd/critical.db $T/g1cwd/new.db; rm $T/g1cwd/new.db")
+assert_eq "absolute paths are checked too" "[\"$T/g1cwd/new.db\"]" "$(printf '%s' "$OUT" | jq -c '.created_in_command')"
+OUT=$(g1_cwd 'cd sub && touch x.tmp; rm x.tmp')
+assert_eq "a relative path after a cd is not trusted as created" '[]' "$(printf '%s' "$OUT" | jq -c '.created_in_command')"
+OUT=$(g1_cwd 'touch "$F" *.db; rm -f x')
+assert_eq "expansions are not trusted as created" '[]' "$(printf '%s' "$OUT" | jq -c '.created_in_command')"
+OUT=$(HOME="$T/home" bash -c '. "$HOME/.claude/hooks/jev-gate-lib.sh"; jev_g1_context "$1"' _ 'touch fresh.tmp; rm fresh.tmp')
+assert_eq "an unknown cwd omits relative paths" '[]' "$(printf '%s' "$OUT" | jq -c '.created_in_command')"
+: >"$T/stub.log"
+run_hook jev-gate.sh "$(jq -nc --arg c 'touch critical.db; rm critical.db' --arg d "$T/g1cwd" '{tool_name:"Bash", tool_input:{command:$c}, session_id:"s1", transcript_path:"", cwd:$d}')" >/dev/null
+assert_not_contains "the hook passes its cwd: an existing file is not labelled created" "$(jq -c '.state' "$T/stub.log" | head -1)" '"created_in_command":["critical.db"'
+
+# jev_redact: secret-named assignments lose their value whatever its length or quoting
+redact_of() { HOME="$T/home" bash -c '. "$HOME/.claude/hooks/jev-gate-lib.sh"; printf "%s" "$1" | jev_redact' _ "$1"; }
+assert_eq "double-quoted short secret" 'PASSWORD="[REDACTED]"; rm data' "$(redact_of 'PASSWORD="hunter2"; rm data')"
+assert_eq "single-quoted short secret" "TOKEN='[REDACTED]'" "$(redact_of "TOKEN='abc'")"
+assert_eq "quoted secret with spaces" 'DB_PASS="[REDACTED]" ls' "$(redact_of 'DB_PASS="two words" ls')"
+assert_eq "unquoted short secret" 'API_KEY=[REDACTED] run' "$(redact_of 'API_KEY=k1 run')"
+assert_eq "export form" 'export SECRET="[REDACTED]"' "$(redact_of 'export SECRET="s3"')"
+assert_eq "auth name" "AUTH_HEADER=[REDACTED]" "$(redact_of 'AUTH_HEADER=xyz')"
+assert_eq "lowercase name" "credential='[REDACTED]'" "$(redact_of "credential='pw'")"
+assert_eq "--password=value flag" 'cli --password=[REDACTED] go' "$(redact_of 'cli --password=abc go')"
+assert_eq "--token VALUE flag" 'cli --token [REDACTED] go' "$(redact_of 'cli --token abc go')"
+assert_eq "quoted flag value" 'cli --api-key "[REDACTED]" go' "$(redact_of 'cli --api-key "a b" go')"
+assert_eq "a non-secret name is left alone" 'NAME="bob" ls' "$(redact_of 'NAME="bob" ls')"
+JSONIN=$(jq -nc --arg c 'PASSWORD="hunter2"; TOKEN='"'"'abc'"'"'; rm data' '{cmd:$c, n:1}')
+JSONOUT=$(redact_of "$JSONIN")
+assert_eq "serialized JSON stays valid and keeps its escapes" '{"cmd":"PASSWORD=\"[REDACTED]\"; TOKEN='"'"'[REDACTED]'"'"'; rm data","n":1}' "$JSONOUT"
+assert_eq "the redacted JSON still parses" "1" "$(printf '%s' "$JSONOUT" | jq -r '.n')"
+
 # ============================================================================
 # Deny trail, retry detector, readable log rows
 # ============================================================================

@@ -9,8 +9,11 @@
     <array>
         <string>/bin/sh</string>
         <string>-c</string>
-        <string>cd "__REPO__" &amp;&amp; { python3 scripts/jev-daily-summary.py; python3 scripts/jev-nightly-audit.py; }</string>
+        <string>python3 scripts/jev-daily-summary.py; python3 scripts/jev-nightly-audit.py</string>
     </array>
+
+    <key>WorkingDirectory</key>
+    <string>__REPO__</string>
 
     <key>EnvironmentVariables</key>
     <dict>

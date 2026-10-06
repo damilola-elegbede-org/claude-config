@@ -332,17 +332,26 @@ $rules[0] as $R
 # assignment is applied first, so each use gets the value in force at that point. A name that is also set another
 # way (for/select/read/unset/declare/local/getopts/printf -v/+=) or any eval/source in the command leaves the
 # text alone.
+#
+# Fail closed: the resolvers model only flat `;`/`&&`/newline sequences. Any grouping, subshell, substitution or
+# control construct (parens, braces other than ${NAME}, backticks, pushd/popd, if/for/while/until/case/function,
+# eval, source, `.`, builtin/command cd) makes both resolvers leave the text alone, so the plain G1-rm match applies.
+def unmodeled:
+  test("[(`]|(?<!\\$)\\{|(?:^|[^A-Za-z0-9_$-])(?:eval|source|pushd|popd|if|then|do|for|while|until|case|select|function|(?:builtin|command)[[:space:]]+cd)(?![A-Za-z0-9_-])|(?:^|[;&|\\n])[[:space:]]*\\.[[:space:]]");
 def resolve_vars:
   . as $t
-  | if ($t | test("(?:^|[^A-Za-z0-9_])(?:eval|source)[[:space:]]")) then $t
+  | if ($t | unmodeled) then $t
     else
       [$t | match("(?:^|[;&|\\n])[[:space:]]*(?:export[[:space:]]+)?(?<n>[A-Za-z_][A-Za-z0-9_]*)=(?<v>[^[:space:];&|<>\"'`()\\\\]*)(?=[[:space:]]*(?:;|&&|\\n|$))"; "g")
        | {n: .captures[0].string, v: .captures[1].string, e: (.offset + .length)}] as $as
-      | reduce ($as | reverse | .[]) as $a ($t;
+      | if ([$as[] as $x | $as[] as $y | select($x.v | test("\\$\\{?" + $y.n + "(?![A-Za-z0-9_])"))] | length) > 0 then $t
+        else
+        reduce ($as | reverse | .[]) as $a ($t;
           if ($t | test("(?:^|[^A-Za-z0-9_])(?:(?:for|select)[[:space:]]+" + $a.n + "(?![A-Za-z0-9_])|(?:read|unset|declare|typeset|local|readonly|getopts|mapfile|readarray)[[:space:]][^;&|\\n]*(?<![A-Za-z0-9_])" + $a.n + "(?![A-Za-z0-9_])|printf[[:space:]]+-v[[:space:]]+" + $a.n + "(?![A-Za-z0-9_]))|(?<![A-Za-z0-9_])" + $a.n + "\\+="))
           then .
           else .[0:$a.e] + (.[$a.e:] | gsub("\\$(?:" + $a.n + "(?![A-Za-z0-9_])|\\{" + $a.n + "\\})"; $a.v))
           end)
+        end
     end;
 # After `cd <scratch dir> &&|;` the relative targets of a later rm resolve against that dir. The effect ends at the
 # next cd or at the first closing paren/brace (a subshell or group), and only a scratch dir (the same shape as a
@@ -352,7 +361,8 @@ def resolve_cd:
   | ($M.EXTOK | expand) as $ext
   | [$t | match("(?:^|[;&|\\n])[[:space:]]*cd[[:space:]]+(?<d>[^[:space:];&|<>\"'`()\\\\]+)[[:space:]]*(?=&&|;|\\n)"; "g")
      | {s: .offset, d: .captures[0].string, e: (.offset + .length)}] as $cds
-  | if ($cds | length) == 0 then $t
+  | if ($cds | length) == 0 or ($t | unmodeled)
+       or ([$t | match("(?:^|[;&|\\n])[[:space:]]*cd(?![A-Za-z0-9_./-])"; "g")] | length) != ($cds | length) then $t
     else
       reduce range(($cds | length) - 1; -1; -1) as $i ($t;
         $cds[$i] as $c

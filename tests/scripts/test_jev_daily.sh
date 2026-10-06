@@ -277,6 +277,50 @@ else
   echo "  (node or jev-ask missing: skipped)"
 fi
 
+echo "== nightly audit: one-to-one blocks, cwd, exact text, truncation"
+PROJ4="$T/projects4"
+mkdir -p "$PROJ4/-r1" "$HOME/repos/other"
+OTHERCWD="$HOME/repos/other"
+LONGCMD="rm -rf /tmp/$(printf 'a%.0s' $(seq 1 300))/end"
+{
+  ev 2026-10-04T13:00:00Z '{"type":"tool_use","name":"Bash","input":{"command":"rm -rf ./dup"}}' "$GOODCWD" sess-20
+  ev 2026-10-04T13:00:10Z '{"type":"tool_use","name":"Bash","input":{"command":"rm -rf ./dup"}}' "$GOODCWD" sess-20
+  ev 2026-10-04T13:10:00Z '{"type":"tool_use","name":"Bash","input":{"command":"rm -rf ./samecwd"}}' "$GOODCWD" sess-21
+  ev 2026-10-04T13:10:00Z '{"type":"tool_use","name":"Bash","input":{"command":"rm -rf ./samecwd"}}' "$OTHERCWD" sess-21
+  ev 2026-10-04T13:20:00Z '{"type":"tool_use","name":"Bash","input":{"command":"rm -rf database"}}' "$GOODCWD" sess-22
+  ev 2026-10-04T13:30:00Z '{"type":"tool_use","name":"Bash","input":{"command":"'"$LONGCMD"'"}}' "$GOODCWD" sess-23
+} >"$PROJ4/-r1/s.jsonl"
+TRUNC="${LONGCMD:0:136} ... ${LONGCMD: -58}"
+LOG4="$T/decisions4.jsonl"
+cat >"$LOG4" <<EOF
+{"ts":"2026-10-04T13:00:05Z","gate":"G1-rm","mode":"enforce","outcome":"deny","src":"hook:jev-gate","tool":"Bash","session_id":"sess-20","action":"rm -rf ./dup"}
+{"ts":"2026-10-04T13:10:00Z","gate":"G1-rm","mode":"enforce","outcome":"deny","src":"hook:jev-gate","tool":"Bash","session_id":"sess-21","action":"rm -rf ./samecwd"}
+{"ts":"2026-10-04T13:20:00Z","gate":"G1-rm","mode":"enforce","outcome":"deny","src":"hook:jev-gate","tool":"Bash","session_id":"sess-22","action":"rm -rf data"}
+{"ts":"2026-10-04T13:30:00Z","gate":"G1-rm","mode":"enforce","outcome":"deny","src":"hook:jev-gate","tool":"Bash","session_id":"sess-23","action":"$TRUNC"}
+EOF
+: >"$STUB_LOG"
+S4=$(python3 -I "$AUDIT" --date 2026-10-04 --projects "$PROJ4" --log "$LOG4" --stdout)
+eq "same text in two cwds is scored separately (5 calls)" "5" "$(grep -c . "$STUB_LOG")"
+eq "two identical commands, one deny: the second is reported" "1" "$(printf '%s\n' "$S4" | grep -c 'rm -rf ./dup')"
+eq "same text in two cwds, one deny: exactly one reported" "1" "$(printf '%s\n' "$S4" | grep -c 'rm -rf ./samecwd')"
+has "deny on a shorter prefix does not block the longer command" "$S4" "rm -rf database"
+lacks "a gate-truncated logged action still matches the long command" "$S4" "aaaaaaaaaaaa"
+
+echo "== daily summary: one blocked call, several gates"
+LOG5="$T/decisions5.jsonl"
+cat >"$LOG5" <<'EOF'
+{"ts":"2026-10-04T13:00:00Z","gate":"G1","mode":"enforce","outcome":"hit-enforce","src":"hook:jev-gate","tool":"Bash","action_sha":"m1","session_id":"s-m"}
+{"ts":"2026-10-04T13:00:00Z","gate":"G3","mode":"enforce","outcome":"hit-enforce","src":"hook:jev-gate","tool":"Bash","action_sha":"m1","session_id":"s-m"}
+{"ts":"2026-10-04T13:00:00Z","gate":"G1,G3","mode":"enforce","outcome":"deny","src":"hook:jev-gate","tool":"Bash","action_sha":"m1","session_id":"s-m","action":"multi-rule-call"}
+{"ts":"2026-10-04T14:00:00Z","gate":"G5","mode":"enforce","outcome":"hit-enforce","src":"hook:jev-gate","tool":"Bash","action_sha":"m2","session_id":"s-m"}
+{"ts":"2026-10-04T14:00:00Z","gate":"G6","mode":"enforce","outcome":"hit-enforce","src":"hook:jev-gate","tool":"Bash","action_sha":"m2","session_id":"s-m"}
+EOF
+M5=$(python3 -I "$SUMMARY" --date 2026-10-04 --log "$LOG5" --stdout)
+has "multi-gate deny is one event listing all gates" "$M5" "| G1,G3 | deny |"
+lacks "its hit-enforce rows are not counted again" "$M5" "| G1 | hit-enforce"
+has "hit-enforce rows without a deny merge into one event" "$M5" "| G5,G6 | hit-enforce |"
+eq "two blocked calls in total" "2" "$(printf '%s\n' "$M5" | grep -c '| hit-enforce |\|| deny |')"
+
 echo "== installer"
 H="$T/ihome"
 mkdir -p "$H"
@@ -291,7 +335,9 @@ has "says it did not load" "$WR" "Not loaded"
 PLT=$(cat "$PL")
 lacks "no __HOME__ left" "$PLT" "__HOME__"
 lacks "no __REPO__ left" "$PLT" "__REPO__"
-has "repo path substituted" "$PLT" "cd \"$REPO_ROOT\""
+has "repo path is the WorkingDirectory" "$PLT" "<key>WorkingDirectory</key>"
+has "repo path substituted" "$PLT" "<string>$REPO_ROOT</string>"
+lacks "no cd in the shell command" "$PLT" "cd "
 has "runs the summary then the audit" "$PLT" "jev-daily-summary.py; python3 scripts/jev-nightly-audit.py"
 if command -v plutil >/dev/null 2>&1; then
   plutil -lint "$PL" >/dev/null 2>&1
@@ -307,7 +353,25 @@ cp "$REPO_ROOT/system-configs/.claude/launchagents/com.damilola.jev-daily-report
 : >"$AR/scripts/jev-nightly-audit.py"
 HOME="$AH" JEV_REPO_DIR="$AR" sh "$INSTALL" --write >/dev/null 2>&1
 APL="$AH/Library/LaunchAgents/com.damilola.jev-daily-report.plist"
-has "a path with & and | survives substitution" "$(python3 -I -c "import plistlib,sys;print(plistlib.load(open(sys.argv[1],'rb'))['ProgramArguments'][2])" "$APL" 2>&1)" "cd \"$AR\" &&"
+plkey() { python3 -I -c "import plistlib,sys;d=plistlib.load(open(sys.argv[1],'rb'));print(d[sys.argv[2]] if sys.argv[2]!='cmd' else d['ProgramArguments'][2])" "$1" "$2" 2>&1; }
+eq "a path with & and | survives substitution" "$AR" "$(plkey "$APL" WorkingDirectory)"
+HO="$T/hostile home"
+HR="$T/h\"o\$(touch pwned)'s&r"
+mkdir -p "$HO" "$HR/scripts" "$HR/system-configs/.claude/launchagents"
+cp "$REPO_ROOT/system-configs/.claude/launchagents/com.damilola.jev-daily-report.plist.template" "$HR/system-configs/.claude/launchagents/"
+: >"$HR/scripts/jev-daily-summary.py"
+: >"$HR/scripts/jev-nightly-audit.py"
+HOME="$HO" JEV_REPO_DIR="$HR" sh "$INSTALL" --write >/dev/null 2>&1
+HPL="$HO/Library/LaunchAgents/com.damilola.jev-daily-report.plist"
+if command -v plutil >/dev/null 2>&1; then
+  plutil -lint "$HPL" >/dev/null 2>&1
+  eq "hostile-path plist is valid" "0" "$?"
+fi
+eq "hostile path is the exact WorkingDirectory" "$HR" "$(plkey "$HPL" WorkingDirectory)"
+HCMD="$(plkey "$HPL" cmd)"
+lacks "the shell command never contains the path" "$HCMD" "touch pwned"
+(cd "$HR" && /bin/sh -c "$HCMD" >/dev/null 2>&1)
+if [[ -e "$HR/pwned" || -e "$T/pwned" ]]; then bad "hostile path ran nothing" "pwned exists"; else ok; fi
 HOME="$H" sh "$INSTALL" --bogus >/dev/null 2>&1
 eq "unknown flag exits 2" "2" "$?"
 

@@ -8,7 +8,8 @@
 #
 # The template lives in system-configs/.claude/launchagents/com.damilola.jev-daily-report.plist.template.
 # LaunchAgent plists cannot expand environment variables, so the literal strings __HOME__ and __REPO__
-# stand in for $HOME and this checkout and are substituted here, at install time. The scripts run from
+# stand in for $HOME and this checkout and are substituted here, at install time. The checkout is set as
+# the plist WorkingDirectory (never interpolated into a shell command), so no path can inject shell syntax. The scripts run from
 # the checkout (not from ~/.claude); the Jev client they call is the one /sync deploys to
 # ~/.claude/hooks/jev/jev-ask. Set JEV_REPO_DIR to point the agent at a different checkout.
 #
