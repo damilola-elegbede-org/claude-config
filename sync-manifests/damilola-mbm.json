@@ -6,6 +6,7 @@
     "skills": true,
     "output_styles": true,
     "hook_scripts": true,
+    "mods": true,
     "claude_md": true,
     "settings": "merge",
     "settings_owned_keys": [
