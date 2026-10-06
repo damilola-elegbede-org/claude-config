@@ -41,6 +41,7 @@ declare module "claude-code" {
       selected: string | null;
       turn: TurnInfo | null;
       isBandHidden: boolean;
+      second: number;
     };
   }
 }

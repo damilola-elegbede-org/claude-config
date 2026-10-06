@@ -35,6 +35,9 @@ const isBandHidden = atom(
   { plugin: "glassbox", key: "isBandHidden" } as const,
   false,
 );
+// Bumped once a second while a turn runs. Only glassbox's own drawings read
+// it, so the clock redraws them and nothing else on screen.
+const second = atom({ plugin: "glassbox", key: "second" } as const, 0);
 
 type Block = { type: string; text?: string; thinking?: string };
 type Args = Record<string, unknown>;
@@ -135,7 +138,9 @@ function autoOpen($: EngineInterface) {
 
 function startTick($: EngineInterface) {
   tick?.cancel();
-  tick = $.clock.every(1000, () => $.ui.invalidate("ui.render"));
+  tick = $.clock.every(1000, () => {
+    void update($, second, (n) => (n ?? 0) + 1);
+  });
 }
 
 function stopTick() {
@@ -320,6 +325,7 @@ export const register: Register = (on) => {
 
   on("ui.render", { component: "AbovePrompt" }, async ($, e, next) => {
     hasScreen = true;
+    await read($, second);
     const list = await read($, tasks);
     const t = await read($, turn);
     const isWorking = e.props.isWorking;
@@ -373,6 +379,7 @@ export const register: Register = (on) => {
 
   on("ui.render", { component: "Pane", requestId: PANE }, async ($, e) => {
     hasScreen = true;
+    await read($, second);
     const { Box, Text, Button } = $.ui.resolve(e);
     const width = Math.max(24, e.props.bodyColumns);
     const list = await read($, tasks);
