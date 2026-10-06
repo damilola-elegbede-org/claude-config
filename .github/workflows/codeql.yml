@@ -1,0 +1,57 @@
+name: CodeQL
+
+# Advanced setup, replacing GitHub's default setup. Default setup cannot set
+# paths, and the JavaScript extractor skips hidden directories, so it found
+# none of the JS/TS under system-configs/.claude/ and its new-language probe
+# failed on main (2026-08-12, 2026-10-06).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "27 6 * * 3"
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: actions
+            config: ""
+          - language: python
+            config: ""
+          # Explicit include: the extractor's default filters drop hidden dirs.
+          - language: javascript-typescript
+            config: |
+              paths:
+                - system-configs/.claude
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          queries: security-extended
+          config: ${{ matrix.config }}
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:${{ matrix.language }}"
