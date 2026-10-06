@@ -1,10 +1,16 @@
+import { atom, read, update } from "claude-code";
 import type { EngineInterface, Register } from "claude-code";
+
+import type { Marks } from "../types";
 
 // jevlight: a visual marker each time Jev acts. Jev is the set of settings
 // (shell) hooks in settings.json; they run beneath every hooks module, so
 // awaiting `next(e)` here returns what they decided. A pass leaves no mark.
-// Each action is one sky-blue line in the transcript, in order with the rest
-// of the session, so it is part of the record.
+//
+// An action on a tool call is drawn as a sky-blue line under that call's row
+// in the transcript (its result, or its folded group like "Read 3 files"), so
+// it stays in the record. An action with no tool row (a held stop, a note on
+// the prompt) is a plain transcript line: log lines cannot carry colour.
 //
 // It only watches: every hook returns the result it was handed, unchanged. It
 // cannot tell which settings hook acted, so a non-Jev settings hook that acts
@@ -23,10 +29,12 @@ export type Outcome = {
   updatedMCPToolOutput?: unknown;
 };
 
+export const SKY = "#87CEEB";
 const LINE_MAX = 120;
-// 256-colour 117, sky blue; reset after so nothing else is tinted.
-const SKY = "\x1b[38;5;117m";
-const RESET = "\x1b[0m";
+// Calls whose marks are kept; older ones scroll out of view anyway.
+const KEEP = 200;
+
+const marks = atom({ plugin: "jevlight", key: "marks" } as const, {} as Marks);
 
 export const firstLine = (text: string) => {
   const line =
@@ -63,14 +71,30 @@ export const actionsOf = (where: string, r: Outcome | undefined): string[] => {
   return lines.map((l) => `⚡ Jev ${l}`);
 };
 
-export const paint = (line: string) => `${SKY}${line}${RESET}`;
+// Adds lines to a call's marks, dropping the oldest calls past KEEP.
+export const addMarks = (all: Marks, id: string, lines: string[]): Marks => {
+  const next = { ...all, [id]: [...(all[id] ?? []), ...lines] };
+  const ids = Object.keys(next);
+  for (const old of ids.slice(0, Math.max(0, ids.length - KEEP))) {
+    delete next[old];
+  }
+  return next;
+};
 
-// A marker must never break the hook chain: a failure to draw it is dropped.
-const mark = ($: EngineInterface, where: string, r: unknown) => {
+// A marker must never break the hook chain: a failure to record it is dropped.
+const mark = async (
+  $: EngineInterface,
+  where: string,
+  r: unknown,
+  id?: string,
+) => {
   try {
-    for (const line of actionsOf(where, r as Outcome)) $.ui.log(paint(line));
+    const lines = actionsOf(where, r as Outcome);
+    if (lines.length === 0) return;
+    if (id) await update($, marks, (all) => addMarks(all ?? {}, id, lines));
+    else for (const line of lines) $.ui.log(line);
   } catch {
-    // drawing the marker failed; Jev's result still goes on below
+    // recording the marker failed; Jev's result still goes on below
   }
 };
 
@@ -87,37 +111,71 @@ export const register: Register = (on) => {
 
   on("classic.PreToolUse", async ($, e, next) => {
     const r = await next(e);
-    mark($, e.tool, r);
+    await mark($, e.tool, r, e.tool_use_id);
     return r;
   }).catch(keepJev);
 
   on("classic.PostToolUse", async ($, e, next) => {
     const r = await next(e);
-    mark($, `${e.tool_name} output`, r);
+    await mark($, `${e.tool_name} output`, r, e.tool_use_id);
     return r;
   }).catch(keepJev);
 
   on("classic.PostToolUseFailure", async ($, e, next) => {
     const r = await next(e);
-    mark($, `${e.tool_name} failure`, r);
+    await mark($, `${e.tool_name} failure`, r, e.tool_use_id);
     return r;
   }).catch(keepJev);
 
   on("classic.UserPromptSubmit", async ($, e, next) => {
     const r = await next(e);
-    mark($, "your prompt", r);
+    await mark($, "your prompt", r);
     return r;
   }).catch(keepJev);
 
   on("classic.Stop", async ($, e, next) => {
     const r = await next(e);
-    mark($, "the stop", r);
+    await mark($, "the stop", r);
     return r;
   }).catch(keepJev);
 
   on("classic.SessionStart", async ($, e, next) => {
     const r = await next(e);
-    mark($, "session start", r);
+    await mark($, "session start", r);
     return r;
   }).catch(keepJev);
+
+  // The sky-blue lines under a call's result row.
+  on("ui.render", { component: "ToolResult" }, async ($, e, next) => {
+    const lines = (await read($, marks))[e.props.tool_use_id] ?? [];
+    if (lines.length === 0) return next(e);
+    const { Box, Text } = $.ui.resolve(e);
+    return (
+      <Box flexDirection="column">
+        {await next(e)}
+        {lines.map((l) => (
+          <Text color={SKY}>{l}</Text>
+        ))}
+      </Box>
+    );
+  });
+
+  // And under a folded group ("Read 3 files"), whose calls draw no result row.
+  on("ui.render", { component: "ToolGroup" }, async ($, e, next) => {
+    if (e.props.isExpanded) return next(e);
+    const all = await read($, marks);
+    const lines = e.props.calls.flatMap((c) =>
+      c.tool_use_id ? (all[c.tool_use_id] ?? []) : [],
+    );
+    if (lines.length === 0) return next(e);
+    const { Box, Text } = $.ui.resolve(e);
+    return (
+      <Box flexDirection="column">
+        {await next(e)}
+        {lines.map((l) => (
+          <Text color={SKY}>{l}</Text>
+        ))}
+      </Box>
+    );
+  });
 };
