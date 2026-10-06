@@ -58,13 +58,20 @@ echo "== registry, rules.d and settings wiring =="
 # --- shipped rule modes: every rule ships enforce (Jev and regex) -------------
 RJ="$HOOKS/rules.d/rules-events.json"
 jq -e . "$RJ" >/dev/null 2>&1 && ok || bad "rules-events.json is valid JSON"
-NONENFORCE=$(jq -r 'to_entries[] | select(.value.threshold != null and .value.mode != "enforce") | .key' "$RJ" | sort | paste -sd, -)
+# A mode is a string or an object keyed by session type; the interactive value is the shipped behaviour.
+IM='(.mode | if type == "object" then .interactive else . end)'
+NONENFORCE=$(jq -r "to_entries[] | select(.value.threshold != null and (.value | $IM) != \"enforce\") | .key" "$RJ" | sort | paste -sd, -)
 eq "every Jev rule (has threshold) ships enforce except the two D kept in shadow" "$NONENFORCE" "executive-scope-creep,executive-tag-correctness"
-eq "executive-tag-correctness ships shadow" "$(jq -r '."executive-tag-correctness".mode' "$RJ")" "shadow"
-eq "executive-scope-creep ships shadow" "$(jq -r '."executive-scope-creep".mode' "$RJ")" "shadow"
+eq "executive-tag-correctness ships shadow" "$(jq -r ".\"executive-tag-correctness\" | $IM" "$RJ")" "shadow"
+eq "executive-scope-creep ships shadow" "$(jq -r ".\"executive-scope-creep\" | $IM" "$RJ")" "shadow"
 for r in file-org-guard pr-draft-guard executive-lint retry-counter papercut-grep; do
-  eq "regex rule $r ships enforce" "$(jq -r --arg r "$r" '.[$r].mode' "$RJ")" enforce
+  eq "regex rule $r ships enforce" "$(jq -r --arg r "$r" ".[\$r] | $IM" "$RJ")" enforce
 done
+# No bg job ever enforces an executive-* or workflow-* rule: those run in shadow there.
+BGENF=$(jq -r 'to_entries[] | select((.key | test("^(executive|workflow)-")) and (.value.mode | type) == "object" and .value.mode.bgjob != "shadow") | .key' "$RJ" | paste -sd, -)
+eq "executive-*/workflow-* rules ship bgjob shadow" "$BGENF" ""
+NOBG=$(jq -r 'to_entries[] | select((.key | test("^(executive|workflow)-")) and ((.value.scope | index("bgjob")) == null)) | .key' "$RJ" | paste -sd, -)
+eq "executive-*/workflow-* rules have bgjob in scope" "$NOBG" ""
 
 # --- settings.json registers every hook, and each registered file exists -----------
 SJ="$SRC/settings.json"
@@ -243,8 +250,30 @@ eq "UTF-8/SHA-256 are not Linear IDs" "$(run executive-lint.sh "$(sl $'**FYI · 
 eq "stop_hook_active never blocks twice" "$(run executive-lint.sh "$(sl 'plain reply' true)")" ""
 loghas allow-stop-hook-active && ok || bad "stop_hook_active allow logged"
 eq "subagent (agent_id) skipped" "$(printf '%s' "$(jq -c '. + {agent_id:"a1"}' <<<"$(sl 'plain reply')")" | bash "$HOOKS/executive-lint.sh" 2>/dev/null)" ""
-eq "bg job skipped" "$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl 'plain reply')")" ""
 eq "fleet skipped" "$(BARECLAUDE_AGENT_SLUG=fleet-test run executive-lint.sh "$(sl 'plain reply')")" ""
+# bg job: linted in shadow. The shipped registry makes every mode a bgjob shadow; nothing blocks.
+reset
+rules "$(cat "$RJ")"
+eq "bg job: reply missing the tag line is not blocked" "$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl 'plain reply')")" ""
+loghas '"rule":"executive-lint","verdict":"shadow-would-block"' && ok || bad "bg job: missing tag logged as shadow-would-block" "$(cat "$LOG" 2>/dev/null)"
+loghas '"scope":"bgjob"' && ok || bad "bg job: decision log carries scope bgjob"
+rm -rf "$HOME/.claude/jev"
+eq "interactive: same reply still blocks (shipped registry)" "$(run executive-lint.sh "$(sl 'plain reply')" | jq -r .decision)" "block"
+rm -rf "$HOME/.claude/jev"
+LONGBG=$(awk 'BEGIN{print "**FYI · long.**"; for(i=0;i<80;i++) print "line " i}')
+eq "bg job: over-length reply is not blocked" "$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl "$LONGBG")")" ""
+eq "bg job: missing meta line is not blocked" "$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl $'**ACTION · do it.**\nbody without meta')")" ""
+eq "bg job: bare Linear ID is not blocked" "$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl $'**FYI · see ENG-1234.**\nx')")" ""
+loghas shadow-would-block && ok || bad "bg job: Linear/length/meta problems logged"
+eq "bg job: subagent skipped" "$(printf '%s' "$(jq -c '. + {agent_id:"a1"}' <<<"$(sl 'plain reply')")" | CLAUDE_JOB_DIR=/x bash "$HOOKS/executive-lint.sh" 2>/dev/null)" ""
+# Even with every rule forced to enforce in config, a bg job never blocks.
+rm -rf "$HOME/.claude/jev"
+rules '{"executive-lint":{"mode":"enforce"},"executive-unsourced-claims":{"mode":"enforce","threshold":0.5}}'
+mock tag '{"answers":{"tag":{"type":"choice","choice":"DECISION","probabilities":{"DECISION":0.95}},"unsourced":{"type":"score","probabilities":{"0":0,"1":0,"2":0.5,"3":0.5}}}}'
+eq "bg job: forced-enforce config still never blocks" "$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl 'plain reply')")" ""
+eq "bg job: forced-enforce Jev unsourced never blocks" "$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl "$GOOD")")" ""
+loghas '"rule":"executive-unsourced-claims","verdict":"p=1"' && ok || bad "bg job: Jev unsourced p logged" "$(cat "$LOG" 2>/dev/null)"
+reset
 eq "empty message skipped" "$(run executive-lint.sh "$(sl '')")" ""
 rules '{"executive-lint":{"mode":"shadow"}}'
 eq "shadow mode logs but does not block" "$(run executive-lint.sh "$(sl 'plain reply')")" ""
@@ -706,6 +735,49 @@ STUB_FIXTURE="$REPO_ROOT/tests/fixtures/skill-prompts.json" JEV_ASK="$T/stub-jev
 [[ -f "$T/overlap.md" ]] && ok || bad "overlap report written"
 has "overlap report flags the commit/push collision" "$(cat "$T/overlap.md" 2>/dev/null)" "commit"
 has "overlap report lists a collisions table" "$(cat "$T/overlap.md" 2>/dev/null)" "| commit"
+
+echo "== session-check: deployed-hook drift =="
+reset
+DR="$T/drift-repo"
+DH="$T/drift-hooks"
+mkdir -p "$DR/system-configs/.claude/hooks/jev/node_modules/x" "$DR/system-configs/.claude/hooks/jev/rules.d" "$DH/jev/rules.d"
+for f in gate.sh gate-rules.json jev-gate.sh jev-gate-lib.sh jev/client.mjs jev/rules.d/skills.json jev/node_modules/x/i.js; do
+  printf 'repo %s\n' "$f" >"$DR/system-configs/.claude/hooks/$f"
+done
+printf 'unrelated\n' >"$DR/system-configs/.claude/hooks/exit_hook.sh"
+git -C "$DR" init -q -b main 2>/dev/null
+git -C "$DR" add -A >/dev/null 2>&1
+git -C "$DR" -c user.name=t -c user.email=t@t commit -qm init >/dev/null 2>&1
+git -C "$DR" update-ref refs/remotes/origin/main HEAD
+for f in gate.sh gate-rules.json jev-gate.sh jev-gate-lib.sh jev/client.mjs jev/rules.d/skills.json; do
+  printf 'repo %s\n' "$f" >"$DH/$f"
+done
+printf 'local junk\n' >"$DH/exit_hook.sh"
+printf 'sock\n' >"$DH/jev/jev.sock"
+dc() { # [session json] -> session-check output; JEV_MOCK keeps it from warming a real daemon
+  local j="${1:-}"
+  [[ -n "$j" ]] || j='{}'
+  printf '%s' "$j" | env JEV_MOCK=unavailable JEV_DRIFT_REPO="$DR" JEV_DRIFT_HOOKS="$DH" bash "$HOOKS/session-check.sh" 2>/dev/null
+}
+hasnt "in-sync hooks: no drift line" "$(dc)" "differ"
+printf 'edited\n' >"$DH/gate.sh"
+printf 'edited\n' >"$DH/jev/client.mjs"
+printf 'edited\n' >"$DH/exit_hook.sh"
+printf 'edited\n' >"$DH/jev/jev.sock"
+out=$(dc '{"session_id":"s-drift-1"}')
+has "drift names the count of differing files (2, not exit_hook/sock)" "$out" "differ from claude-config origin/main in 2 file(s)"
+has "drift line says to run /sync" "$out" "/sync"
+eq "drift warns once per session" "$(dc '{"session_id":"s-drift-1"}' | grep -c differ)" "0"
+has "a new session warns again" "$(dc '{"session_id":"s-drift-2"}')" "differ"
+printf 'repo gate.sh\n' >"$DH/gate.sh"
+printf 'repo jev/client.mjs\n' >"$DH/jev/client.mjs"
+hasnt "after sync, no drift line" "$(dc '{"session_id":"s-drift-3"}')" "differ"
+printf 'edited\n' >"$DH/gate-rules.json"
+eq "missing repo: silent" "$(printf '{}' | env JEV_MOCK=unavailable JEV_DRIFT_REPO="$T/nope" JEV_DRIFT_HOOKS="$DH" bash "$HOOKS/session-check.sh" 2>&1 | grep -c differ)" "0"
+git -C "$DR" update-ref -d refs/remotes/origin/main
+eq "repo without origin/main: silent" "$(dc | grep -c differ)" "0"
+eq "exits 0 on a broken repo path" "$(printf '{}' | env JEV_MOCK=unavailable JEV_DRIFT_REPO=/dev/null JEV_DRIFT_HOOKS="$DH" bash "$HOOKS/session-check.sh" >/dev/null 2>&1; echo $?)" "0"
+reset
 
 echo
 echo "jev rules/events tests: $PASS passed, $FAIL failed"

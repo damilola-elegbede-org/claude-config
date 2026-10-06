@@ -422,6 +422,16 @@ check "300 lines (not more): untouched" out_empty
 bash_input "npm run build" "$LOG"
 JEV_MOCK=unavailable run_hook a3-bash-trim.sh "$IN"
 check "Jev unavailable: untouched" out_empty
+BLIND="$TEST_HOME/blind.json"
+bool_fixture "$BLIND" c0=0.02 c1=0.02 c2=0.02 c3=0.02 c4=0.2 c5=0.02 c6=0.02 c7=0.02 c8=0.02 c9=0.02
+bash_input "npm run build" "$LOG"
+JEV_MOCK="$BLIND" run_hook a3-bash-trim.sh "$IN"
+check "no chunk above the threshold: output left whole (no blind head+tail cut)" out_empty
+check "no chunk above the threshold: logged keep-full / no-relevant-chunk" shadow_jq '.rule=="A3-bash-trim" and .detail.decision=="keep-full" and .detail.why=="no-relevant-chunk"'
+set_rule A3-bash-trim '{"best_fallback":true}'
+JEV_MOCK="$BLIND" run_hook a3-bash-trim.sh "$IN"
+check "best_fallback=true restores the keep-best-chunk cut" out_jq '.hookSpecificOutput.updatedToolOutput.stdout | test("trimmed")'
+set_rule A3-bash-trim '{"best_fallback":false}'
 B="$(calls)"
 jq -cn --rawfile c "$LOG" '{tool_name:"Bash", tool_input:{command:"npm run build"}, tool_response:$c}' >"$IN"
 JEV_MOCK="$FIX" run_hook a3-bash-trim.sh "$IN"
@@ -696,6 +706,31 @@ check "Jev unavailable: silent, exit 0" bash -c "[ ! -s '$OUTF' ] && [ '$HOOK_RC
 jq -cn '{tool_name:"Bash", tool_input:{command:"ls"}}' >"$IN"
 JEV_MOCK="$TEST_HOME/sec.json" run_hook a6-agent-router.sh "$IN"
 check "other tools: ignored" out_empty
+# search hint (opt-in /ask-jev ranking command), advice only
+agent_input Explore "$PROMPT"
+choice_fixture "$TEST_HOME/weak-explore.json" best_type Explore 0.3
+JEV_MOCK="$TEST_HOME/weak-explore.json" run_hook a6-agent-router.sh "$IN"
+check "Explore requested: search hint names the ranking command" out_jq '.hookSpecificOutput.additionalContext | test("rank-files.sh") and test("five files")'
+check "search hint is advice only: no permission decision" out_jq '.hookSpecificOutput | (has("permissionDecision") | not) and (has("decision") | not)'
+agent_input general-purpose "Where is the retry logic implemented in this repository? Report file paths."
+JEV_MOCK="$TEST_HOME/weak.json" run_hook a6-agent-router.sh "$IN"
+check "locate-files prompt (general-purpose, no better pick): search hint" out_jq '.hookSpecificOutput.additionalContext | test("rank-files.sh")'
+check "locate-files prompt: no router suggestion line" out_jq '.hookSpecificOutput.additionalContext | test("Jev router") | not'
+agent_input general-purpose "$PROMPT"
+choice_fixture "$TEST_HOME/pick-explore.json" best_type Explore 0.92
+JEV_MOCK="$TEST_HOME/pick-explore.json" run_hook a6-agent-router.sh "$IN"
+check "picked type Explore: router suggestion plus search hint" out_jq '.hookSpecificOutput.additionalContext | test("Jev router") and test("rank-files.sh")'
+agent_input Explore "$PROMPT"
+JEV_MOCK="$TEST_HOME/sec.json" run_hook a6-agent-router.sh "$IN"
+check "Explore requested, other type picked: both lines" out_jq '.hookSpecificOutput.additionalContext | test("security-auditor") and test("rank-files.sh")'
+agent_input general-purpose "$PROMPT"
+JEV_MOCK="$TEST_HOME/weak.json" run_hook a6-agent-router.sh "$IN"
+check "non-search prompt, no better pick: no hint" out_empty
+agent_input Explore "$PROMPT"
+set_mode A6-agent-router shadow
+JEV_MOCK="$TEST_HOME/weak-explore.json" run_hook a6-agent-router.sh "$IN"
+check "shadow: search hint not printed" out_empty
+set_mode A6-agent-router enforce
 
 # ------------------------------------------------------------------ A7 + A8: UserPromptSubmit
 echo "A7/A8 prompt-context"
@@ -790,12 +825,39 @@ JEV_MOCK="$TEST_HOME/skillonly.json" run_hook a7-a8-prompt-context.sh "$IN"
 check "both rules off: silent, no call" bash -c "[ ! -s '$OUTF' ]"
 check "both rules off: no call made" no_new_calls "$B"
 
+# job-start hints: bgjob sees only its FIRST prompt, in shadow; interactive stays enforce
+rm -f "$HOME/.claude/hooks/jev/jev-rules.json"
+mixed_fixture "$TEST_HOME/job.json" verify 0.85 m0=0.9 m1=0.8 m2=0.1
+prompt_input "please verify the config change works end to end" job1
+B="$(calls)"
+CLAUDE_JOB_DIR=/tmp/job JEV_MOCK="$TEST_HOME/job.json" run_hook a7-a8-prompt-context.sh "$IN"
+check "bgjob first prompt: shadow, nothing printed" out_empty
+check "bgjob first prompt: one Jev call" bash -c "[ \"\$(wc -l <'$STUB_COUNT' | tr -d ' ')\" = $((B + 1)) ]"
+check "bgjob first prompt: A7 logged in shadow" shadow_jq '.rule=="A7-memory-inject" and .mode=="shadow" and (.detail.would_inject|length)==2'
+check "bgjob first prompt: A8 logged in shadow" shadow_jq '.rule=="A8-skill-picker" and .mode=="shadow" and .detail.would_hint==true'
+check "bgjob first prompt: marker written under the state dir" test -e "$HOME/.claude/jev-cache/state/job1.first"
+B="$(calls)"
+CLAUDE_JOB_DIR=/tmp/job JEV_MOCK="$TEST_HOME/job.json" run_hook a7-a8-prompt-context.sh "$IN"
+check "bgjob second prompt: skipped" out_empty
+check "bgjob second prompt: no Jev call" no_new_calls "$B"
+prompt_input "please verify the config change works end to end" job2
+CLAUDE_JOB_DIR=/tmp/job JEV_MOCK="$TEST_HOME/job.json" run_hook a7-a8-prompt-context.sh "$IN"
+check "bgjob: a different session gets its own first prompt" bash -c "! [ \"\$(wc -l <'$STUB_COUNT' | tr -d ' ')\" = $B ]"
+prompt_input "please verify the config change works end to end" int1
+JEV_MOCK="$TEST_HOME/job.json" run_hook a7-a8-prompt-context.sh "$IN"
+check "interactive: still enforce (memories injected)" out_jq '.hookSpecificOutput.additionalContext | test("BODY-VERIFY") and test("/verify")'
+B="$(calls)"
+JEV_MOCK="$TEST_HOME/job.json" run_hook a7-a8-prompt-context.sh "$IN"
+check "interactive: every prompt is considered (second prompt calls Jev)" bash -c "! [ \"\$(wc -l <'$STUB_COUNT' | tr -d ' ')\" = $B ]"
+check "interactive: no first-prompt marker" test ! -e "$HOME/.claude/jev-cache/state/int1.first"
+
 # ------------------------------------------------------------------ registry / wiring
 echo "registry + wiring"
 RULES="$SRC/rules.d/context.json"
 check "rules.d/context.json is valid JSON" jq -e . "$RULES"
 check "every Phase 3 rule is registered under the \"rules\" key" jq -e '.rules | has("A1-read-trim") and has("A2-search-rank") and has("A3-bash-trim") and has("A4-task-boundary") and has("A5-compact-reinject") and has("A5b-compact-state") and has("A6-agent-router") and has("A7-memory-inject") and has("A8-skill-picker")' "$RULES"
-check "every Jev rule ships enforce" jq -e '.rules | to_entries | all(.value.mode == "enforce")' "$RULES"
+check "every Jev rule ships enforce (A7/A8: enforce interactive, shadow in a bgjob)" jq -e '.rules | to_entries | all(.value.mode == "enforce" or .value.mode == {"interactive": "enforce", "bgjob": "shadow"})' "$RULES"
+check "A7 and A8 are scoped to interactive and bgjob" jq -e '.rules | (.["A7-memory-inject"].scope == ["interactive","bgjob"]) and (.["A8-skill-picker"].scope == ["interactive","bgjob"])' "$RULES"
 check "every rule declares a scope" jq -e '.rules | to_entries | all(.value.scope | type == "array" and length > 0)' "$RULES"
 SETTINGS="$REPO_ROOT/system-configs/.claude/settings.json"
 for s in a1-read-trim a2-search-rank a3-bash-trim a4-task-boundary a5-compact-reinject a6-agent-router a7-a8-prompt-context; do

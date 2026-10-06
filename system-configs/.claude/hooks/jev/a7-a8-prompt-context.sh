@@ -10,8 +10,9 @@
 #      and disable-model-invocation) plus "none". Pick != none at p >= threshold -> a one-line hint.
 #
 # Skipped without any Jev call: slash commands (/...), prompts shorter than min_prompt_chars (15).
-# Rules are independent (own mode/threshold/scope); each logs under its own id. Both ship in shadow:
-# they log what they WOULD inject and print nothing. Fail OPEN: any problem -> no output, exit 0.
+# Rules are independent (own mode/threshold/scope); each logs under its own id. In shadow they log
+# what they WOULD inject and print nothing. In a background job (CLAUDE_JOB_DIR set) only the first
+# prompt of the session is considered. Fail OPEN: any problem -> no output, exit 0.
 # shellcheck disable=SC2154 # WORK, RULE*, JEV_* are globals set by ctx-lib.sh
 # shellcheck source=ctx-lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/ctx-lib.sh" || exit 0
@@ -46,7 +47,19 @@ a7_body() {
 
 main() {
   ctx_prepare || return 0
-  local prompt p7=0 p8=0 mode7="" mode8="" thr7="" thr8="" top7 body7 cap7 min7 min8 sid ledger mem memdir
+  local prompt p7=0 p8=0 mode7="" mode8="" thr7="" thr8="" top7 body7 cap7 min7 min8 sid ledger mem memdir first
+  # A background job gets hints for its FIRST prompt only (the job brief); later prompts are skipped
+  # without any Jev call. A marker under the state dir records that the first prompt was seen.
+  if [ "$(ctx_session_kind)" = "bgjob" ]; then
+    sid="$(ctx_in .session_id | tr -dc 'A-Za-z0-9_-')"
+    [ -n "$sid" ] || return 0 # no session id: the first prompt cannot be told apart
+    first="${JEV_STATE_DIR}/${sid}.first"
+    [ ! -e "$first" ] || return 0
+    (
+      umask 077
+      mkdir -p "$JEV_STATE_DIR" && : >"$first"
+    ) 2>/dev/null
+  fi
   prompt="$(ctx_in .prompt)"
   prompt="${prompt#"${prompt%%[![:space:]]*}"}"
   case "$prompt" in /*) return 0 ;; esac

@@ -81,7 +81,7 @@ eq "flat layer rule registered" "off" "$(jq -r '."flat-rule".mode' <<<"$REG")"
 eq "exempt_agents comes from the last layer that sets it" '["x-agent"]' "$(jq -c '.exempt_agents' <<<"$REG")"
 eq "approval-detector folded in with its question and mode" "true" "$(jq -r '."approval-detector" | (.mode == "shadow") and (.instructions | type == "string")' <<<"$REG")"
 eq "mcp-classifier folded in with its questions and mode" "true" "$(jq -r '."mcp-classifier" | (.mode == "enforce") and (.class_instructions | type == "string")' <<<"$REG")"
-eq "choice_questions are in the registry" "risk_class,scope" "$(jq -r '.choice_questions | keys | join(",")' <<<"$REG")"
+eq "choice_questions are in the registry" "origin,risk_class,scope" "$(jq -r '.choice_questions | keys | join(",")' <<<"$REG")"
 eq "an unregistered rule is absent (so off)" "null" "$(jq -c '."nope"' <<<"$REG")"
 
 fresh single

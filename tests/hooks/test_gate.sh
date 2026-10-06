@@ -24,7 +24,7 @@ fi
 
 # A background job or fleet agent running this suite must not leak its own scope
 # into the sandboxed runs.
-unset CLAUDE_JOB_DIR BARECLAUDE_AGENT_SLUG
+unset CLAUDE_JOB_DIR BARECLAUDE_AGENT_SLUG CLAUDE_CODE_SESSION_ID JEV_CLAUDE_DIR
 
 PASS=0
 FAIL=0
@@ -68,7 +68,7 @@ make_home() {
 run_gate() {
     local h="$1" payload="$2"
     shift 2
-    GOUT=$(printf '%s' "$payload" | env -u BARECLAUDE_AGENT_SLUG -u CLAUDE_JOB_DIR \
+    GOUT=$(printf '%s' "$payload" | env -u BARECLAUDE_AGENT_SLUG -u CLAUDE_JOB_DIR -u CLAUDE_CODE_SESSION_ID -u JEV_CLAUDE_DIR \
         HOME="$h" TMPDIR="$h/tmp" "$@" bash "$h/.claude/hooks/gate.sh" 2>"$SANDBOX/stderr")
     GRC=$?
     GERR=$(cat "$SANDBOX/stderr")
@@ -172,9 +172,11 @@ check_absent "interactive: no needs-input wording" "$(reason)" "needs input:"
 run_gate "$H" "$(bash_payload 'rm -rf foo')" CLAUDE_JOB_DIR="$H/job"
 check "bg job: permissionDecision" "deny" "$(decision)"
 check_contains "bg job: needs input" "$(reason)" "end your report with \`needs input:\`"
-check_contains "bg job: do not retry" "$(reason)" "Do not retry"
-check_absent "bg job: no AskUserQuestion" "$(reason)" "AskUserQuestion"
-check_absent "bg job: no approve command" "$(reason)" "gate.sh approve"
+check_contains "bg job: do not retry when D does not answer" "$(reason)" "If D does not answer, do not retry"
+check_contains "bg job: asks D via AskUserQuestion" "$(reason)" "Put this action to D via AskUserQuestion"
+# shellcheck disable=SC2088 # the literal tilde is the text Claude is told to run
+check_contains "bg job: approve command" "$(reason)" "~/.claude/hooks/gate.sh approve "
+check_contains "bg job: names the checkpoint code" "$(reason)" "checkpoint code "
 
 echo "== fleet: exempt agents (clara never blocked) =="
 H_EX=$(make_home exempt)
@@ -405,7 +407,7 @@ APPROVE_ARG="../../etc/passwd"; approve; check "approve: path traversal rejected
 APPROVE_ARG="abc"; approve; check "approve: short hash rejected" "1" "$?"
 APPROVE_ARG="$(printf '0%.0s' $(seq 1 64))"; approve; check "approve: unknown hash rejected" "1" "$?"
 run_gate "$H_AP" "$P"
-APPROVE_ARG=$(hash_from_reason); approve CLAUDE_JOB_DIR=/x/job; check "approve: refused inside a bg job" "1" "$?"
+APPROVE_ARG=$(hash_from_reason); approve CLAUDE_JOB_DIR=/x/job; check "approve: a bg job with no answered dialog for this action is refused" "1" "$?"
 approve BARECLAUDE_AGENT_SLUG=fleet-test; check "approve: refused for fleet agents" "1" "$?"
 # shellcheck disable=SC2088 # the literal tilde form must be accepted by the gate
 run_gate "$H_AP" "$(bash_payload "~/.claude/hooks/gate.sh approve $APPROVE_ARG")"
@@ -416,6 +418,126 @@ run_gate "$H_AP" "$(bash_payload "cp x ~/.claude/gate-approved/$APPROVE_ARG")"
 check "approve: forging an approval by hand is denied" "deny" "$(decision)"
 run_gate "$H_AP" "$(write_payload "$H_AP/.claude/gate-approved/$APPROVE_ARG" "")"
 check "approve: forging via Write is denied" "deny" "$(decision)"
+
+echo "== approval in a job session (D is usually present) =="
+H_JB=$(make_home jobapproval)
+TX_JB="$SANDBOX/tx-job.jsonl"
+: >"$TX_JB"
+GATE_TP="$TX_JB"
+JOBENV="CLAUDE_JOB_DIR=$H_JB/job"
+approve_job() { AOUT=$(HOME="$1" CLAUDE_JOB_DIR="$1/job" bash "$1/.claude/hooks/gate.sh" approve "$2" 2>&1); return $?; }
+PJ=$(bash_payload 'rm -rf foo')
+run_gate "$H_JB" "$PJ" "$JOBENV"
+HJ=$(hash_from_reason)
+check "job: 64-hex hash is in the reason" "64" "${#HJ}"
+check_contains "job: the reason carries the checkpoint code" "$(reason)" "checkpoint code ${HJ:0:12}"
+if [[ -f "$H_JB/.claude/gate-pending/$HJ" ]]; then pass; else fail "job: pending file written"; fi
+check "job: pending records the job scope" "bgjob" "$(jq -r .scope "$H_JB/.claude/gate-pending/$HJ")"
+approve_job "$H_JB" "$HJ"
+check "job: approve refused when no dialog was answered" "1" "$?"
+run_gate "$H_JB" "$PJ" "$JOBENV"
+check "job: retry with no answered dialog still denied" "deny" "$(decision)"
+mk_ask "$TX_JB" jask-none 2 NONE "$HJ"
+approve_job "$H_JB" "$HJ"
+check "job: a dismissed dialog does not approve" "1" "$?"
+mk_ask "$TX_JB" jask-no 3 "No, do not run it" "$HJ"
+approve_job "$H_JB" "$HJ"
+check "job: a refusal answer does not approve" "1" "$?"
+mk_ask_q "$TX_JB" jask-other 4 "Yes" "May I run the unit tests?"
+approve_job "$H_JB" "$HJ"
+check "job: an unrelated answered question does not approve" "1" "$?"
+run_gate "$H_JB" "$PJ" "$JOBENV"
+check "job: still denied after the refusals" "deny" "$(decision)"
+mk_ask "$TX_JB" jask-yes 5 "Approve" "$HJ"
+approve_job "$H_JB" "$HJ"
+check "job: approve exits 0 after D answers yes" "0" "$?"
+run_gate "$H_JB" "$PJ" "$JOBENV"
+check "job: the retry passes once" "" "$GOUT"
+run_gate "$H_JB" "$PJ" "$JOBENV"
+check "job: the second retry is denied" "deny" "$(decision)"
+check_contains "job: approval is logged with the job scope" "$(cat "$H_JB/.claude/gate-log.jsonl")" '"decision":"approved","scope":"bgjob"'
+# An approval minted in an interactive session cannot clear the same action in a job session (scope is part of the identity).
+H_JB2=$(make_home jobscope)
+TX_JB2="$SANDBOX/tx-job2.jsonl"
+: >"$TX_JB2"
+GATE_TP="$TX_JB2"
+HI=$(deny_hash "$H_JB2" "$PJ")
+mk_ask "$TX_JB2" jask-i 2 "Approve" "$HI"
+approve_rc "$H_JB2" "$HI"
+run_gate "$H_JB2" "$PJ" CLAUDE_JOB_DIR="$H_JB2/job"
+check "job: an interactive approval does not clear the job-scope action" "deny" "$(decision)"
+
+echo "== approval: fleet agents and subagents have no approval path =="
+H_FL=$(make_home fleetnoapprove)
+TX_FL="$SANDBOX/tx-fleet.jsonl"
+: >"$TX_FL"
+GATE_TP="$TX_FL"
+run_gate "$H_FL" "$PJ" BARECLAUDE_AGENT_SLUG=fleet-test CLAUDE_JOB_DIR="$H_FL/job"
+check "fleet: denied" "deny" "$(decision)"
+check_contains "fleet: needs input wording" "$(reason)" "needs input:"
+check_absent "fleet: no AskUserQuestion wording" "$(reason)" "AskUserQuestion"
+check_absent "fleet: no approve command" "$(reason)" "gate.sh approve"
+check "fleet: no pending file" "0" "$(find "$H_FL/.claude/gate-pending" -type f 2>/dev/null | wc -l | tr -d ' ')"
+HF=$(deny_hash "$H_FL" "$PJ")
+mk_ask "$TX_FL" fask-1 2 "Approve" "$HF"
+AOUT=$(HOME="$H_FL" BARECLAUDE_AGENT_SLUG=fleet-test bash "$H_FL/.claude/hooks/gate.sh" approve "$HF" 2>&1)
+check "fleet: approve refused even after a yes dialog" "1" "$?"
+PENDING_BEFORE=$(find "$H_FL/.claude/gate-pending" -type f | wc -l | tr -d ' ')
+SUBP=$(printf '%s' "$PJ" | jq -c '. + {agent_id:"agent-1"}')
+run_gate "$H_FL" "$SUBP" CLAUDE_JOB_DIR="$H_FL/job"
+check "subagent in a job: denied" "deny" "$(decision)"
+check_contains "subagent in a job: needs input wording" "$(reason)" "needs input:"
+check_absent "subagent in a job: no approve command" "$(reason)" "gate.sh approve"
+run_gate "$H_FL" "$SUBP"
+check_absent "subagent (interactive): no approve command" "$(reason)" "gate.sh approve"
+check_contains "subagent (interactive): needs input wording" "$(reason)" "needs input:"
+check "subagent: no new pending file" "$PENDING_BEFORE" "$(find "$H_FL/.claude/gate-pending" -type f 2>/dev/null | wc -l | tr -d ' ')"
+GATE_TP=""
+
+echo "== bypass trail: last-deny file per session =="
+H_TR=$(make_home trail)
+TX_TR="$SANDBOX/tx-trail.jsonl"
+: >"$TX_TR"
+GATE_TP="$TX_TR"
+TRAIL="$H_TR/.claude/jev-state/last-deny/sess-1.json"
+run_gate "$H_TR" "$(bash_payload '  rm   -rf
+   foo ')"
+if [[ -f "$TRAIL" ]]; then pass; else fail "trail: file written on a deny"; fi
+check "trail: one JSON object with the contract keys" "epoch,norm,rule,src,tool,ts" "$(jq -r 'keys | join(",")' "$TRAIL" 2>/dev/null)"
+check "trail: src" "gate.sh" "$(jq -r .src "$TRAIL")"
+check "trail: tool" "Bash" "$(jq -r .tool "$TRAIL")"
+check "trail: rule" "G1-rm" "$(jq -r .rule "$TRAIL")"
+check "trail: norm collapses whitespace and trims" "rm -rf foo" "$(jq -r .norm "$TRAIL")"
+check "trail: epoch is an integer" "number" "$(jq -r '.epoch | type' "$TRAIL")"
+check "trail: ts is UTC ISO" "true" "$(jq '.ts | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")' "$TRAIL")"
+check "trail: file mode is private" "600" "$(stat -f %Lp "$TRAIL" 2>/dev/null || stat -c %a "$TRAIL")"
+run_gate "$H_TR" "$(bash_payload 'rm -rf bar')"
+check "trail: overwritten by the next deny" "rm -rf bar" "$(jq -r .norm "$TRAIL")"
+check "trail: only one file for the session" "1" "$(find "$H_TR/.claude/jev-state/last-deny" -type f | wc -l | tr -d ' ')"
+run_gate "$H_TR" "$(bash_payload 'rm -rf baz # AKIAABCDEFGHIJKLMNOP')"
+check_absent "trail: secrets are redacted" "$(cat "$TRAIL")" "AKIAABCDEFGHIJKLMNOP"
+run_gate "$H_TR" "$(bash_payload "rm -rf $(printf 'x%.0s' $(seq 1 700))")"
+check "trail: norm is capped at 500 chars" "500" "$(jq -r '.norm | length' "$TRAIL")"
+run_gate "$H_TR" "$(write_payload "$H_TR/.claude/hooks/x.sh" "SECRETBODY")"
+check "trail: Write records the file path, never the content" "$H_TR/.claude/hooks/x.sh" "$(jq -r .norm "$TRAIL")"
+check "trail: Write tool name" "Write" "$(jq -r .tool "$TRAIL")"
+check_absent "trail: Write content is not recorded" "$(cat "$TRAIL")" "SECRETBODY"
+rm -f "$TRAIL"
+run_gate "$H_TR" "$(bash_payload 'ls -la')"
+if [[ ! -e "$TRAIL" ]]; then pass; else fail "trail: an allowed call writes nothing"; fi
+GATE_TP=""
+run_gate "$H_TR" "$(bash_payload 'rm -rf foo')"
+check "trail: no session id, no file" "0" "$(find "$H_TR/.claude/jev-state/last-deny" -type f | wc -l | tr -d ' ')"
+run_gate "$H_TR" "$(bash_payload 'rm -rf foo')" CLAUDE_CODE_SESSION_ID=env-sess
+if [[ -f "$H_TR/.claude/jev-state/last-deny/env-sess.json" ]]; then pass; else fail "trail: falls back to CLAUDE_CODE_SESSION_ID"; fi
+run_gate "$H_TR" "$(bash_payload 'rm -rf foo')" CLAUDE_CODE_SESSION_ID=../evil
+if [[ ! -e "$H_TR/.claude/jev-state/evil.json" ]]; then pass; else fail "trail: a path-like session id is never used"; fi
+run_gate "$H_TR" "$(bash_payload 'rm -rf foo')" CLAUDE_CODE_SESSION_ID=env-sess2 JEV_CLAUDE_DIR="$SANDBOX/jev-alt"
+if [[ -f "$SANDBOX/jev-alt/jev-state/last-deny/env-sess2.json" ]]; then pass; else fail "trail: JEV_CLAUDE_DIR relocates it"; fi
+GATE_TP="$TX_TR"
+run_gate "$H_TR" "$(bash_payload 'rm -rf foo')" BARECLAUDE_AGENT_SLUG=fleet-test
+check "trail: a fleet deny is recorded too" "rm -rf foo" "$(jq -r .norm "$TRAIL")"
+GATE_TP=""
 
 echo "== approval expiry =="
 H_EXP=$(make_home expiry)

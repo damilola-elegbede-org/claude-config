@@ -54,7 +54,7 @@ target project's cwd, where the file does not exist.
 
 4. FOR EACH failing gate, up to 3 attempts:
    a. READ the gate's actual output. Locate the failure at file:line.
-      OPTIONAL: pipe it through "${HOME}/.claude/hooks/jev/failure-classify.sh" verify and follow its `steer`
+      Always (it logs the Jev call even when it withholds the answer): pipe it through "${HOME}/.claude/hooks/jev/failure-classify.sh" verify and follow its `steer`
       when `class` is env or flaky (env: do not edit code or tests; flaky: one unchanged re-run first).
       The 3-attempt bound below is unchanged.
    b. FIX THE CAUSE. Never edit a test, threshold, or lint rule to make the gate go green.

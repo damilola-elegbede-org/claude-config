@@ -381,3 +381,38 @@
 {"rule": "G10-jevsock", "expect": "deny", "tool": "Bash", "input": {"command": "ls /tmp/jev-*.sock"}}
 {"rule": "G10-jevsock", "expect": "allow", "tool": "Bash", "input": {"command": "~/.claude/hooks/jev/jev-ask --check"}}
 {"rule": "G10-jevsock", "expect": "allow", "tool": "Bash", "input": {"command": "ls ~/.claude/hooks/jev/"}}
+{"rule": "G1-rm", "expect": "allow", "tool": "Bash", "env": {"CLAUDE_JOB_DIR": "@JOBDIR@"}, "input": {"command": "T=$CLAUDE_JOB_DIR/tmp/mut; rm -rf $T; mkdir -p $T; cp -R scripts tests $T/"}}
+{"rule": "G1-rm", "expect": "allow", "tool": "Bash", "env": {"CLAUDE_JOB_DIR": "@JOBDIR@"}, "input": {"command": "T=$CLAUDE_JOB_DIR/tmp/mut\nrm -rf \"$T\""}}
+{"rule": "G1-rm", "expect": "allow", "tool": "Bash", "input": {"command": "T=@TMPDIR@/work && rm -rf ${T}/a"}}
+{"rule": "G1-rm", "expect": "allow", "tool": "Bash", "input": {"command": "T=/tmp/a; T=/tmp/b; rm -rf $T"}}
+{"rule": "G1-rm", "expect": "allow", "tool": "Bash", "input": {"command": "B=build; rm -rf $B"}}
+{"rule": "G1-rm", "expect": "allow", "tool": "Bash", "env": {"CLAUDE_JOB_DIR": "@JOBDIR@"}, "input": {"command": "cd @JOBDIR@/tmp && rm -rf art2 && gh run download 37147815359 -R owner/repo"}}
+{"rule": "G1-rm", "expect": "allow", "tool": "Bash", "input": {"command": "cd /tmp/x; rm -rf a b"}}
+{"rule": "G1-rm", "expect": "allow", "tool": "Bash", "input": {"command": "cd .tmp && rm -rf art2"}}
+{"rule": "G1-rm", "expect": "allow", "tool": "Bash", "env": {"CLAUDE_JOB_DIR": "@JOBDIR@"}, "input": {"command": "T=@JOBDIR@/tmp; cd $T && rm -rf art2"}}
+{"rule": "G1-rm", "expect": "deny", "tool": "Bash", "input": {"command": "T=~/repos; rm -rf $T"}}
+{"rule": "G1-rm", "expect": "deny", "tool": "Bash", "input": {"command": "cd ~ && rm -rf repos"}}
+{"rule": "G1-rm", "expect": "deny", "tool": "Bash", "input": {"command": "rm -rf $UNKNOWN_VAR"}}
+{"rule": "G1-rm", "expect": "deny", "tool": "Bash", "input": {"command": "T=$(pwd); rm -rf $T"}}
+{"rule": "G1-rm", "expect": "deny", "tool": "Bash", "input": {"command": "T=/tmp/a; T=/etc; rm -rf $T"}}
+{"rule": "G1-rm", "expect": "deny", "tool": "Bash", "input": {"command": "T=/tmp/a; for T in /etc; do rm -rf $T; done"}}
+{"rule": "G1-rm", "expect": "deny", "tool": "Bash", "input": {"command": "T=/tmp/a; read T; rm -rf $T"}}
+{"rule": "G1-rm", "expect": "deny", "tool": "Bash", "input": {"command": "T=/tmp/a; eval \"T=/etc\"; rm -rf $T"}}
+{"rule": "G1-rm", "expect": "deny", "tool": "Bash", "input": {"command": "T=/tmp/a/../../etc; rm -rf $T"}}
+{"rule": "G1-rm", "expect": "deny", "tool": "Bash", "input": {"command": "T=/tmp/a; T+=/../../etc; rm -rf $T"}}
+{"rule": "G1-rm", "expect": "deny", "tool": "Bash", "input": {"command": "cd /tmp/x && cd ~ && rm -rf repos"}}
+{"rule": "G1-rm", "expect": "deny", "tool": "Bash", "input": {"command": "(cd /tmp/x && true); rm -rf repos"}}
+{"rule": "G1-rm", "expect": "deny", "tool": "Bash", "input": {"command": "cd /tmp/x && rm -rf ../repos"}}
+{"rule": "G1-rm", "expect": "deny", "tool": "Bash", "input": {"command": "cd /tmp/x && rm -rf ~/repos"}}
+{"rule": "G1-rm", "expect": "deny", "tool": "Bash", "input": {"command": "cd /tmp/x && rm -rf /etc"}}
+{"rule": "G1-rm", "expect": "deny", "tool": "Bash", "input": {"command": "cd src && rm -rf art2"}}
+{"rule": "G1-rm", "expect": "deny", "tool": "Bash", "input": {"command": "T=repos; rm -rf $T"}}
+{"rule": "G1-rm", "expect": "deny", "tool": "Bash", "input": {"command": "cd @JOBDIR@/tmp && rm -rf art2"}}
+{"rule": "G4", "expect": "allow", "tool": "Bash", "input": {"command": "python3 - <<'EOF'\nfrom pathlib import Path\np = Path('.tmp/drafts/runbook.md')\np.write_text('''Run:\n\ncurl -X POST https://api.vercel.com/v13/deployments -H 'Authorization: Bearer X'\n''')\nEOF"}}
+{"rule": "G4", "expect": "allow", "tool": "Bash", "input": {"command": "python3 <<'EOF'\nprint('curl -X POST https://api.vercel.com/v9/projects')\nEOF"}}
+{"rule": "G4", "expect": "allow", "tool": "Bash", "input": {"command": "cat > .tmp/drafts/n.md <<'EOF'\nvercel env rm FOO --project x\ncurl -X POST https://api.vercel.com/v9/x\nEOF"}}
+{"rule": "G4", "expect": "allow", "tool": "Bash", "input": {"command": "python3 - <<'EOF'\ntext = \"\"\"\nvercel domains add a.com\nvercel env rm FOO\n\"\"\"\nopen('.tmp/drafts/n.md','w').write(text)\nEOF"}}
+{"rule": "MG-vercel-pin", "expect": "allow", "tool": "Bash", "input": {"command": "python3 - <<'EOF'\nprint('''\nvercel deploy --prod\n''')\nEOF"}}
+{"rule": "G4", "expect": "deny", "tool": "Bash", "input": {"command": "bash <<'EOF'\nvercel domains add a.com --project x\nEOF"}}
+{"rule": "G4", "expect": "deny", "tool": "Bash", "input": {"command": "python3 - <<'EOF'\nprint('x')\nEOF\nvercel dns ls"}}
+{"rule": "G1-interp", "expect": "deny", "tool": "Bash", "input": {"command": "python3 - <<'EOF'\nimport os\nos.system('bash -c \"rm -rf x\"')\nEOF"}}

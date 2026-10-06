@@ -272,6 +272,32 @@ eq "decision line carries latencyMs" "140" "$(jq -r .latencyMs <<<"$DL")"
 eq "decision line carries confidence" "0.82" "$(jq -r .confidence <<<"$DL")"
 lacks "decision log has no state" "$(cat "$DEC")" "STATE-MARKER-98765"
 
+echo "== session fields (origin, session_id, entrypoint) on every logged row"
+: >"$SHADOW"
+run_ask "$(mkin t-sess '{"a":1}')" -u JEV_ORIGIN JEV_MOCK="$FIX" CLAUDE_CODE_SESSION_ID=sess-abc-123 CLAUDE_CODE_ENTRYPOINT=cli
+DL=$(grep -F '"gate":"t-sess"' "$DEC" | tail -1)
+eq "decisions row: origin defaults to live" "live" "$(jq -r .origin <<<"$DL")"
+eq "decisions row: session_id from CLAUDE_CODE_SESSION_ID" "sess-abc-123" "$(jq -r .session_id <<<"$DL")"
+eq "decisions row: entrypoint from CLAUDE_CODE_ENTRYPOINT" "cli" "$(jq -r .entrypoint <<<"$DL")"
+SL=$(tail -1 "$SHADOW")
+eq "jev-shadow alias row: origin" "live" "$(jq -r .origin <<<"$SL")"
+eq "jev-shadow alias row: session_id" "sess-abc-123" "$(jq -r .session_id <<<"$SL")"
+eq "jev-shadow alias row: entrypoint" "cli" "$(jq -r .entrypoint <<<"$SL")"
+run_ask "$(mkin t-sess-origin '{"a":1}')" JEV_MOCK="$FIX" JEV_ORIGIN=replay CLAUDE_CODE_SESSION_ID=sess-xyz CLAUDE_CODE_ENTRYPOINT=sdk-cli
+DL=$(grep -F '"gate":"t-sess-origin"' "$DEC" | tail -1)
+eq "JEV_ORIGIN overrides origin in decisions.jsonl" "replay" "$(jq -r .origin <<<"$DL")"
+eq "JEV_ORIGIN run: session_id still recorded" "sess-xyz" "$(jq -r .session_id <<<"$DL")"
+eq "JEV_ORIGIN run: entrypoint still recorded" "sdk-cli" "$(jq -r .entrypoint <<<"$DL")"
+eq "JEV_ORIGIN overrides origin in the jev-shadow alias" "replay" "$(tail -1 "$SHADOW" | jq -r .origin)"
+run_ask "$(mkin t-sess-none '{"a":1}')" -u JEV_ORIGIN -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT JEV_MOCK="$FIX"
+DL=$(grep -F '"gate":"t-sess-none"' "$DEC" | tail -1)
+eq "no session env: session_id is null" "null" "$(jq -c .session_id <<<"$DL")"
+eq "no session env: entrypoint is null" "null" "$(jq -c .entrypoint <<<"$DL")"
+eq "no session env: origin is live" "live" "$(jq -r .origin <<<"$DL")"
+run_ask "$(mkin t-sess-unavail '{"a":1}')" -u JEV_ORIGIN JEV_MOCK=unavailable CLAUDE_CODE_SESSION_ID=sess-un
+DL=$(grep -F '"gate":"t-sess-unavail"' "$DEC" | tail -1)
+eq "unavailable call row also carries session_id" "sess-un" "$(jq -r .session_id <<<"$DL")"
+
 echo "== daemon lifecycle (backend fixture, no network)"
 export JEV_BACKEND_FIXTURE="$FIX" JEV_IDLE_MS=1500 AI_GATEWAY_API_KEY=test-key-not-real
 IN="$(mkin t-daemon '{"command":"echo hi"}' | sed 's/}$/,"timeout_ms":4000}/')"

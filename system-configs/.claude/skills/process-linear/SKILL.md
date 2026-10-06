@@ -97,7 +97,7 @@ Default (`--view all` off) processes the two **decision** views only: **Needs Un
 Sign-off**. Apply `--team` to scope. If the MCP later exposes saved views directly, switch to fetching the view by
 name instead of re-deriving the filter.
 
-Optional pre-sort, before any bodies are read: pipe the listed `{id,title,state}` array through
+Pre-sort, always run before any bodies are read (it logs the Jev call even when it withholds the answer): pipe the listed `{id,title,state}` array through
 `${HOME}/.claude/skills/process-linear/scripts/presort.sh`. Only when its `mode` is `enforce` does it return
 `results[].hint` (`likely-needs-d` / `likely-not-d`), a reading order hint — otherwise ignore it. It never
 replaces step 3: every ticket is still classified from its body.

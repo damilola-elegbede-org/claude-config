@@ -2,8 +2,9 @@
 # Stop — lint the final reply against the Executive output style.
 #
 # Regex checks (mode "executive-lint", default ENFORCE) for INTERACTIVE main-agent
-# sessions only — fleet (BARECLAUDE_AGENT_SLUG), background jobs (CLAUDE_JOB_DIR)
-# and subagents (agent_id on stdin; SubagentStop is a different event) are skipped:
+# sessions. Background jobs (CLAUDE_JOB_DIR) are linted in SHADOW only: every rule is
+# logged as would-block and nothing ever blocks. Fleet (BARECLAUDE_AGENT_SLUG) and
+# subagents (agent_id on stdin; SubagentStop is a different event) are skipped:
 #   1. line 1 is one bold sentence starting with a tag: FYI|DECISION|APPROVAL|INPUT|ACTION|BLOCKED
 #   2. DECISION|APPROVAL|ACTION|BLOCKED carry the meta line (Confidence/Reversible/Deadline)
 #   3. at most max_lines lines (default 60)
@@ -21,7 +22,8 @@
 re_need_jq || exit 0
 
 INPUT=$(cat)
-[ "$(re_scope)" = interactive ] || exit 0
+SESSION_SCOPE=$(re_scope)
+case "$SESSION_SCOPE" in interactive | bgjob) ;; *) exit 0 ;; esac
 [ -z "$(jq -r '.agent_id // empty' <<<"$INPUT" 2>/dev/null)" ] || exit 0
 
 MSG=$(jq -r '.last_assistant_message // empty' <<<"$INPUT" 2>/dev/null)
@@ -72,6 +74,14 @@ EXTRA=""
 TAG_MODE=$(re_mode executive-tag-correctness shadow)
 SRC_MODE=$(re_mode executive-unsourced-claims shadow)
 SCOPE_MODE=$(re_mode executive-scope-creep shadow)
+# A background job's report is read by D, never re-prompted: nothing blocks there. Whatever the
+# registry says, every rule runs in shadow (logged as would-block) and the hook exits 0.
+if [ "$SESSION_SCOPE" = bgjob ]; then
+  for m in LINT_MODE TAG_MODE SRC_MODE SCOPE_MODE; do
+    [ "${!m}" = enforce ] && printf -v "$m" shadow
+  done
+  [ "$LINT_MODE$TAG_MODE$SRC_MODE$SCOPE_MODE" = offoffoffoff ] && exit 0
+fi
 if [ "$ACTIVE" != true ] && [ -n "$TAG" ] && { [ "$TAG_MODE" != off ] || [ "$SRC_MODE" != off ] || [ "$SCOPE_MODE" != off ]; }; then
   FIRST_PROMPT=""
   if [ -f "$TRANSCRIPT" ]; then
@@ -146,6 +156,7 @@ BLOCKING=""
 ALL=$(printf '%s%s' "$BLOCKING" "${EXTRA:+$'\n'$EXTRA}" | sed '/^$/d')
 [ -n "$ALL" ] || exit 0
 
+[ "$SESSION_SCOPE" = bgjob ] && exit 0
 if [ "$ACTIVE" = true ]; then
   re_log executive-lint allow-stop-hook-active "$(printf '%s' "$ALL" | head -1)"
   exit 0

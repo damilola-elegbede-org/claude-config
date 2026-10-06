@@ -6,7 +6,7 @@
 # decision. It always denies rather than "asks": permissionDecision "ask" is
 # ignored under bypassPermissions, and "deny" + a reason is what reaches Claude.
 #
-# Interactive session : deny with a CHECKPOINT reason telling Claude to put the
+# Interactive or job  : (a job session has CLAUDE_JOB_DIR set; D is usually present) deny with a CHECKPOINT reason telling Claude to put the
 #                       action to D via AskUserQuestion. If D approves, Claude
 #                       runs `gate.sh approve <hash>` and retries the exact
 #                       same action; the approval is good for ONE use, 30 min.
@@ -25,12 +25,16 @@
 #                       action matches. A single-use approval is claimed with
 #                       an atomic rename, so concurrent identical calls cannot
 #                       both consume it.
-# Background job      : (CLAUDE_JOB_DIR set) deny, do not retry, end the report
-#                       with `needs input:`.
-# Fleet agent         : (BARECLAUDE_AGENT_SLUG set) rule lanes allow specific
-#                       agents; exempt_agents are never blocked (decision is
-#                       logged as allow-exempt-agent); everyone else is treated
-#                       like a background job.
+#                       In a job session the reason also says: if D does not
+#                       answer, do not retry and end the report with `needs input:`.
+# Fleet agent, subagent: (BARECLAUDE_AGENT_SLUG set, or hook input carries
+#                       agent_id) deny, no approval path, do not retry, end the
+#                       report with `needs input:`. Rule lanes allow specific
+#                       fleet agents; exempt_agents are never blocked (decision
+#                       is logged as allow-exempt-agent).
+# Bypass trail        : every enforced deny overwrites
+#                       ${JEV_CLAUDE_DIR:-~/.claude}/jev-state/last-deny/<session_id>.json
+#                       (ts, epoch, src, tool, rule, norm) for the model gate.
 #
 # Kill switch  : touch ~/.claude/gate.off (D only; agents are denied from it).
 #                Only a REGULAR FILE counts: `mkdir ~/.claude/gate.off` or a
@@ -49,10 +53,14 @@
 #                ~/.claude/gate-approved/<hash>  written by `gate.sh approve`
 #                ~/.claude/gate-asks-used(.d/)   AskUserQuestion ids already spent (.d/ = atomic claims)
 #
+# Rules with "resolve": true (G1-rm) match against text where standalone literal
+# NAME=value assignments are substituted into later $NAME uses and a scratch
+# `cd <dir> &&|;` makes relative rm targets resolve against <dir>.
 # Matching text: heredoc bodies and quoted DATA (echo/printf/grep arguments,
 # --body/--title/-m/-f body= values) are blanked before rules run, so prose
 # about `rm -rf` never trips a rule; the approval identity still uses the exact
-# raw command.
+# raw command. Command-position rules (anchor "cmd") also treat the body of a
+# heredoc fed to an interpreter (python <<EOF) as data; unanchored rules still read it.
 #
 # Failure policy: every error path exits 0 (fail open, with a loud stderr
 # warning), like the inline guards in settings.json. No `set -e`: a non-matching
@@ -180,10 +188,12 @@ cmd_approve() {
         warn "approve needs the 64-character hash printed in the CHECKPOINT reason"
         return 1
     fi
-    if [[ -n "${BARECLAUDE_AGENT_SLUG:-}" || -n "${CLAUDE_JOB_DIR:-}" ]]; then
-        warn "approvals are interactive-only: end your report with 'needs input:' instead"
+    if [[ -n "${BARECLAUDE_AGENT_SLUG:-}" ]]; then
+        warn "fleet agents cannot approve: end your report with 'needs input:' instead"
         return 1
     fi
+    local scope="interactive"
+    [[ -n "${CLAUDE_JOB_DIR:-}" ]] && scope="bgjob"
     local pending="$PENDING_DIR/$h"
     if [[ ! -f "$pending" ]]; then
         warn "no pending checkpoint for that hash (never denied, already approved, or expired)"
@@ -224,7 +234,7 @@ cmd_approve() {
     if mv "$pending" "$APPROVED_DIR/$h" 2>/dev/null; then
         touch "$APPROVED_DIR/$h"
         printf '%s\n' "$spent" >>"$ASKS_USED" 2>/dev/null
-        log_decision "approve" "approved" "gate.sh" "interactive" "${PWD:-}" "$h"
+        log_decision "approve" "approved" "gate.sh" "$scope" "${PWD:-}" "$h"
         printf 'approved: retry the exact same action within %s minutes (single use)\n' "$APPROVAL_TTL_MIN"
         return 0
     fi
@@ -275,9 +285,11 @@ SCOPE="interactive"
 read -r -d '' JQ_PROG <<'JQEOF'
 def esc: gsub("(?<x>[.\\[\\]\\\\^$*+?(){}|/-])"; "\\\(.x)");
 def never: "@@NEVER@@";
-# Heredoc bodies are data, unless the heredoc feeds a shell or an interpreter (bash/sh <<EOF, ssh host <<EOF,
-# eval, source, python/node/perl/ruby/deno/bun/php <<EOF): that body is code.
-def strip_heredocs:
+# Heredoc bodies are data, unless the heredoc feeds a shell (bash/sh <<EOF, ssh host <<EOF, eval, source): that
+# body is code. A body fed to an interpreter (python/node/perl/ruby/deno/bun/php <<EOF) is code for rules that read
+# interpreter code ($interp_is_data false: unanchored rules such as G1-interp and the SQL rules) and data for
+# command-position rules ($interp_is_data true), where a line starting with a command name is prose or a string.
+def strip_heredocs($interp_is_data):
   split("\n")
   | reduce .[] as $l ({out: [], hd: null};
       if .hd != null then
@@ -285,7 +297,9 @@ def strip_heredocs:
       else
         .out += [$l]
         | (if ($l | test("(?<!<)<<(?!<)-?[[:space:]]*[\"']?[A-Za-z_][A-Za-z0-9_]*"))
-              and (($l | test("(?:^|[^A-Za-z0-9_./-])(?:(?:ba|z|da|k)?sh|ssh|eval|source|python[0-9.]*|node(?:js)?|perl|ruby|deno|bun|php)(?:[[:space:]]|$)")) | not)
+              and (($l | test("(?:^|[^A-Za-z0-9_./-])(?:(?:ba|z|da|k)?sh|ssh|eval|source)(?:[[:space:]]|$)")) | not)
+              and ($interp_is_data
+                   or (($l | test("(?:^|[^A-Za-z0-9_./-])(?:python[0-9.]*|node(?:js)?|perl|ruby|deno|bun|php)(?:[[:space:]]|$)")) | not))
            then .hd = ($l | capture("(?<!<)<<(?!<)-?[[:space:]]*[\"']?(?<w>[A-Za-z_][A-Za-z0-9_]*)").w)
            else . end)
       end)
@@ -313,10 +327,51 @@ $rules[0] as $R
     JOBDIR: (if $jobdir == "" then never else ($jobdir | rtrimstr("/") | esc) end)
   }) as $M
 | def expand: reduce range(0; 3) as $i (.; reduce ($M | to_entries[]) as $m (.; gsub("\\{\\{" + $m.key + "\\}\\}"; $m.value)));
+# Literal NAME=value assignments (no command substitution) that stand alone as a statement are substituted into
+# the later $NAME / ${NAME} uses, so a scratch path reached through a variable is seen as that path. The LAST
+# assignment is applied first, so each use gets the value in force at that point. A name that is also set another
+# way (for/select/read/unset/declare/local/getopts/printf -v/+=) or any eval/source in the command leaves the
+# text alone.
+def resolve_vars:
+  . as $t
+  | if ($t | test("(?:^|[^A-Za-z0-9_])(?:eval|source)[[:space:]]")) then $t
+    else
+      [$t | match("(?:^|[;&|\\n])[[:space:]]*(?:export[[:space:]]+)?(?<n>[A-Za-z_][A-Za-z0-9_]*)=(?<v>[^[:space:];&|<>\"'`()\\\\]*)(?=[[:space:]]*(?:;|&&|\\n|$))"; "g")
+       | {n: .captures[0].string, v: .captures[1].string, e: (.offset + .length)}] as $as
+      | reduce ($as | reverse | .[]) as $a ($t;
+          if ($t | test("(?:^|[^A-Za-z0-9_])(?:(?:for|select)[[:space:]]+" + $a.n + "(?![A-Za-z0-9_])|(?:read|unset|declare|typeset|local|readonly|getopts|mapfile|readarray)[[:space:]][^;&|\\n]*(?<![A-Za-z0-9_])" + $a.n + "(?![A-Za-z0-9_])|printf[[:space:]]+-v[[:space:]]+" + $a.n + "(?![A-Za-z0-9_]))|(?<![A-Za-z0-9_])" + $a.n + "\\+="))
+          then .
+          else .[0:$a.e] + (.[$a.e:] | gsub("\\$(?:" + $a.n + "(?![A-Za-z0-9_])|\\{" + $a.n + "\\})"; $a.v))
+          end)
+    end;
+# After `cd <scratch dir> &&|;` the relative targets of a later rm resolve against that dir. The effect ends at the
+# next cd or at the first closing paren/brace (a subshell or group), and only a scratch dir (the same shape as a
+# scratch rm target) is ever applied; any other cd leaves relative targets as they are.
+def resolve_cd:
+  . as $t
+  | ($M.EXTOK | expand) as $ext
+  | [$t | match("(?:^|[;&|\\n])[[:space:]]*cd[[:space:]]+(?<d>[^[:space:];&|<>\"'`()\\\\]+)[[:space:]]*(?=&&|;|\\n)"; "g")
+     | {s: .offset, d: .captures[0].string, e: (.offset + .length)}] as $cds
+  | if ($cds | length) == 0 then $t
+    else
+      reduce range(($cds | length) - 1; -1; -1) as $i ($t;
+        $cds[$i] as $c
+        | (if $i + 1 < ($cds | length) then $cds[$i + 1].s else ($t | length) end) as $nx
+        | (($t[$c.e:$nx] | [match("[)}]").offset] | first) // ($nx - $c.e)) as $len
+        | if ($c.d | test("^" + $ext + "$")) then
+            .[0:$c.e]
+            + (.[$c.e:($c.e + $len)]
+               | gsub("(?<h>(?:^|[;&|\\n])[[:space:]]*(?:(?:/usr)?/bin/)?rm(?:[[:space:]]+-[^[:space:]]+)*)(?<a>[^;&|\\n]*)";
+                      .h + (.a | gsub("(?<s>[[:space:]]+)(?<t>[^-/~$\"'`\\\\[:space:]][^[:space:]]*)"; .s + $c.d + "/" + .t))))
+            + .[($c.e + $len):]
+          else . end)
+    end;
 (.tool_name // "") as $tn
 | (.tool_input | if type == "object" then . else {} end) as $ti
 | (.cwd // "") as $cwd
-| (if $tn == "Bash" then (($ti.command // "") | if type == "string" then (strip_heredocs | blank_data) else "" end) else "" end) as $cc
+| (if $tn == "Bash" then (($ti.command // "") | if type == "string" then (strip_heredocs(false) | blank_data) else "" end) else "" end) as $cc
+| (if $tn == "Bash" then (($ti.command // "") | if type == "string" then (strip_heredocs(true) | blank_data) else "" end) else "" end) as $cs
+| (if $tn == "Bash" then ($cs | resolve_vars | resolve_cd) else "" end) as $cr
 | def normpath:
     if type != "string" then ""
     else sub("^~/"; $home + "/")
@@ -341,7 +396,7 @@ def hits($r):
        | (if $r.anchor == "cmd"
           then (($M.SEP | expand) + "(?<c>" + ($M.PFX | expand) + "(?:" + $p0 + ")[^;&|\\n]*)")
           else $p0 end) as $p
-       | [fv($r.field // "command") | match($p; "g" + $fl) | ((.captures[] | select(.name == "c") | .string) // .string)]
+       | [(if $tn == "Bash" and ($r.field // "command") == "command" and $r.anchor == "cmd" then (if $r.resolve == true then $cr else $cs end) else fv($r.field // "command") end) | match($p; "g" + $fl) | ((.captures[] | select(.name == "c") | .string) // .string)]
      end)
   | map(select(. != null))
   | if $r.exempt == null then . else map(select(test($r.exempt | expand; $fl) | not)) end;
@@ -357,6 +412,12 @@ def subject:
   elif ($ti.file_path? // null) != null then fv("file_path") + "\u001e" + ($ti | del(.file_path) | tojson)
   else ($ti | tojson) end;
 def action_id: $tn + "\u001f" + subject + "\u001f" + $cwd + "\u001f" + $scope;
+# The action as the bypass trail records it: command (or file path), whitespace collapsed, secrets redacted, 500 chars.
+def norm_action:
+  (if $tn == "Bash" then ($ti.command // "")
+   elif ($ti.file_path? // null) != null then ($ti.file_path | tostring)
+   else $tn end) as $t
+  | ($t | if type == "string" then . else tojson end | gsub("[[:space:]]+"; " ") | sub("^ "; "") | sub(" $"; "") | gsub(secret; "[redacted]"; "i"))[0:500];
 ("^[[:space:]]*(?:~|\"?\\$\\{?HOME\\}?\"?|" + ($home | esc) + ")/\\.claude/hooks/gate\\.sh\"?[[:space:]]+approve[[:space:]]+[0-9a-f]{64}[[:space:]]*\\z") as $approve_re
 | if $tn == "Bash" and (($ti.command // "") | test($approve_re)) then {errors: [], matches: [], exempt_agent: false, action: ""}
   else
@@ -377,7 +438,8 @@ def action_id: $tn + "\u001f" + subject + "\u001f" + $cwd + "\u001f" + $scope;
     | {errors: [.[] | select(.error != null) | .error],
        matches: [.[] | select(.error == null)],
        exempt_agent: ($slug != "" and (($R.exempt_agents // []) | any(. == $slug))),
-       action: action_id}
+       action: action_id,
+       norm: norm_action}
   end
 JQEOF
 
@@ -484,16 +546,25 @@ while [[ $i -lt ${#BLOCK_IDS[@]} ]]; do
     ALSO="$ALSO Also matched ${BLOCK_IDS[$i]}: ${BLOCK_MSGS[$i]}."
     i=$((i + 1))
 done
-if [[ "$SCOPE" == "interactive" ]]; then
+# D can answer a dialog in an interactive or job session. Fleet agents and subagents (their hook input carries
+# agent_id) have no approval path.
+CAN_ASK=0
+[[ "$SCOPE" == "interactive" || "$SCOPE" == "bgjob" ]] && [[ -z "$(printf '%s' "$INPUT" | jq -r '.agent_id // empty' 2>/dev/null)" ]] && CAN_ASK=1
+if [[ "$CAN_ASK" == 1 ]]; then
+    if [[ "$SCOPE" == "bgjob" ]]; then
+        TAIL=" If D does not answer, do not retry; end your report with \`needs input:\` naming this action."
+    else
+        TAIL=""
+    fi
     if [[ -n "$HASH" ]]; then
         mkdir -p "$PENDING_DIR" 2>/dev/null
         IDS_JSON=$(printf '%s\n' "${BLOCK_IDS[@]}" | jq -R . | jq -sc . 2>/dev/null)
         jq -nc --argjson rules "${IDS_JSON:-[]}" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --argjson te "$(date +%s)" \
             --arg sid "$SESSION_ID" --arg tp "$TRANSCRIPT" --arg cwd "$CWD" --arg scope "$SCOPE" \
             '{rules:$rules,ts:$ts,ts_epoch:$te,session_id:$sid,transcript_path:$tp,cwd:$cwd,scope:$scope}' >"$PENDING_DIR/$HASH" 2>/dev/null
-        REASON="CHECKPOINT ${BLOCK_IDS[0]}: $MESSAGE.$ALSO Put this action to D via AskUserQuestion: quote the exact action and put the checkpoint code $(ask_code "$HASH") in the question text (approve refuses any question without it). If D approves, run \`~/.claude/hooks/gate.sh approve $HASH\` and retry with the exact same command."
+        REASON="CHECKPOINT ${BLOCK_IDS[0]}: $MESSAGE.$ALSO Put this action to D via AskUserQuestion: quote the exact action and put the checkpoint code $(ask_code "$HASH") in the question text (approve refuses any question without it). If D approves, run \`~/.claude/hooks/gate.sh approve $HASH\` and retry with the exact same command.$TAIL"
     else
-        REASON="CHECKPOINT ${BLOCK_IDS[0]}: $MESSAGE.$ALSO Put this action to D via AskUserQuestion; if D approves, retry with the exact same command."
+        REASON="CHECKPOINT ${BLOCK_IDS[0]}: $MESSAGE.$ALSO Put this action to D via AskUserQuestion; if D approves, retry with the exact same command.$TAIL"
     fi
 else
     REASON="CHECKPOINT ${BLOCK_IDS[0]}: $MESSAGE.$ALSO Do not retry; end your report with \`needs input:\` naming this action."
@@ -501,5 +572,17 @@ fi
 for ID in "${BLOCK_IDS[@]}"; do
     log_decision "$ID" "deny" "$TOOL" "$SCOPE" "$CWD" "$BLOCK_TARGET"
 done
+# Bypass trail: the last enforced deny of this session, for the model gate to read.
+TRAIL_SID="${SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}"
+if [[ "$TRAIL_SID" =~ ^[A-Za-z0-9_-]+$ ]]; then
+    TRAIL_DIR="${JEV_CLAUDE_DIR:-$HOME/.claude}/jev-state/last-deny"
+    if mkdir -p "$TRAIL_DIR" 2>/dev/null; then
+        jq -nc --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --argjson epoch "$(date +%s)" --arg tool "$TOOL" \
+            --arg rule "${BLOCK_IDS[0]}" --arg norm "$(printf '%s' "$RESULT" | jq -r '.norm // ""' 2>/dev/null)" \
+            '{ts:$ts,epoch:$epoch,src:"gate.sh",tool:$tool,rule:$rule,norm:$norm}' >"$TRAIL_DIR/$TRAIL_SID.json.$$" 2>/dev/null \
+            && mv -f "$TRAIL_DIR/$TRAIL_SID.json.$$" "$TRAIL_DIR/$TRAIL_SID.json" 2>/dev/null
+        rm -f "$TRAIL_DIR/$TRAIL_SID.json.$$" 2>/dev/null
+    fi
+fi
 jq -nc --arg r "$REASON" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}'
 exit 0
