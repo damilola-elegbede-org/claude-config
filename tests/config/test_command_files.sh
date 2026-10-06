@@ -135,8 +135,8 @@ test_skill_count() {
     local skills_dir="$ORIGINAL_DIR/system-configs/.claude/skills"
     local skill_count=$(find "$skills_dir" -mindepth 1 -maxdepth 1 -type d ! -name '.*' 2>/dev/null | wc -l | tr -d ' ')
 
-    if [ "$skill_count" -lt 25 ] || [ "$skill_count" -gt 45 ]; then
-        echo "Skill count $skill_count outside expected range (25-45)"
+    if [ "$skill_count" -lt 25 ] || [ "$skill_count" -gt 55 ]; then
+        echo "Skill count $skill_count outside expected range (25-55)"
         return 1
     fi
 

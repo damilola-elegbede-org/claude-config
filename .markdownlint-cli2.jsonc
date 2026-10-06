@@ -138,6 +138,8 @@
     ".claude/**",
     // Imported output style templates (external formatting standards)
     "system-configs/.claude/output-styles/**",
+    // Vendored third-party Higgsfield skills (kept verbatim so upstream updates diff cleanly)
+    "system-configs/.claude/skills/higgsfield-*/**",
     // Technical documentation directories - contain long technical specifications,
     // URLs, detailed diagrams, and complex tables that cannot be reasonably shortened
     "docs/architecture/**",

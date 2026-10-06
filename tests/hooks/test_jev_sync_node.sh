@@ -37,7 +37,7 @@ run_sync() { # major -> output; npm log in $T/npm.log
   mkdir -p "$home"
   : >"$T/npm.log"
   [[ -n "${2:-}" ]] && printf '%s\n' "$2" >"$home/.zshrc"
-  SYNC_OUT=$(HOME="$home" NPM_LOG="$T/npm.log" STUB_NODE_MAJOR="$1" PATH="$T/bin:$PATH" \
+  SYNC_OUT=$(HOME="$home" NPM_LOG="$T/npm.log" STUB_NODE_MAJOR="$1" PATH="$T/bin:$PATH" HIGGSFIELD_SYNC_SKIP_CHECK=1 \
     env -u JEV_SYNC_SKIP_NPM -u AI_GATEWAY_API_KEY -u VERCEL_AI_GATEWAY_TOKEN -u VERCEL_AI_GATEWAY_KEY bash "$SYNC" --force 2>&1)
   SYNC_RC=$?
 }

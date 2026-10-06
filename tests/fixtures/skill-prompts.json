@@ -136,6 +136,110 @@
     },
 
     {
+      "skill": "higgsfield-brandkit",
+      "prompt": "Create a full brand kit for my coffee roaster: palette, logo mark, typography and a brandbook PDF."
+    },
+    {
+      "skill": "higgsfield-brandkit",
+      "prompt": "Apply our logo to packaging, signage and a poster set so the whole identity feels consistent."
+    },
+    {
+      "skill": "higgsfield-brandkit",
+      "prompt": "Design a visual identity for my new bakery and give me an editable brandbook deck."
+    },
+
+    {
+      "skill": "higgsfield-generate",
+      "prompt": "Generate an image of a neon-lit Tokyo alley at night, then animate it into a five second video."
+    },
+    {
+      "skill": "higgsfield-generate",
+      "prompt": "Make a UGC style video ad for this product and add background music."
+    },
+    {
+      "skill": "higgsfield-generate",
+      "prompt": "Edit this photo into a watercolor style and turn it into a short image-to-video clip."
+    },
+
+    {
+      "skill": "higgsfield-marketplace-cards",
+      "prompt": "Make an Amazon main image and secondary product cards for my water bottle listing."
+    },
+    {
+      "skill": "higgsfield-marketplace-cards",
+      "prompt": "Create A+ content modules for my marketplace listing with infographics and lifestyle shots."
+    },
+    {
+      "skill": "higgsfield-marketplace-cards",
+      "prompt": "Build a full set of listing images for my Etsy candle shop that meet marketplace rules."
+    },
+
+    {
+      "skill": "higgsfield-product-photoshoot",
+      "prompt": "Give me studio product shots and a lifestyle scene for this skincare bottle."
+    },
+    {
+      "skill": "higgsfield-product-photoshoot",
+      "prompt": "Create a Meta ads creative pack showing a model holding my sneaker."
+    },
+    {
+      "skill": "higgsfield-product-photoshoot",
+      "prompt": "Make a floating splash hero banner for my energy drink can."
+    },
+
+    {
+      "skill": "higgsfield-soul-id",
+      "prompt": "Train a Soul Character from these twelve photos of me so my face stays consistent in generations."
+    },
+    {
+      "skill": "higgsfield-soul-id",
+      "prompt": "Create a reusable character identity for my brand mascot from these reference images."
+    },
+    {
+      "skill": "higgsfield-soul-id",
+      "prompt": "List my trained Soul characters and use one for the next image."
+    },
+
+    {
+      "skill": "higgsfield-video-explainer",
+      "prompt": "Turn this PDF into a two minute narrated explainer video in Spanish."
+    },
+    {
+      "skill": "higgsfield-video-explainer",
+      "prompt": "Make an animated explainer video about how our onboarding works, vertical 9:16."
+    },
+    {
+      "skill": "higgsfield-video-explainer",
+      "prompt": "Produce a short explainer video from these meeting notes with a voiceover and captions."
+    },
+
+    {
+      "skill": "higgsfield-websites",
+      "prompt": "Build a landing page for my app with a 3D rotating product model as the hero."
+    },
+    {
+      "skill": "higgsfield-websites",
+      "prompt": "Make a small browser game with generated sprites and a rigged animated character."
+    },
+    {
+      "skill": "higgsfield-websites",
+      "prompt": "Create a website with a generated 3D GLB asset and scroll animations."
+    },
+
+    {
+      "skill": "higgsfield-youtube-thumbnail",
+      "prompt": "Design a YouTube thumbnail for my video about learning Rust, using my face photo."
+    },
+    {
+      "skill": "higgsfield-youtube-thumbnail",
+      "prompt": "Make three thumbnail options in 16:9 for a video titled I Quit My Job."
+    },
+    {
+      "skill": "higgsfield-youtube-thumbnail",
+      "prompt": "Create a click-worthy thumbnail for my cooking channel with bold text."
+    },
+
+    {
       "skill": "interview",
       "prompt": "Interview me about the reporting feature until you fully understand it."
     },
