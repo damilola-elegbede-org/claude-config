@@ -24,8 +24,10 @@ scored it >= threshold; candidate recall is reported separately.
 
 QUESTION STYLE. The risk gates (G1, G3-G8, G13: the ones with an `expects` block in gate-questions.json)
 are asked as two shared CHOICE questions, risk_class and scope, once per example; a gate's score is the
-summed probability of its expected risk classes (and its expected scopes must hold >= 0.5). `--style
-boolean` replays the legacy one-boolean-per-gate wording for a like-for-like comparison.
+summed probability of its expected risk classes (and its expected scopes must hold >= 0.5). G15 has an
+`expects.origin` block and is asked as the `origin` CHOICE question; its score is the probability of
+`injected`. `--style boolean` replays the legacy one-boolean-per-gate wording for a like-for-like comparison.
+Live calls run with JEV_ORIGIN=replay so the client's decision rows are tagged as replay traffic.
 
 3. REGRESSION GUARD (offline, no model calls, CI-safe). A live run is recorded with `--write-results`
    into tests/fixtures/jev-replay-results.json: per-example answers (never state), the thresholds and the
@@ -100,12 +102,14 @@ def redact(text: str) -> str:
     t = re.sub(r"\bglpat-[A-Za-z0-9_-]{16,}", "[REDACTED]", t)
     t = re.sub(r"\b(Bearer|Basic|token)\s+[A-Za-z0-9._~+/=-]{12,}", r"\1 [REDACTED]", t, flags=re.I)
     t = re.sub(r"(://)[^/\s:@]+:[^/\s@]+@", r"\1[REDACTED]@", t)
-    t = re.sub(
-        r"(\b[A-Za-z0-9_]*(?:key|token|secret|passw(?:or)?d|pwd|credential)[A-Za-z0-9_]*\s*[=:]\s*)[^\s\"']+",
-        r"\1[REDACTED]",
-        t,
-        flags=re.I,
-    )
+    _val = r"""(?:(\\"|")[^"\\]*|(')[^'\\"]*|[^\s"'\\]+)"""
+    _nm = r"[A-Za-z0-9_-]*(?:key|token|secret|pass|pwd|credential|auth)[A-Za-z0-9_-]*"
+
+    def _rep(m):
+        return m.group(1) + (m.group(2) or m.group(3) or "") + "[REDACTED]"
+
+    t = re.sub(r"(\b" + _nm + r"\s*[=:]\s*)" + _val, _rep, t, flags=re.I)
+    t = re.sub(r"(--" + _nm + r"\s+)(?!-)" + _val, _rep, t, flags=re.I)
     return re.sub(r"[A-Za-z0-9+_=-]{40,}", "[REDACTED-LONG]", t)
 
 
@@ -127,6 +131,88 @@ def strip_heredocs(cmd: str) -> str:
         if m:
             hd = m.group(1)
     return "\n".join(out)
+
+
+DELETE_WORDS = re.compile(r"(^|[^A-Za-z0-9_])(rm|rmdir|unlink|shred|srm)([^A-Za-z0-9_]|$)", re.M)
+_REDIRECT = r"(?<![<>0-9&])>>?\s*([^\s;&|<>()]+)"
+
+
+def g1_context(cmd: str, cwd: str = "", home: str = "") -> dict:
+    """Mirror of jev_g1_context (hooks/jev-gate-lib.sh): for a command that deletes, the paths it deletes, the paths it
+    creates itself (redirects, mkdir, touch, tee, cp/mv/install targets) and the scripts it runs; {} otherwise."""
+    cmd = redact(cmd)
+    dele, new, scr = [], [], []
+    cdat: dict = {}
+    cdseen = False
+
+    def add(lst, v):
+        v = re.sub(r"^[\"']+", "", v)
+        v = re.sub(r"[\"']+$", "", v)
+        if v == "" or len(v) > 160:
+            return
+        if lst is new and v not in cdat:
+            cdat[v] = cdseen
+        if v not in lst:
+            lst.append(v)
+
+    for stmt in re.split(r"\|\||&&|[;&|\n]", cmd):
+        for m in re.finditer(_REDIRECT, stmt):
+            if not m.group(1).startswith("/dev/"):
+                add(new, m.group(1))
+        s = re.sub(r"[0-9]*(?:>>?|<)\s*[^\s;&|<>()]*", "", stmt)
+        s = s.rstrip()
+        s = re.sub(r"^\s*[({]?\s*", "", s)
+        while True:
+            s2 = re.sub(r"""^[A-Za-z_]\w*=(?:"[^"]*"|'[^']*'|\S*)\s+""", "", s, count=1)
+            if s2 == s:
+                break
+            s = s2
+        s = re.sub(r"^(?:sudo|command)\s+", "", s)
+        w = re.findall(r"\"[^\"]*\"|'[^']*'|\S+", s)
+        if not w:
+            continue
+        c, rest = w[0], w[1:]
+        if c in ("cd", "pushd"):
+            cdseen = True
+        args = [a for a in rest if not a.startswith("-")]
+        if re.fullmatch(r"rm|rmdir|unlink|shred|srm", c):
+            for a in args:
+                add(dele, a)
+        elif re.fullmatch(r"mkdir|touch|tee", c):
+            for a in args:
+                add(new, a)
+        elif re.fullmatch(r"cp|mv|install", c):
+            if len(args) >= 2:
+                add(new, args[-1])
+        elif re.fullmatch(r"python3?|node|bash|sh|zsh|ruby|perl|deno|bun|uv", c) and args:
+            if len(scr) < 3:
+                scr.append(s[:80])
+        elif c.startswith("./"):
+            if len(scr) < 3:
+                scr.append(s[:80])
+    if not dele:
+        return {}
+    # Only paths that do not exist yet count as created (mirrors the hook; unknown cwd or expansions are omitted).
+    cwd = cwd if cwd.startswith("/") else ""
+    home = home or os.environ.get("HOME", "")
+    keep = []
+    for v in new:
+        p = v
+        if re.match(r"~(/|$)", p):
+            if not home:
+                continue
+            p = home + p[1:]
+        if p.startswith("~") or re.search(r"[$`*?\[\]{}\\]", p):
+            continue
+        if not p.startswith("/"):
+            if cwd == "" or cdat.get(v):
+                continue
+            p = cwd + "/" + p
+        if os.path.lexists(p):
+            continue
+        keep.append(v)
+    new = keep
+    return {"created_in_command": new[:8], "deleted_paths": dele[:6], "script_calls": scr}
 
 
 def read_key() -> str:
@@ -179,9 +265,12 @@ def gate_questions(qdoc, ids, style="choice"):
         return bool_questions(qdoc, ids)
     cls = [i for i in ids if qdoc["gates"][i].get("expects")]
     rest = [i for i in ids if not qdoc["gates"][i].get("expects")]
+    names = {k for i in cls for k in qdoc["gates"][i]["expects"]}
+    if "risk_class" in names:
+        names.add("scope")  # the risk gates share risk_class + scope
     out = {}
-    if cls:
-        for name, q in qdoc["choice_questions"].items():
+    for name, q in qdoc["choice_questions"].items():
+        if name in names:
             out[name] = {"type": "choice", "instructions": q["instructions"], "criteria": q["criteria"]}
     out.update(bool_questions(qdoc, rest))
     return out
@@ -202,11 +291,12 @@ def gate_eval(qdoc, answers, gid, style="choice"):
     if style == "boolean" or not e:
         a = answers.get(gid)
         return (a.get("probability") if a else None), True
-    rc = answers.get("risk_class")
+    key = "risk_class" if "risk_class" in e else next(k for k in e if k != "scope")
+    rc = answers.get(key)
     if rc is None:
         return None, True
     pr = _probs(rc)
-    p = sum(pr.get(c, 0.0) for c in e["risk_class"])
+    p = sum(pr.get(c, 0.0) for c in e[key])
     sc = answers.get("scope")
     ok = True
     if e.get("scope") and sc is not None:
@@ -247,6 +337,8 @@ def build_gate_request(qdoc, ex, cands, style="choice"):
     if kind == "bash":
         cmd = trim(redact(strip_heredocs(ex["command"])), 700)
         state = {"tool": "Bash", "command": cmd, "repo": "demo", "context": ctx}
+        if DELETE_WORDS.search(strip_heredocs(ex["command"])):
+            state.update(g1_context(strip_heredocs(ex["command"])))
     elif kind in ("write", "edit"):
         state = {
             "tool": tool, "path": ex["path"], "repo": "demo", "context": ctx,
@@ -365,7 +457,7 @@ class ClientBackend(Backend):
         out = []
         for r in reqs:
             try:
-                p = subprocess.run([str(self.path)], input=json.dumps(r), capture_output=True, text=True, timeout=60)
+                p = subprocess.run([str(self.path)], input=json.dumps(r), capture_output=True, text=True, timeout=60, env=dict(os.environ, JEV_ORIGIN="replay"))
             except subprocess.TimeoutExpired:
                 out.append({"ok": False, "error": "timeout"})  # a hung client must not block the whole replay
                 continue
@@ -387,7 +479,7 @@ class InlineBackend(Backend):
         self.key, self.ai_dirs = key, ai_dirs
 
     def run(self, reqs):
-        env = dict(os.environ, AI_GATEWAY_API_KEY=self.key, JEV_AI_DIRS=":".join(self.ai_dirs))
+        env = dict(os.environ, AI_GATEWAY_API_KEY=self.key, JEV_AI_DIRS=":".join(self.ai_dirs), JEV_ORIGIN="replay")
         with tempfile.TemporaryDirectory() as td:
             js = Path(td) / "evaluate.mjs"
             js.write_text(INLINE_JS)

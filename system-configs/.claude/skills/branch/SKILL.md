@@ -74,9 +74,10 @@ Experimental Patterns:
 
 ### Branch Type Detection
 
-Optional hint: `${HOME}/.claude/skills/commit/scripts/classify.sh branch "<description>"`. Only when its `mode` is
-`enforce`, treat `type` as the default prefix and, if `mixed` is true (uncommitted changes mix unrelated concerns),
-suggest committing them separately first; otherwise ignore it.
+Always run `${HOME}/.claude/skills/commit/scripts/classify.sh branch "<description>"` before choosing the prefix
+(it logs the Jev call even when it withholds the answer). Only when its `mode` is `enforce`, treat `type` as the
+default prefix and, if `mixed` is true (uncommitted changes mix unrelated concerns), suggest committing them
+separately first; otherwise ignore the output.
 
 Determine branch type from input patterns:
 

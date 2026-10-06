@@ -55,9 +55,10 @@ IF: no files to review
   END
 ```
 
-Optional depth hint (branch-delta mode, no explicit flag): run
-`${HOME}/.claude/skills/review/scripts/depth.sh`. If it prints `"depth":"deep"`, treat the run as `--deep`. It can
-only raise depth: never below the path-based floor it reports, never skips or shortens a review, never approves.
+Depth hint (branch-delta mode, no explicit flag): always run
+`${HOME}/.claude/skills/review/scripts/depth.sh` (it logs the Jev call even when it withholds the answer).
+If it prints `"depth":"deep"`, treat the run as `--deep`. It can only raise depth: never below the path-based
+floor it reports, never skips or shortens a review, never approves.
 
 ### Step 3: Route by Mode
 

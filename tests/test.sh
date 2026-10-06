@@ -213,6 +213,7 @@ run_test "Papercut Runtime Data" "papercuts/test_papercuts.sh"
 echo "Running Script Health Tests..."
 echo "------------------------------"
 run_test "Script Validation" "scripts/test_script_health.sh"
+run_test "Jev Daily Summary and Nightly Audit" "scripts/test_jev_daily.sh"
 
 # Run comprehensive system health test
 echo "Running System Health Tests..."

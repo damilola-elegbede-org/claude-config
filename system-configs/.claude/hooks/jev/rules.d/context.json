@@ -33,6 +33,7 @@
       "max_lines": 20000,
       "chunk_lines": 50,
       "tail_lines": 40,
+      "best_fallback": false,
       "budget_floor": 150,
       "budget_ceiling": 400,
       "budget_frac": 0.3,
@@ -65,18 +66,18 @@
       "min_prompt_chars": 30
     },
     "A7-memory-inject": {
-      "mode": "enforce",
+      "mode": { "interactive": "enforce", "bgjob": "shadow" },
       "threshold": 0.7,
-      "scope": ["interactive"],
+      "scope": ["interactive", "bgjob"],
       "top_n": 3,
       "min_prompt_chars": 15,
       "max_candidates": 60,
       "body_chars": 3000
     },
     "A8-skill-picker": {
-      "mode": "enforce",
+      "mode": { "interactive": "enforce", "bgjob": "shadow" },
       "threshold": 0.7,
-      "scope": ["interactive"],
+      "scope": ["interactive", "bgjob"],
       "min_prompt_chars": 15
     }
   }

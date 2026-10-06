@@ -46,9 +46,10 @@ This command does not use `--no-verify`: hooks are the project's quality gates, 
    - Match repository's existing commit style
    - Include clear, concise description
    - Add Claude Code attribution footer
-   - Optional hint: `${HOME}/.claude/skills/commit/scripts/classify.sh commit`. Only when its `mode` is `enforce`,
-     use `type` as the default conventional type and, if `mixed` is true, offer to split the commit; otherwise
-     ignore it (`deterministic_type` is a path-based guess)
+   - Always run `${HOME}/.claude/skills/commit/scripts/classify.sh commit` here, before writing the message (it
+     logs the Jev call even when it withholds the answer). Only when its `mode` is `enforce`, use `type` as the
+     default conventional type and, if `mixed` is true, offer to split the commit; otherwise ignore the output
+     (`deterministic_type` is a path-based guess)
 
 4. **Create Commit**
    - Stage relevant files if needed

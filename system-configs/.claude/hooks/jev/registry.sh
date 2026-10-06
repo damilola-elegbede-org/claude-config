@@ -17,13 +17,20 @@
 # "choice_questions":{...}}) and is folded in as rules "<gate id>", "approval-detector" and
 # "mcp-classifier". A rule that no layer registers is OFF. The merged result is ONE flat object:
 #   {"<id>":{mode,threshold,scope,...questions...}, "exempt_agents":[...], "choice_questions":{...}}
+# A rule's mode is a string ("off"|"shadow"|"enforce") or an object keyed by session type
+# ({"interactive":"enforce","bgjob":"shadow","fleet":"off","default":"shadow"}). The reader resolves an
+# object to the string for the current session type (jev_reg_ctx; a missing key falls back to "default",
+# then "off"), so every caller sees a plain string.
 # When the code runs from a checkout rather than the deployed dir, the deployed
 # ~/.claude/hooks/jev rules.d/jev-rules.json are layered on top (dev/test convenience; in production
 # both are the same directory). JEV_RULES_FILE (alias JEV_RULES) replaces the layers by a single file.
 #
 # ---------------------------------------------------------------- the decision log
 # One line per decision in ~/.claude/jev/decisions.jsonl:
-#   {ts, gate, mode, answers, confidence, model, latencyMs, outcome, src, ...extra}
+#   {ts, gate, mode, answers, confidence, model, latencyMs, outcome, src, origin, session_id, entrypoint, ...extra}
+# origin is "live" unless JEV_ORIGIN says otherwise (the test suites set "test", the replay sets "replay");
+# session_id and entrypoint come from the CLAUDE_CODE_SESSION_ID / CLAUDE_CODE_ENTRYPOINT variables Claude Code
+# exports to its hooks (null when absent).
 # Every writer (client, gates, context hooks, rules/event hooks, gate.sh) appends here. The older
 # logs (jev-shadow.jsonl, jev-gates.jsonl, jev/rules-events.jsonl, gate-log.jsonl) are still written
 # as ALIASES for one release; read decisions.jsonl instead.
@@ -87,7 +94,25 @@ JEV_REG_MERGE='
         . * (($o.rules // ($o | del(.exempt_agents, .choice_questions)))
              + (if $o.exempt_agents then {exempt_agents: $o.exempt_agents} else {} end)
              + (if $o.choice_questions then {choice_questions: $o.choice_questions} else {} end))
-      end)'
+      end)
+  | with_entries(
+      if (.value | type) == "object" and ((.value.mode // null) | type) == "object"
+      then .value.mode = (.value.mode[$jev_ctx] // .value.mode.default // "off")
+      else . end)'
+
+# jev_reg_ctx -> the session type a per-session-type mode resolves for: fleet (a fleet agent slug is set),
+# bgjob (a background job), else interactive. JEV_REG_CTX overrides it (tests).
+jev_reg_ctx() {
+  if [ -n "${JEV_REG_CTX:-}" ]; then
+    printf '%s' "$JEV_REG_CTX"
+  elif [ -n "${BARECLAUDE_AGENT_SLUG:-}" ]; then
+    printf 'fleet'
+  elif [ -n "${CLAUDE_JOB_DIR:-}" ]; then
+    printf 'bgjob'
+  else
+    printf 'interactive'
+  fi
+}
 
 # jev_reg_run JQ_ARGS... -> runs `jq -s` with the merge program over the layers; the extra jq args come first
 # and may end with a filter piped after the merge ("| .[$id]"). Prints nothing and returns 1 when there is
@@ -98,7 +123,7 @@ jev_reg_run() {
     [ -n "$f" ] && [ -f "$f" ] && files+=("$f")
   done < <(jev_reg_files)
   [ "${#files[@]}" -gt 0 ] || return 1
-  jq -s "$@" "${files[@]}" 2>/dev/null
+  jq -s --arg jev_ctx "$(jev_reg_ctx)" "$@" "${files[@]}" 2>/dev/null
 }
 
 # jev_reg_json -> the merged registry (see header). Prints {} when no layer exists or jq fails.
@@ -138,11 +163,13 @@ jev_decision_log() {
     umask 077
     mkdir -p "$(dirname "$JEV_DECISIONS_LOG")" 2>/dev/null || exit 0
     jq -nc --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg gate "$1" --arg mode "${2:-}" --arg outcome "${3:-}" \
-      --arg conf "${4:-}" --arg ans "${5:-}" --arg model "${6:-}" --arg lat "${7:-}" --arg src "${8:-}" --arg extra "${9:-}" '
+      --arg conf "${4:-}" --arg ans "${5:-}" --arg model "${6:-}" --arg lat "${7:-}" --arg src "${8:-}" --arg extra "${9:-}" \
+      --arg origin "${JEV_ORIGIN:-live}" --arg sid "${CLAUDE_CODE_SESSION_ID:-}" --arg ep "${CLAUDE_CODE_ENTRYPOINT:-}" '
       {ts:$ts, gate:$gate, mode:(if $mode == "" then null else $mode end),
        answers:(try ($ans | fromjson) catch null), confidence:($conf | tonumber? // null),
        model:(if $model == "" then null else $model end), latencyMs:($lat | tonumber? // null),
-       outcome:$outcome, src:$src}
+       outcome:$outcome, src:$src, origin:$origin,
+       session_id:(if $sid == "" then null else $sid end), entrypoint:(if $ep == "" then null else $ep end)}
       + (try ($extra | fromjson | if type == "object" then . else {} end) catch {})' \
       >>"$JEV_DECISIONS_LOG" 2>/dev/null
   ) 2>/dev/null

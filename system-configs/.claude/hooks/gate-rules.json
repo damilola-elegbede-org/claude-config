@@ -92,6 +92,7 @@
       "field": "command",
       "pattern": "(?:/(?:usr/)?bin/)?rm(?:[[:space:]]+[^;&|\\n]*?)?[[:space:]]+(?:-[A-Za-z]*[rR][A-Za-z]*|--recursive)(?=[[:space:]]|$)",
       "anchor": "cmd",
+      "resolve": true,
       "exempt": "^{{PFX}}(?:/(?:usr/)?bin/)?rm(?:[[:space:]]+-[^[:space:]]+)*(?:[[:space:]]+{{EXTOK}})(?:[[:space:]]+(?:-[^[:space:]]+|{{EXTOK}}))*[[:space:]]*$",
       "action": "deny",
       "message": "recursive rm outside scratch paths (/tmp, $TMPDIR, .tmp/, node_modules, dist, build, __pycache__, .pytest_cache, $CLAUDE_JOB_DIR)",

@@ -120,5 +120,21 @@
       "bgjob",
       "fleet"
     ]
+  },
+  "retry-classifier": {
+    "mode": "shadow",
+    "scope": [
+      "interactive",
+      "bgjob",
+      "fleet"
+    ]
+  },
+  "audit/risk-class": {
+    "mode": "shadow",
+    "scope": [
+      "interactive",
+      "bgjob",
+      "fleet"
+    ]
   }
 }

@@ -90,7 +90,7 @@ gh run view <run-id> --json jobs,conclusion
 
 Extract: job names, failure messages, log URLs
 
-Optional, before any retry: pipe each failed job's log tail through
+Always, before any retry (it logs the Jev call even when it withholds the answer): pipe each failed job's log tail through
 `${HOME}/.claude/hooks/jev/failure-classify.sh ci` and follow its `steer` when `class` is `infra` or `flaky`
 (one `gh run rerun <run-id> --failed` before diagnosing). `real` or `unknown` changes nothing.
 

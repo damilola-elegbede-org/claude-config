@@ -44,6 +44,9 @@ TAILJSON=""
 HIT_LINES=""
 APPROVED=0
 PENDING_WARN=""
+NORM_RAW=""       # the command (or file path) the deny trail records, see jev_write_last_deny
+ACTION_DISPLAY="" # redacted display string for the decision rows when ACTION is not already redacted
+RETRY_JSON=""     # the prior deny when this call looks like a retry of it (jev_retry_prior)
 
 finish() {
   if [ -n "$PENDING_WARN" ]; then
@@ -67,6 +70,20 @@ hit_label() { # ID
   esac
 }
 
+# bgjob_ask_answer_after_deny -> 0 when the last deny recorded for this session was for exactly this action
+# and the last genuine D turn in the transcript is an AskUserQuestion answer stamped at or after that deny.
+# The detector then judges whether the answer approves it. Fails closed on a missing deny record or timestamp.
+bgjob_ask_answer_after_deny() {
+  local sid f norm
+  sid=$(jev_deny_session) || return 1
+  f="$JEV_LAST_DENY_DIR/$sid.json"
+  [ -f "$f" ] || return 1
+  norm=$(jev_norm "$NORM_RAW")
+  printf '%s' "$TAILJSON" | jq -e --slurpfile d "$f" --arg norm "$norm" '
+    .d_ask == true and (.d_epoch | type) == "number" and ($d[0].epoch | type) == "number"
+    and $d[0].norm == $norm and .d_epoch >= $d[0].epoch' >/dev/null 2>&1
+}
+
 # check_approval DRY -> sets APPROVED (1 only when D explicitly approved exactly this action and the
 # approval has not been consumed). Untrusted text is never part of this call.
 check_approval() {
@@ -83,7 +100,18 @@ check_approval_call() {
   ap=$(jev_resolve_rules "$RULES" approval-detector)
   [ -n "$ap" ] || return 0
   thr=$(printf '%s' "$ap" | cut -f3)
+  # Fleet agents and subagents cannot put an action to D, so nothing in their transcript is an approval.
+  if [ "$JEV_CTX" = "fleet" ] || [ -n "${JEV_SUBAGENT:-}" ]; then
+    jev_log approval-detector "no-approval-in-context" "" ""
+    return 0
+  fi
   [ "$(printf '%s' "$TAILJSON" | jq -r '.has_d')" = "true" ] || { jev_log approval-detector "no-d-turn" "" ""; return 0; }
+  # A job session has no D typing into it: the approval is D's answer to an AskUserQuestion that came after
+  # the deny of this exact action.
+  if [ "$JEV_CTX" = "bgjob" ] && ! bgjob_ask_answer_after_deny; then
+    jev_log approval-detector "no-ask-answer-after-deny" "" ""
+    return 0
+  fi
   state=$(jq -nc --arg tool "$TOOL" --arg action "$ACTION" --argjson t "$TAILJSON" '{tool:$tool, action:$action, turns:$t.turns}')
   q=$(printf '%s' "$RULES" | jq -c '{d_approved_exact_action: {type:"boolean", instructions:.["approval-detector"].instructions, criteria:.["approval-detector"].criteria}}')
   req=$(jev_build_request approval-detector "$state" '{}' "$q")
@@ -135,18 +163,82 @@ resolve_hits() {
   fi
   reason=$(jev_deny_reason "$enforce_ids" "$labels" "$ACTION")
   jev_log "$enforce_ids" "deny" "enforce" ""
+  jev_write_last_deny "$enforce_ids"
   jev_emit_deny "$reason"
   exit 0
+}
+
+# ------------------------------------------------------------ retry detector --
+
+RETRY_ON=0 # 1 when RETRY_JSON is set and the retry-classifier rule is enabled
+
+# retry_prepare -> sets RETRY_JSON and RETRY_ON when this call is a similar-but-different action right after
+# a deny of the same tool (the bypass trail), and logs one `retry-after-deny` row for it.
+retry_prepare() {
+  local sid prior
+  RETRY_JSON=""
+  RETRY_ON=0
+  [ -n "$NORM_RAW" ] || return 0
+  sid=$(jev_deny_session) || return 0
+  [ -f "$JEV_LAST_DENY_DIR/$sid.json" ] || return 0
+  jev_is_exempt "$RULES" && return 0
+  prior=$(jev_retry_prior "$(jev_norm "$NORM_RAW")")
+  [ -n "$prior" ] || return 0
+  RETRY_JSON="$prior"
+  JEV_LOG_EXTRA=$(printf '%s' "$prior" | jq -c '{similarity:.sim, prior_rule:.rule, prior_src:.src, prior_age_s:.age, prior_action:(.norm[0:200])}')
+  jev_log bypass-detector retry-after-deny "" ""
+  JEV_LOG_EXTRA=""
+  if [ -n "$(jev_resolve_rules "$RULES" retry-classifier)" ]; then RETRY_ON=1; fi
+}
+
+# retry_attach STATE_JSON -> the state with the prior deny added
+retry_attach() {
+  printf '%s' "$1" | jq -c --argjson r "$RETRY_JSON" '. + {prior_denied: {action: ($r.norm[0:300]), rule: $r.rule, seconds_ago: $r.age}}'
+}
+
+# retry_questions -> the retry_kind choice question, as a JSON object for JEV_EXTRA_QUESTIONS
+retry_questions() {
+  printf '%s' "$RULES" | jq -c '.["retry-classifier"] as $m | {retry_kind: {type: "choice", instructions: $m.instructions, criteria: $m.criteria}}'
+}
+
+# retry_record RESPONSE -> logs the retry_kind answer under rule id retry-classifier (shadow: never denies)
+retry_record() {
+  local c p mode
+  c=$(printf '%s' "$1" | jq -r '.answers.retry_kind.choice // empty')
+  [ -n "$c" ] || return 0
+  p=$(printf '%s' "$1" | jq -r --arg c "$c" '.answers.retry_kind.probabilities[$c] // 1')
+  mode=$(jev_resolve_rules "$RULES" retry-classifier | cut -f2)
+  JEV_LOG_EXTRA=$(printf '%s' "$RETRY_JSON" | jq -c '{similarity:.sim, prior_rule:.rule}')
+  jev_log retry-classifier "classified:$c" "$mode" "$p"
+  JEV_LOG_EXTRA=""
+}
+
+# retry_standalone -> when no gate asks Jev about this call, the retry question is the whole call
+retry_standalone() {
+  local state req resp
+  [ "$RETRY_ON" = "1" ] || return 0
+  state=$(jq -nc --arg tool "$TOOL" --arg a "$(jev_trim "$ACTION" 300)" --arg ctx "$JEV_CTX" '{tool:$tool, action:$a, context:$ctx}')
+  state=$(retry_attach "$state")
+  req=$(jev_build_request "retry-classifier" "$state" '{}' "$(retry_questions)")
+  resp=$(jev_call "$req") || return 0
+  jev_note "$resp"
+  retry_record "$resp"
 }
 
 # run_gates STATE_JSON UNTRUSTED_JSON CAND_TSV -> fills HIT_LINES, or finishes when unavailable
 run_gates() {
   local state="$1" un="$2" cand="$3" ids q req resp id mode thr p ok scores row
   ids=$(printf '%s\n' "$cand" | cut -f1 | jq -Rn '[inputs | select(length > 0)]')
+  JEV_EXTRA_QUESTIONS=""
+  if [ "$RETRY_ON" = "1" ]; then
+    state=$(retry_attach "$state")
+    JEV_EXTRA_QUESTIONS=$(retry_questions)
+  fi
   q=$(jev_gate_questions "$ids")
   req=$(jev_build_request "gates/$TOOL" "$state" "$un" "$q")
   resp=$(jev_call "$req") || unavailable "gates/$TOOL"
   jev_note "$resp"
+  if [ "$RETRY_ON" = "1" ]; then retry_record "$resp"; fi
   scores=$(jev_gate_scores "$resp" "$ids")
   HIT_LINES=""
   while IFS=$'\t' read -r id mode thr; do
@@ -198,6 +290,8 @@ handle_ask() {
   if [ -n "$p" ] && jev_ge "$p" "$thr"; then
     if [ "$mode" = "enforce" ]; then
       jev_log G16-ask-bundled deny "$mode" "$p"
+      NORM_RAW="AskUserQuestion"
+      jev_write_last_deny G16-ask-bundled
       jev_emit_deny "Jev gate [G16-ask-bundled]: this AskUserQuestion bundles unrelated decisions. D wants one decision per ask. Split it and ask sequentially: one question per call, headline then context then ONE ask, 2-4 options, exactly one recommended."
     else
       jev_log G16-ask-bundled would-deny-shadow "$mode" "$p"
@@ -312,6 +406,7 @@ handle_mcp() {
   args=$(mcp_args_digest)
   MCP_KEY=$(mcp_cache_key)
   ACTION="mcp tool ${TOOL} args=$(jev_trim "$args" 240)"
+  NORM_RAW="$ACTION"
   prod=false
   cached=$(mcp_cache_lookup)
   if [ -n "$cached" ]; then
@@ -393,7 +488,7 @@ handle_mcp() {
 # ----------------------------------------------------- Bash / Write / Edit / ... --
 
 handle_generic() {
-  local subject="" state cand cand_ids active un has_g14 has_g15 cmd_clean excerpt path existed tracked clean bytes need_excerpt=0 extra_g1=0
+  local subject="" state cand cand_ids active un has_g14 has_g15 cmd_clean excerpt path existed tracked clean bytes need_excerpt=0 extra_g1=0 g1ctx
   case "$TOOL" in
     Bash)
       local cmd
@@ -406,9 +501,16 @@ handle_generic() {
           else .out += [$l] | (if ($l | test("(^|[^<])<<-?\\s*[\"\u0027]?[A-Za-z_][A-Za-z0-9_]*")) then .hd = ($l | capture("(?:^|[^<])<<-?\\s*[\"\u0027]?(?<w>[A-Za-z_][A-Za-z0-9_]*)").w) else . end) end) | .out | join("\n");
         (.tool_input.command // "") | strip_heredocs')
       subject="$cmd_clean"
+      NORM_RAW="$cmd"
       ACTION=$(printf '%s' "$cmd_clean" | jev_redact)
       ACTION=$(jev_trim "$ACTION" 700)
       state=$(jq -nc --arg tool "$TOOL" --arg cmd "$ACTION" --arg repo "$REPO" --arg ctx "$JEV_CTX" '{tool:$tool, command:$cmd, repo:$repo, context:$ctx}')
+      # A command that deletes: tell Jev which paths it deletes and which it created itself, so cleaning up its own
+      # output is not mistaken for destroying data.
+      if printf '%s' "$cmd_clean" | grep -Eq '(^|[^[:alnum:]_])(rm|rmdir|unlink|shred|srm)([^[:alnum:]_]|$)'; then
+        g1ctx=$(jev_g1_context "$cmd_clean")
+        [ -z "$g1ctx" ] || state=$(printf '%s' "$state" | jq -c --argjson g "$g1ctx" '. + $g')
+      fi
       ;;
     Write | Edit)
       path=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // empty')
@@ -420,7 +522,9 @@ handle_generic() {
       excerpt=$(printf '%s' "$INPUT" | jq -r '[.tool_input.content, .tool_input.new_string] | map(select(. != null)) | join("\n")' |
         grep -E '"model"|^[[:space:]]*"[@a-zA-Z0-9/_.-]+"[[:space:]]*:[[:space:]]*"[~^<>=*0-9a-zA-Z.-]+"|^[A-Za-z0-9_.-]+(==|>=|~=)[0-9]' | head -10 | jev_redact)
       subject="${path}"$'\n'"${excerpt}"
+      NORM_RAW="$path"
       ACTION="${TOOL} ${path}"
+      ACTION_DISPLAY="${TOOL} $(printf '%s' "$path" | jev_redact)"
       if [ "$TOOL" = "Write" ] && [ -f "$path" ]; then
         # An overwrite is only a G1 candidate when the old content is not recoverable from git or scratch.
         case "$path" in
@@ -445,11 +549,13 @@ handle_generic() {
     Workflow)
       subject="workflow"
       ACTION="Workflow launch"
+      NORM_RAW="$ACTION"
       state=$(printf '%s' "$INPUT" | jq -c --arg ctx "$JEV_CTX" --arg repo "$REPO" '{tool:"Workflow", repo:$repo, context:$ctx, input_keys:((.tool_input // {}) | if type=="object" then keys else [] end), name:((.tool_input.name // .tool_input.workflow // "") | tostring | .[0:80])}')
       ;;
     Artifact)
       subject=$(printf '%s' "$INPUT" | jq -r '.tool_input.action // "publish"')
       ACTION="Artifact ${subject}"
+      NORM_RAW="$ACTION"
       state=$(jq -nc --arg a "$subject" --arg ctx "$JEV_CTX" '{tool:"Artifact", action:$a, context:$ctx}')
       ;;
     *) exit 0 ;;
@@ -457,6 +563,7 @@ handle_generic() {
   # The approval identity is the FULL canonical tool input plus cwd and context, never the redacted, truncated
   # display digest in ACTION: a retry with other file contents or another command middle is another action.
   ACTION_SHA=$(jev_sha "$TOOL|$(printf '%s' "$INPUT" | jq -S -c '.tool_input // {}')|${CWD}|${JEV_CTX}")
+  retry_prepare
 
   cand_ids=$(candidates_for "$subject")
   if [ "$extra_g1" = "1" ]; then cand_ids="${cand_ids:+$cand_ids$'\n'}G1-irreversible-local"; fi
@@ -467,7 +574,7 @@ handle_generic() {
   # G15 needs no other candidate: an action no class regex matches (curl ... | bash, a new Write) is
   # exactly what injected content asks for, so it is judged whenever untrusted content is in the tail.
   g15=$(jev_resolve_rules "$RULES" G15-untrusted-origin)
-  [ -n "$cand" ] || [ -n "$g15" ] || exit 0
+  [ -n "$cand" ] || [ -n "$g15" ] || { retry_standalone; exit 0; }
 
   if jev_is_exempt "$RULES"; then
     jev_log "gates/$TOOL" allow-exempt-agent "" ""
@@ -482,7 +589,7 @@ handle_generic() {
     un=$(printf '%s' "$TAILJSON" | jq -c '.untrusted')
     has_g15=1
   fi
-  [ -n "$cand" ] || exit 0
+  [ -n "$cand" ] || { retry_standalone; exit 0; }
   if [ "${has_g14:-0}" -gt 0 ] || [ "${has_g15:-0}" = "1" ]; then
     state=$(printf '%s' "$state" | jq -c --argjson t "$TAILJSON" '. + {turns:$t.turns}')
   fi

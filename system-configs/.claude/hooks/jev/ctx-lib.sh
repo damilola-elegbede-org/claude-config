@@ -328,7 +328,7 @@ ctx_cache_commit() {
     mkdir -p "$JEV_CACHE_DIR" "$JEV_STATE_DIR"
   ) 2>/dev/null || return 1
   [ -f "$2" ] || (umask 077 && cp "$1" "$2") 2>/dev/null || return 1
-  find "$JEV_CACHE_DIR" -type f \( -name '*.txt' -o -name '*.mem' -o -name '*.a4' \) -mtime +14 -delete 2>/dev/null
+  find "$JEV_CACHE_DIR" -type f \( -name '*.txt' -o -name '*.mem' -o -name '*.a4' -o -name '*.first' \) -mtime +14 -delete 2>/dev/null
   return 0
 }
 
@@ -534,13 +534,15 @@ ctx_build_request() {
 }
 
 # ctx_select <kind: read|log|hits> <budget> <min_p> <tail_keep> <min_saving> <cache_path>
-#              <orig_path> <numbered: true|false> <tie: early|late>
+#              <orig_path> <numbered: true|false> <tie: early|late> [best_fallback: true|false]
+# best_fallback (default true): when no chunk reaches min_p, keep the single best chunk anyway. With
+# false the text is left whole (reason "no-relevant-chunk"): a cut with nothing relevant to keep is blind.
 # Reads $WORK/text.txt, chunks.json, jev-out.json. Writes $WORK/selection.json:
 #   {trim:bool, reason, text, n, kept_lines, kept_ranges, trimmed_ranges, saved_chars, ps}
 ctx_select() {
   jq -n --rawfile text "${WORK}/text.txt" --slurpfile ch "${WORK}/chunks.json" --slurpfile out "${WORK}/jev-out.json" \
     --arg kind "$1" --argjson budget "$2" --argjson minp "$3" --argjson tailk "$4" --argjson minsave "$5" \
-    --arg cache "$6" --arg orig "$7" --argjson numbered "$8" --arg tie "$9" '
+    --arg cache "$6" --arg orig "$7" --argjson numbered "$8" --arg tie "$9" --argjson fb "${10:-true}" '
     ($text | split("\n") | if length > 0 and .[-1] == "" then .[:-1] else . end) as $L
     | ($L | length) as $n
     | $ch[0].chunks as $chunks
@@ -557,8 +559,10 @@ ctx_select() {
             ($c.e - $c.s + 1) as $len
             | if ($c.p >= $minp) and (.lines + $len <= $budget)
               then {kept: (.kept + [$c]), lines: (.lines + $len)} else . end)) as $sel
-      # always keep at least the single best chunk
-      | (if ($sel.kept | length) == 0 and ($ranked | length) > 0
+      # always keep at least the single best chunk (unless best_fallback is off and none was relevant)
+      | ($ranked | any(.p >= $minp)) as $relevant
+      | if ($fb | not) and ($relevant | not) then {trim: false, reason: "no-relevant-chunk", n: $n} else
+      (if ($sel.kept | length) == 0 and ($ranked | length) > 0
          then {kept: [$ranked[0]], lines: ($forced_lines + ($ranked[0].e - $ranked[0].s + 1))} else $sel end) as $sel2
       # merge kept ranges
       | ( ( [ $sel2.kept[] | [.s, .e] ] + $forced ) | sort_by(.[0])
@@ -591,6 +595,7 @@ ctx_select() {
                saved_chars: (($text | length) - ($new | length)),
                ps: ($sc | map({key: ("c\(.i)"), value: .p}) | from_entries)}
         end
+      end
     end' >"${WORK}/selection.json" 2>/dev/null
 }
 
@@ -639,7 +644,7 @@ ctx_trim_flow() {
   fi
 
   [ "$RULE_MODE" = "enforce" ] && { cache="$(ctx_cache_path "${WORK}/text.txt")" || return 0; }
-  ctx_select "$kind" "$budget" "$RULE_THRESHOLD" "$tailk" "$minsave" "$cache" "$orig" "$numbered" "$tie" || return 0
+  ctx_select "$kind" "$budget" "$RULE_THRESHOLD" "$tailk" "$minsave" "$cache" "$orig" "$numbered" "$tie" "$(ctx_cfg best_fallback true)" || return 0
   jq -e '.trim == true' "${WORK}/selection.json" >/dev/null 2>&1 || {
     jq -c '{decision:"keep-full", why:(.reason // "none"), lines:(.n // null)}' "${WORK}/selection.json" >"${WORK}/detail.json" 2>/dev/null
     ctx_log "skip" "${WORK}/detail.json"

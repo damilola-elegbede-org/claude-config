@@ -81,7 +81,7 @@ eq "flat layer rule registered" "off" "$(jq -r '."flat-rule".mode' <<<"$REG")"
 eq "exempt_agents comes from the last layer that sets it" '["x-agent"]' "$(jq -c '.exempt_agents' <<<"$REG")"
 eq "approval-detector folded in with its question and mode" "true" "$(jq -r '."approval-detector" | (.mode == "shadow") and (.instructions | type == "string")' <<<"$REG")"
 eq "mcp-classifier folded in with its questions and mode" "true" "$(jq -r '."mcp-classifier" | (.mode == "enforce") and (.class_instructions | type == "string")' <<<"$REG")"
-eq "choice_questions are in the registry" "risk_class,scope" "$(jq -r '.choice_questions | keys | join(",")' <<<"$REG")"
+eq "choice_questions are in the registry" "origin,risk_class,scope" "$(jq -r '.choice_questions | keys | join(",")' <<<"$REG")"
 eq "an unregistered rule is absent (so off)" "null" "$(jq -c '."nope"' <<<"$REG")"
 
 fresh single
@@ -104,6 +104,27 @@ eq "an unreadable layer does not crash the reader (falls back to {})" "{}" "$(sh
 fresh empty
 rm -rf "$J/rules.d" "$J/gate-questions.json"
 eq "no layers means an empty registry" "{}" "$(shell_reg)"
+
+# a mode may be an object keyed by session type; both readers resolve it to this session's string
+fresh scoped
+printf '%s' '{"rules":{"split":{"mode":{"interactive":"enforce","bgjob":"shadow"}},"dflt":{"mode":{"interactive":"enforce","default":"shadow"}},"none":{"mode":{"interactive":"enforce"}}}}' >"$J/rules.d/z80-scoped.json"
+for ctx in interactive bgjob fleet; do
+  parity "per-session-type mode ($ctx)" JEV_REG_CTX="$ctx"
+done
+eq "object mode resolves for interactive" "enforce" "$(shell_reg JEV_REG_CTX=interactive | jq -r .split.mode)"
+eq "object mode resolves for bgjob" "shadow" "$(shell_reg JEV_REG_CTX=bgjob | jq -r .split.mode)"
+eq "a missing session type falls back to default" "shadow" "$(shell_reg JEV_REG_CTX=fleet | jq -r .dflt.mode)"
+eq "no key and no default means off" "off" "$(shell_reg JEV_REG_CTX=fleet | jq -r .none.mode)"
+ctx_mode() { # rule ENV=VAL... : the resolved mode with JEV_REG_CTX unset, so the session variables decide
+  local rule="$1"
+  shift
+  env -u JEV_DIR -u JEV_CLAUDE_DIR -u JEV_RULES -u JEV_RULES_FILE -u JEV_REG_CTX -u BARECLAUDE_AGENT_SLUG -u CLAUDE_JOB_DIR \
+    HOME="$H" "$@" bash -c '. "$HOME/.claude/hooks/jev/registry.sh"; jev_reg_json' | jq -r --arg r "$rule" '.[$r].mode'
+}
+eq "no session variable means interactive" "enforce" "$(ctx_mode split)"
+eq "CLAUDE_JOB_DIR selects bgjob" "shadow" "$(ctx_mode split CLAUDE_JOB_DIR=/x)"
+eq "a fleet slug wins over CLAUDE_JOB_DIR" "shadow" "$(ctx_mode dflt BARECLAUDE_AGENT_SLUG=clara CLAUDE_JOB_DIR=/x)"
+eq "jev_reg_value sees the resolved string" "shadow" "$(env -u JEV_DIR -u JEV_RULES -u JEV_RULES_FILE HOME="$H" JEV_REG_CTX=bgjob bash -c '. "$HOME/.claude/hooks/jev/registry.sh"; jev_reg_value split mode off')"
 
 # ============================================================================
 # jev_reg_value / jev_reg_rule / jev_reg_exempt
@@ -154,12 +175,18 @@ rm -f "$CL/jev.off"
 # ============================================================================
 fresh log
 LOGF="$H/.claude/jev/decisions.jsonl"
-env -u JEV_DIR -u JEV_DECISIONS_LOG HOME="$H" bash -c '. "$HOME/.claude/hooks/jev/registry.sh"
+env -u JEV_DIR -u JEV_DECISIONS_LOG -u JEV_ORIGIN HOME="$H" CLAUDE_CODE_SESSION_ID=sess-1 CLAUDE_CODE_ENTRYPOINT=cli bash -c '. "$HOME/.claude/hooks/jev/registry.sh"
   jev_decision_log G1-irreversible-local shadow would-deny-shadow 0.91 "{\"risk_class\":{\"choice\":\"data_loss\"}}" typesafe-ai/jev 312 hook:test "{\"tool\":\"Bash\"}"
   jev_decision_log some-rule "" skip "" "" "" "" hook:test'
 eq "two lines appended" "2" "$(grep -c . "$LOGF")"
 LINE1="$(sed -n 1p "$LOGF")"
-eq "every documented field is present" "answers,confidence,gate,latencyMs,mode,model,outcome,src,ts" "$(jq -r 'del(.tool) | keys | join(",")' <<<"$LINE1")"
+eq "every documented field is present" "answers,confidence,entrypoint,gate,latencyMs,mode,model,origin,outcome,session_id,src,ts" "$(jq -r 'del(.tool) | keys | join(",")' <<<"$LINE1")"
+eq "origin defaults to live" "live" "$(jq -r .origin <<<"$LINE1")"
+eq "session_id comes from CLAUDE_CODE_SESSION_ID" "sess-1" "$(jq -r .session_id <<<"$LINE1")"
+eq "entrypoint comes from CLAUDE_CODE_ENTRYPOINT" "cli" "$(jq -r .entrypoint <<<"$LINE1")"
+LOGO="$T/origin.jsonl"
+env -u JEV_DIR -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT HOME="$H" JEV_DECISIONS_LOG="$LOGO" JEV_ORIGIN=replay bash -c '. "$HOME/.claude/hooks/jev/registry.sh"; jev_decision_log r shadow pass "" "" "" "" hook:test'
+eq "JEV_ORIGIN overrides origin; absent session fields are null" "replay,null,null" "$(jq -r '[.origin, .session_id, .entrypoint] | map(tostring) | join(",")' "$LOGO")"
 eq "gate" "G1-irreversible-local" "$(jq -r .gate <<<"$LINE1")"
 eq "mode" "shadow" "$(jq -r .mode <<<"$LINE1")"
 eq "outcome" "would-deny-shadow" "$(jq -r .outcome <<<"$LINE1")"

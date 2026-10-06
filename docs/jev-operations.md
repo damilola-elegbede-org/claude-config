@@ -14,7 +14,12 @@ registry. Layers, later wins (objects deep-merge key by key, arrays and scalars 
 2. `hooks/jev/rules.d/*.json` - modes, thresholds, scopes, tuning knobs (lexical file order)
 3. `hooks/jev/jev-rules.json` - your overrides, always last
 
-A rule that no layer registers is OFF. `exempt_agents` (default `clara`) is read from the same
+A rule that no layer registers is OFF. A rule's `mode` is a string (`off`, `shadow`, `enforce`) or an
+object keyed by session type, for example `{"interactive": "enforce", "bgjob": "shadow"}`. The reader
+resolves an object to the current session's string (`fleet` when a fleet agent slug is set, `bgjob` when
+`CLAUDE_JOB_DIR` is set, else `interactive`; a missing key falls back to `default`, then `off`), so hooks
+always see a plain mode. `JEV_REG_CTX` overrides the session type (tests). `scope` still decides whether
+a rule runs at all in a session type. `exempt_agents` (default `clara`) is read from the same
 registry by every hook. `JEV_RULES_FILE` (alias `JEV_RULES`) replaces all layers with one file (tests).
 
 The reader exists twice because the hooks are bash and the client is node: `hooks/jev/registry.sh`
@@ -46,8 +51,14 @@ creating or editing either file from a tool call.
 `~/.claude/jev/decisions.jsonl` (mode 0600, rotated monthly by the client), one line per decision:
 
 ```text
-{ts, gate, mode, answers, confidence, model, latencyMs, outcome, src, ...extra}
+{ts, gate, mode, answers, confidence, model, latencyMs, outcome, src, origin, session_id, entrypoint, ...extra}
 ```
+
+`origin` is `live` unless `JEV_ORIGIN` says otherwise: the test suites set `test`, the replay sets
+`replay`, the nightly audit sets `audit`. `session_id` and `entrypoint` come from the
+`CLAUDE_CODE_SESSION_ID` and `CLAUDE_CODE_ENTRYPOINT` variables Claude Code exports to hooks (null when
+absent). Gate rows also carry `action`: the redacted display string of the command or path, at most about
+200 characters, never file contents.
 
 `gate` is the rule id, `mode` is `off|shadow|enforce` (`regex` for `gate.sh`), `answers` the Jev answers
 (never the prompt, command or file text), `confidence` the probability of the first answer, `outcome`
@@ -66,7 +77,7 @@ jq -r 'select(.gate | startswith("G")) | [.ts, .gate, .mode, .outcome] | @tsv' ~
 
 ## Replay and the regression guard
 
-`scripts/jev-replay.py` replays the 160 labelled examples in `tests/fixtures/jev-replay-labels.jsonl`
+`scripts/jev-replay.py` replays the 169 labelled examples in `tests/fixtures/jev-replay-labels.jsonl`
 through the same request builder the gates use and reports per-rule precision and recall. The recorded
 answers, thresholds and accepted block rates live in `tests/fixtures/jev-replay-results.json`.
 
@@ -94,6 +105,59 @@ produces a report to read, and a human decides whether to accept a new baseline.
 Untested as a cron entry: the inline backend reads the key from `~/.zshrc` itself, but this was not run
 under cron. Compare the new report's per-rule precision and recall with the committed results file; if a
 rule degraded, re-run with `--write-results` only after reviewing it.
+
+## Blocks, approvals and the deny trail
+
+What a block tells the session depends on where it runs:
+
+| Session | On a block | Approval |
+| --- | --- | --- |
+| interactive | ask D via AskUserQuestion, then retry once if D approves exactly this action | yes |
+| bgjob (`CLAUDE_JOB_DIR` set, no fleet slug, not a subagent) | same as interactive; if D does not answer, end the report with `needs input:` naming the action | yes |
+| fleet agent or subagent (`agent_id` in the hook input) | end the report with `needs input:` | none |
+
+A job-session approval of a regex checkpoint follows the interactive path (`gate.sh approve <hash>`,
+bound to the checkpoint code in an answered AskUserQuestion). A job-session approval of a Jev gate needs
+three things: the last deny in that session was for this exact action, D's last turn is an AskUserQuestion
+answer stamped at or after that deny, and the approval detector says yes. Every approval is one-shot.
+
+Every enforced deny from either gate writes `~/.claude/jev-state/last-deny/<session_id>.json`
+(`{ts, epoch, src, tool, rule, norm}`, mode 0600; `norm` is the whitespace-collapsed, redacted action,
+at most 500 characters). On each later Bash, Write or Edit call, `jev-gate.sh` compares the action with
+it: a different action of the same tool within 600 seconds with token similarity of 0.5 or more logs a
+`retry-after-deny` row (gate `bypass-detector`), and the shadow rule `retry-classifier` asks Jev whether it
+is the same action, a safer variant or unrelated (`retry_kind`). These rows never deny.
+
+## Gate behaviour worth knowing
+
+- `G1-rm` resolves standalone `NAME=literal` assignments earlier in the same command and a leading
+  `cd <scratch dir> &&` before matching, so deletes inside the job temp folder or `.tmp/` pass when reached
+  through a variable or a `cd`. Anything else (command substitution, `eval`, loop or `read` variables, a
+  non-scratch `cd`) is matched as written.
+- Command-position regex rules treat the body of a heredoc fed to an interpreter (python, node, ...) as
+  data. Heredocs fed to a shell are still code, and `G1-interp` and the SQL rules still read interpreter
+  bodies.
+- `G1-irreversible-local` gets `deleted_paths`, `created_in_command` and `script_calls` in its state, so
+  deleting files the same command created is not scored as irreversible loss.
+- `G15-untrusted-origin` is the `origin` choice question (`user_directed`, `tool_suggested`, `injected`)
+  and fires on P(injected). It is asked only when untrusted content arrived after D's last turn.
+
+## Context and rules hooks in job sessions
+
+- `A3-bash-trim` leaves the output whole when no chunk reaches its threshold (`best_fallback: false`,
+  logged as `keep-full` with why `no-relevant-chunk`). `A1` and `A2` still keep their best chunk.
+- `A7-memory-inject` and `A8-skill-picker` run in job sessions in shadow, for the first user prompt only
+  (marker `~/.claude/jev-cache/state/<session_id>.first`).
+- `A6-agent-router` adds a hint pointing at the `/ask-jev` ranking script when a delegation is a file
+  search (`Explore`, or a prompt about locating files).
+- The `executive-*` rules lint job-session reports in shadow: nothing blocks, including the regex checks.
+  Look for `executive-lint` rows with outcome `shadow-would-block` and scope `bgjob`.
+- The `workflow-*` helpers (commit and branch type, mixed commit, review depth, CI and verify failure
+  class, Linear presort, click target) run in job sessions in shadow; the skills always run their helper
+  and act on the answer only when the mode is `enforce`.
+- At session start, `session-check.sh` prints one line when deployed hook files differ from the
+  claude-config clone's `origin/main` (it never fetches, so it is only as fresh as the last fetch there).
+  `JEV_DRIFT_REPO` and `JEV_DRIFT_HOOKS` override the paths.
 
 ## The opt-in /ask-jev skill
 
@@ -134,3 +198,81 @@ payload content, which a glob cannot see), the destructive-git guard (its `--no-
 git-prefixed and an `if` takes one rule), the file-extension guards (several extensions, one rule), and the
 Jev context hooks (`a1`..`a8`, `retry-counter`: they act on every call of their matcher, so there is
 nothing for a prefilter to skip). Every handler now has an explicit `timeout`.
+
+## Daily summary
+
+`python3 scripts/jev-daily-summary.py [--date YYYY-MM-DD] [--log PATH] [--out DIR] [--stdout]` writes one
+compact Markdown report for a day of `decisions.jsonl`. The day is an America/Denver calendar day
+(default: yesterday); the file is `~/.tmp/reports/jev-daily-<date>.md`. It reads only the decision log and
+makes no Jev calls.
+
+| Section             | Content                                                                                                             |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Jev calls           | Client rows (`src: client`): count, unavailable count and percent, p50 and p95 `wall_ms` (nearest rank), total cost |
+| Blocks              | `deny` and `hit-enforce` rows with time, rule, origin and a readable action (`action`, else `target`, else the sha) |
+| Would-deny (shadow) | `would-deny-shadow` rows per rule                                                                                   |
+| Bypasses            | `retry-after-deny` rows per rule                                                                                    |
+| By origin           | The same counts split by `origin` (`live`, `test`, `replay`); rows without an `origin` count as `unknown`           |
+
+A Jev gate logs a `hit-enforce` row and a `deny` row for one blocked call; the report counts that call
+once. A re-run keeps the nightly audit section already in the file.
+
+## Nightly audit
+
+`python3 scripts/jev-nightly-audit.py [--date YYYY-MM-DD] [--projects DIR] [--dry-run] [--max-calls N]
+[--threshold P] [--log PATH] [--out DIR] [--stdout]` looks for risky actions that no gate blocked.
+
+1. Scans `~/.claude/projects/*/*.jsonl` for assistant events whose own timestamp falls on the day.
+2. Keeps only the Bash `command` string and the Write, Edit and MultiEdit `file_path` of `tool_use`
+   blocks. Nothing else is read.
+3. Skips an action whose cwd, path or a path named inside its command falls under `exclude_paths` in
+   `jev-config.json` (same prefix rules as the client). If the config cannot be read the audit refuses to
+   run, because the exclusion list is unknown.
+4. Redacts secrets with the patterns of `jev_redact` in `hooks/jev-gate-lib.sh`, trims long commands
+   (head and tail), and drops duplicates.
+5. Asks Jev the shared `risk_class` choice question (`choice_questions` in `gate-questions.json`) once
+   per distinct action through `~/.claude/hooks/jev/jev-ask`, rule `audit/risk-class`, with
+   `JEV_ORIGIN=audit` so the decision log tells these calls apart. A choice call takes one action, so
+   there is no batching; `--max-calls` (default 300) bounds the spend and the rest is listed as not
+   scored. Five unavailable calls in a row stop the run.
+6. Reports actions that score at least `--threshold` (default 0.8) on `data_loss`, `irreversible`,
+   `prod_system`, `outward_comms` or `spend` and that no gate blocked. An action counts as blocked when a
+   `deny` or `hit-enforce` row of the day carries the same action text, or, for rows without one, the same
+   `session_id` within 30 seconds.
+7. Replaces the `## Nightly audit` section of `jev-daily-<date>.md` (creating the file if needed).
+
+What is sent to Jev: the redacted action text, the tool name, the repo directory name, `context: audit`,
+and the `risk_class` question. The client adds its own redaction and refuses an excluded cwd or path
+(the audit passes `cwd` and, for Write and Edit, the path). What is never sent: tool results, file
+contents, assistant or user prose, any tool other than Bash, Write, Edit and MultiEdit (so no Gmail or
+Slack content), anything under `exclude_paths`, unredacted secrets.
+
+`--dry-run` makes no Jev calls and writes nothing; it prints the counts and the redacted text that would
+be sent, one line per action:
+
+```text
+python3 scripts/jev-nightly-audit.py --dry-run --date 2026-10-04
+```
+
+The audit's decisions land in `decisions.jsonl` with `origin: audit`, so the daily summary lists them in
+their own origin row. Tests: `tests/scripts/test_jev_daily.sh` (stub client and the real client in
+`JEV_MOCK` mode; no real calls).
+
+## Daily schedule
+
+`com.damilola.jev-daily-report` runs the summary and then the audit every day at 06:30 local time. The
+scripts run from the repo checkout, not from `~/.claude`, so `scripts/sync.sh` deploys nothing for them
+(the client they call, `~/.claude/hooks/jev/jev-ask`, is deployed as usual). The template is
+`system-configs/.claude/launchagents/com.damilola.jev-daily-report.plist.template`; `__HOME__` and
+`__REPO__` are substituted at install time because a plist cannot expand variables.
+
+```text
+scripts/install-jev-daily-agent.sh            # prints what it would do, changes nothing
+scripts/install-jev-daily-agent.sh --write    # renders ~/Library/LaunchAgents/com.damilola.jev-daily-report.plist
+launchctl load ~/Library/LaunchAgents/com.damilola.jev-daily-report.plist    # separate, explicit step
+```
+
+The installer never loads the agent: the audit makes Jev calls, so starting it is a decision. Run it from
+the main checkout (it warns inside a worktree) or set `JEV_REPO_DIR`. Output goes to
+`~/.tmp/reports/jev-daily-<date>.md`; launchd's own log is `~/.claude/logs/jev_daily_report.launchd.log`.
+To stop it: `launchctl unload` the same plist.
