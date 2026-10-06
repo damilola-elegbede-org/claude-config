@@ -46,8 +46,10 @@ Coverage is in `tests/hooks/test_higgsfield_sync_check.sh`.
 ## Giving another machine or agent (Clara) access
 
 The CLI authenticates with OAuth 2.0 PKCE through a browser (`higgsfield auth --help`). Its `auth` commands are `login`, `logout` and
-`token`. No API-key or token environment variable appears in the CLI's help, its npm README, or the skills (inference: none is supported
-yet). Two ways to give a station access:
+`token`. Higgsfield's help center says the CLI needs "No API key needed" and that "API keys belong to the
+Higgsfield API, a separate developer product"
+([source](https://higgsfield.ai/creator-hub/help-center/mcp-cli/how-do-i-access-higgsfield-via-cli)),
+so the CLI is OAuth-only and API keys would mean different tooling. Two ways to give a station access:
 
 1. Run `higgsfield auth login` on that station once and complete the browser step. The stored refresh token keeps it signed in.
 2. Copy `~/.config/higgsfield/credentials.json`. It holds the access and refresh token for the signing-in account, so treat it as a
@@ -55,3 +57,27 @@ yet). Two ways to give a station access:
 
 Either way the station spends the credits of the account that signed in. A fleet station also needs the CLI installed and signed in to run the
 skills (`/sync` only warns there, so a merge never blocks it).
+
+## Local edits to the vendored skills
+
+Beyond the `license: MIT` line, six review fixes are local (PR #282). Re-apply them, or confirm upstream fixed them, when re-vendoring.
+
+| File | Fix |
+| ---- | --- |
+| `higgsfield-websites/references/game-3d-animation.md`, `game-meshy-api.md` | 7 stale filenames: `meshy-input-rules.md` and `procedural-animation.md` now use their shipped `game-` names |
+| `higgsfield-brandkit/references/state-payloads.md` | `geometry_fingerprint` applies to SVG logos only; non-SVG official logos are locked without it |
+| `higgsfield-websites/references/app-cover.md` | the Higgsfield-branded lockup is for marketplace covers; standalone-site OG covers carry only the user's brand |
+| `higgsfield-websites/references/app-quickstart.md` | one confirm-enabled adapter shared by every SDK client |
+| `higgsfield-websites/references/fnf-sdk.md` | the example returns a flat DTO, not the raw SDK result |
+| `higgsfield-websites/SKILL.md` | the ban covers user-facing generation features, not the build's own asset generation |
+
+## Known upstream issues (acknowledged, not fixed here)
+
+Reported by CodeRabbit on #282; left verbatim because the fixes are untested edits to third-party code. Worth raising with
+`higgsfield-ai/skills`.
+
+- `higgsfield-brandkit/scripts/brandkit.py` `recolor_svg` does not rewrite colors inside `<style>` elements,
+  so monochrome logo exports keep class-based colors.
+- `higgsfield-brandkit/scripts/build_brandbook.py` palette limits differ from what `palette.md` and `normalize_slot` accept.
+- `higgsfield-brandkit/scripts/render_brandbook_pdf.py` sets `FONTCONFIG_FILE`, which LibreOffice's native macOS build does not read for font discovery.
+- 9 vendored files tell the agent to run `curl ... install.sh | sh` from the `main` branch with no checksum. The Jev G10 gate holds that command for approval.

@@ -594,7 +594,11 @@ export const generate = createServerFn({ method: 'POST' })
       settings: { aspectRatio: '3:4', resolution: '1k', batchSize: 1 },
     })
 
-    return { ok: true as const, result }
+    // Flat DTO only: SDK `Generation` values carry `unknown` fields and must not cross the server/client boundary.
+    return {
+      ok: true as const,
+      generations: result.generations.map(g => ({ id: g.id, status: g.status })),
+    }
   })
 ```
 

@@ -40,7 +40,9 @@ Use with `state --action approve_logo`. For a user-supplied official logo, use t
 {"path": "/absolute/path/to/official-logo.svg"}
 ```
 
-Get `geometry_fingerprint` from `logo-inspect --source <exact SVG URL or absolute path>` before approval. This uses the same full-canvas-background handling as `logo-export`.
+For an SVG logo, get `geometry_fingerprint` from `logo-inspect --source <exact SVG URL or absolute path>` before approval. This uses the same full-canvas-background handling as `logo-export`.
+
+`logo-inspect` validates SVG sources only, so `geometry_fingerprint` applies to SVG logos only. For an official PNG, JPG, WebP, or PDF logo (accepted by `intake.md`), lock it as supplied: set `logo.asset` to its `path` or `url` and omit `geometry_fingerprint`; the state script treats that field as optional.
 
 ## Palette
 

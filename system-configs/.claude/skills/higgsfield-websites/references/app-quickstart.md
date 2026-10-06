@@ -84,7 +84,13 @@ import { createProfileClient } from '@higgsfield/fnf/profile'
 import { createWorkflowPlatformAdapter } from '@higgsfield/fnf/workflow-platform'
 import { gptImage2 } from '@higgsfield/fnf/jobs' // register ONLY the jobs you use
 
-const adapter = createWorkflowPlatformAdapter({ baseUrl: 'https://fnf.internal' })
+const adapter = createWorkflowPlatformAdapter({
+  baseUrl: 'https://fnf.internal',
+  confirm: async ({ jobSetType }) => {
+    // UI host opens its cost-preview modal here and resolves; reject to cancel.
+    if (!(await openConfirmModal(jobSetType))) throw new Error('declined')
+  },
+})
 const jobs = createJobClient({ adapter, jobs: [gptImage2] })
 const media = createMediaClient({ mediaAdapter: adapter })
 const profile = createProfileClient({ profileAdapter: adapter })
@@ -97,19 +103,11 @@ catalog") — e.g. `gptImage2`→`gpt_image_2`, `nanoBanana2`→`nano_banana_2`,
 
 ## 3. Submit (with the confirmation gate) → poll → read the URL
 
-The `confirm` gate is passed to the **adapter factory**; it runs once per submit,
+The `confirm` gate is passed to the **adapter factory** (the one in step 2, so every client built from that adapter shares it); it runs once per submit,
 after validation, before any network call. Rejecting is a user choice, not a
 failure (typed `confirmation_rejected`).
 
 ```ts
-const adapter = createWorkflowPlatformAdapter({
-  baseUrl: 'https://fnf.internal',
-  confirm: async ({ jobSetType }) => {
-    // UI host opens its cost-preview modal here and resolves; reject to cancel.
-    if (!(await openConfirmModal(jobSetType))) throw new Error('declined')
-  },
-})
-
 const { generations } = await jobs.submit({
   model: 'gpt_image_2',
   prompt: { instruction: userPrompt },

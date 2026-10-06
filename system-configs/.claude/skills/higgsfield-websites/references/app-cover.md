@@ -46,7 +46,7 @@ Division of labor:
    the official scale — the title is the loudest thing on the cover) →
    `( Available now at higgsfield.ai )` pill. NO tagline — the reference lockup
    is wordmark → title → CTA, three rows, nothing else. Tight, aligned, flat
-   white. It reads as ONE unit, not scattered captions.
+   white. It reads as ONE unit, not scattered captions. **This Higgsfield-branded lockup is for Higgsfield marketplace covers only.** The cover used as `og_image_url` for a standalone `--type website` carries the user's brand alone (see `SKILL.md`): swap the Higgsfield wordmark and the `higgsfield.ai` CTA for the user's own wordmark and no Higgsfield mention.
 3. **Text is the LAST layer — always.** The full lockup renders on top of
    everything; the subject NEVER covers a letter. Type may sit over the
    subject's body/props — keep it OFF the face: position with `--block-x/y` so

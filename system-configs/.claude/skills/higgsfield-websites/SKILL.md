@@ -26,9 +26,10 @@ when the request doesn't make it obvious, ask the user before creating (one
 question, up front):
 
 - **`--type website`** — a standalone product with NO Higgsfield integration
-  and **NO AI generation of any kind** (no image/video/audio/text generation —
-  not via Higgsfield, and not via some other provider): no "Sign in with
-  Higgsfield", no requests to Higgsfield, no fnf SDK. Every website gets a
+  and **NO user-facing AI generation features** (the built site offers no image/video/audio/text
+  generation — not via Higgsfield, and not via some other provider; the build itself still generates its
+  visual assets with the Higgsfield CLI per `references/website-flow.md`, which visitors never see): no "Sign in with
+  Higgsfield", no runtime requests to Higgsfield from the built site, no fnf SDK. Every website gets a
   fully independent brand: own palette, type, and chrome from a design brief,
   custom Tailwind/CSS only — never import `@higgsfield/quanta/*` or use
   q-prefixed tokens anywhere, and no "Powered by / Built on Higgsfield" badges
