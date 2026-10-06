@@ -34,6 +34,7 @@ import importlib.util
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
 
@@ -123,6 +124,25 @@ def exclude_prefixes(config_path):
     return out
 
 
+_HEREDOC = re.compile(r"(?<!<)<<(?!<)-?\s*[\"']?([A-Za-z_][A-Za-z0-9_]*)")
+HEREDOC_PLACEHOLDER = "[heredoc body omitted]"
+
+
+def strip_heredocs(command):
+    """Keep the command lines, replace each heredoc body (and its terminator) with a placeholder."""
+    out, pending = [], []
+    for line in command.split("\n"):
+        if pending:
+            if re.fullmatch(r"\s*" + re.escape(pending[0]) + r"\s*", line):
+                pending.pop(0)
+            continue
+        out.append(line)
+        pending = _HEREDOC.findall(line)
+        if pending:
+            out.append(HEREDOC_PLACEHOLDER)
+    return "\n".join(out)
+
+
 def under(path, prefixes):
     lc = path.lower()
     return any(lc == p or lc.startswith(p + "/") for p in prefixes)
@@ -137,7 +157,30 @@ def excluded(cwd, action_path, command, prefixes):
         for p in prefixes:
             if re.search(r"(?<![a-z0-9_.-])" + re.escape(p) + r"(?:/|\b)", lc):
                 return True
+    if command and cwd:
+        for p in command_paths(command, cwd):
+            if under(p, prefixes) or under(os.path.realpath(p), prefixes):
+                return True
     return False
+
+
+def command_paths(command, cwd):
+    """Every word of the command resolved against cwd (~ expanded); a word may or may not be a path."""
+    try:
+        lex = shlex.shlex(command, posix=True, punctuation_chars=True)
+        lex.whitespace_split = True
+        words = list(lex)
+    except ValueError:
+        words = command.split()
+    out = set()
+    for w in words:
+        if "=" in w:
+            w = w.split("=", 1)[1]
+        if not w or w.startswith("-") or w[0] in ";&|<>()":
+            continue
+        w = os.path.expanduser(w)
+        out.add(os.path.normpath(w if os.path.isabs(w) else os.path.join(cwd, w)))
+    return out
 
 
 # ---------------------------------------------------------------- transcripts
@@ -194,6 +237,8 @@ def build_actions(raw, prefixes):
     actions = collections.OrderedDict()
     n_excl = 0
     for r in sorted(raw, key=lambda r: r["dt"]):
+        if r["tool"] == "Bash":
+            r = dict(r, command=strip_heredocs(r["command"]))
         text = r.get("command") if r["tool"] == "Bash" else r["path"]
         if excluded(r["cwd"], r.get("path"), r.get("command"), prefixes):
             n_excl += 1
@@ -279,22 +324,25 @@ def best_risk(probs):
 
 
 def blocked_by(action, blocks):
-    """The block row that stopped this action, or None."""
-    for blk in blocks:
+    """True when every occurrence of the action is matched by a block row (same session when the row has
+    one, within JOIN_WINDOW_S, and by logged action text when the row has any)."""
+    mine = " ".join(action["text"].split())
+
+    def matches(blk, session, dt):
+        sid = blk.get("session_id")
+        if sid and sid != session:
+            return False
+        if abs((blk["_dt"] - dt).total_seconds()) > JOIN_WINDOW_S:
+            return False
         logged = blk.get("action") if isinstance(blk.get("action"), str) else blk.get("target")
         if isinstance(logged, str) and logged:
             logged = " ".join(redact(logged).split())
-            mine = " ".join(action["text"].split())
-            if mine.startswith(logged) or logged.startswith(mine):
-                return blk
-            continue
-        sid = blk.get("session_id")
-        if not sid:
-            continue
-        for session, dt in action["seen"]:
-            if session == sid and abs((blk["_dt"] - dt).total_seconds()) <= JOIN_WINDOW_S:
-                return blk
-    return None
+            if action["tool"] in PATH_ACTION_TOOLS and logged.startswith(action["tool"] + " "):
+                logged = logged[len(action["tool"]) + 1:]
+            return mine.startswith(logged) or logged.startswith(mine)
+        return bool(sid)
+
+    return all(any(matches(b, session, dt) for b in blocks) for session, dt in action["seen"])
 
 
 # ---------------------------------------------------------------- report

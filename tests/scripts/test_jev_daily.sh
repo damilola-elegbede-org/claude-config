@@ -81,7 +81,7 @@ has "origin live" "$R" "| live | 3 | 0 (0.0%) | 200 ms / 400 ms |"
 has "origin test" "$R" "| test | 1 | 1 (100.0%) |"
 has "origin replay shadow count" "$R" "| replay | 0 | 0 (n/a) | n/a / n/a | \$0.0000 | 0 | 2 | 0 |"
 has "rows without an origin are unknown" "$R" "| unknown | 1 |"
-has "origin order live before unknown" "$(printf '%s' "$R" | grep -n '^| live\|^| unknown' | tr '\n' ' ')" "| live"
+eq "origin order live before unknown" "| live" "$(printf '%s\n' "$R" | grep -m1 '^| live\|^| unknown' | cut -c1-6)"
 
 echo "== empty day and bad input"
 E=$(python3 -I "$SUMMARY" --date 2026-01-01 --log "$LOG" --stdout)
@@ -132,6 +132,7 @@ printf '%s\n' "${JEV_ORIGIN:-}" >>"$STUB_ORIGIN_LOG"
 case "$REQ" in
   *"rm -rf"*) P='{"data_loss":0.9,"none":0.1}' ;;
   *"deploy --prod"*) P='{"prod_system":0.85,"reversible":0.15}' ;;
+  *"blockme.md"*) P='{"irreversible":0.9,"none":0.1}' ;;
   *"git push origin main"*) P='{"irreversible":0.82,"reversible":0.18}' ;;
   *) P='{"none":0.9,"data_loss":0.05,"reversible":0.05}' ;;
 esac
@@ -189,11 +190,39 @@ echo "== nightly audit: join by session and time when the gate row has no action
 LOG2="$T/decisions2.jsonl"
 cat >"$LOG2" <<'EOF'
 {"ts":"2026-10-04T13:05:10Z","gate":"G4-prod","mode":"enforce","outcome":"deny","src":"hook:jev-gate","tool":"Bash","action_sha":"ccc","session_id":"sess-1"}
+{"ts":"2026-10-04T13:06:10Z","gate":"G4-prod","mode":"enforce","outcome":"deny","src":"hook:jev-gate","tool":"Bash","action_sha":"ccd","session_id":"sess-1"}
 {"ts":"2026-10-04T14:00:00Z","gate":"G4-prod","mode":"enforce","outcome":"deny","src":"hook:jev-gate","tool":"Bash","action_sha":"ddd","session_id":"other-session"}
 EOF
 S2=$(python3 -I "$AUDIT" --date 2026-10-04 --projects "$PROJ" --log "$LOG2" --stdout)
 lacks "deploy blocked by session+time join: not reported" "$S2" "deploy --prod"
 has "same time, different session: still reported" "$S2" "git push origin main"
+
+echo "== nightly audit: heredoc bodies, relative paths, per-occurrence blocks"
+PROJ2="$T/projects2"
+mkdir -p "$PROJ2/-q1"
+{
+  ev 2026-10-04T13:00:00Z '{"type":"tool_use","name":"Bash","input":{"command":"cat > private.conf <<EOF\nHEREDOC-BODY-MUST-NOT-LEAK\nEOF\nrm -rf ./after"}}' "$GOODCWD" sess-9
+  ev 2026-10-04T13:01:00Z '{"type":"tool_use","name":"Bash","input":{"command":"cat ../../work/REL-EXCLUDED-MARK/x.txt"}}' "$GOODCWD" sess-9
+  ev 2026-10-04T13:02:00Z '{"type":"tool_use","name":"Write","input":{"file_path":"/Users/x/blockme.md"}}' "$GOODCWD" sess-9
+  ev 2026-10-04T13:03:00Z '{"type":"tool_use","name":"Bash","input":{"command":"rm -rf ./twice"}}' "$GOODCWD" sess-9
+  ev 2026-10-04T15:03:00Z '{"type":"tool_use","name":"Bash","input":{"command":"rm -rf ./twice"}}' "$GOODCWD" sess-9
+} >"$PROJ2/-q1/s9.jsonl"
+D2=$(python3 -I "$AUDIT" --date 2026-10-04 --projects "$PROJ2" --log "$LOG" --dry-run)
+lacks "heredoc body is not listed" "$D2" "HEREDOC-BODY-MUST-NOT-LEAK"
+has "heredoc command line is kept with a placeholder" "$D2" "cat > private.conf <<EOF [heredoc body omitted] rm -rf ./after"
+lacks "a relative path into an excluded tree is skipped" "$D2" "REL-EXCLUDED-MARK"
+has "relative-path skip is counted" "$D2" "skipped (excluded paths) 1"
+LOG3="$T/decisions3.jsonl"
+cat >"$LOG3" <<'EOF'
+{"ts":"2026-10-04T13:02:00Z","gate":"G2-write","mode":"enforce","outcome":"deny","src":"hook:jev-gate","tool":"Write","session_id":"sess-9","action":"Write /Users/x/blockme.md"}
+{"ts":"2026-10-04T13:03:00Z","gate":"G1-rm","mode":"enforce","outcome":"deny","src":"hook:jev-gate","tool":"Bash","session_id":"sess-9","action":"rm -rf ./twice"}
+EOF
+: >"$STUB_LOG"
+S3=$(python3 -I "$AUDIT" --date 2026-10-04 --projects "$PROJ2" --log "$LOG3" --stdout)
+lacks "heredoc body never reaches the client" "$(cat "$STUB_LOG")" "HEREDOC-BODY-MUST-NOT-LEAK"
+lacks "Write block row with a tool prefix matches the path action" "$S3" "blockme.md"
+has "a second, unblocked occurrence is still reported" "$S3" "rm -rf ./twice"
+has "an unrelated unblocked action is still reported" "$S3" "rm -rf ./after"
 
 echo "== nightly audit: idempotent, summary keeps the audit section"
 python3 -I "$AUDIT" --date 2026-10-04 --projects "$PROJ" --log "$LOG" --out "$T/aout" >/dev/null
@@ -217,11 +246,14 @@ has "unavailable counted" "$U" "unavailable 5"
 
 echo "== nightly audit: unreadable config refuses to scan"
 JEV_CONFIG="$T/nope.json" python3 -I "$AUDIT" --date 2026-10-04 --projects "$PROJ" --dry-run >/dev/null 2>&1
+MISSING_RC=$?
 if [[ -f "$JSRC/jev-config.json" ]]; then
   # find_config falls back to the shipped config when the override is missing; only a corrupt file refuses
   echo '{ not json' >"$T/bad.json"
   JEV_CONFIG="$T/bad.json" python3 -I "$AUDIT" --date 2026-10-04 --projects "$PROJ" --dry-run >/dev/null 2>&1
   eq "corrupt exclude config exits 1" "1" "$?"
+else
+  eq "missing config override with no shipped config exits 1" "1" "$MISSING_RC"
 fi
 
 echo "== nightly audit through the real client in JEV_MOCK mode"
@@ -233,9 +265,13 @@ if command -v node >/dev/null 2>&1 && [[ -x "$JSRC/jev-ask" ]]; then
   has "real client in mock mode answers" "$RM" "data_loss | 0.95"
   if [[ -f "$T/state/jev/decisions.jsonl" ]]; then
     has "client logged origin audit" "$(cat "$T/state/jev/decisions.jsonl")" '"origin":"audit"'
+  else
+    bad "client wrote its decision log" "missing $T/state/jev/decisions.jsonl"
   fi
   if [[ -f "$T/record.json" ]]; then
     lacks "client payload carries no bearer token" "$(cat "$T/record.json")" "abcdefghijklmnopqrstuvwxyz0123"
+  else
+    bad "client wrote its record file" "missing $T/record.json"
   fi
 else
   echo "  (node or jev-ask missing: skipped)"
@@ -263,6 +299,15 @@ if command -v plutil >/dev/null 2>&1; then
 fi
 eq "06:30 schedule hour" "6" "$(python3 -I -c "import plistlib,sys;print(plistlib.load(open(sys.argv[1],'rb'))['StartCalendarInterval']['Hour'])" "$PL")"
 eq "06:30 schedule minute" "30" "$(python3 -I -c "import plistlib,sys;print(plistlib.load(open(sys.argv[1],'rb'))['StartCalendarInterval']['Minute'])" "$PL")"
+AH="$T/amp home"
+AR="$T/a&b|c"
+mkdir -p "$AH" "$AR/scripts" "$AR/system-configs/.claude/launchagents"
+cp "$REPO_ROOT/system-configs/.claude/launchagents/com.damilola.jev-daily-report.plist.template" "$AR/system-configs/.claude/launchagents/"
+: >"$AR/scripts/jev-daily-summary.py"
+: >"$AR/scripts/jev-nightly-audit.py"
+HOME="$AH" JEV_REPO_DIR="$AR" sh "$INSTALL" --write >/dev/null 2>&1
+APL="$AH/Library/LaunchAgents/com.damilola.jev-daily-report.plist"
+has "a path with & and | survives substitution" "$(python3 -I -c "import plistlib,sys;print(plistlib.load(open(sys.argv[1],'rb'))['ProgramArguments'][2])" "$APL" 2>&1)" "cd \"$AR\" &&"
 HOME="$H" sh "$INSTALL" --bogus >/dev/null 2>&1
 eq "unknown flag exits 2" "2" "$?"
 

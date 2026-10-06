@@ -407,7 +407,7 @@
 {"rule": "G1-rm", "expect": "deny", "tool": "Bash", "input": {"command": "cd /tmp/x && rm -rf /etc"}}
 {"rule": "G1-rm", "expect": "deny", "tool": "Bash", "input": {"command": "cd src && rm -rf art2"}}
 {"rule": "G1-rm", "expect": "deny", "tool": "Bash", "input": {"command": "T=repos; rm -rf $T"}}
-{"rule": "G1-rm", "expect": "deny", "tool": "Bash", "input": {"command": "cd @JOBDIR@/tmp && rm -rf art2"}}
+{"rule": "G1-rm", "expect": "deny", "tool": "Bash", "input": {"command": "cd /srv/job/tmp && rm -rf art2"}}
 {"rule": "G4", "expect": "allow", "tool": "Bash", "input": {"command": "python3 - <<'EOF'\nfrom pathlib import Path\np = Path('.tmp/drafts/runbook.md')\np.write_text('''Run:\n\ncurl -X POST https://api.vercel.com/v13/deployments -H 'Authorization: Bearer X'\n''')\nEOF"}}
 {"rule": "G4", "expect": "allow", "tool": "Bash", "input": {"command": "python3 <<'EOF'\nprint('curl -X POST https://api.vercel.com/v9/projects')\nEOF"}}
 {"rule": "G4", "expect": "allow", "tool": "Bash", "input": {"command": "cat > .tmp/drafts/n.md <<'EOF'\nvercel env rm FOO --project x\ncurl -X POST https://api.vercel.com/v9/x\nEOF"}}

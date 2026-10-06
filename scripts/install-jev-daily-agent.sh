@@ -65,7 +65,13 @@ fi
 mkdir -p "$TARGET_DIR"
 # launchd opens StandardOutPath/StandardErrorPath before the job runs, so the directory must exist.
 mkdir -p "$HOME/.claude/logs"
-sed -e "s|__HOME__|$HOME|g" -e "s|__REPO__|$REPO_DIR|g" "$TEMPLATE" > "$TARGET"
+# The values land inside XML text, so escape & < > " first, then escape \, | and & for the sed replacement.
+sed_val() {
+    printf '%s' "$1" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g' | sed -e 's/[\\|&]/\\&/g'
+}
+HOME_ESC="$(sed_val "$HOME")"
+REPO_ESC="$(sed_val "$REPO_DIR")"
+sed -e "s|__HOME__|$HOME_ESC|g" -e "s|__REPO__|$REPO_ESC|g" "$TEMPLATE" > "$TARGET"
 echo "Wrote $TARGET"
 echo ""
 echo "Not loaded. To start it (a separate, explicit step):"

@@ -576,13 +576,15 @@ done
 TRAIL_SID="${SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}"
 if [[ "$TRAIL_SID" =~ ^[A-Za-z0-9_-]+$ ]]; then
     TRAIL_DIR="${JEV_CLAUDE_DIR:-$HOME/.claude}/jev-state/last-deny"
-    if mkdir -p "$TRAIL_DIR" 2>/dev/null; then
+    (
+        umask 077
+        mkdir -p "$TRAIL_DIR" 2>/dev/null || exit 0
         jq -nc --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --argjson epoch "$(date +%s)" --arg tool "$TOOL" \
             --arg rule "${BLOCK_IDS[0]}" --arg norm "$(printf '%s' "$RESULT" | jq -r '.norm // ""' 2>/dev/null)" \
             '{ts:$ts,epoch:$epoch,src:"gate.sh",tool:$tool,rule:$rule,norm:$norm}' >"$TRAIL_DIR/$TRAIL_SID.json.$$" 2>/dev/null \
             && mv -f "$TRAIL_DIR/$TRAIL_SID.json.$$" "$TRAIL_DIR/$TRAIL_SID.json" 2>/dev/null
         rm -f "$TRAIL_DIR/$TRAIL_SID.json.$$" 2>/dev/null
-    fi
+    )
 fi
 jq -nc --arg r "$REASON" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}'
 exit 0

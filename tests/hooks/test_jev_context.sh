@@ -850,6 +850,20 @@ B="$(calls)"
 JEV_MOCK="$TEST_HOME/job.json" run_hook a7-a8-prompt-context.sh "$IN"
 check "interactive: every prompt is considered (second prompt calls Jev)" bash -c "! [ \"\$(wc -l <'$STUB_COUNT' | tr -d ' ')\" = $B ]"
 check "interactive: no first-prompt marker" test ! -e "$HOME/.claude/jev-cache/state/int1.first"
+# a bgjob whose first prompt is a slash command or too short must not use up its first-prompt marker
+prompt_input "/verify" job3
+B="$(calls)"
+CLAUDE_JOB_DIR=/tmp/job JEV_MOCK="$TEST_HOME/job.json" run_hook a7-a8-prompt-context.sh "$IN"
+check "bgjob slash first prompt: no Jev call" no_new_calls "$B"
+check "bgjob slash first prompt: marker not consumed" test ! -e "$HOME/.claude/jev-cache/state/job3.first"
+prompt_input "ok" job3
+CLAUDE_JOB_DIR=/tmp/job JEV_MOCK="$TEST_HOME/job.json" run_hook a7-a8-prompt-context.sh "$IN"
+check "bgjob short first prompt: no Jev call" no_new_calls "$B"
+check "bgjob short first prompt: marker not consumed" test ! -e "$HOME/.claude/jev-cache/state/job3.first"
+prompt_input "please verify the config change works end to end" job3
+CLAUDE_JOB_DIR=/tmp/job JEV_MOCK="$TEST_HOME/job.json" run_hook a7-a8-prompt-context.sh "$IN"
+check "bgjob first qualifying prompt after a skipped one: evaluated" bash -c "! [ \"\$(wc -l <'$STUB_COUNT' | tr -d ' ')\" = $B ]"
+check "bgjob first qualifying prompt: marker written" test -e "$HOME/.claude/jev-cache/state/job3.first"
 
 # ------------------------------------------------------------------ registry / wiring
 echo "registry + wiring"
