@@ -139,6 +139,13 @@ function registryFiles() {
   }
   return files;
 }
+// The session type a per-session-type mode resolves for (same as registry.sh jev_reg_ctx).
+function registryCtx() {
+  if (process.env.JEV_REG_CTX) return process.env.JEV_REG_CTX;
+  if (process.env.BARECLAUDE_AGENT_SLUG) return "fleet";
+  if (process.env.CLAUDE_JOB_DIR) return "bgjob";
+  return "interactive";
+}
 function rulesRegistry() {
   const reg = { exempt_agents: undefined, choice_questions: undefined, rules: {} };
   for (const f of registryFiles()) {
@@ -149,6 +156,13 @@ function rulesRegistry() {
     if (ex !== undefined) reg.exempt_agents = ex;
     if (cq !== undefined && cq !== null) reg.choice_questions = deepMerge(reg.choice_questions, cq);
     reg.rules = deepMerge(reg.rules, wrapped && typeof wrapped === "object" ? wrapped : flat);
+  }
+  // A mode may be an object keyed by session type; resolve it to this session's string (registry.sh does the same).
+  const ctx = registryCtx();
+  for (const r of Object.values(reg.rules)) {
+    if (r && typeof r === "object" && r.mode && typeof r.mode === "object" && !Array.isArray(r.mode)) {
+      r.mode = r.mode[ctx] ?? r.mode.default ?? "off";
+    }
   }
   return reg;
 }
@@ -494,8 +508,18 @@ function confidenceOf(answers) {
   return null;
 }
 
+// The per-row session fields every decision-log writer adds (registry.sh jev_decision_log adds the same).
+function sessionFields() {
+  return {
+    origin: process.env.JEV_ORIGIN || "live",
+    session_id: process.env.CLAUDE_CODE_SESSION_ID || null,
+    entrypoint: process.env.CLAUDE_CODE_ENTRYPOINT || null,
+  };
+}
+
 function shadowLog(entry) {
   const ts = new Date().toISOString();
+  entry = { ...entry, ...sessionFields() };
   try {
     // Legacy per-call log, kept as an ALIAS for one release; decisions.jsonl below is the log to read.
     appendLog(stateDir(), "jev-shadow", JSON.stringify({ ts, ...entry }));
