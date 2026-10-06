@@ -21,7 +21,10 @@ const band = (isWorking = true) =>
     },
   }) as const;
 
-const pane = (surface: "terminal" | "desktop") =>
+const pane = (
+  surface: "terminal" | "desktop",
+  view: { agentId?: string } = {},
+) =>
   ({
     plugin,
     surface,
@@ -33,7 +36,7 @@ const pane = (surface: "terminal" | "desktop") =>
       bodyColumns: 60,
       placement: "dock",
       scroll,
-      view: {},
+      view,
     },
   }) as const;
 
@@ -158,6 +161,32 @@ describe("glassbox", () => {
     expect(await ui.find({ text: /Activity · main/ })).toBeDefined();
 
     await ui.press({ key: "agent-a1" });
+    expect(
+      await ui.find({ text: /Activity · Explore auth code/ }),
+    ).toBeDefined();
+
+    await ui.press({ key: "back" });
+    expect(await ui.find({ text: /Activity · main/ })).toBeDefined();
+  });
+
+  test("← main wins over an open subagent transcript", async ($, on) => {
+    engine(on);
+    on("agent.spawn", () => ({ model: "sonnet", agentId: "a1" }));
+    await $.ui.mount(band());
+
+    await $.agent.spawn({
+      prompt: "look",
+      description: "Explore auth code",
+      subagentType: "Explore",
+      tool_use_id: "toolu_1",
+      provider: { plugin: "engine", tier: "core" },
+      parentModel: "sonnet",
+      background: false,
+      fork: false,
+    });
+
+    // The person has a1's transcript open: the pane follows it.
+    const ui = await $.ui.mount(pane("terminal", { agentId: "a1" }));
     expect(
       await ui.find({ text: /Activity · Explore auth code/ }),
     ).toBeDefined();

@@ -23,6 +23,11 @@ const feed = atom(
   { plugin: "glassbox", key: "feed" } as const,
   [] as FeedItem[],
 );
+// The agent the pane is drilled into: an agent id, MAIN when the person chose
+// the main loop, or null to follow whichever transcript is open. MAIN has to
+// be its own value, or "← main" would fall straight back to the open
+// transcript's agent.
+const MAIN = "main";
 const selected = atom(
   { plugin: "glassbox", key: "selected" } as const,
   null as string | null,
@@ -389,8 +394,11 @@ export const register: Register = (on) => {
     const now = await $.clock.now();
     const done = list.filter((x) => x.status === "completed").length;
 
-    // Follow the agent picked here, else the agent whose transcript is open.
-    const pick = (await read($, selected)) ?? e.props.view.agentId ?? null;
+    // Follow the agent picked here, else the agent whose transcript is open,
+    // unless the person chose the main loop.
+    const choice = await read($, selected);
+    const pick =
+      choice === MAIN ? null : (choice ?? e.props.view.agentId ?? null);
     const focus = pick ? runs.find((r) => r.id === pick) : undefined;
     const shown = items.filter((i) =>
       focus ? i.agentId === focus.id : !i.agentId,
@@ -444,7 +452,7 @@ export const register: Register = (on) => {
                   key={`agent-${r.id}`}
                   label={`${agentMark[r.status]} ${clip(r.description, Math.max(8, width - 30))}`}
                   onPress={() =>
-                    update($, selected, (cur) => (cur === r.id ? null : r.id))
+                    update($, selected, (cur) => (cur === r.id ? MAIN : r.id))
                   }
                 />
                 <Text dimColor>
@@ -468,7 +476,7 @@ export const register: Register = (on) => {
               <Button
                 key="back"
                 label="← main"
-                onPress={() => update($, selected, () => null)}
+                onPress={() => update($, selected, () => MAIN)}
               />
             )}
           </Box>
