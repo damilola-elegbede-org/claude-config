@@ -139,6 +139,27 @@ describe("glassbox", () => {
     expect(await ui.find({ text: /0\/2/ })).toBeDefined();
   });
 
+  test("activity lists the newest first, the last 50 only", async ($, on) => {
+    engine(on);
+    on("tool.call", () => ({ result: {} }));
+    await $.ui.mount(band());
+
+    for (let n = 1; n <= 60; n++) {
+      await $.tool.call({ tool: "Bash", command: `step ${n}` });
+    }
+
+    const ui = await $.ui.mount(pane("terminal"));
+    const rows = await ui.findAll({ type: "Text", text: /▸ Bash step \d+$/ });
+    const steps = rows
+      .map((r) => r.text.match(/step (\d+)$/)?.[1])
+      .filter((s) => s !== undefined)
+      .map(Number);
+    const unique = steps.filter((s, i) => steps.indexOf(s) === i);
+    expect(unique).toHaveLength(50);
+    expect(unique[0]).toBe(60);
+    expect(unique.at(-1)).toBe(11);
+  });
+
   test("a subagent can be drilled into and back out of", async ($, on) => {
     engine(on);
     on("agent.spawn", () => ({ model: "sonnet", agentId: "a1" }));

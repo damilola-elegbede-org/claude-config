@@ -13,6 +13,8 @@ import type { AgentRun, AgentState, FeedItem, FeedKind, Task } from "../types";
 
 const PANE = "glassbox";
 const FEED_MAX = 400;
+// Activity rows the pane lists, newest on top; the person scrolls through them.
+const ACTIVITY_MAX = 50;
 
 const tasks = atom({ plugin: "glassbox", key: "tasks" } as const, [] as Task[]);
 const agents = atom(
@@ -403,11 +405,6 @@ export const register: Register = (on) => {
     const shown = items.filter((i) =>
       focus ? i.agentId === focus.id : !i.agentId,
     );
-    const room = Math.max(
-      5,
-      e.props.scroll.bodyRows - 9 - list.length - runs.length,
-    );
-
     return (
       <Box flexDirection="column">
         <Text bold>Progress</Text>
@@ -481,19 +478,23 @@ export const register: Register = (on) => {
             )}
           </Box>
           {shown.length === 0 && <Text dimColor>Nothing yet.</Text>}
-          {shown.slice(-room).map((i) => {
-            const age = duration(now - i.at).padStart(6);
-            return (
-              <Text
-                dimColor={i.kind === "thinking"}
-                italic={i.kind === "thinking"}
-                color={i.kind === "agent" ? "magenta" : undefined}
-              >
-                <Text dimColor>{age} </Text>
-                {glyph[i.kind]} {clip(i.text, width - 10)}
-              </Text>
-            );
-          })}
+          {/* Newest first; the pane scrolls through the last ACTIVITY_MAX. */}
+          {shown
+            .slice(-ACTIVITY_MAX)
+            .reverse()
+            .map((i) => {
+              const age = duration(now - i.at).padStart(6);
+              return (
+                <Text
+                  dimColor={i.kind === "thinking"}
+                  italic={i.kind === "thinking"}
+                  color={i.kind === "agent" ? "magenta" : undefined}
+                >
+                  <Text dimColor>{age} </Text>
+                  {glyph[i.kind]} {clip(i.text, width - 10)}
+                </Text>
+              );
+            })}
         </Box>
       </Box>
     );

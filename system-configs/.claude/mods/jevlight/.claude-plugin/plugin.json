@@ -1,7 +1,8 @@
 {
   "name": "jevlight",
   "version": "0.1.0",
-  "description": "A visual marker each time Jev acts: a toast when it blocks or adds context, a running count under the prompt",
-  "author": { "name": "Damilola Elegbede" },
-  "types": "./types/index.d.ts"
+  "description": "A visual marker each time Jev acts: one sky-blue line in the transcript per action",
+  "author": {
+    "name": "Damilola Elegbede"
+  }
 }
