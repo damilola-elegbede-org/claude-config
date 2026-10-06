@@ -35,8 +35,8 @@ scripts/sync.sh                # deploys the skills; checks the list below
 
 | Check                                                                    | Failure                                         |
 | ------------------------------------------------------------------------ | ----------------------------------------------- |
-| `higgsfield` on PATH                                                     | blocks the sync, prints the install command     |
-| `python3`                                                                | blocks the sync (brandkit and websites scripts) |
+| `higgsfield` on PATH                                                     | blocks laptop syncs (no manifest); warns on manifest stations like the fleet node     |
+| `python3`                                                                | same as above (brandkit and websites scripts) |
 | `higgsfield account status` (login and workspace, needs network)         | warning only                                    |
 | `rsvg-convert`, `soffice`, `pdftoppm`, `fc-match`, `magick` or `convert` | warning only (brandkit export stages)           |
 
@@ -53,5 +53,5 @@ yet). Two ways to give a station access:
 2. Copy `~/.config/higgsfield/credentials.json`. It holds the access and refresh token for the signing-in account, so treat it as a
    password and never paste it into chat.
 
-Either way the station spends the credits of the account that signed in. A fleet station also needs the CLI installed (`/sync` blocks
-until it is).
+Either way the station spends the credits of the account that signed in. A fleet station also needs the CLI installed and signed in to run the
+skills (`/sync` only warns there, so a merge never blocks it).

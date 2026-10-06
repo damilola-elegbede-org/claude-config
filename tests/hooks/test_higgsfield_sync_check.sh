@@ -76,6 +76,20 @@ run_sync signedout "$T/stub:$CLEAN_PATH" 1
 if grep -q "higgsfield not ready" <<<"$SYNC_OUT"; then ok; else bad "signed out: warns with the login command"; fi
 if [[ "$SYNC_RC" -eq 0 ]]; then ok; else bad "signed out: warns but still syncs (rc=$SYNC_RC)"; fi
 
+# A station with a manifest (the fleet node) only warns, so a merge never blocks its sync.
+# sync.sh finds its manifest from its own location + the host name, so run a copy inside a temp repo layout.
+STATION="$(scutil --get LocalHostName 2>/dev/null || hostname -s)"
+mkdir -p "$T/repo/scripts" "$T/repo/sync-manifests"
+cp "$SYNC" "$T/repo/scripts/sync.sh"
+ln -s "$REPO_ROOT/system-configs" "$T/repo/system-configs"
+printf '%s\n' '{"mode":"scoped","sync":{"settings":false}}' >"$T/repo/sync-manifests/$STATION.json"
+SYNC_SAVED="$SYNC"
+SYNC="$T/repo/scripts/sync.sh"
+run_sync manifest "$CLEAN_PATH" 0
+SYNC="$SYNC_SAVED"
+if grep -q "higgsfield not found on $STATION" <<<"$SYNC_OUT"; then ok; else bad "manifest station: warns instead of failing (got: $(grep -i higgsfield <<<"$SYNC_OUT" | head -2))"; fi
+if [[ "$SYNC_RC" -eq 0 ]]; then ok; else bad "manifest station: sync still succeeds without the CLI (rc=$SYNC_RC)"; fi
+
 run_sync skipped "$CLEAN_PATH" 0 HIGGSFIELD_SYNC_SKIP_CHECK=1
 if [[ "$SYNC_RC" -eq 0 ]] && ! grep -q "higgsfield" <<<"$(grep -i 'prereq\|✅\|❌' <<<"$SYNC_OUT")"; then ok; else bad "HIGGSFIELD_SYNC_SKIP_CHECK=1: check is skipped (rc=$SYNC_RC)"; fi
 

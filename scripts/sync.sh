@@ -913,6 +913,9 @@ check_prerequisites() {
             else
                 print_warning "higgsfield not ready (run: higgsfield auth login, then higgsfield workspace list / workspace set <id>) - or offline; the higgsfield-* skills cannot generate until fixed"
             fi
+        elif [ "$HAVE_MANIFEST" = "true" ]; then
+            # manifest stations (the fleet node) are scoped on purpose: warn so a merge never blocks their sync
+            print_warning "higgsfield not found on $STATION - the higgsfield-* skills cannot run there (npm i -g @higgsfield/cli, then higgsfield auth login)"
         else
             print_error "higgsfield not found - the higgsfield-* skills need the CLI (npm i -g @higgsfield/cli, then higgsfield auth login)"
             prereq_fail=1
@@ -920,6 +923,8 @@ check_prerequisites() {
         # python3 runs the skill scripts; the rest are only brandkit's export stages.
         if command -v python3 >/dev/null 2>&1; then
             echo "  ✅ python3"
+        elif [ "$HAVE_MANIFEST" = "true" ]; then
+            print_warning "python3 not found on $STATION - the higgsfield-brandkit and higgsfield-websites scripts cannot run there (brew install python)"
         else
             print_error "python3 not found - the higgsfield-brandkit and higgsfield-websites scripts need it (brew install python)"
             prereq_fail=1
