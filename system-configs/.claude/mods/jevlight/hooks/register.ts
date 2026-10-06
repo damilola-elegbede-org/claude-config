@@ -79,6 +79,12 @@ const mark = ($: EngineInterface, where: string, r: unknown) => {
 const keepJev = <E, R>(_$: unknown, e: E, next: (e: E) => R) => next(e);
 
 export const register: Register = (on) => {
+  // 0.1.0 pinned a status line, which outlives a reload; clear it.
+  on("session.start", async ($, e, next) => {
+    $.ui.status(undefined);
+    return next(e);
+  });
+
   on("classic.PreToolUse", async ($, e, next) => {
     const r = await next(e);
     mark($, e.tool, r);
