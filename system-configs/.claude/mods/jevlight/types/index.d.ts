@@ -6,6 +6,7 @@ declare module "claude-code" {
   interface PluginState {
     jevlight: {
       marks: Marks;
+      sid: string | null;
     };
   }
 }

@@ -8,9 +8,10 @@ import type { Marks } from "../types";
 // awaiting `next(e)` here returns what they decided. A pass leaves no mark.
 //
 // An action on a tool call is drawn as a sky-blue line under that call's row
-// in the transcript (its result, or its folded group like "Read 3 files"), so
-// it stays in the record. An action with no tool row (a held stop, a note on
-// the prompt) is a plain transcript line: log lines cannot carry colour.
+// in the transcript (its result, or its group like "Read 3 files"), so it
+// stays in the record; the marks are saved per session, so a resume draws them
+// again. An action with no tool row (a held stop, a note on the prompt) is a
+// plain transcript line: log lines cannot carry colour.
 //
 // It only watches: every hook returns the result it was handed, unchanged. It
 // cannot tell which settings hook acted, so a non-Jev settings hook that acts
@@ -33,8 +34,15 @@ export const SKY = "#87CEEB";
 const LINE_MAX = 120;
 // Calls whose marks are kept; older ones scroll out of view anyway.
 const KEEP = 200;
+// Sessions whose marks the store keeps, so a resume can draw them again.
+const SESSIONS_KEPT = 20;
 
 const marks = atom({ plugin: "jevlight", key: "marks" } as const, {} as Marks);
+// The session the marks belong to, learned from any settings hook event.
+const sid = atom(
+  { plugin: "jevlight", key: "sid" } as const,
+  null as string | null,
+);
 
 export const firstLine = (text: string) => {
   const line =
@@ -59,8 +67,10 @@ export const actionsOf = (where: string, r: Outcome | undefined): string[] => {
   if (r.preventContinuation) {
     lines.push(`stopped the session${said(r.stopReason ?? "")}`);
   }
-  const context = (r.additionalContext ?? []).filter((c) => c.trim() !== "");
-  if (context.length > 0) lines.push(`noted ${where}${said(context[0] ?? "")}`);
+  // Each hook that added context is its own action.
+  for (const c of r.additionalContext ?? []) {
+    if (c.trim() !== "") lines.push(`noted ${where}${said(c)}`);
+  }
   if (r.updatedInput !== undefined) lines.push(`rewrote ${where}'s input`);
   if (
     r.updatedToolOutput !== undefined ||
@@ -81,6 +91,31 @@ export const addMarks = (all: Marks, id: string, lines: string[]): Marks => {
   return next;
 };
 
+// Saves this session's marks, keeping the newest SESSIONS_KEPT sessions.
+const persist = async ($: EngineInterface) => {
+  const session = await read($, sid);
+  if (!session) return;
+  await $.store.set(`marks:${session}`, await read($, marks));
+  const kept = ((await $.store.get("sessions")) as string[] | undefined) ?? [];
+  const sessions = [...kept.filter((s) => s !== session), session];
+  for (const old of sessions.slice(0, -SESSIONS_KEPT)) {
+    await $.store.delete(`marks:${old}`);
+  }
+  await $.store.set("sessions", sessions.slice(-SESSIONS_KEPT));
+};
+
+// Learns the session id; on a resume, draws its saved marks again.
+const remember = async ($: EngineInterface, session: string) => {
+  try {
+    if ((await read($, sid)) === session) return;
+    await update($, sid, () => session);
+    const saved = (await $.store.get(`marks:${session}`)) as Marks | undefined;
+    if (saved) await update($, marks, (all) => ({ ...saved, ...(all ?? {}) }));
+  } catch {
+    // losing old marks never stops the session
+  }
+};
+
 // A marker must never break the hook chain: a failure to record it is dropped.
 const mark = async (
   $: EngineInterface,
@@ -91,8 +126,12 @@ const mark = async (
   try {
     const lines = actionsOf(where, r as Outcome);
     if (lines.length === 0) return;
-    if (id) await update($, marks, (all) => addMarks(all ?? {}, id, lines));
-    else for (const line of lines) $.ui.log(line);
+    if (id) {
+      await update($, marks, (all) => addMarks(all ?? {}, id, lines));
+      await persist($);
+    } else {
+      for (const line of lines) $.ui.log(line);
+    }
   } catch {
     // recording the marker failed; Jev's result still goes on below
   }
@@ -109,6 +148,7 @@ export const register: Register = (on) => {
     return next(e);
   });
 
+  // PreToolUse carries no session id; the events around it teach `sid`.
   on("classic.PreToolUse", async ($, e, next) => {
     const r = await next(e);
     await mark($, e.tool, r, e.tool_use_id);
@@ -116,30 +156,35 @@ export const register: Register = (on) => {
   }).catch(keepJev);
 
   on("classic.PostToolUse", async ($, e, next) => {
+    await remember($, e.session_id);
     const r = await next(e);
     await mark($, `${e.tool_name} output`, r, e.tool_use_id);
     return r;
   }).catch(keepJev);
 
   on("classic.PostToolUseFailure", async ($, e, next) => {
+    await remember($, e.session_id);
     const r = await next(e);
     await mark($, `${e.tool_name} failure`, r, e.tool_use_id);
     return r;
   }).catch(keepJev);
 
   on("classic.UserPromptSubmit", async ($, e, next) => {
+    await remember($, e.session_id);
     const r = await next(e);
     await mark($, "your prompt", r);
     return r;
   }).catch(keepJev);
 
   on("classic.Stop", async ($, e, next) => {
+    await remember($, e.session_id);
     const r = await next(e);
     await mark($, "the stop", r);
     return r;
   }).catch(keepJev);
 
   on("classic.SessionStart", async ($, e, next) => {
+    await remember($, e.session_id);
     const r = await next(e);
     await mark($, "session start", r);
     return r;
@@ -160,9 +205,8 @@ export const register: Register = (on) => {
     );
   });
 
-  // And under a folded group ("Read 3 files"), whose calls draw no result row.
+  // And under a group of calls ("Read 3 files"), folded or expanded.
   on("ui.render", { component: "ToolGroup" }, async ($, e, next) => {
-    if (e.props.isExpanded) return next(e);
     const all = await read($, marks);
     const lines = e.props.calls.flatMap((c) =>
       c.tool_use_id ? (all[c.tool_use_id] ?? []) : [],

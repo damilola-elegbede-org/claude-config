@@ -17,6 +17,21 @@ const engine = (on: On) => {
   return logged;
 };
 
+// The store across sessions, held in memory for one test.
+const memoryStore = (on: On) => {
+  const data = new Map<string, unknown>();
+  on("store.get", (_$, e) => ({ value: data.get(e.key) }));
+  on("store.set", (_$, e) => {
+    data.set(e.key, e.value);
+    return { value: undefined };
+  });
+  on("store.delete", (_$, e) => {
+    data.delete(e.key);
+    return { value: undefined };
+  });
+  return data;
+};
+
 const result = (surface: "terminal" | "desktop", tool_use_id: string) =>
   ({
     plugin,
@@ -105,10 +120,56 @@ describe("jevlight", () => {
       duration_ms: 1,
     });
 
-    const folded = await $.ui.mount(group(["r1", "r2"]));
+    for (const isExpanded of [false, true]) {
+      const ui = await $.ui.mount(group(["r1", "r2"], isExpanded));
+      expect(
+        (await ui.find({ type: "Text", text: /trimmed Read output/ }))?.props
+          .color,
+      ).toBe(SKY);
+    }
+  });
+
+  test("every hook that added context gets its own line", () => {
     expect(
-      (await folded.find({ type: "Text", text: /trimmed Read output/ }))?.props
-        .color,
+      actionsOf("Bash failure", {
+        additionalContext: ["Retry bound hit", "", "Known papercut"],
+      }),
+    ).toEqual([
+      "⚡ Jev noted Bash failure: Retry bound hit",
+      "⚡ Jev noted Bash failure: Known papercut",
+    ]);
+  });
+
+  test("marks are saved under the session", async ($, on) => {
+    engine(on);
+    const store = memoryStore(on);
+    on("classic.PostToolUse", () => ({ updatedToolOutput: "short" }));
+    await $.classic.PostToolUse({
+      session_id: "s1",
+      tool_name: "Read",
+      tool_use_id: "r1",
+      tool_input: {},
+      tool_response: {},
+      duration_ms: 1,
+    });
+
+    expect(store.get("marks:s1")).toEqual({
+      r1: ["⚡ Jev trimmed Read output"],
+    });
+    expect(store.get("sessions")).toEqual(["s1"]);
+  });
+
+  test("a resumed session draws its saved marks again", async ($, on) => {
+    engine(on);
+    const store = memoryStore(on);
+    store.set("marks:s2", { t9: ["⚡ Jev blocked Bash: saved earlier"] });
+    on("classic.UserPromptSubmit", () => ({}));
+
+    await $.classic.UserPromptSubmit({ session_id: "s2", prompt: "hi" });
+
+    const ui = await $.ui.mount(result("terminal", "t9"));
+    expect(
+      (await ui.find({ type: "Text", text: /saved earlier/ }))?.props.color,
     ).toBe(SKY);
   });
 
