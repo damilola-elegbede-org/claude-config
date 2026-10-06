@@ -76,7 +76,7 @@ jev_redact() {
     s/\bglpat-[A-Za-z0-9_-]{16,}/[REDACTED]/g;
     s/\b(Bearer|Basic|token)\s+[A-Za-z0-9._~+\/=-]{12,}/$1 [REDACTED]/gi;
     s{(://)[^/\s:@\\"]+:[^/\s@\\"]+@}{$1\[REDACTED\]@}g;
-    s{(\b[A-Za-z0-9_-]*(?:key|token|secret|pass|pwd|credential|auth)[A-Za-z0-9_-]*\s*[=:]\s*)(?:(\\"|")[^"\\]*|(\x27)[^\x27\\"]*|[^\s"\x27\\]+)}{$1.(defined $2 ? $2 : defined $3 ? $3 : "")."[REDACTED]"}gie; # NAME=value, NAME: value, export NAME=..., --flag=value: any length, quoted or not
+    s{(\b[A-Za-z0-9_-]*(?:key|token|secret|pass|pwd|credential|auth)[A-Za-z0-9_-]*\s*[=:]\s*)(?:(\\"|")[^"\\]*|(\x27)[^\x27\\"]*|[^\s"\x27\\]+)}{$1.(defined $2 ? $2 : defined $3 ? $3 : "")."[REDACTED]"}gie; # redaction pattern: NAME=value, NAME: value, export NAME=..., --flag=value: any length, quoted or not
     s{(--[A-Za-z0-9_-]*(?:key|token|secret|pass|pwd|credential|auth)[A-Za-z0-9_-]*\s+)(?!-)(?:(\\"|")[^"\\]*|(\x27)[^\x27\\"]*|[^\s"\x27\\]+)}{$1.(defined $2 ? $2 : defined $3 ? $3 : "")."[REDACTED]"}gie; # --password VALUE
     s/[A-Za-z0-9+_=-]{40,}/[REDACTED-LONG]/g;
   '
