@@ -633,7 +633,8 @@ export const register: Register = (on) => {
           : r.status === "waiting"
             ? C.warn
             : C.bad;
-      const meta = `${r.ctx > 0 ? `${kTokens(r.ctx)} ctx · ` : ""}${r.tools} ${r.tools === 1 ? "tool" : "tools"} ·`;
+      const calls = `${r.tools} ${r.tools === 1 ? "tool" : "tools"} ·`;
+      const meta = r.ctx > 0 ? `${kTokens(r.ctx)} ctx · ${calls}` : calls;
       return (
         <Box width={inner} justifyContent="space-between">
           <Box>
