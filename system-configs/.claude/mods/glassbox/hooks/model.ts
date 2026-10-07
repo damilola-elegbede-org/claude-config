@@ -217,14 +217,47 @@ const lines = (s: unknown) =>
   str(s) ? str(s).replace(/\n$/, "").split("\n").length : 0;
 const basename = (p: string) => p.split("/").filter(Boolean).pop() ?? p;
 
-// Lines a successful edit added and removed, by its arguments. A Write that
-// replaces a file counts its new lines only: the old ones are not in the call.
-export const changeOf = (tool: string, a: Args): Change | null => {
+// Lines a hunk list adds and removes, or null when there are no hunks.
+const patchCount = (patch: unknown) => {
+  if (!Array.isArray(patch) || patch.length === 0) return null;
+  let added = 0;
+  let removed = 0;
+  for (const hunk of patch as { lines?: unknown }[])
+    for (const l of Array.isArray(hunk.lines) ? hunk.lines : []) {
+      if (typeof l !== "string") continue;
+      if (l.startsWith("+")) added += 1;
+      else if (l.startsWith("-")) removed += 1;
+    }
+  return { added, removed };
+};
+
+// Lines a successful edit added and removed. The tool's own diff is exact;
+// without one, the count falls back to the call's arguments and is marked
+// approximate, since whole bodies include unchanged lines.
+export const changeOf = (
+  tool: string,
+  a: Args,
+  out: Args = {},
+): Change | null => {
   const file = str(a.file_path) || str(a.notebook_path);
   if (!file || !EDIT_TOOLS.has(tool)) return null;
-  if (tool === "Write") return { file, added: lines(a.content), removed: 0 };
-  if (tool === "NotebookEdit")
-    return { file, added: lines(a.new_source), removed: 0 };
+  if (tool === "NotebookEdit") {
+    const mode = str(out.edit_mode) || str(a.edit_mode) || "replace";
+    const had = typeof out.old_source === "string";
+    const added = mode === "delete" ? 0 : lines(a.new_source);
+    const removed = mode === "insert" ? 0 : lines(out.old_source);
+    return mode === "insert" || had
+      ? { file, added, removed }
+      : { file, added, removed, approx: true };
+  }
+  const exact = patchCount(out.structuredPatch);
+  if (exact) return { file, ...exact };
+  if (tool === "Write" && out.originalFile === a.content)
+    return { file, added: 0, removed: 0 };
+  if (tool === "Write")
+    return out.type === "create"
+      ? { file, added: lines(a.content), removed: 0 }
+      : { file, added: lines(a.content), removed: 0, approx: true };
   const edits =
     tool === "MultiEdit" && Array.isArray(a.edits) ? (a.edits as Args[]) : [a];
   const change = edits.reduce<Change>(
@@ -235,10 +268,7 @@ export const changeOf = (tool: string, a: Args): Change | null => {
     }),
     { file, added: 0, removed: 0 },
   );
-  // replace_all does not say how many places it changed: count one, mark it.
-  return edits.some((e) => e.replace_all === true)
-    ? { ...change, approx: true }
-    : change;
+  return { ...change, approx: true };
 };
 
 // Changes summed per file, the latest-touched file first.

@@ -217,7 +217,15 @@ describe("glassbox", () => {
 
   test("edits show in the changes box, summed per file", async ($, on) => {
     engine(on);
-    on("tool.call", () => ({ result: {} }));
+    // Core returns each edit's diff; unchanged context lines count for neither.
+    const diffs = [
+      [" keep", "-a", "+b", "+c"],
+      ["-b", "-c", "+x", "+y", "+z"],
+    ];
+    let call = 0;
+    on("tool.call", () => ({
+      result: { structuredPatch: [{ lines: diffs[call++] }] },
+    }));
     await $.ui.mount(band());
 
     await $.tool.call({
@@ -233,7 +241,7 @@ describe("glassbox", () => {
     } as never);
 
     const ui = await $.ui.mount(pane("terminal"));
-    expect(await ui.find({ text: /changes 1 files \+5 −1/ })).toBeDefined();
+    expect(await ui.find({ text: /changes 1 files \+5 −3/ })).toBeDefined();
     expect(await ui.find({ text: /app\.ts/ })).toBeDefined();
   });
 
@@ -306,6 +314,34 @@ describe("glassbox", () => {
     ).toBeDefined();
     await ui.press({ key: "back" });
     expect(await ui.find({ text: /activity · Explore/ })).toBeUndefined();
+  });
+
+  test("a subagent's work before its row exists still counts", async ($, on) => {
+    engine(on);
+    on("tool.call", () => ({ result: {} }));
+    // A fast agent runs a tool while agent.spawn is still waiting on core.
+    on("agent.spawn", async () => {
+      await $.tool.call({
+        tool: "Bash",
+        command: "ls",
+        agentId: "a1",
+      } as never);
+      return { model: "sonnet", agentId: "a1" };
+    });
+    await $.ui.mount(band());
+    await $.agent.spawn({
+      prompt: "look",
+      description: "Quick look",
+      subagentType: "Explore",
+      tool_use_id: "toolu_1",
+      provider: { plugin: "engine", tier: "core" },
+      parentModel: "sonnet",
+      background: false,
+      fork: false,
+    });
+
+    const ui = await $.ui.mount(pane("terminal"));
+    expect(await ui.find({ text: /1 tool ·/ })).toBeDefined();
   });
 
   test("the agents title counts each ending, not only done", async ($, on) => {
@@ -397,6 +433,14 @@ describe("helpers", () => {
   });
 
   test("edits count the lines they add and remove", () => {
+    // the tool's diff is exact: "a\nb" → "a\nc" is one line each way
+    const edit = { file_path: "/x.ts", old_string: "a\nb", new_string: "a\nc" };
+    expect(
+      changeOf("Edit", edit, {
+        structuredPatch: [{ lines: [" a", "-b", "+c"] }],
+      }),
+    ).toEqual({ file: "/x.ts", added: 1, removed: 1 });
+    // without a diff, whole bodies are counted and marked approximate
     expect(
       changeOf("MultiEdit", {
         file_path: "/x.ts",
@@ -405,13 +449,30 @@ describe("helpers", () => {
           { old_string: "d", new_string: "e\nf\ng" },
         ],
       }),
-    ).toEqual({ file: "/x.ts", added: 4, removed: 3 });
+    ).toEqual({ file: "/x.ts", added: 4, removed: 3, approx: true });
     expect(changeOf("Read", { file_path: "/x.ts" })).toBeNull();
-    // a final newline ends a line rather than adding one
+    // a new file's final newline ends a line rather than adding one
     expect(
-      changeOf("Write", { file_path: "/x.ts", content: "a\nb\n" }),
+      changeOf(
+        "Write",
+        { file_path: "/x.ts", content: "a\nb\n" },
+        { type: "create", structuredPatch: [] },
+      ),
     ).toEqual({ file: "/x.ts", added: 2, removed: 0 });
-    // replace_all counts one occurrence and says the total is a floor
+    // notebook cells: a delete removes the old source, a replace swaps it
+    const nb = { notebook_path: "/n.ipynb", new_source: "x\ny" };
+    expect(
+      changeOf("NotebookEdit", nb, { edit_mode: "delete", old_source: "a" }),
+    ).toEqual({ file: "/n.ipynb", added: 0, removed: 1 });
+    expect(
+      changeOf("NotebookEdit", nb, { edit_mode: "replace", old_source: "a" }),
+    ).toEqual({ file: "/n.ipynb", added: 2, removed: 1 });
+    expect(changeOf("NotebookEdit", nb, { edit_mode: "insert" })).toEqual({
+      file: "/n.ipynb",
+      added: 2,
+      removed: 0,
+    });
+    // a replace_all edit without a diff is a floor
     const all = changeOf("Edit", {
       file_path: "/x.ts",
       old_string: "a",

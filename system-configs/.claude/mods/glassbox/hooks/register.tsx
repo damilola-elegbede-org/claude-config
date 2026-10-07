@@ -103,6 +103,11 @@ let hasScreen = false;
 // loop by choice, or null to follow the agent the transcript is viewing.
 const MAIN = "main";
 let focusId: string | null = null;
+// A subagent's counts, kept apart from its row: a fast agent can finish a
+// step or a tool before agent.spawn has added the row, and the spawn merges
+// what arrived early. Dropped when the agent ends.
+const counts = new Map<string, { ctx: number; tools: number }>();
+const countsOf = (id: string) => counts.get(id) ?? { ctx: 0, tools: 0 };
 
 const engineState: Record<string, AgentState> = {
   pending: "running",
@@ -132,6 +137,7 @@ const setPhase = ($: EngineInterface, phase: Phase) =>
 
 async function reset($: EngineInterface) {
   focusId = null;
+  counts.clear();
   await update($, tasks, () => []);
   await update($, agents, () => []);
   await update($, feed, () => []);
@@ -218,10 +224,12 @@ export const register: Register = (on) => {
       (u.cache_read_input_tokens ?? 0) +
       (u.cache_creation_input_tokens ?? 0);
     const id = e.agentId;
-    if (ctx > 0)
+    if (ctx > 0) {
+      counts.set(id, { ...countsOf(id), ctx });
       await update($, agents, (list) =>
         list.map((r) => (r.id === id ? { ...r, ctx } : r)),
       );
+    }
     return result;
   });
 
@@ -235,6 +243,7 @@ export const register: Register = (on) => {
           : e.reason === "aborted"
             ? "killed"
             : "failed";
+      counts.delete(e.agentId);
       await update($, agents, (list) =>
         list.map((a) =>
           a.id === e.agentId && a.status === "running"
@@ -277,6 +286,20 @@ export const register: Register = (on) => {
       ctx: 0,
     };
     await update($, agents, (list) => [...list, run]);
+    // Read after the row exists, so a count arriving now lands on one or other.
+    const early = countsOf(run.id);
+    if (early.ctx > 0 || early.tools > 0)
+      await update($, agents, (list) =>
+        list.map((r) =>
+          r.id === run.id
+            ? {
+                ...r,
+                ctx: r.ctx || early.ctx,
+                tools: Math.max(r.tools, early.tools),
+              }
+            : r,
+        ),
+      );
     await push($, {
       agentId: e.parentAgentId,
       kind: "agent",
@@ -313,6 +336,10 @@ export const register: Register = (on) => {
     await update($, checks, (list) => settle(list, e.tool_use_id, didRun));
 
     if (agentId) {
+      counts.set(agentId, {
+        ...countsOf(agentId),
+        tools: countsOf(agentId).tools + 1,
+      });
       await update($, agents, (list) =>
         list.map((r) => (r.id === agentId ? { ...r, tools: r.tools + 1 } : r)),
       );
@@ -329,7 +356,12 @@ export const register: Register = (on) => {
     }
     if (ran.isError) return ran;
 
-    const change = changeOf(tool, a);
+    const out = ran.result;
+    const change = changeOf(
+      tool,
+      a,
+      out && typeof out === "object" ? (out as Args) : {},
+    );
     if (change) await update($, changes, (list) => addChange(list, change));
 
     // The checklist is the main loop's plan.
