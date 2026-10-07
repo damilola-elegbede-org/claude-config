@@ -30,7 +30,13 @@ export type Verdict = "allowed" | "asked" | "pending" | "denied";
 
 export type Check = { id: string; tool: string; verdict: Verdict };
 
-export type Change = { file: string; added: number; removed: number };
+// approx: a replace_all edit was counted once, so the totals are a floor.
+export type Change = {
+  file: string;
+  added: number;
+  removed: number;
+  approx?: boolean;
+};
 
 export type FeedKind = "tool" | "thinking" | "say" | "agent" | "deny";
 

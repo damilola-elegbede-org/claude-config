@@ -1,4 +1,11 @@
-import type { Change, Check, FeedKind, Task, TaskStatus, Verdict } from "../types";
+import type {
+  Change,
+  Check,
+  FeedKind,
+  Task,
+  TaskStatus,
+  Verdict,
+} from "../types";
 
 // Pure data: everything here is testable without the engine.
 
@@ -39,8 +46,10 @@ const EIGHTHS = ["", "▏", "▎", "▍", "▌", "▋", "▊", "▉"];
 export const meter = (pct: number, cells: number) => {
   const width = Math.max(4, cells);
   const exact = (Math.min(100, Math.max(0, pct)) / 100) * width;
-  const whole = Math.floor(exact);
-  const edge = EIGHTHS[Math.round((exact - whole) * 8)] ?? "";
+  // An edge that rounds up to a full eighth becomes another whole cell.
+  const eighths = Math.round(exact * 8);
+  const whole = Math.floor(eighths / 8);
+  const edge = EIGHTHS[eighths % 8] ?? "";
   const on = "█".repeat(whole) + (whole < width ? edge : "");
   return { on, off: "░".repeat(Math.max(0, width - [...on].length)) };
 };
@@ -196,9 +205,16 @@ export const tally = (checks: Check[]) => {
 
 // ---------------------------------------------------------------- changes
 
-export const EDIT_TOOLS = new Set(["Edit", "MultiEdit", "Write", "NotebookEdit"]);
+export const EDIT_TOOLS = new Set([
+  "Edit",
+  "MultiEdit",
+  "Write",
+  "NotebookEdit",
+]);
 
-const lines = (s: unknown) => (str(s) ? str(s).split("\n").length : 0);
+// A final newline ends the last line; it does not start another.
+const lines = (s: unknown) =>
+  str(s) ? str(s).replace(/\n$/, "").split("\n").length : 0;
 const basename = (p: string) => p.split("/").filter(Boolean).pop() ?? p;
 
 // Lines a successful edit added and removed, by its arguments. A Write that
@@ -211,7 +227,7 @@ export const changeOf = (tool: string, a: Args): Change | null => {
     return { file, added: lines(a.new_source), removed: 0 };
   const edits =
     tool === "MultiEdit" && Array.isArray(a.edits) ? (a.edits as Args[]) : [a];
-  return edits.reduce<Change>(
+  const change = edits.reduce<Change>(
     (sum, e) => ({
       file,
       added: sum.added + lines(e.new_string),
@@ -219,13 +235,22 @@ export const changeOf = (tool: string, a: Args): Change | null => {
     }),
     { file, added: 0, removed: 0 },
   );
+  // replace_all does not say how many places it changed: count one, mark it.
+  return edits.some((e) => e.replace_all === true)
+    ? { ...change, approx: true }
+    : change;
 };
 
 // Changes summed per file, the latest-touched file first.
 export const addChange = (list: Change[], c: Change): Change[] => {
   const was = list.find((x) => x.file === c.file);
   const merged = was
-    ? { file: c.file, added: was.added + c.added, removed: was.removed + c.removed }
+    ? {
+        file: c.file,
+        added: was.added + c.added,
+        removed: was.removed + c.removed,
+        ...(was.approx || c.approx ? { approx: true } : {}),
+      }
     : c;
   return [merged, ...list.filter((x) => x.file !== c.file)];
 };

@@ -108,8 +108,16 @@ describe("glassbox", () => {
         description: "x",
         activeForm: "Writing tests",
       });
-      await $.tool.call({ tool: "TaskUpdate", taskId: "1", status: "completed" });
-      await $.tool.call({ tool: "TaskUpdate", taskId: "2", status: "in_progress" });
+      await $.tool.call({
+        tool: "TaskUpdate",
+        taskId: "1",
+        status: "completed",
+      });
+      await $.tool.call({
+        tool: "TaskUpdate",
+        taskId: "2",
+        status: "in_progress",
+      });
 
       const ui = await $.ui.mount(pane(surface));
       expect(await ui.find({ text: /plan 1\/2/ })).toBeDefined();
@@ -135,7 +143,11 @@ describe("glassbox", () => {
       result: { task: { id: "1", subject: "Read the code" } },
     }));
     await $.ui.mount(band());
-    await $.tool.call({ tool: "TaskCreate", subject: "Read the code", description: "x" });
+    await $.tool.call({
+      tool: "TaskCreate",
+      subject: "Read the code",
+      description: "x",
+    });
 
     const strip = await $.ui.mount(band(true));
     expect(
@@ -147,7 +159,9 @@ describe("glassbox", () => {
     engine(on);
     await $.ui.mount(band());
     const ui = await $.ui.mount(pane("terminal", {}, "inline"));
-    expect(await ui.find({ text: /glassbox|context|activity/ })).toBeUndefined();
+    expect(
+      await ui.find({ text: /glassbox|context|activity/ }),
+    ).toBeUndefined();
   });
 
   test("/glassbox opens the pane and prints nothing in the transcript", async ($, on) => {
@@ -166,10 +180,16 @@ describe("glassbox", () => {
     );
     await $.ui.mount(band());
 
-    await $.tool.call({ tool: "TaskCreate", subject: "From tasks", description: "x" });
+    await $.tool.call({
+      tool: "TaskCreate",
+      subject: "From tasks",
+      description: "x",
+    });
     await $.tool.call({
       tool: "TodoWrite",
-      todos: [{ content: "From todos", status: "pending", activeForm: "Doing todos" }],
+      todos: [
+        { content: "From todos", status: "pending", activeForm: "Doing todos" },
+      ],
     });
 
     const ui = await $.ui.mount(pane("terminal"));
@@ -184,7 +204,12 @@ describe("glassbox", () => {
     engine(on);
     on("tool.call", () => ({ result: {} }));
     await $.ui.mount(band());
-    await $.tool.call({ tool: "Edit", file_path: "/a/b.ts", old_string: "a", new_string: "b" } as never);
+    await $.tool.call({
+      tool: "Edit",
+      file_path: "/a/b.ts",
+      old_string: "a",
+      new_string: "b",
+    } as never);
     const ui = await $.ui.mount(pane("terminal"));
     const texts = await ui.findAll({ type: "Text" });
     expect(texts.filter((t) => t.props.color === undefined)).toEqual([]);
@@ -252,10 +277,60 @@ describe("glassbox", () => {
     expect(await ui.find({ text: /Explore auth code/ })).toBeDefined();
 
     await ui.press({ key: "agent-a1" });
-    expect(await ui.find({ text: /activity · Explore auth code/ })).toBeDefined();
+    expect(
+      await ui.find({ text: /activity · Explore auth code/ }),
+    ).toBeDefined();
 
     await ui.press({ key: "back" });
     expect(await ui.find({ text: /activity · Explore/ })).toBeUndefined();
+  });
+
+  test("back shows the main loop even while the transcript views an agent", async ($, on) => {
+    engine(on);
+    on("agent.spawn", () => ({ model: "sonnet", agentId: "a1" }));
+    await $.ui.mount(band());
+    await $.agent.spawn({
+      prompt: "look",
+      description: "Explore auth code",
+      subagentType: "Explore",
+      tool_use_id: "toolu_1",
+      provider: { plugin: "engine", tier: "core" },
+      parentModel: "sonnet",
+      background: false,
+      fork: false,
+    });
+
+    const ui = await $.ui.mount(pane("terminal", { agentId: "a1" }));
+    expect(
+      await ui.find({ text: /activity · Explore auth code/ }),
+    ).toBeDefined();
+    await ui.press({ key: "back" });
+    expect(await ui.find({ text: /activity · Explore/ })).toBeUndefined();
+  });
+
+  test("the agents title counts each ending, not only done", async ($, on) => {
+    engine(on);
+    let n = 0;
+    on("agent.spawn", () => ({ model: "sonnet", agentId: `a${++n}` }));
+    on("turn.complete", () => ({ text: "" }));
+    await $.ui.mount(band());
+    for (const description of ["One", "Two"])
+      await $.agent.spawn({
+        prompt: "look",
+        description,
+        subagentType: "Explore",
+        tool_use_id: `toolu_${description}`,
+        provider: { plugin: "engine", tier: "core" },
+        parentModel: "sonnet",
+        background: false,
+        fork: false,
+      });
+    const ended = { answer: "", durationMs: 1, isAborted: false, turnId: "t" };
+    await $.turn.complete({ ...ended, agentId: "a1", reason: "answer" });
+    await $.turn.complete({ ...ended, agentId: "a2", reason: "error" });
+
+    const ui = await $.ui.mount(pane("terminal"));
+    expect(await ui.find({ text: /agents 1 done · 1 failed/ })).toBeDefined();
   });
 });
 
@@ -278,7 +353,10 @@ describe("helpers", () => {
   test("narration reads as words, without markdown marks", () => {
     expect(
       responseItems([
-        { type: "text", text: "**ACTION · Run `/gb2`.**\n- see [docs](https://x.y)\n```sh\nls\n```" },
+        {
+          type: "text",
+          text: "**ACTION · Run `/gb2`.**\n- see [docs](https://x.y)\n```sh\nls\n```",
+        },
       ]),
     ).toEqual([{ kind: "say", text: "ACTION · Run /gb2. see docs" }]);
   });
@@ -289,6 +367,9 @@ describe("helpers", () => {
     expect(meter(50, 8)).toEqual({ on: "████", off: "░░░░" });
     expect(meter(100, 4)).toEqual({ on: "████", off: "" });
     expect(meter(56.25, 8).on).toBe("████▌");
+    // an edge that rounds to a full eighth fills its cell
+    expect(meter(99, 6)).toEqual({ on: "██████", off: "" });
+    expect(meter(49.5, 4)).toEqual({ on: "██", off: "░░" });
   });
 
   test("tones read as a dashboard: green, amber from 50, red from 80", () => {
@@ -307,7 +388,12 @@ describe("helpers", () => {
       { id: "c", tool: "Read", verdict: verdictOf("allow") },
     ];
     const done = settle(settle(list, "a", true), "b", false);
-    expect(tally(done)).toEqual({ allowed: 1, asked: 1, pending: 0, denied: 1 });
+    expect(tally(done)).toEqual({
+      allowed: 1,
+      asked: 1,
+      pending: 0,
+      denied: 1,
+    });
   });
 
   test("edits count the lines they add and remove", () => {
@@ -321,6 +407,21 @@ describe("helpers", () => {
       }),
     ).toEqual({ file: "/x.ts", added: 4, removed: 3 });
     expect(changeOf("Read", { file_path: "/x.ts" })).toBeNull();
+    // a final newline ends a line rather than adding one
+    expect(
+      changeOf("Write", { file_path: "/x.ts", content: "a\nb\n" }),
+    ).toEqual({ file: "/x.ts", added: 2, removed: 0 });
+    // replace_all counts one occurrence and says the total is a floor
+    const all = changeOf("Edit", {
+      file_path: "/x.ts",
+      old_string: "a",
+      new_string: "b",
+      replace_all: true,
+    });
+    expect(all).toEqual({ file: "/x.ts", added: 1, removed: 1, approx: true });
+    expect(
+      addChange([{ file: "/x.ts", added: 1, removed: 0 }], all!)[0]?.approx,
+    ).toBe(true);
     const list = addChange([{ file: "/y.ts", added: 1, removed: 0 }], {
       file: "/x.ts",
       added: 2,

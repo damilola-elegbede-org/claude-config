@@ -99,7 +99,9 @@ type Usage = {
 
 // Module state (restarts on reload, which is fine: it only gates and filters).
 let hasScreen = false;
-// The agent whose activity the pane shows; null for the main loop.
+// The agent whose activity the pane shows: an agent id, MAIN for the main
+// loop by choice, or null to follow the agent the transcript is viewing.
+const MAIN = "main";
 let focusId: string | null = null;
 
 const engineState: Record<string, AgentState> = {
@@ -616,7 +618,24 @@ export const register: Register = (on) => {
     }
 
     // ---- agents
-    const running = runs.filter((r) => r.status === "running").length;
+    const count = (...s: AgentState[]) =>
+      runs.filter((r) => s.includes(r.status)).length;
+    const running = count("running");
+    const waiting = count("waiting");
+    const failed = count("failed", "killed");
+    // The title names what is true now: running, else every state that ended.
+    const agentsTitle =
+      running > 0
+        ? `${running} running`
+        : [
+            waiting > 0 ? `${waiting} waiting` : "",
+            count("done") > 0 ? `${count("done")} done` : "",
+            failed > 0 ? `${failed} failed` : "",
+          ]
+            .filter(Boolean)
+            .join(" · ");
+    const agentsColor =
+      running > 0 ? C.live : waiting > 0 ? C.warn : failed > 0 ? C.bad : C.dim;
     const agentRows = runs.slice(-6).map((r) => {
       const isLive = r.status === "running";
       const glyph = isLive
@@ -645,7 +664,7 @@ export const register: Register = (on) => {
               label={clip(r.description, Math.max(8, inner - 22))}
               dimColor={!isLive && focusId !== r.id}
               onPress={() => {
-                focusId = focusId === r.id ? null : r.id;
+                focusId = focusId === r.id ? MAIN : r.id;
                 return update($, feed, (f) => [...f]);
               }}
             />
@@ -704,7 +723,9 @@ export const register: Register = (on) => {
     const changeRows = edits.slice(0, 6).map((c) => {
       const plus = Math.round((c.added / most) * scale);
       const minus = Math.round((c.removed / most) * scale);
-      const nums = `+${c.added} −${c.removed}`;
+      // "~" marks a floor: a replace_all edit was counted once.
+      const about = c.approx ? "~" : "";
+      const nums = `${about}+${c.added} −${c.removed}`;
       return (
         <Box width={inner} justifyContent="space-between">
           <Text color={C.text} wrap="truncate">
@@ -716,7 +737,8 @@ export const register: Register = (on) => {
             <Text color={C.frame}>
               {"·".repeat(Math.max(0, scale - plus - minus))}
             </Text>
-            <Text color={C.ok}>{` +${c.added}`}</Text>
+            <Text color={C.dim}>{` ${about}`}</Text>
+            <Text color={C.ok}>{`+${c.added}`}</Text>
             <Text color={C.bad}>{` −${c.removed}`}</Text>
           </Text>
         </Box>
@@ -730,8 +752,9 @@ export const register: Register = (on) => {
     const totalRemoved = edits.reduce((s, c) => s + c.removed, 0);
 
     // ---- activity: newest first, the last ACTIVITY_MAX; one agent when picked
-    const focus = focusId ? runs.find((r) => r.id === focusId) : undefined;
-    const viewed = focus?.id ?? e.props.view?.agentId ?? null;
+    const viewed =
+      focusId === MAIN ? null : (focusId ?? e.props.view?.agentId ?? null);
+    const focus = viewed ? runs.find((r) => r.id === viewed) : undefined;
     const shown = items
       .filter((i) => (viewed ? i.agentId === viewed : !i.agentId))
       .slice(-ACTIVITY_MAX)
@@ -762,7 +785,7 @@ export const register: Register = (on) => {
           plain
           label="← main"
           onPress={() => {
-            focusId = null;
+            focusId = MAIN;
             return update($, feed, (f) => [...f]);
           }}
         />,
@@ -788,13 +811,7 @@ export const register: Register = (on) => {
             )
           : null}
         {runs.length > 0
-          ? frame(
-              "agents",
-              "agents",
-              running > 0 ? `${running} running` : `${runs.length} done`,
-              running > 0 ? C.live : C.dim,
-              agentRows,
-            )
+          ? frame("agents", "agents", agentsTitle, agentsColor, agentRows)
           : null}
         {gate.length > 0
           ? frame(
@@ -809,7 +826,7 @@ export const register: Register = (on) => {
           ? frame(
               "changes",
               "changes",
-              `${edits.length} files +${totalAdded} −${totalRemoved}`,
+              `${edits.length} files ${edits.some((c) => c.approx) ? "~" : ""}+${totalAdded} −${totalRemoved}`,
               C.dim,
               changeRows,
             )
