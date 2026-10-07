@@ -78,6 +78,10 @@ Reported by CodeRabbit on #282; left verbatim because the fixes are untested edi
 
 - `higgsfield-brandkit/scripts/brandkit.py` `recolor_svg` does not rewrite colors inside `<style>` elements,
   so monochrome logo exports keep class-based colors.
+- `higgsfield-brandkit/scripts/brandkit.py` approves a logo that has only an `id`, but `brandbook-build` later needs a
+  public URL or readable path, so an apparently valid state can fail to build (Codex).
+- `higgsfield-brandkit/scripts/brandkit.py` ignores `style: "italic"` in typography previews, so the user may approve a
+  regular or synthesized face instead of the chosen italic (Codex).
 - `higgsfield-brandkit/scripts/build_brandbook.py` palette limits differ from what `palette.md` and `normalize_slot` accept.
 - `higgsfield-brandkit/scripts/render_brandbook_pdf.py` sets `FONTCONFIG_FILE`, which LibreOffice's native macOS build does not read for font discovery.
 - `higgsfield-websites/references/game-design-system.md` requires `build-game.md` (before any game build) and `multiplayer.md`
