@@ -465,12 +465,23 @@ sync_plugins() {
         print_warning "claude or jq not found — plugin install skipped"
         return 0
     fi
-    if ! claude plugin marketplace list --json 2>/dev/null | jq -e 'any(.[]; .name == "claude-plugins-official")' >/dev/null 2>&1; then
-        if ! claude plugin marketplace add anthropics/claude-plugins-official >/dev/null 2>&1; then
-            print_warning "could not add the claude-plugins-official marketplace — plugin install skipped"
-            return 0
+    # "<marketplace name> <github repo>" — the name is what follows @ in enabledPlugins.
+    marketplaces=$(claude plugin marketplace list --json 2>/dev/null | jq -r '.[].name' 2>/dev/null) || marketplaces=""
+    for entry in \
+        "claude-plugins-official anthropics/claude-plugins-official" \
+        "knowledge-work-plugins anthropics/knowledge-work-plugins" \
+        "anthropic-agent-skills anthropics/skills"; do
+        mkt_name=${entry% *}
+        mkt_repo=${entry#* }
+        if printf '%s\n' "$marketplaces" | grep -Fxq "$mkt_name"; then
+            continue
         fi
-    fi
+        if claude plugin marketplace add "$mkt_repo" >/dev/null 2>&1; then
+            echo "  ✅ marketplace added: $mkt_name"
+        else
+            print_warning "could not add marketplace $mkt_name ($mkt_repo) — its plugins will not install"
+        fi
+    done
     installed=$(claude plugin list --json 2>/dev/null | jq -r '.[].id' 2>/dev/null) || installed=""
     for plugin in $(jq -r '.enabledPlugins // {} | to_entries[] | select(.value == true) | .key' "$SOURCE_DIR/settings.json"); do
         if printf '%s\n' "$installed" | grep -Fxq "$plugin"; then
