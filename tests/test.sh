@@ -201,6 +201,7 @@ run_test "Jev Rules/Events/Workflow Hooks" "hooks/test_jev_rules_events.sh"
 run_test "Jev Decision Gates" "hooks/test_jev_gates.sh"
 run_test "Jev Context Hooks" "hooks/test_jev_context.sh"
 run_test "Jev Sync Node Check" "hooks/test_jev_sync_node.sh"
+run_test "Higgsfield Sync Check" "hooks/test_higgsfield_sync_check.sh"
 run_test "File Organization" "config/test_file_org.sh"
 
 # Run sync functionality tests

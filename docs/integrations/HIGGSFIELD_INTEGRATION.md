@@ -80,4 +80,6 @@ Reported by CodeRabbit on #282; left verbatim because the fixes are untested edi
   so monochrome logo exports keep class-based colors.
 - `higgsfield-brandkit/scripts/build_brandbook.py` palette limits differ from what `palette.md` and `normalize_slot` accept.
 - `higgsfield-brandkit/scripts/render_brandbook_pdf.py` sets `FONTCONFIG_FILE`, which LibreOffice's native macOS build does not read for font discovery.
+- `higgsfield-websites/references/game-design-system.md` requires `build-game.md` before any game build, but neither this repo
+  nor upstream `main` ships that file, so the promised skeletons and numeric defaults are missing.
 - 9 vendored files tell the agent to run `curl ... install.sh | sh` from the `main` branch with no checksum. The Jev G10 gate holds that command for approval.
