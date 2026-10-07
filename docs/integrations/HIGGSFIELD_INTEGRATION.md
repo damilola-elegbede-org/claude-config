@@ -64,7 +64,7 @@ Beyond the `license: MIT` line, six review fixes are local (PR #282). Re-apply t
 
 | File | Fix |
 | ---- | --- |
-| `higgsfield-websites/references/game-*.md` (6 files) | stale filenames: bare `meshy-input-rules.md`, `procedural-animation.md`, `meshy-api.md` and `stylization.md` now use their shipped `game-` names (17 refs) |
+| `higgsfield-websites/references/game-*.md` (6 files) and `scripts/proc_{rig,anim}_dragon.py` | stale filenames: bare `meshy-input-rules.md`, `procedural-animation.md`, `meshy-api.md` and `stylization.md` now use their shipped `game-` names (21 refs) |
 | `higgsfield-brandkit/references/state-payloads.md` | `geometry_fingerprint` applies to SVG logos only; non-SVG official logos are locked without it |
 | `higgsfield-websites/references/app-cover.md` | the Higgsfield-branded lockup is for marketplace covers; standalone-site OG covers carry only the user's brand |
 | `higgsfield-websites/references/app-quickstart.md` | one confirm-enabled adapter shared by every SDK client |

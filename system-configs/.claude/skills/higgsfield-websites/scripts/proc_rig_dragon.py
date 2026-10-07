@@ -6,7 +6,7 @@
 # Builds a 16-bone skeleton for a winged quadruped (dragon) purely from
 # bounding-box fractions — no mesh-specific magic numbers, so the SAME
 # script reruns on the textured mesh later (texture-swap rule, see
-# references/procedural-animation.md).
+# references/game-procedural-animation.md).
 #
 # Layout: spine -> chest -> neck -> head; tail x4 (opposite the head);
 # wing_L/R x2 (inner+outer); legs x4.
@@ -15,7 +15,7 @@
 # in the UPPER part of the bbox is the head side.
 #
 # For other creatures: change BONES below (recipes in
-# references/procedural-animation.md) — the weights and animation scripts
+# references/game-procedural-animation.md) — the weights and animation scripts
 # are bone-list-driven.
 
 import sys

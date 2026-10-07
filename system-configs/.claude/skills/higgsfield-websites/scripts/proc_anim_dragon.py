@@ -14,7 +14,7 @@
 #                    micro-adjust.
 #
 # Other creatures: swap the MOVES tables (gait recipes in
-# references/procedural-animation.md — quadruped diagonal pairs, serpentine
+# references/game-procedural-animation.md — quadruped diagonal pairs, serpentine
 # traveling wave, slime squash & stretch, etc.).
 
 import math
@@ -171,7 +171,7 @@ def main():
 
     print(f"done: {out_path}")
     print("QC: render phase grid at non-uniform cycle fractions "
-          "(0.0, 0.23, 0.41, 0.68, 0.87) — see references/procedural-animation.md")
+          "(0.0, 0.23, 0.41, 0.68, 0.87) — see references/game-procedural-animation.md")
 
 
 main()
