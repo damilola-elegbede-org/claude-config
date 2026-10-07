@@ -64,7 +64,7 @@ Beyond the `license: MIT` line, six review fixes are local (PR #282). Re-apply t
 
 | File | Fix |
 | ---- | --- |
-| `higgsfield-websites/references/game-3d-animation.md`, `game-meshy-api.md` | 7 stale filenames: `meshy-input-rules.md` and `procedural-animation.md` now use their shipped `game-` names |
+| `higgsfield-websites/references/game-*.md` (6 files) | stale filenames: bare `meshy-input-rules.md`, `procedural-animation.md`, `meshy-api.md` and `stylization.md` now use their shipped `game-` names (17 refs) |
 | `higgsfield-brandkit/references/state-payloads.md` | `geometry_fingerprint` applies to SVG logos only; non-SVG official logos are locked without it |
 | `higgsfield-websites/references/app-cover.md` | the Higgsfield-branded lockup is for marketplace covers; standalone-site OG covers carry only the user's brand |
 | `higgsfield-websites/references/app-quickstart.md` | one confirm-enabled adapter shared by every SDK client |
@@ -80,6 +80,7 @@ Reported by CodeRabbit on #282; left verbatim because the fixes are untested edi
   so monochrome logo exports keep class-based colors.
 - `higgsfield-brandkit/scripts/build_brandbook.py` palette limits differ from what `palette.md` and `normalize_slot` accept.
 - `higgsfield-brandkit/scripts/render_brandbook_pdf.py` sets `FONTCONFIG_FILE`, which LibreOffice's native macOS build does not read for font discovery.
-- `higgsfield-websites/references/game-design-system.md` requires `build-game.md` before any game build, but neither this repo
-  nor upstream `main` ships that file, so the promised skeletons and numeric defaults are missing.
+- `higgsfield-websites/references/game-design-system.md` requires `build-game.md` (before any game build) and `multiplayer.md`
+  (co-op, versus and massive games), but neither this repo nor upstream `main` ships either file, so the promised
+  skeletons, numeric defaults and multiplayer rules are missing.
 - 9 vendored files tell the agent to run `curl ... install.sh | sh` from the `main` branch with no checksum. The Jev G10 gate holds that command for approval.
