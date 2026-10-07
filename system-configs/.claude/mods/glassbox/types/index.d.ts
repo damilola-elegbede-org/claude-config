@@ -40,7 +40,6 @@ declare module "claude-code" {
       feed: FeedItem[];
       selected: string | null;
       turn: TurnInfo | null;
-      isBandHidden: boolean;
       second: number;
     };
   }

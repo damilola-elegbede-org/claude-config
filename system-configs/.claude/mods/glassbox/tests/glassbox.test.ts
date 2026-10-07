@@ -106,11 +106,27 @@ describe("glassbox", () => {
       expect(await ui.find({ text: /1\/2/ })).toBeDefined();
       expect(await ui.find({ text: /✓ Read the code/ })).toBeDefined();
       expect(await ui.find({ text: /◐ Writing tests/ })).toBeDefined();
-
-      const strip = await $.ui.mount(band());
-      expect(await strip.find({ text: /Writing tests/ })).toBeDefined();
     });
   }
+
+  test("draws nothing above the prompt, even mid-turn with a checklist", async ($, on) => {
+    engine(on);
+    on("tool.call", () => ({
+      result: { task: { id: "1", subject: "Read the code" } },
+    }));
+    await $.ui.mount(band());
+
+    await $.tool.call({
+      tool: "TaskCreate",
+      subject: "Read the code",
+      description: "x",
+    });
+
+    const strip = await $.ui.mount(band(true));
+    expect(
+      await strip.find({ text: /Read the code|steps|working|hide/ }),
+    ).toBeUndefined();
+  });
 
   test("TodoWrite and the task tools never overwrite each other", async ($, on) => {
     engine(on);
