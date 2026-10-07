@@ -465,35 +465,68 @@ sync_plugins() {
         print_warning "claude or jq not found — plugin install skipped"
         return 0
     fi
+    if ! enabled=$(jq -r '.enabledPlugins // {} | to_entries[] | select(.value == true) | .key' "$SOURCE_DIR/settings.json"); then
+        print_warning "could not read enabledPlugins from settings.json — plugin install skipped"
+        return 0
+    fi
+    # Each inventory gates only its own loop: an unreadable list must not
+    # read as "nothing installed" and trigger a re-add or re-install of everything.
     # "<marketplace name> <github repo>" — the name is what follows @ in enabledPlugins.
-    marketplaces=$(claude plugin marketplace list --json 2>/dev/null | jq -r '.[].name' 2>/dev/null) || marketplaces=""
-    for entry in \
-        "claude-plugins-official anthropics/claude-plugins-official" \
-        "knowledge-work-plugins anthropics/knowledge-work-plugins" \
-        "anthropic-agent-skills anthropics/skills" \
-        "claude-community anthropics/claude-plugins-community"; do
-        mkt_name=${entry% *}
-        mkt_repo=${entry#* }
-        if printf '%s\n' "$marketplaces" | grep -Fxq "$mkt_name"; then
-            continue
+    if mkt_json=$(claude plugin marketplace list --json 2>/dev/null) \
+        && marketplaces=$(printf '%s\n' "$mkt_json" | jq -r '.[].name'); then
+        for entry in \
+            "claude-plugins-official anthropics/claude-plugins-official" \
+            "knowledge-work-plugins anthropics/knowledge-work-plugins" \
+            "anthropic-agent-skills anthropics/skills" \
+            "claude-community anthropics/claude-plugins-community"; do
+            mkt_name=${entry% *}
+            mkt_repo=${entry#* }
+            if printf '%s\n' "$marketplaces" | grep -Fxq "$mkt_name"; then
+                continue
+            fi
+            if claude plugin marketplace add "$mkt_repo" >/dev/null 2>&1; then
+                echo "  ✅ marketplace added: $mkt_name"
+            else
+                print_warning "could not add marketplace $mkt_name ($mkt_repo) — its plugins will not install"
+            fi
+        done
+    else
+        print_warning "marketplace inventory unavailable — marketplace adds skipped"
+    fi
+    # Only user-scope installs count: a project- or local-scope copy seen from the
+    # current directory does not make the plugin available everywhere.
+    if inst_json=$(claude plugin list --json 2>/dev/null) \
+        && installed=$(printf '%s\n' "$inst_json" | jq -r '.[] | select(.scope == "user") | .id'); then
+        while IFS= read -r plugin; do
+            [ -n "$plugin" ] || continue
+            if printf '%s\n' "$installed" | grep -Fxq "$plugin"; then
+                continue
+            fi
+            if claude plugin install --scope user "$plugin" >/dev/null 2>&1; then
+                echo "  ✅ plugin installed: $plugin"
+            else
+                print_warning "plugin install failed: $plugin (run: claude plugin install $plugin)"
+            fi
+        done <<EOF
+$enabled
+EOF
+    else
+        print_warning "plugin inventory unavailable — plugin installs skipped"
+    fi
+    # LSP plugins ship without their language servers; say so instead of letting
+    # Claude report an executable-not-found load error later.
+    while IFS= read -r plugin; do
+        case "$plugin" in
+            pyright-lsp@*) lsp_bin=pyright-langserver; lsp_pkg=pyright ;;
+            typescript-lsp@*) lsp_bin=typescript-language-server; lsp_pkg="typescript-language-server typescript" ;;
+            *) continue ;;
+        esac
+        if ! command -v "$lsp_bin" >/dev/null 2>&1; then
+            print_warning "$plugin needs $lsp_bin on PATH (install: npm install -g $lsp_pkg)"
         fi
-        if claude plugin marketplace add "$mkt_repo" >/dev/null 2>&1; then
-            echo "  ✅ marketplace added: $mkt_name"
-        else
-            print_warning "could not add marketplace $mkt_name ($mkt_repo) — its plugins will not install"
-        fi
-    done
-    installed=$(claude plugin list --json 2>/dev/null | jq -r '.[].id' 2>/dev/null) || installed=""
-    for plugin in $(jq -r '.enabledPlugins // {} | to_entries[] | select(.value == true) | .key' "$SOURCE_DIR/settings.json"); do
-        if printf '%s\n' "$installed" | grep -Fxq "$plugin"; then
-            continue
-        fi
-        if claude plugin install "$plugin" >/dev/null 2>&1; then
-            echo "  ✅ plugin installed: $plugin"
-        else
-            print_warning "plugin install failed: $plugin (run: claude plugin install $plugin)"
-        fi
-    done
+    done <<EOF
+$enabled
+EOF
 }
 
 # Function to validate configs
