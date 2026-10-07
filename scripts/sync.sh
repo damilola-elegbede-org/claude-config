@@ -931,7 +931,7 @@ check_prerequisites() {
             prereq_fail=1
         fi
         hf_missing=""
-        for hf_tool in rsvg-convert soffice pdftoppm fc-match; do
+        for hf_tool in rsvg-convert soffice pdftoppm pdffonts fc-match fc-cache; do
             command -v "$hf_tool" >/dev/null 2>&1 || hf_missing="$hf_missing $hf_tool"
         done
         command -v magick >/dev/null 2>&1 || command -v convert >/dev/null 2>&1 || hf_missing="$hf_missing magick"

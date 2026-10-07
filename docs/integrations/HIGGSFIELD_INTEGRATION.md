@@ -38,7 +38,7 @@ scripts/sync.sh                # deploys the skills; checks the list below
 | `higgsfield` on PATH                                                     | blocks laptop syncs (no manifest); warns on manifest stations like the fleet node     |
 | `python3` >= 3.9 (the brandkit scripts use `str.removeprefix`)           | same as above (brandkit and websites scripts) |
 | `higgsfield account status` (login and workspace, needs network)         | warning only                                    |
-| `rsvg-convert`, `soffice`, `pdftoppm`, `fc-match`, `magick` or `convert` | warning only (brandkit export stages)           |
+| `rsvg-convert`, `soffice`, `pdftoppm`, `pdffonts`, `fc-match`, `fc-cache`, `magick` or `convert` | warning only (brandkit export stages) |
 
 `HIGGSFIELD_SYNC_SKIP_CHECK=1` skips the block; tests that run a real sync into a temp HOME set it.
 Coverage is in `tests/hooks/test_higgsfield_sync_check.sh`.
