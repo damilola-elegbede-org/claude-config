@@ -470,7 +470,8 @@ sync_plugins() {
     for entry in \
         "claude-plugins-official anthropics/claude-plugins-official" \
         "knowledge-work-plugins anthropics/knowledge-work-plugins" \
-        "anthropic-agent-skills anthropics/skills"; do
+        "anthropic-agent-skills anthropics/skills" \
+        "claude-community anthropics/claude-plugins-community"; do
         mkt_name=${entry% *}
         mkt_repo=${entry#* }
         if printf '%s\n' "$marketplaces" | grep -Fxq "$mkt_name"; then
