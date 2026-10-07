@@ -459,7 +459,9 @@ merge_settings() {
 # on/off; Claude Code never installs from it, so a fresh machine would carry
 # "enabled" plugins that were never fetched. Best-effort and idempotent: a
 # failed install warns and never fails the sync. Updates after install are
-# Claude Code's own marketplace refresh, not this function.
+# Claude Code's background auto-update, not this function: on by default only
+# for claude-plugins-official, so settings.json's extraKnownMarketplaces sets
+# autoUpdate for the other three.
 sync_plugins() {
     if ! command -v claude >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
         print_warning "claude or jq not found — plugin install skipped"

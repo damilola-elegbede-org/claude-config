@@ -76,6 +76,26 @@
     "telegram@claude-plugins-official": false,
     "typescript-lsp@claude-plugins-official": true
   },
+  "extraKnownMarketplaces": {
+    "anthropic-agent-skills": {
+      "source": { "source": "github", "repo": "anthropics/skills" },
+      "autoUpdate": true
+    },
+    "claude-community": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/claude-plugins-community"
+      },
+      "autoUpdate": true
+    },
+    "knowledge-work-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/knowledge-work-plugins"
+      },
+      "autoUpdate": true
+    }
+  },
   "permissions": {
     "defaultMode": "bypassPermissions"
   },
