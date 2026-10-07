@@ -3,9 +3,9 @@ import type { EngineInterface, Register } from "claude-code";
 
 import type { AgentRun, AgentState, FeedItem, FeedKind, Task } from "../types";
 
-// glassbox: a live view of what Claude is doing. A band above the prompt
-// (progress, current step, running agents, elapsed) and a sidebar pane
-// (checklist, subagents you can drill into, activity feed).
+// glassbox: a live view of what Claude is doing, in a sidebar pane only
+// (progress, checklist, subagents you can drill into, activity feed). It
+// draws nothing above the prompt or in the transcript.
 //
 // It only watches. Every recording hook passes the event on unchanged, and none
 // records until a screen has drawn: a headless session (`claude -p`, the fleet)
@@ -37,10 +37,6 @@ const selected = atom(
 const turn = atom(
   { plugin: "glassbox", key: "turn" } as const,
   null as { startedAt: number; endedAt?: number; tools: number } | null,
-);
-const isBandHidden = atom(
-  { plugin: "glassbox", key: "isBandHidden" } as const,
-  false,
 );
 // Bumped once a second while a turn runs. Only glassbox's own drawings read
 // it, so the clock redraws them and nothing else on screen.
@@ -198,7 +194,6 @@ export const register: Register = (on) => {
   });
 
   on("command.run", { command: "glassbox" }, async ($) => {
-    await update($, isBandHidden, () => false);
     await $.ui.open({ id: PANE, title: "glassbox" });
     return { text: "glassbox opened." };
   });
@@ -330,58 +325,11 @@ export const register: Register = (on) => {
     return next(e);
   }).catch(passThrough);
 
-  on("ui.render", { component: "AbovePrompt" }, async ($, e, next) => {
+  // The space above the prompt is only how glassbox learns a screen exists, so
+  // it starts recording before its pane opens. It draws nothing there.
+  on("ui.render", { component: "AbovePrompt" }, async (_$, e, next) => {
     hasScreen = true;
-    await read($, second);
-    const list = await read($, tasks);
-    const t = await read($, turn);
-    const isWorking = e.props.isWorking;
-    if (
-      e.props.hasSurvey ||
-      (await read($, isBandHidden)) ||
-      (!isWorking && list.length === 0)
-    ) {
-      return next(e);
-    }
-
-    const { Box, Button, Text } = $.ui.resolve(e);
-    const runs = await liveAgents($);
-    const live = runs.filter((r) => r.status === "running").length;
-    const done = list.filter((x) => x.status === "completed").length;
-    const doing = list.find((x) => x.status === "in_progress");
-    const now = await $.clock.now();
-    const cells = Math.min(
-      16,
-      Math.max(4, Math.floor(e.props.bodyColumns / 6)),
-    );
-    const head = list.length
-      ? `${bar(done, list.length, cells)} ${done}/${list.length}`
-      : `${t?.tools ?? 0} steps`;
-    const step = doing
-      ? (doing.activeForm ?? doing.subject)
-      : isWorking
-        ? "working"
-        : "idle";
-    const tail = [
-      step,
-      live ? `${live} agent${live > 1 ? "s" : ""} running` : "",
-      t ? duration((t.endedAt ?? now) - t.startedAt) : "",
-    ]
-      .filter(Boolean)
-      .join(" · ");
-    const room = Math.max(8, e.props.bodyColumns - head.length - 12);
-
-    return (
-      <Box>
-        <Text color="cyan">{head} </Text>
-        <Text dimColor>{clip(tail, room)} </Text>
-        <Button
-          key="hide"
-          label="hide"
-          onPress={() => update($, isBandHidden, () => true)}
-        />
-      </Box>
-    );
+    return next(e);
   });
 
   on("ui.render", { component: "Pane", requestId: PANE }, async ($, e) => {
