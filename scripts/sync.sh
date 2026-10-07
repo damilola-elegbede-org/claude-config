@@ -455,6 +455,35 @@ merge_settings() {
     return 0
 }
 
+# Install the plugins settings.json enables. enabledPlugins only declares
+# on/off; Claude Code never installs from it, so a fresh machine would carry
+# "enabled" plugins that were never fetched. Best-effort and idempotent: a
+# failed install warns and never fails the sync. Updates after install are
+# Claude Code's own marketplace refresh, not this function.
+sync_plugins() {
+    if ! command -v claude >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
+        print_warning "claude or jq not found — plugin install skipped"
+        return 0
+    fi
+    if ! claude plugin marketplace list --json 2>/dev/null | jq -e 'any(.[]; .name == "claude-plugins-official")' >/dev/null 2>&1; then
+        if ! claude plugin marketplace add anthropics/claude-plugins-official >/dev/null 2>&1; then
+            print_warning "could not add the claude-plugins-official marketplace — plugin install skipped"
+            return 0
+        fi
+    fi
+    installed=$(claude plugin list --json 2>/dev/null | jq -r '.[].id' 2>/dev/null) || installed=""
+    for plugin in $(jq -r '.enabledPlugins // {} | to_entries[] | select(.value == true) | .key' "$SOURCE_DIR/settings.json"); do
+        if printf '%s\n' "$installed" | grep -Fxq "$plugin"; then
+            continue
+        fi
+        if claude plugin install "$plugin" >/dev/null 2>&1; then
+            echo "  ✅ plugin installed: $plugin"
+        else
+            print_warning "plugin install failed: $plugin (run: claude plugin install $plugin)"
+        fi
+    done
+}
+
 # Function to validate configs
 validate_configs() {
     echo "🔄 Syncing Claude configurations..."
@@ -717,7 +746,8 @@ sync_files() {
                     return 1
                 fi ;;
             *)
-                cp "$SOURCE_DIR/settings.json" "$TARGET_DIR/" ;;
+                cp "$SOURCE_DIR/settings.json" "$TARGET_DIR/"
+                sync_plugins ;;
         esac
     fi
 
