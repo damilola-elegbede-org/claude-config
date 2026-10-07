@@ -35,13 +35,66 @@
     "pr": ""
   },
   "enabledPlugins": {
+    "academy-guide@anthropic-agent-skills": false,
+    "agnix@claude-community": true,
+    "bio-research@knowledge-work-plugins": false,
+    "chrome-devtools-mcp@claude-plugins-official": true,
+    "claude-api@anthropic-agent-skills": false,
+    "claude-for-financial-advisors@knowledge-work-plugins": false,
+    "claude-md-management@claude-plugins-official": true,
+    "claude-security@claude-plugins-official": true,
     "code-review@claude-plugins-official": false,
-    "frontend-design@claude-plugins-official": false,
+    "cowork-plugin-management@knowledge-work-plugins": true,
+    "customer-support@knowledge-work-plugins": true,
+    "data@knowledge-work-plugins": true,
+    "design@knowledge-work-plugins": true,
+    "discernment-nudge@anthropic-agent-skills": false,
+    "document-skills@anthropic-agent-skills": false,
+    "engineering@knowledge-work-plugins": true,
+    "enterprise-search@knowledge-work-plugins": true,
+    "example-skills@anthropic-agent-skills": true,
+    "finance@knowledge-work-plugins": true,
+    "frontend-design@claude-plugins-official": true,
+    "human-resources@knowledge-work-plugins": true,
+    "legal@knowledge-work-plugins": true,
+    "marketing@knowledge-work-plugins": true,
+    "operations@knowledge-work-plugins": true,
+    "pdf-viewer@knowledge-work-plugins": false,
+    "plugin-dev@claude-plugins-official": true,
+    "product-management@knowledge-work-plugins": true,
+    "productivity@knowledge-work-plugins": true,
+    "promptfoo-evals@claude-community": true,
+    "pyright-lsp@claude-plugins-official": true,
     "ralph-loop@claude-plugins-official": true,
+    "sales@knowledge-work-plugins": true,
+    "session-report@claude-plugins-official": true,
     "skill-creator@claude-plugins-official": true,
+    "small-business@knowledge-work-plugins": true,
+    "stripe@claude-plugins-official": true,
     "supabase@claude-plugins-official": false,
     "superpowers@claude-plugins-official": false,
-    "telegram@claude-plugins-official": false
+    "telegram@claude-plugins-official": false,
+    "typescript-lsp@claude-plugins-official": true
+  },
+  "extraKnownMarketplaces": {
+    "anthropic-agent-skills": {
+      "source": { "source": "github", "repo": "anthropics/skills" },
+      "autoUpdate": true
+    },
+    "claude-community": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/claude-plugins-community"
+      },
+      "autoUpdate": true
+    },
+    "knowledge-work-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/knowledge-work-plugins"
+      },
+      "autoUpdate": true
+    }
   },
   "permissions": {
     "defaultMode": "bypassPermissions"
