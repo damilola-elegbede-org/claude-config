@@ -1,6 +1,6 @@
 # File mode — triage `/review` output from `.tmp/`
 
-Active when `--local` is passed. Reads the file `/review` writes (`.tmp/review-local.json`).
+Active when `--local` is passed. Reads the file `/review` and `/codex-review` write (`.tmp/review-local.json`).
 
 ## STEP 1: Load issues
 
@@ -19,7 +19,9 @@ IF: --local flag
       OUTPUT: "⚠️ Schema version mismatch in review-local.json (found: {v}, expected: {CURRENT}).
                Backed up to {backup_path}. Re-run /review to regenerate."
       END
-  APPEND: issues with source="code-reviewer"
+  APPEND: issues with source = "codex" when the file's top-level "source" is "codex"
+          (written by /codex-review), else "code-reviewer" (covers /review's "code-reviewer"
+          and "deep-review" files, which triage treats as one source)
   OUTPUT: "Loaded {count} AI reviewer issues"
 
 IF: issues empty

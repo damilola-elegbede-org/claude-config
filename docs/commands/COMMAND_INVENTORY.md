@@ -21,7 +21,7 @@ Multi-phase workflows with task tracking, parallel execution, and agent routing.
 
 | Skill | Description | Execution Model | Flags |
 |-------|-------------|-----------------|-------|
-| `/ship-it` | Development workflow orchestration | Orchestrator | `-d`, `-t`, `-c`, `-r`, `-p`, `-pr`, `--dry-run` |
+| `/ship-it` | Development workflow orchestration | Orchestrator | `-d`, `-t`, `-c`, `-r`, `-x`, `-p`, `-pr`, `--dry-run` |
 | `/review` | Comprehensive code review | Wave-based | `--full` |
 | `/fix-ci` | CI failure diagnosis and fix | Wave-based | `--learn` |
 | `/deps` | Dependency management | Wave-based | `audit`, `update`, `clean`, `--quick` |

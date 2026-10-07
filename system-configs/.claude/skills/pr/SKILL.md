@@ -56,10 +56,11 @@ Use --force to create another PR
    - If PR exists and `--force` not set: Output PR URL and exit (success)
    - If PR exists and `--force` set: Continue to create new PR
    - If no PR exists: Continue
-2. **Analyze Changes**: Get diff between current branch and target branch
-3. **Generate Content**: Create title and description based on commits and changes
-4. **Create PR**: Submit to GitHub with generated content
-5. **Post Review Acknowledgments**: If `.tmp/coderabbit-ignored.json` exists, post skipped issues as PR comment
+2. **Pre-PR Codex Review**: Run `/codex-review` so Codex's findings are fixed before the PR opens
+3. **Analyze Changes**: Get diff between current branch and target branch
+4. **Generate Content**: Create title and description based on commits and changes
+5. **Create PR**: Submit to GitHub with generated content
+6. **Post Review Acknowledgments**: If `.tmp/coderabbit-ignored.json` exists, post skipped issues as PR comment
 
 ### Agent Usage (Minimal)
 
@@ -170,6 +171,18 @@ STEP 2: Parse $ARGUMENTS
   IF: no target_branch given
     SET: target_branch = main (or master if the repo has no main)
 
+STEP 2.5: Pre-PR Codex review
+  INVOKE: /codex-review {target_branch}
+    (skips itself when this exact diff already passed, e.g. when /ship-it ran it first)
+  IF: it ends blocked
+    OUTPUT: "Not opening the PR: Codex still reports P0/P1 findings (see above)."
+    END (failure)
+  IF: it committed fixes
+    INVOKE: /push   (the PR must include the fixes)
+  IF: it left fixes uncommitted
+    OUTPUT: "Not opening the PR: the Codex fixes are uncommitted, so the PR would not include them. Commit them and re-run /pr."
+    END (failure)
+
 STEP 3: Analyze and create PR
   RUN: git diff {target_branch}...HEAD
   RUN: git log {target_branch}..HEAD
@@ -230,6 +243,7 @@ STEP 5: Report success
 ## Notes
 
 - Checks for existing PR before creation (skips gracefully unless --force)
+- Runs `/codex-review` before creating the PR; a missing or signed-out codex CLI skips it with a warning
 - Posts skipped review issues from `/review` as PR comment
 - Generates clear, conventional commit style titles
 - Creates concise, informative descriptions
