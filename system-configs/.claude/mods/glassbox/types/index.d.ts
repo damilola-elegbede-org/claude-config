@@ -19,9 +19,26 @@ export type AgentRun = {
   startedAt: number;
   endedAt?: number;
   tools: number;
+  // The agent's context now: the whole input of its latest model request.
+  ctx: number;
 };
 
-export type FeedKind = "tool" | "thinking" | "say" | "agent";
+// Where the main loop is in its cycle.
+export type Phase = "idle" | "prompt" | "think" | "tool" | "result";
+
+export type Verdict = "allowed" | "asked" | "pending" | "denied";
+
+export type Check = { id: string; tool: string; verdict: Verdict };
+
+// approx: a replace_all edit was counted once, so the totals are a floor.
+export type Change = {
+  file: string;
+  added: number;
+  removed: number;
+  approx?: boolean;
+};
+
+export type FeedKind = "tool" | "thinking" | "say" | "agent" | "deny";
 
 export type FeedItem = {
   at: number;
@@ -30,7 +47,13 @@ export type FeedItem = {
   text: string;
 };
 
-export type TurnInfo = { startedAt: number; endedAt?: number; tools: number };
+export type Loop = {
+  model: string;
+  phase: Phase;
+  turnStartedAt: number | null;
+  turnEndedAt: number | null;
+  compactions: number;
+};
 
 declare module "claude-code" {
   interface PluginState {
@@ -38,9 +61,9 @@ declare module "claude-code" {
       tasks: Task[];
       agents: AgentRun[];
       feed: FeedItem[];
-      selected: string | null;
-      turn: TurnInfo | null;
-      second: number;
+      checks: Check[];
+      changes: Change[];
+      loop: Loop;
     };
   }
 }
