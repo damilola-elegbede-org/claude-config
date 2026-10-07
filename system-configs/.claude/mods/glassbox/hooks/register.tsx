@@ -103,11 +103,18 @@ let hasScreen = false;
 // loop by choice, or null to follow the agent the transcript is viewing.
 const MAIN = "main";
 let focusId: string | null = null;
-// A subagent's counts, kept apart from its row: a fast agent can finish a
-// step or a tool before agent.spawn has added the row, and the spawn merges
-// what arrived early. Dropped when the agent ends.
-const counts = new Map<string, { ctx: number; tools: number }>();
-const countsOf = (id: string) => counts.get(id) ?? { ctx: 0, tools: 0 };
+// A subagent's counts and ending, kept apart from its row: a fast agent can
+// finish a step, a tool or its whole run before agent.spawn has added the
+// row, and the spawn merges what arrived early. Each writer records here
+// first and updates the row second, and the spawn reads here only after the
+// row exists, so every value lands on one or the other.
+type Early = {
+  ctx: number;
+  tools: number;
+  end?: { status: AgentState; endedAt: number };
+};
+const counts = new Map<string, Early>();
+const countsOf = (id: string): Early => counts.get(id) ?? { ctx: 0, tools: 0 };
 
 const engineState: Record<string, AgentState> = {
   pending: "running",
@@ -243,7 +250,8 @@ export const register: Register = (on) => {
           : e.reason === "aborted"
             ? "killed"
             : "failed";
-      counts.delete(e.agentId);
+      const id = e.agentId;
+      counts.set(id, { ...countsOf(id), end: { status, endedAt: now } });
       await update($, agents, (list) =>
         list.map((a) =>
           a.id === e.agentId && a.status === "running"
@@ -288,7 +296,8 @@ export const register: Register = (on) => {
     await update($, agents, (list) => [...list, run]);
     // Read after the row exists, so a count arriving now lands on one or other.
     const early = countsOf(run.id);
-    if (early.ctx > 0 || early.tools > 0)
+    counts.delete(run.id);
+    if (early.ctx > 0 || early.tools > 0 || early.end)
       await update($, agents, (list) =>
         list.map((r) =>
           r.id === run.id
@@ -296,6 +305,7 @@ export const register: Register = (on) => {
                 ...r,
                 ctx: r.ctx || early.ctx,
                 tools: Math.max(r.tools, early.tools),
+                ...(early.end && r.status === "running" ? early.end : {}),
               }
             : r,
         ),

@@ -344,6 +344,38 @@ describe("glassbox", () => {
     expect(await ui.find({ text: /1 tool ·/ })).toBeDefined();
   });
 
+  test("an agent that ends before its row exists does not stay running", async ($, on) => {
+    engine(on);
+    on("turn.complete", () => ({ text: "" }));
+    // A fast agent finishes while agent.spawn is still waiting on core.
+    on("agent.spawn", async () => {
+      await $.turn.complete({
+        answer: "",
+        durationMs: 1,
+        isAborted: false,
+        turnId: "t",
+        agentId: "a1",
+        reason: "answer",
+      });
+      return { model: "sonnet", agentId: "a1" };
+    });
+    await $.ui.mount(band());
+    await $.agent.spawn({
+      prompt: "look",
+      description: "Quick look",
+      subagentType: "Explore",
+      tool_use_id: "toolu_1",
+      provider: { plugin: "engine", tier: "core" },
+      parentModel: "sonnet",
+      background: false,
+      fork: false,
+    });
+
+    const ui = await $.ui.mount(pane("terminal"));
+    expect(await ui.find({ text: /agents 1 done/ })).toBeDefined();
+    expect(await ui.find({ text: /running/ })).toBeUndefined();
+  });
+
   test("the agents title counts each ending, not only done", async ($, on) => {
     engine(on);
     let n = 0;
