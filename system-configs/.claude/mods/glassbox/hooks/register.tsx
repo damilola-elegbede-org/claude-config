@@ -1,20 +1,74 @@
 import { atom, read, update } from "claude-code";
 import type { EngineInterface, Register } from "claude-code";
 
-import type { AgentRun, AgentState, FeedItem, FeedKind, Task } from "../types";
+import type {
+  AgentRun,
+  AgentState,
+  Change,
+  Check,
+  FeedItem,
+  FeedKind,
+  Loop,
+  Phase,
+  Task,
+} from "../types";
+import {
+  C,
+  addChange,
+  addTask,
+  applyTodos,
+  bar,
+  changeOf,
+  clip,
+  clockTime,
+  duration,
+  gist,
+  kTokens,
+  meter,
+  prettyModel,
+  responseItems,
+  settle,
+  shortFile,
+  str,
+  tally,
+  timer,
+  tone,
+  updateTask,
+  verdictOf,
+} from "./model";
 
-// glassbox: a live view of what Claude is doing, in a sidebar pane only
-// (progress, checklist, subagents you can drill into, activity feed). It
-// draws nothing above the prompt or in the transcript.
+// glassbox: watch Claude work, in one pane beside the transcript. A box per
+// concern (loop, context, plan, agents, gate, changes, activity); a box with
+// nothing to show takes no room. It draws nothing above the prompt, in the
+// transcript or in the status line, and opens only on /glassbox.
 //
 // It only watches. Every recording hook passes the event on unchanged, and none
 // records until a screen has drawn: a headless session (`claude -p`, the fleet)
 // never draws, so there the hooks are a bare `next(e)`.
 
 const PANE = "glassbox";
-const FEED_MAX = 400;
+const PANE_COLUMNS = 52;
+const FEED_MAX = 200;
 // Activity rows the pane lists, newest on top; the person scrolls through them.
 const ACTIVITY_MAX = 50;
+const CHECKS_MAX = 60;
+const PLAN_ROWS = 8;
+const PHASES = ["prompt", "think", "tool", "result"];
+const PLAN_TOOLS = new Set([
+  "TaskCreate",
+  "TaskUpdate",
+  "TaskGet",
+  "TaskList",
+  "TodoWrite",
+]);
+
+const IDLE_LOOP: Loop = {
+  model: "",
+  phase: "idle",
+  turnStartedAt: null,
+  turnEndedAt: null,
+  compactions: 0,
+};
 
 const tasks = atom({ plugin: "glassbox", key: "tasks" } as const, [] as Task[]);
 const agents = atom(
@@ -25,77 +79,28 @@ const feed = atom(
   { plugin: "glassbox", key: "feed" } as const,
   [] as FeedItem[],
 );
-// The agent the pane is drilled into: an agent id, MAIN when the person chose
-// the main loop, or null to follow whichever transcript is open. MAIN has to
-// be its own value, or "← main" would fall straight back to the open
-// transcript's agent.
-const MAIN = "main";
-const selected = atom(
-  { plugin: "glassbox", key: "selected" } as const,
-  null as string | null,
+const checks = atom(
+  { plugin: "glassbox", key: "checks" } as const,
+  [] as Check[],
 );
-const turn = atom(
-  { plugin: "glassbox", key: "turn" } as const,
-  null as { startedAt: number; endedAt?: number; tools: number } | null,
+const changes = atom(
+  { plugin: "glassbox", key: "changes" } as const,
+  [] as Change[],
 );
-// Bumped once a second while a turn runs. Only glassbox's own drawings read
-// it, so the clock redraws them and nothing else on screen.
-const second = atom({ plugin: "glassbox", key: "second" } as const, 0);
+const loop = atom({ plugin: "glassbox", key: "loop" } as const, IDLE_LOOP);
 
-type Block = { type: string; text?: string; thinking?: string };
 type Args = Record<string, unknown>;
-type Todo = { content: string; status: Task["status"]; activeForm?: string };
+type Block = { type: string; text?: string; thinking?: string };
+type Usage = {
+  input_tokens?: number;
+  cache_read_input_tokens?: number;
+  cache_creation_input_tokens?: number;
+};
 
-// Module state (restarts on reload, which is fine: it only gates and paces).
+// Module state (restarts on reload, which is fine: it only gates and filters).
 let hasScreen = false;
-let hasAutoOpened = false;
-let tick: { cancel: () => void } | null = null;
-
-const str = (v: unknown) => (typeof v === "string" ? v : "");
-const oneLine = (s: string) => s.replace(/\s+/g, " ").trim();
-const clip = (s: string, n: number) =>
-  s.length <= n ? s : `${s.slice(0, Math.max(0, n - 1))}…`;
-
-export const bar = (done: number, total: number, cells: number) => {
-  const width = Math.max(4, cells);
-  const full = total === 0 ? 0 : Math.round((done / total) * width);
-  return `${"█".repeat(full)}${"░".repeat(width - full)}`;
-};
-
-export const duration = (ms: number) => {
-  const s = Math.max(0, Math.round(ms / 1000));
-  if (s < 60) return `${s}s`;
-  if (s < 3600)
-    return `${Math.floor(s / 60)}m${String(s % 60).padStart(2, "0")}s`;
-  return `${Math.floor(s / 3600)}h${String(Math.floor((s % 3600) / 60)).padStart(2, "0")}m`;
-};
-
-// The one argument that says what a call is about, for the common tools.
-export const gist = (tool: string, a: Args) => {
-  const what =
-    str(a.subject) ||
-    str(a.description) ||
-    str(a.command) ||
-    str(a.file_path) ||
-    str(a.pattern) ||
-    str(a.query) ||
-    str(a.url) ||
-    str(a.skill) ||
-    str(a.prompt);
-  return oneLine(what ? `${tool} ${what}` : tool);
-};
-
-// The feed rows one model response yields: its narration and any thinking
-// with visible text. Empty and redacted thinking (most of it, on current
-// models) is left out rather than shown as noise.
-export const responseItems = (blocks: readonly Block[]) =>
-  blocks.flatMap((b) => {
-    const kind: FeedKind = b.type === "thinking" ? "thinking" : "say";
-    const raw =
-      b.type === "thinking" ? b.thinking : b.type === "text" ? b.text : "";
-    const text = oneLine(str(raw));
-    return text ? [{ kind, text }] : [];
-  });
+// The agent whose activity the pane shows; null for the main loop.
+let focusId: string | null = null;
 
 const engineState: Record<string, AgentState> = {
   pending: "running",
@@ -107,23 +112,12 @@ const engineState: Record<string, AgentState> = {
   killed: "killed",
 };
 
-const mark: Record<Task["status"], string> = {
-  completed: "✓",
-  in_progress: "◐",
-  pending: "○",
-};
-const agentMark: Record<AgentState, string> = {
-  running: "●",
-  waiting: "◌",
-  done: "✓",
-  failed: "✗",
-  killed: "✗",
-};
-const glyph: Record<FeedKind, string> = {
+const feedGlyph: Record<FeedKind, string> = {
   tool: "▸",
   thinking: "∴",
   say: "›",
   agent: "◆",
+  deny: "✗",
 };
 
 async function push($: EngineInterface, item: Omit<FeedItem, "at">) {
@@ -131,33 +125,17 @@ async function push($: EngineInterface, item: Omit<FeedItem, "at">) {
   await update($, feed, (list) => [...list, { ...item, at }].slice(-FEED_MAX));
 }
 
-// Opens the pane once per load, unasked, and only where it docks as a sidebar
-// (the engine seats an unasked pane from 144 columns and holds it below that).
-function autoOpen($: EngineInterface) {
-  if (hasAutoOpened) return;
-  hasAutoOpened = true;
-  $.ui.open({ id: PANE, title: "glassbox" }).catch(() => {});
-}
-
-function startTick($: EngineInterface) {
-  tick?.cancel();
-  tick = $.clock.every(1000, () => {
-    void update($, second, (n) => (n ?? 0) + 1);
-  });
-}
-
-function stopTick() {
-  tick?.cancel();
-  tick = null;
-}
+const setPhase = ($: EngineInterface, phase: Phase) =>
+  update($, loop, (l) => (l.phase === phase ? l : { ...l, phase }));
 
 async function reset($: EngineInterface) {
-  stopTick();
+  focusId = null;
   await update($, tasks, () => []);
   await update($, agents, () => []);
   await update($, feed, () => []);
-  await update($, selected, () => null);
-  await update($, turn, () => null);
+  await update($, checks, () => []);
+  await update($, changes, () => []);
+  await update($, loop, (l): Loop => ({ ...IDLE_LOOP, model: l.model }));
 }
 
 // Agent status as the engine knows it (failed, killed, waiting), over our own
@@ -183,7 +161,7 @@ export const register: Register = (on) => {
     await $.command.register({
       name: "glassbox",
       description:
-        "Open the glassbox pane: progress, checklist, subagents, activity",
+        "Open the glassbox pane: loop, context, plan, agents, permissions, changes, activity",
     });
     return next(e);
   });
@@ -193,49 +171,108 @@ export const register: Register = (on) => {
     return next(e);
   });
 
+  // Opens the pane and prints nothing: glassbox draws only in its pane.
   on("command.run", { command: "glassbox" }, async ($) => {
-    await $.ui.open({ id: PANE, title: "glassbox" });
-    return { text: "glassbox opened." };
+    const opened = await $.ui.open({
+      id: PANE,
+      title: "glassbox",
+      columns: PANE_COLUMNS,
+    });
+    if (!opened.isPlaced) $.ui.toast(`glassbox: ${opened.reason}`);
+    return {};
   });
 
   on("prompt.submit", async ($, e, next) => {
     if (!hasScreen) return next(e);
-    const startedAt = await $.clock.now();
-    await update($, turn, () => ({ startedAt, tools: 0 }));
-    startTick($);
+    const now = await $.clock.now();
+    await update(
+      $,
+      loop,
+      (l): Loop => ({
+        ...l,
+        phase: "prompt",
+        turnStartedAt: now,
+        turnEndedAt: null,
+      }),
+    );
     return next(e);
   }).catch(passThrough);
+
+  // One model request: the main loop is thinking; a subagent's context grows.
+  on("turn.step", async function* ($, e, next) {
+    if (!hasScreen) return yield* next(e);
+    if (!e.agentId) {
+      await update(
+        $,
+        loop,
+        (l): Loop => ({ ...l, model: e.model, phase: "think" }),
+      );
+      return yield* next(e);
+    }
+    const result = yield* next(e);
+    const u = (result.usage ?? {}) as Usage;
+    const ctx =
+      (u.input_tokens ?? 0) +
+      (u.cache_read_input_tokens ?? 0) +
+      (u.cache_creation_input_tokens ?? 0);
+    const id = e.agentId;
+    if (ctx > 0)
+      await update($, agents, (list) =>
+        list.map((r) => (r.id === id ? { ...r, ctx } : r)),
+      );
+    return result;
+  });
 
   on("turn.complete", async ($, e, next) => {
     if (!hasScreen) return next(e);
     const now = await $.clock.now();
     if (e.agentId) {
+      const status: AgentState =
+        e.reason === "answer"
+          ? "done"
+          : e.reason === "aborted"
+            ? "killed"
+            : "failed";
       await update($, agents, (list) =>
         list.map((a) =>
           a.id === e.agentId && a.status === "running"
-            ? { ...a, status: "done", endedAt: now }
+            ? { ...a, status, endedAt: now }
             : a,
         ),
       );
     } else {
-      stopTick();
-      await update($, turn, (t) => (t ? { ...t, endedAt: now } : t));
+      await update(
+        $,
+        loop,
+        (l): Loop => ({ ...l, phase: "idle", turnEndedAt: now }),
+      );
     }
     return next(e);
+  });
+
+  on("session.compact", async ($, e, next) => {
+    const done = await next(e);
+    if (hasScreen && !e.agentId && e.trigger !== "precompute")
+      await update(
+        $,
+        loop,
+        (l): Loop => ({ ...l, compactions: l.compactions + 1 }),
+      );
+    return done;
   });
 
   on("agent.spawn", async ($, e, next) => {
     const started = await next(e);
     if (!hasScreen || !("agentId" in started) || !started.agentId)
       return started;
-    const startedAt = await $.clock.now();
     const run: AgentRun = {
       id: started.agentId,
       description: e.description,
       type: e.subagentType,
       status: "running",
-      startedAt,
+      startedAt: await $.clock.now(),
       tools: 0,
+      ctx: 0,
     };
     await update($, agents, (list) => [...list, run]);
     await push($, {
@@ -243,8 +280,20 @@ export const register: Register = (on) => {
       kind: "agent",
       text: `${e.subagentType}: ${e.description}`,
     });
-    autoOpen($);
     return started;
+  }).catch(passThrough);
+
+  // Every permission verdict; an ask is settled by the tool.call around it.
+  on("tool.check", async ($, e, next) => {
+    const verdict = await next(e);
+    if (!hasScreen || !e.tool_use_id) return verdict;
+    const check: Check = {
+      id: e.tool_use_id,
+      tool: e.tool,
+      verdict: verdictOf(verdict.decision),
+    };
+    await update($, checks, (list) => [...list, check].slice(-CHECKS_MAX));
+    return verdict;
   }).catch(passThrough);
 
   on("tool.call", async ($, e, next) => {
@@ -253,70 +302,51 @@ export const register: Register = (on) => {
     const { tool, agentId } = e;
 
     // Shown as it starts, without holding the call up.
-    void push($, { agentId, kind: "tool", text: gist(tool, a) });
+    // The plan box already shows the checklist tools; the feed leaves them out.
+    if (!PLAN_TOOLS.has(tool))
+      void push($, { agentId, kind: "tool", text: gist(tool, a) });
+    if (!agentId) await setPhase($, "tool");
     const ran = await next(e);
+    const didRun = !("deny" in ran && ran.deny);
+    await update($, checks, (list) => settle(list, e.tool_use_id, didRun));
 
     if (agentId) {
       await update($, agents, (list) =>
         list.map((r) => (r.id === agentId ? { ...r, tools: r.tools + 1 } : r)),
       );
+    } else {
+      await setPhase($, "result");
+    }
+    if (!didRun) {
+      await push($, {
+        agentId,
+        kind: "deny",
+        text: `denied · ${gist(tool, a)}`,
+      });
       return ran;
     }
-    await update($, turn, (t) => (t ? { ...t, tools: t.tools + 1 } : t));
-    if ("deny" in ran && ran.deny) return ran;
     if (ran.isError) return ran;
 
-    // The checklist is the main loop's plan. Rows are namespaced by source so
-    // TodoWrite and the task tools never overwrite each other.
+    const change = changeOf(tool, a);
+    if (change) await update($, changes, (list) => addChange(list, change));
+
+    // The checklist is the main loop's plan.
+    if (agentId) return ran;
     if (tool === "TodoWrite") {
-      const todos = (a.todos as Todo[] | undefined) ?? [];
-      await update($, tasks, (list) => [
-        ...list.filter((t) => !t.id.startsWith("todo:")),
-        ...todos.map((t, i) => ({
-          id: `todo:${i + 1}`,
-          subject: t.content,
-          status: t.status,
-          activeForm: t.activeForm,
-        })),
-      ]);
-      if (todos.length) autoOpen($);
+      await update($, tasks, (list) => applyTodos(list, a.todos));
     } else if (tool === "TaskCreate") {
       const made = (
         ran.result as { task?: { id: string; subject: string } } | undefined
       )?.task;
-      if (made) {
-        const row: Task = {
-          id: `task:${made.id}`,
-          subject: made.subject,
-          status: "pending",
-          activeForm: str(a.activeForm) || undefined,
-        };
-        await update($, tasks, (list) => [...list, row]);
-        autoOpen($);
-      }
+      if (made)
+        await update($, tasks, (list) => addTask(list, made, a.activeForm));
     } else if (tool === "TaskUpdate") {
-      const id = `task:${str(a.taskId)}`;
-      const status = str(a.status);
-      await update($, tasks, (list) =>
-        status === "deleted"
-          ? list.filter((t) => t.id !== id)
-          : list.map((t) =>
-              t.id === id
-                ? {
-                    ...t,
-                    subject: str(a.subject) || t.subject,
-                    activeForm: str(a.activeForm) || t.activeForm,
-                    status: (status || t.status) as Task["status"],
-                  }
-                : t,
-            ),
-      );
+      await update($, tasks, (list) => updateTask(list, a));
     }
     return ran;
   }).catch(passThrough);
 
   // Narration and reasoning: each response row, main loop and subagents alike.
-  // Empty or redacted thinking (most of it, on current models) is left out.
   on("session.append", { door: "response" }, async ($, e, next) => {
     if (!hasScreen) return next(e);
     for (const item of responseItems(e.message.content as unknown as Block[])) {
@@ -334,116 +364,462 @@ export const register: Register = (on) => {
 
   on("ui.render", { component: "Pane", requestId: PANE }, async ($, e) => {
     hasScreen = true;
-    await read($, second);
-    const { Box, Text, Button } = $.ui.resolve(e);
-    const width = Math.max(24, e.props.bodyColumns);
-    const list = await read($, tasks);
-    const runs = await liveAgents($);
-    const items = await read($, feed);
-    const t = await read($, turn);
-    const now = await $.clock.now();
-    const done = list.filter((x) => x.status === "completed").length;
+    const els = $.ui.resolve(e);
+    const { Box, Text, Button } = els;
 
-    // Follow the agent picked here, else the agent whose transcript is open,
-    // unless the person chose the main loop.
-    const choice = await read($, selected);
-    const pick =
-      choice === MAIN ? null : (choice ?? e.props.view.agentId ?? null);
-    const focus = pick ? runs.find((r) => r.id === pick) : undefined;
-    const shown = items.filter((i) =>
-      focus ? i.agentId === focus.id : !i.agentId,
+    // Opened in a terminal that is not fullscreen, the engine seats the pane
+    // above the prompt: glassbox never draws there, so it closes itself.
+    if (e.props.placement === "inline") {
+      $.ui.close({ id: PANE }).catch(() => {});
+      $.ui.toast("glassbox shows beside the transcript: switch to fullscreen");
+      return <Box />;
+    }
+
+    const hasClient = "Client" in els;
+    const W = Math.max(30, e.props.bodyColumns);
+    const inner = W - 4;
+    const [l, list, runs, items, gate, edits, now, usage] = await Promise.all([
+      read($, loop),
+      read($, tasks),
+      liveAgents($),
+      read($, feed),
+      read($, checks),
+      read($, changes),
+      $.clock.now(),
+      $.session.usage({ breakdown: "summary", columns: W }).catch(() => null),
+    ]);
+    const isWorking = l.phase !== "idle";
+
+    // A rounded frame with its title set into the top edge.
+    const frame = (
+      key: string,
+      title: string,
+      extra: string,
+      extraColor: string,
+      rows: unknown[],
+    ) => {
+      const used = 3 + title.length + (extra ? extra.length + 1 : 0);
+      return (
+        <Box key={key} flexDirection="column" width={W}>
+          <Text color={C.text}>
+            <Text color={C.frame}>╭ </Text>
+            <Text color={C.text} bold>
+              {title}
+            </Text>
+            {extra ? <Text color={extraColor}>{` ${extra}`}</Text> : null}
+            <Text
+              color={C.frame}
+            >{` ${"─".repeat(Math.max(1, W - used - 1))}╮`}</Text>
+          </Text>
+          {rows.map((row, i) => (
+            <Box key={`${key}-${i}`}>
+              <Text color={C.frame}>│ </Text>
+              <Box width={inner}>{row as never}</Box>
+              <Text color={C.frame}> │</Text>
+            </Box>
+          ))}
+          <Text color={C.frame}>{`╰${"─".repeat(W - 2)}╯`}</Text>
+        </Box>
+      );
+    };
+
+    const ticker = (
+      key: string,
+      since: number,
+      endAt: number | null,
+      color: string,
+      spin: boolean,
+    ) =>
+      hasClient ? (
+        <els.Client
+          key={key}
+          module="./ticker.tsx"
+          props={{ since, now, endAt, color, spin }}
+        />
+      ) : (
+        <Text color={color}>{timer((endAt ?? now) - since)}</Text>
+      );
+
+    // ---- one top line: the loop on the left, the model and the turn's clock
+    // on the right (the pane's tab already names glassbox), then a blank row.
+    const model = prettyModel(l.model || usage?.context.breakdown?.model || "");
+    const timing =
+      isWorking && l.turnStartedAt !== null
+        ? null
+        : l.turnStartedAt !== null && l.turnEndedAt !== null
+          ? `last ${duration(l.turnEndedAt - l.turnStartedAt)}`
+          : "idle";
+    const loopW = Math.max(
+      12,
+      W - `${model} · ${timing ?? "00:00"}`.length - 1,
     );
-    return (
-      <Box flexDirection="column">
-        <Text bold>Progress</Text>
-        {list.length ? (
-          <Box>
-            <Text color="cyan">{bar(done, list.length, width - 8)}</Text>
-            <Text>{` ${done}/${list.length}`}</Text>
-          </Box>
+    const header = (
+      <Box
+        key="header"
+        justifyContent="space-between"
+        width={W}
+        marginBottom={1}
+      >
+        {hasClient ? (
+          <els.Client
+            key="loop"
+            module="./loop.tsx"
+            width={loopW}
+            height={1}
+            props={{ phase: l.phase, phases: PHASES }}
+          />
         ) : (
-          <Text dimColor>
-            {t
-              ? `No checklist · ${t.tools} steps · ${duration((t.endedAt ?? now) - t.startedAt)}`
-              : "Idle. Activity shows here once Claude starts working."}
+          <Text color={C.dim}>
+            {PHASES.map((p) => (p === l.phase ? p.toUpperCase() : p)).join(
+              " › ",
+            )}
           </Text>
         )}
+        <Box>
+          <Text color={C.dim}>{`${model} · `}</Text>
+          {timing === null && l.turnStartedAt !== null ? (
+            ticker("turn", l.turnStartedAt, null, C.live, false)
+          ) : (
+            <Text color={C.dim}>{timing}</Text>
+          )}
+        </Box>
+      </Box>
+    );
 
-        {list.length > 0 && (
-          <Box flexDirection="column" marginTop={1}>
-            <Text bold>Checklist</Text>
-            {list.map((x) => (
-              <Text
-                dimColor={x.status === "completed"}
-                color={x.status === "in_progress" ? "yellow" : undefined}
-              >
-                {`${mark[x.status]} ${clip(
-                  x.status === "in_progress"
-                    ? (x.activeForm ?? x.subject)
-                    : x.subject,
-                  width - 2,
-                )}`}
+    // ---- context: the window, what fills it (as /context counts), cost, limits
+    const ctx = usage?.context;
+    const pct = ctx?.percent ?? null;
+    const bd = ctx?.breakdown;
+    const contextRows: unknown[] = [];
+    if (pct !== null) {
+      const tail = ` ${Math.round(pct)}%`;
+      const size =
+        ctx?.tokens !== undefined
+          ? ` ${kTokens(ctx.tokens)}/${kTokens(ctx.window)}`
+          : "";
+      const m = meter(pct, inner - tail.length - size.length - 4);
+      contextRows.push(
+        <Text color={C.text} wrap="truncate">
+          <Text color={tone(pct)}>{m.on}</Text>
+          <Text color={C.frame}>{m.off}</Text>
+          <Text color={C.text} bold>
+            {tail}
+          </Text>
+          <Text color={C.dim}>{size}</Text>
+          {l.compactions > 0 ? (
+            <Text color={C.warn}>{` ⟲${l.compactions}`}</Text>
+          ) : null}
+        </Text>,
+      );
+    } else {
+      contextRows.push(<Text color={C.dim}>No reading yet.</Text>);
+    }
+    if (bd && bd.rawMaxTokens > 0) {
+      // Anatomy: one strip, each category in the colour /context gives it.
+      const used = bd.categories.filter(
+        (c) => c.kind === "used" && c.tokens > 0,
+      );
+      const cells = used.map((c) => ({
+        c,
+        n: Math.max(1, Math.round((c.tokens / bd.rawMaxTokens) * inner)),
+      }));
+      const filled = cells.reduce((s, x) => s + x.n, 0);
+      contextRows.push(
+        <Text color={C.text} wrap="truncate">
+          {cells.map((x) => (
+            <Text color={x.c.color}>{"▆".repeat(x.n)}</Text>
+          ))}
+          <Text color={C.frame}>{"▁".repeat(Math.max(0, inner - filled))}</Text>
+        </Text>,
+      );
+      contextRows.push(
+        <Text color={C.text} wrap="truncate">
+          {used
+            .slice()
+            .sort((a, b) => b.tokens - a.tokens)
+            .map((c) => (
+              <Text color={C.text}>
+                <Text color={c.color}>■</Text>
+                <Text
+                  color={C.dim}
+                >{` ${c.name.toLowerCase()} ${kTokens(c.tokens)}  `}</Text>
               </Text>
             ))}
-          </Box>
-        )}
+        </Text>,
+      );
+    }
+    if (usage && (usage.cost || usage.rateLimits.length > 0)) {
+      contextRows.push(
+        <Text color={C.text} wrap="truncate">
+          {usage.cost ? (
+            <Text
+              color={C.text}
+              bold
+            >{`$${usage.cost.usd.toFixed(2)}   `}</Text>
+          ) : null}
+          {usage.rateLimits.slice(0, 2).map((r) => {
+            const g = meter(r.percentUsed, 6);
+            const label =
+              r.kind === "five_hour"
+                ? "5h"
+                : r.kind === "seven_day"
+                  ? "7d"
+                  : r.kind;
+            return (
+              <Text color={C.text}>
+                <Text color={C.dim}>{`${label} `}</Text>
+                <Text color={tone(r.percentUsed)}>{g.on}</Text>
+                <Text color={C.frame}>{g.off}</Text>
+                <Text color={C.dim}>{` ${Math.round(r.percentUsed)}%   `}</Text>
+              </Text>
+            );
+          })}
+        </Text>,
+      );
+    }
 
-        {runs.length > 0 && (
-          <Box flexDirection="column" marginTop={1}>
-            <Text bold>Subagents</Text>
-            {runs.map((r) => (
-              <Box>
-                <Button
-                  key={`agent-${r.id}`}
-                  label={`${agentMark[r.status]} ${clip(r.description, Math.max(8, width - 30))}`}
-                  onPress={() =>
-                    update($, selected, (cur) => (cur === r.id ? MAIN : r.id))
-                  }
-                />
-                <Text dimColor>
-                  {" "}
-                  {r.type} · {r.tools} calls ·{" "}
-                  {duration((r.endedAt ?? now) - r.startedAt)}
-                </Text>
-              </Box>
-            ))}
-          </Box>
-        )}
-
-        <Box flexDirection="column" marginTop={1}>
-          <Box>
-            <Text bold>
-              {focus
-                ? `Activity · ${clip(focus.description, width - 22)} `
-                : "Activity · main"}
+    // ---- plan
+    const done = list.filter((x) => x.status === "completed").length;
+    const planRows: unknown[] = [];
+    if (list.length > 0) {
+      const allDone = done === list.length;
+      planRows.push(
+        <Text color={allDone ? C.ok : C.live}>
+          {bar(done, list.length, inner)}
+        </Text>,
+      );
+      for (const x of list.slice(0, PLAN_ROWS)) {
+        const text =
+          x.status === "in_progress" ? (x.activeForm ?? x.subject) : x.subject;
+        planRows.push(
+          x.status === "completed" ? (
+            <Text color={C.text} wrap="truncate">
+              <Text color={C.ok}>✓ </Text>
+              <Text color={C.dim}>{clip(text, inner - 2)}</Text>
             </Text>
-            {focus && (
-              <Button
-                key="back"
-                label="← main"
-                onPress={() => update($, selected, () => MAIN)}
-              />
+          ) : x.status === "in_progress" ? (
+            <Text wrap="truncate" color={C.live} bold>
+              {`◐ ${clip(text, inner - 2)}`}
+            </Text>
+          ) : (
+            <Text
+              color={C.text}
+              wrap="truncate"
+            >{`○ ${clip(text, inner - 2)}`}</Text>
+          ),
+        );
+      }
+      if (list.length > PLAN_ROWS)
+        planRows.push(
+          <Text color={C.dim}>{`+${list.length - PLAN_ROWS} more`}</Text>,
+        );
+    }
+
+    // ---- agents
+    const running = runs.filter((r) => r.status === "running").length;
+    const agentRows = runs.slice(-6).map((r) => {
+      const isLive = r.status === "running";
+      const glyph = isLive
+        ? "◐"
+        : r.status === "done"
+          ? "✓"
+          : r.status === "waiting"
+            ? "◌"
+            : "✗";
+      const color = isLive
+        ? C.live
+        : r.status === "done"
+          ? C.ok
+          : r.status === "waiting"
+            ? C.warn
+            : C.bad;
+      const meta = `${r.ctx > 0 ? `${kTokens(r.ctx)} ctx · ` : ""}${r.tools} ${r.tools === 1 ? "tool" : "tools"} ·`;
+      return (
+        <Box width={inner} justifyContent="space-between">
+          <Box>
+            <Text color={color} bold={isLive}>{`${glyph} `}</Text>
+            <Button
+              key={`agent-${r.id}`}
+              plain
+              label={clip(r.description, Math.max(8, inner - 22))}
+              dimColor={!isLive && focusId !== r.id}
+              onPress={() => {
+                focusId = focusId === r.id ? null : r.id;
+                return update($, feed, (f) => [...f]);
+              }}
+            />
+          </Box>
+          <Box>
+            <Text color={C.dim}>{`${meta} `}</Text>
+            {ticker(
+              `agent-clock-${r.id}`,
+              r.startedAt,
+              r.endedAt ?? (isLive ? null : now),
+              isLive ? C.live : C.dim,
+              isLive,
             )}
           </Box>
-          {shown.length === 0 && <Text dimColor>Nothing yet.</Text>}
-          {/* Newest first; the pane scrolls through the last ACTIVITY_MAX. */}
-          {shown
-            .slice(-ACTIVITY_MAX)
-            .reverse()
-            .map((i) => {
-              const age = duration(now - i.at).padStart(6);
-              return (
-                <Text
-                  dimColor={i.kind === "thinking"}
-                  italic={i.kind === "thinking"}
-                  color={i.kind === "agent" ? "magenta" : undefined}
-                >
-                  <Text dimColor>{age} </Text>
-                  {glyph[i.kind]} {clip(i.text, width - 10)}
-                </Text>
-              );
-            })}
         </Box>
+      );
+    });
+
+    // ---- gate: one cell per permission check
+    const n = tally(gate);
+    const cellColor = (c: Check) =>
+      c.verdict === "allowed"
+        ? C.ok
+        : c.verdict === "asked"
+          ? C.asked
+          : c.verdict === "pending"
+            ? C.warn
+            : C.bad;
+    const gateRows: unknown[] = gate.length
+      ? [
+          <Text color={C.text} wrap="truncate">
+            {gate.slice(-inner).map((c) => (
+              <Text color={cellColor(c)}>
+                {c.verdict === "denied" ? "✗" : "■"}
+              </Text>
+            ))}
+          </Text>,
+          <Text color={C.text} wrap="truncate">
+            <Text color={C.ok}>■</Text>
+            <Text color={C.dim}>{` ${n.allowed} allowed  `}</Text>
+            <Text color={C.asked}>■</Text>
+            <Text color={C.dim}>{` ${n.asked} asked  `}</Text>
+            {n.pending > 0 ? (
+              <Text color={C.warn}>{`■ ${n.pending} waiting  `}</Text>
+            ) : null}
+            <Text
+              color={n.denied > 0 ? C.bad : C.dim}
+            >{`✗ ${n.denied} denied`}</Text>
+          </Text>,
+        ]
+      : [];
+
+    // ---- changes: lines added and removed per file, scaled to the largest
+    const most = Math.max(1, ...edits.map((c) => c.added + c.removed));
+    const scale = 10;
+    const changeRows = edits.slice(0, 6).map((c) => {
+      const plus = Math.round((c.added / most) * scale);
+      const minus = Math.round((c.removed / most) * scale);
+      const nums = `+${c.added} −${c.removed}`;
+      return (
+        <Box width={inner} justifyContent="space-between">
+          <Text color={C.text} wrap="truncate">
+            {clip(shortFile(c.file), inner - scale - nums.length - 3)}
+          </Text>
+          <Text color={C.text}>
+            <Text color={C.ok}>{"▮".repeat(plus)}</Text>
+            <Text color={C.bad}>{"▮".repeat(minus)}</Text>
+            <Text color={C.frame}>
+              {"·".repeat(Math.max(0, scale - plus - minus))}
+            </Text>
+            <Text color={C.ok}>{` +${c.added}`}</Text>
+            <Text color={C.bad}>{` −${c.removed}`}</Text>
+          </Text>
+        </Box>
+      );
+    });
+    if (edits.length > 6)
+      changeRows.push(
+        <Text color={C.dim}>{`+${edits.length - 6} more files`}</Text>,
+      );
+    const totalAdded = edits.reduce((s, c) => s + c.added, 0);
+    const totalRemoved = edits.reduce((s, c) => s + c.removed, 0);
+
+    // ---- activity: newest first, the last ACTIVITY_MAX; one agent when picked
+    const focus = focusId ? runs.find((r) => r.id === focusId) : undefined;
+    const viewed = focus?.id ?? e.props.view?.agentId ?? null;
+    const shown = items
+      .filter((i) => (viewed ? i.agentId === viewed : !i.agentId))
+      .slice(-ACTIVITY_MAX)
+      .reverse();
+    const feedColor = (k: FeedKind) =>
+      k === "deny"
+        ? C.bad
+        : k === "agent"
+          ? C.live
+          : k === "thinking"
+            ? C.dim
+            : C.text;
+    const activityRows: unknown[] = shown.length
+      ? shown.map((i) => (
+          <Text color={C.text} wrap="truncate">
+            <Text color={C.dim}>{`${clockTime(i.at)} `}</Text>
+            <Text color={feedColor(i.kind)}>{`${feedGlyph[i.kind]} `}</Text>
+            <Text color={feedColor(i.kind)} italic={i.kind === "thinking"}>
+              {clip(i.text, inner - 8)}
+            </Text>
+          </Text>
+        ))
+      : [<Text color={C.dim}>Nothing yet.</Text>];
+    if (focus)
+      activityRows.unshift(
+        <Button
+          key="back"
+          plain
+          label="← main"
+          onPress={() => {
+            focusId = null;
+            return update($, feed, (f) => [...f]);
+          }}
+        />,
+      );
+
+    return (
+      <Box flexDirection="column" width={W}>
+        {header}
+        {frame(
+          "context",
+          "context",
+          pct !== null ? `${Math.round(pct)}%` : "",
+          pct !== null ? tone(pct) : C.dim,
+          contextRows,
+        )}
+        {list.length > 0
+          ? frame(
+              "plan",
+              "plan",
+              `${done}/${list.length}`,
+              done === list.length ? C.ok : C.live,
+              planRows,
+            )
+          : null}
+        {runs.length > 0
+          ? frame(
+              "agents",
+              "agents",
+              running > 0 ? `${running} running` : `${runs.length} done`,
+              running > 0 ? C.live : C.dim,
+              agentRows,
+            )
+          : null}
+        {gate.length > 0
+          ? frame(
+              "gate",
+              "gate",
+              `${gate.length} checks`,
+              n.denied > 0 ? C.bad : C.dim,
+              gateRows,
+            )
+          : null}
+        {edits.length > 0
+          ? frame(
+              "changes",
+              "changes",
+              `${edits.length} files +${totalAdded} −${totalRemoved}`,
+              C.dim,
+              changeRows,
+            )
+          : null}
+        {frame(
+          "activity",
+          focus ? `activity · ${clip(focus.description, 20)}` : "activity",
+          "",
+          C.dim,
+          activityRows,
+        )}
       </Box>
     );
   });
