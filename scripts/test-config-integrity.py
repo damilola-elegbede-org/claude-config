@@ -46,9 +46,13 @@ SKILLS_DIR = PROJECT_ROOT / "system-configs" / ".claude" / "skills"
 #   (api-design-patterns, git-conventions, security-checklist and testing-patterns
 #    removed: 1043 lines of general knowledge preloaded into 5 agents' context on
 #    every invocation, with nothing project-specific in them)
+#   plus 8 vendored third-party higgsfield-* skills (brandkit, generate,
+#   marketplace-cards, product-photoshoot, soul-id, video-explainer, websites,
+#   youtube-thumbnail), verbatim from higgsfield-ai/skills; /sync verifies the
+#   `higgsfield` CLI they drive (docs/integrations/HIGGSFIELD_INTEGRATION.md)
 # Note: sync and skills-import are project-local (.claude/skills/), not in system-configs
 EXPECTED_AGENT_COUNT = 7
-EXPECTED_SKILL_COUNT = 40
+EXPECTED_SKILL_COUNT = 48
 
 # Non-agent/command documentation files to skip
 NON_AGENT_FILES = [

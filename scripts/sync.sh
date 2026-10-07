@@ -976,6 +976,47 @@ check_prerequisites() {
         fi
     fi
 
+    # Vendored higgsfield-* skills drive the `higgsfield` CLI. Only checked when
+    # this station syncs skills and the source tree actually ships them.
+    # HIGGSFIELD_SYNC_SKIP_CHECK=1 skips (tests run sync against a temp HOME).
+    if [ -z "${HIGGSFIELD_SYNC_SKIP_CHECK:-}" ] && [ "$(manifest_flag skills)" = "true" ] \
+        && ls -d "$SOURCE_DIR"/skills/higgsfield-* >/dev/null 2>&1; then
+        if command -v higgsfield >/dev/null 2>&1; then
+            echo "  ✅ higgsfield $(higgsfield --version 2>/dev/null | cut -d' ' -f2)"
+            # account status needs a stored login AND a selected workspace; it also needs
+            # the network, so a failure here warns instead of blocking the sync.
+            if higgsfield account status >/dev/null 2>&1; then
+                echo "  ✅ higgsfield signed in with a workspace"
+            else
+                print_warning "higgsfield not ready (run: higgsfield auth login, then higgsfield workspace list / workspace set <id>) - or offline; the higgsfield-* skills cannot generate until fixed"
+            fi
+        elif [ "$HAVE_MANIFEST" = "true" ]; then
+            # manifest stations (the fleet node) are scoped on purpose: warn so a merge never blocks their sync
+            print_warning "higgsfield not found on $STATION - the higgsfield-* skills cannot run there (npm i -g @higgsfield/cli, then higgsfield auth login)"
+        else
+            print_error "higgsfield not found - the higgsfield-* skills need the CLI (npm i -g @higgsfield/cli, then higgsfield auth login)"
+            prereq_fail=1
+        fi
+        # python3 runs the skill scripts; the rest are only brandkit's export stages.
+        # the brandkit scripts call str.removeprefix/removesuffix, which need Python 3.9
+        if command -v python3 >/dev/null 2>&1 && python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1)' >/dev/null 2>&1; then
+            echo "  ✅ python3 $(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])') (needs >= 3.9)"
+        elif [ "$HAVE_MANIFEST" = "true" ]; then
+            print_warning "python3 >= 3.9 not found on $STATION - the higgsfield-brandkit and higgsfield-websites scripts cannot run there (brew install python)"
+        else
+            print_error "python3 >= 3.9 not found - the higgsfield-brandkit and higgsfield-websites scripts need it (brew install python)"
+            prereq_fail=1
+        fi
+        hf_missing=""
+        for hf_tool in rsvg-convert soffice pdftoppm pdffonts fc-match fc-cache; do
+            command -v "$hf_tool" >/dev/null 2>&1 || hf_missing="$hf_missing $hf_tool"
+        done
+        command -v magick >/dev/null 2>&1 || command -v convert >/dev/null 2>&1 || hf_missing="$hf_missing magick"
+        if [ -n "$hf_missing" ]; then
+            print_warning "higgsfield-brandkit export tools missing:$hf_missing (brew install imagemagick librsvg poppler fontconfig; brew install --cask libreoffice)"
+        fi
+    fi
+
     if [ "$prereq_fail" -ne 0 ]; then
         echo ""
         echo "❌ Prerequisites missing — nothing was synced. Install the items above and run sync again."
