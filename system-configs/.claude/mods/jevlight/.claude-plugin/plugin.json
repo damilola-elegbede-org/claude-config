@@ -1,0 +1,9 @@
+{
+  "name": "jevlight",
+  "version": "0.1.0",
+  "description": "A visual marker each time Jev acts: one sky-blue line in the transcript per action",
+  "author": {
+    "name": "Damilola Elegbede"
+  },
+  "types": "./types/index.d.ts"
+}
