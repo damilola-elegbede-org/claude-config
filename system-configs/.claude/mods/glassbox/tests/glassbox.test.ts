@@ -245,6 +245,47 @@ describe("glassbox", () => {
     expect(await ui.find({ text: /app\.ts/ })).toBeDefined();
   });
 
+  test("checklist calls the plan cannot show stay in activity", async ($, on) => {
+    engine(on);
+    on("tool.call", (_$, e) =>
+      (e as { tool: string }).tool === "TodoWrite"
+        ? { isError: true, result: "bad todos" }
+        : { result: {} },
+    );
+    await $.ui.mount(band());
+    // A failed main-loop TodoWrite never reaches the plan.
+    await $.tool.call({ tool: "TodoWrite", todos: "oops" } as never);
+    // A subagent's checklist is not the plan.
+    await $.tool.call({ tool: "TaskList", agentId: "a1" } as never);
+
+    const main = await $.ui.mount(pane("terminal"));
+    expect(await main.find({ text: /▸ TodoWrite/ })).toBeDefined();
+    const sub = await $.ui.mount(pane("desktop", { agentId: "a1" }));
+    expect(await sub.find({ text: /▸ TaskList/ })).toBeDefined();
+  });
+
+  test("the change bar never draws more than its ten cells", async ($, on) => {
+    engine(on);
+    const lines = [
+      ...Array.from({ length: 11 }, () => "+n"),
+      ...Array.from({ length: 9 }, () => "-o"),
+    ];
+    on("tool.call", () => ({ result: { structuredPatch: [{ lines }] } }));
+    await $.ui.mount(band());
+    await $.tool.call({
+      tool: "Edit",
+      file_path: "/repo/a.ts",
+      old_string: "o",
+      new_string: "n",
+    } as never);
+
+    const ui = await $.ui.mount(pane("terminal"));
+    const row = await ui.find({ text: /▮.*\+11 −9/ });
+    expect(row).toBeDefined();
+    const bar = row!.text.match(/▮[▮·]*/)?.[0] ?? "";
+    expect([...bar].length).toBe(10);
+  });
+
   test("activity lists the newest first, the last 50 only", async ($, on) => {
     engine(on);
     on("tool.call", () => ({ result: {} }));

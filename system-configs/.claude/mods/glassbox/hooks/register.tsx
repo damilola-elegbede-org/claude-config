@@ -336,10 +336,11 @@ export const register: Register = (on) => {
     const a = e as unknown as Args;
     const { tool, agentId } = e;
 
-    // Shown as it starts, without holding the call up.
-    // The plan box already shows the checklist tools; the feed leaves them out.
-    if (!PLAN_TOOLS.has(tool))
-      void push($, { agentId, kind: "tool", text: gist(tool, a) });
+    // Shown as it starts, without holding the call up. The plan box shows the
+    // main loop's checklist, so the feed leaves those calls out; a subagent's
+    // stay, since the plan never shows them.
+    const inPlan = PLAN_TOOLS.has(tool) && !agentId;
+    if (!inPlan) void push($, { agentId, kind: "tool", text: gist(tool, a) });
     if (!agentId) await setPhase($, "tool");
     const ran = await next(e);
     const didRun = !("deny" in ran && ran.deny);
@@ -364,7 +365,11 @@ export const register: Register = (on) => {
       });
       return ran;
     }
-    if (ran.isError) return ran;
+    if (ran.isError) {
+      // A failed checklist call never reaches the plan, so the feed shows it.
+      if (inPlan) await push($, { kind: "tool", text: gist(tool, a) });
+      return ran;
+    }
 
     const out = ran.result;
     const change = changeOf(
@@ -763,9 +768,11 @@ export const register: Register = (on) => {
     const most = Math.max(1, ...edits.map((c) => c.added + c.removed));
     const scale = 10;
     const changeRows = edits.slice(0, 6).map((c) => {
-      const plus = Math.round((c.added / most) * scale);
-      const minus = Math.round((c.removed / most) * scale);
-      // "~" marks a floor: a replace_all edit was counted once.
+      // Round the whole bar once, then split it, so the two never overflow.
+      const cells = Math.round(((c.added + c.removed) / most) * scale);
+      const plus = Math.min(cells, Math.round((c.added / most) * scale));
+      const minus = cells - plus;
+      // "~" marks an estimate: counted from the call, without the tool's diff.
       const about = c.approx ? "~" : "";
       const nums = `${about}+${c.added} −${c.removed}`;
       return (
