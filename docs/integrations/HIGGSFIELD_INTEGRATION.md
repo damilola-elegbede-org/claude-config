@@ -36,7 +36,7 @@ scripts/sync.sh                # deploys the skills; checks the list below
 | Check                                                                    | Failure                                         |
 | ------------------------------------------------------------------------ | ----------------------------------------------- |
 | `higgsfield` on PATH                                                     | blocks laptop syncs (no manifest); warns on manifest stations like the fleet node     |
-| `python3`                                                                | same as above (brandkit and websites scripts) |
+| `python3` >= 3.9 (the brandkit scripts use `str.removeprefix`)           | same as above (brandkit and websites scripts) |
 | `higgsfield account status` (login and workspace, needs network)         | warning only                                    |
 | `rsvg-convert`, `soffice`, `pdftoppm`, `fc-match`, `magick` or `convert` | warning only (brandkit export stages)           |
 
@@ -82,6 +82,8 @@ Reported by CodeRabbit on #282; left verbatim because the fixes are untested edi
   public URL or readable path, so an apparently valid state can fail to build (Codex).
 - `higgsfield-brandkit/scripts/brandkit.py` ignores `style: "italic"` in typography previews, so the user may approve a
   regular or synthesized face instead of the chosen italic (Codex).
+- `higgsfield-brandkit/scripts/brandkit.py` emits no `@font-face` for a missing or unreadable local font path, so the preview
+  silently shows a fallback font that can be approved as the chosen typeface (Codex).
 - `higgsfield-brandkit/scripts/build_brandbook.py` palette limits differ from what `palette.md` and `normalize_slot` accept.
 - `higgsfield-brandkit/scripts/render_brandbook_pdf.py` sets `FONTCONFIG_FILE`, which LibreOffice's native macOS build does not read for font discovery.
 - `higgsfield-websites/references/game-design-system.md` requires `build-game.md` (before any game build) and `multiplayer.md`

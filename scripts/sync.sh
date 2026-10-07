@@ -921,12 +921,13 @@ check_prerequisites() {
             prereq_fail=1
         fi
         # python3 runs the skill scripts; the rest are only brandkit's export stages.
-        if command -v python3 >/dev/null 2>&1; then
-            echo "  ✅ python3"
+        # the brandkit scripts call str.removeprefix/removesuffix, which need Python 3.9
+        if command -v python3 >/dev/null 2>&1 && python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1)' >/dev/null 2>&1; then
+            echo "  ✅ python3 $(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])') (needs >= 3.9)"
         elif [ "$HAVE_MANIFEST" = "true" ]; then
-            print_warning "python3 not found on $STATION - the higgsfield-brandkit and higgsfield-websites scripts cannot run there (brew install python)"
+            print_warning "python3 >= 3.9 not found on $STATION - the higgsfield-brandkit and higgsfield-websites scripts cannot run there (brew install python)"
         else
-            print_error "python3 not found - the higgsfield-brandkit and higgsfield-websites scripts need it (brew install python)"
+            print_error "python3 >= 3.9 not found - the higgsfield-brandkit and higgsfield-websites scripts need it (brew install python)"
             prereq_fail=1
         fi
         hf_missing=""

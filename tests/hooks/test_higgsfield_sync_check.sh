@@ -76,6 +76,14 @@ run_sync signedout "$T/stub:$CLEAN_PATH" 1
 if grep -q "higgsfield not ready" <<<"$SYNC_OUT"; then ok; else bad "signed out: warns with the login command"; fi
 if [[ "$SYNC_RC" -eq 0 ]]; then ok; else bad "signed out: warns but still syncs (rc=$SYNC_RC)"; fi
 
+# The brandkit scripts need Python 3.9 (str.removeprefix); a python3 that fails the version probe blocks a laptop sync.
+mkdir -p "$T/oldpy"
+printf '%s\n' '#!/bin/sh' 'exit 1' >"$T/oldpy/python3"
+chmod +x "$T/oldpy/python3"
+run_sync oldpy "$T/oldpy:$T/stub:$CLEAN_PATH" 0
+if grep -q "python3 >= 3.9 not found" <<<"$SYNC_OUT"; then ok; else bad "old python3: reports the 3.9 requirement (got: $(grep -i python <<<"$SYNC_OUT" | head -2))"; fi
+if [[ "$SYNC_RC" -ne 0 ]]; then ok; else bad "old python3: the prerequisite check fails the sync"; fi
+
 # A station with a manifest (the fleet node) only warns, so a merge never blocks its sync.
 # sync.sh finds its manifest from its own location + the host name, so run a copy inside a temp repo layout.
 STATION="$(scutil --get LocalHostName 2>/dev/null || hostname -s)"
