@@ -173,6 +173,26 @@ describe("jevlight", () => {
     ).toBe(SKY);
   });
 
+  test("switching sessions drops the old session's marks", async ($, on) => {
+    engine(on);
+    memoryStore(on);
+    on("classic.UserPromptSubmit", () => ({}));
+    on("classic.PostToolUse", () => ({ updatedToolOutput: "short" }));
+    await $.classic.PostToolUse({
+      session_id: "s1",
+      tool_name: "Read",
+      tool_use_id: "dup",
+      tool_input: {},
+      tool_response: {},
+      duration_ms: 1,
+    });
+
+    await $.classic.UserPromptSubmit({ session_id: "s2", prompt: "hi" });
+
+    const ui = await $.ui.mount(result("terminal", "dup"));
+    expect(await ui.find({ type: "Text", text: /trimmed Read/ })).toBeUndefined();
+  });
+
   test("a trim is marked; old calls drop past the cap", () => {
     expect(actionsOf("Read output", { updatedToolOutput: "short" })).toEqual([
       "⚡ Jev trimmed Read output",

@@ -155,9 +155,7 @@ describe("glassbox", () => {
       .filter((s) => s !== undefined)
       .map(Number);
     const unique = steps.filter((s, i) => steps.indexOf(s) === i);
-    expect(unique).toHaveLength(50);
-    expect(unique[0]).toBe(60);
-    expect(unique.at(-1)).toBe(11);
+    expect(unique).toEqual(Array.from({ length: 50 }, (_, i) => 60 - i));
   });
 
   test("a subagent can be drilled into and back out of", async ($, on) => {

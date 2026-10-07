@@ -107,10 +107,16 @@ const persist = async ($: EngineInterface) => {
 // Learns the session id; on a resume, draws its saved marks again.
 const remember = async ($: EngineInterface, session: string) => {
   try {
-    if ((await read($, sid)) === session) return;
+    const previous = await read($, sid);
+    if (previous === session) return;
     await update($, sid, () => session);
     const saved = (await $.store.get(`marks:${session}`)) as Marks | undefined;
-    if (saved) await update($, marks, (all) => ({ ...saved, ...(all ?? {}) }));
+    // Switching sessions drops the old session's marks (tool_use_ids could
+    // coincide); the first id learned keeps marks drawn before it was known.
+    if (previous) await update($, marks, () => saved ?? {});
+    else if (saved) {
+      await update($, marks, (all) => ({ ...saved, ...(all ?? {}) }));
+    }
   } catch {
     // losing old marks never stops the session
   }
