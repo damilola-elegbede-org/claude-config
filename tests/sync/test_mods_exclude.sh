@@ -78,16 +78,32 @@ if [[ "$SYNC_RC" -ne 0 ]]; then ok; else bad "string, not array: the sync fails 
 if grep -q "must be an array" <<<"$SYNC_OUT"; then ok; else bad "string, not array: the error says so"; fi
 
 # A mod the sync cannot remove (a read-only folder inside it) fails the sync instead of claiming it was removed.
-home="$T/home-stuck"
-mkdir -p "$home/.claude/mods/replay-theater/locked"
-echo x >"$home/.claude/mods/replay-theater/locked/file"
-chmod 555 "$home/.claude/mods/replay-theater/locked"
-printf '%s\n' '{"mode":"scoped","sync":{"settings":false,"mods_exclude":["replay-theater"]}}' >"$T/repo/sync-manifests/$STATION.json"
-SYNC_OUT=$(env HOME="$home" JEV_SYNC_SKIP_NPM=1 HIGGSFIELD_SYNC_SKIP_CHECK=1 bash "$T/repo/scripts/sync.sh" --force 2>&1)
-SYNC_RC=$?
-chmod -R u+w "$home"
-if [[ "$SYNC_RC" -ne 0 ]]; then ok; else bad "unremovable: the sync fails"; fi
-if grep -q "could not remove replay-theater" <<<"$SYNC_OUT" && ! grep -q "removed replay-theater" <<<"$SYNC_OUT"; then ok; else bad "unremovable: says it could not remove it, never that it did"; fi
+# Root removes a read-only folder anyway, so the case cannot be built there.
+if [[ "$(id -u)" -ne 0 ]]; then
+  home="$T/home-stuck"
+  mkdir -p "$home/.claude/mods/replay-theater/locked"
+  echo x >"$home/.claude/mods/replay-theater/locked/file"
+  chmod 555 "$home/.claude/mods/replay-theater/locked"
+  printf '%s\n' '{"mode":"scoped","sync":{"settings":false,"mods_exclude":["replay-theater"]}}' >"$T/repo/sync-manifests/$STATION.json"
+  SYNC_OUT=$(env HOME="$home" JEV_SYNC_SKIP_NPM=1 HIGGSFIELD_SYNC_SKIP_CHECK=1 bash "$T/repo/scripts/sync.sh" --force 2>&1)
+  SYNC_RC=$?
+  chmod -R u+w "$home"
+  if [[ "$SYNC_RC" -ne 0 ]]; then ok; else bad "unremovable: the sync fails"; fi
+  if grep -q "could not remove replay-theater" <<<"$SYNC_OUT" && ! grep -q "removed replay-theater" <<<"$SYNC_OUT"; then ok; else bad "unremovable: says it could not remove it, never that it did"; fi
+else
+  echo "SKIP: unremovable-mod case (running as root)" >&2
+fi
+
+# --dry-run counts and names what the real sync would do, and flags a bad value.
+preview() { # manifest-json
+  printf '%s\n' "$1" >"$T/repo/sync-manifests/$STATION.json"
+  SYNC_OUT=$(env HOME="$T/home-none" JEV_SYNC_SKIP_NPM=1 HIGGSFIELD_SYNC_SKIP_CHECK=1 bash "$T/repo/scripts/sync.sh" --dry-run 2>&1)
+}
+ALL_MODS=$(find "$REPO_ROOT/system-configs/.claude/mods" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')
+preview '{"mode":"scoped","sync":{"settings":false,"mods_exclude":["replay-theater"]}}'
+if grep -q "$((ALL_MODS - 1)) mods → ~/.claude/mods/ (--delete; local-\* kept; excluded on $STATION: replay-theater)" <<<"$SYNC_OUT"; then ok; else bad "dry run: counts and names the exclusion (got: $(grep 'mods' <<<"$SYNC_OUT" | head -2))"; fi
+preview '{"mode":"scoped","sync":{"settings":false,"mods_exclude":"replay-theater"}}'
+if grep -q "must be an array of mod names (real sync would fail)" <<<"$SYNC_OUT"; then ok; else bad "dry run: flags a malformed mods_exclude"; fi
 
 printf 'mods_exclude sync tests: %d passed, %d failed\n' "$PASS" "$FAIL"
 [[ "$FAIL" -eq 0 ]]
