@@ -42,12 +42,14 @@ import {
 // concern (loop, context, plan, agents, gate, changes, activity); a box with
 // nothing to show takes no room. It draws nothing in the transcript or in the
 // status line, and opens only on /glassbox. Where a surface cannot dock a pane
-// (the mobile app, a terminal not in fullscreen) the engine seats it above the
-// prompt, and glassbox draws a shorter version there until it is closed.
+// (a terminal not in fullscreen) the engine seats it above the prompt, and
+// glassbox draws a shorter version there until it is closed. Where no surface
+// draws a pane at all, /glassbox answers with the same boxes in text.
 //
 // It only watches. Every recording hook passes the event on unchanged, and none
-// records until a screen has drawn: a headless session (`claude -p`, the fleet)
-// never draws, so there the hooks are a bare `next(e)`.
+// records until a screen has drawn, a remote client has attached or /glassbox
+// was typed: a headless session (`claude -p`, the fleet) does none of these
+// (its surface roster is empty), so there the hooks are a bare `next(e)`.
 
 const PANE = "glassbox";
 const PANE_COLUMNS = 52;
@@ -282,12 +284,16 @@ export const register: Register = (on) => {
 
   // Opens the pane and prints nothing where a surface draws one (the terminal,
   // the desktop app). Where nothing draws (the VS Code chat panel, a cloud
-  // session) it answers with a snapshot in text instead, as does
+  // session, Remote Control from claude.ai or the phone) it answers with a
+  // snapshot in text instead, as does
   // `/glassbox text` anywhere, and records from then on for the next one.
   on("command.run", { command: "glassbox" }, async ($, e) => {
     const surfaces = await $.session.surfaces();
     const draws = surfaces.some((s) => DRAWING_SURFACES.has(s));
-    if (!draws || (e.args ?? "").trim() === "text") {
+    // Typed from claude.ai or the phone (Remote Control), the pane would open on
+    // the machine's terminal, out of the typist's sight: answer in text there.
+    const fromBridge = e.origin?.kind === "bridge";
+    if (!draws || fromBridge || (e.args ?? "").trim() === "text") {
       const text = await snapshot($, hasScreen);
       hasScreen = true;
       return { text };

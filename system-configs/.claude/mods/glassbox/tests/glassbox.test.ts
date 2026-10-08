@@ -242,6 +242,22 @@ describe("glassbox", () => {
     });
   }
 
+  test("/glassbox from claude.ai or the phone (Remote Control) answers in text", async ($, on) => {
+    engine(on);
+    on("session.surfaces", () => ({ value: ["terminal", "mobile"] }));
+    let opened = 0;
+    on("ui.open", () => {
+      opened++;
+      return { value: { isPlaced: true } };
+    });
+    const out = await $.command.run({
+      command: "glassbox",
+      origin: { kind: "bridge" },
+    } as never);
+    expect(out.text).toMatch(/\*\*glassbox\*\*/);
+    expect(opened).toBe(0);
+  });
+
   test("/glassbox text answers in text even where the pane draws", async ($, on) => {
     engine(on);
     on("session.surfaces", () => ({ value: ["terminal"] }));
