@@ -40,10 +40,10 @@ problems = []
 urls = sorted(set(u.rstrip(".,;:") for u in re.findall(r"https?://[^\s)>\]*]+", body)))
 if urls:
     problems.append("bare URL(s) " + ", ".join(urls[:4]) + " — wrap each as [descriptive text](url)")
-refs = set(re.findall(r"(?<![\w/&#])(?:PRs?|pull requests?|issues?|MR)\s+(#\d{1,5})\b", body, flags=re.I))
-refs |= set(re.findall(r"\((#\d{1,5})\)", body))
+refs = set(re.findall(r"(?<![\w/&#])(?:PRs?|pull requests?|issues?|MR)\s+(#\d{1,7})\b", body, flags=re.I))
+refs |= set(re.findall(r"\((#\d{1,7})\)", body))
 refs |= set(re.findall(r"(?<![\w/&#])(#\d{3,5})(?![0-9A-Za-z])", body))
-refs |= set(re.findall(r"[\w.-]+/[\w.-]+(#\d{1,5})\b", body))
+refs |= set(re.findall(r"[\w.-]+/[\w.-]+(#\d{1,7})\b", body))
 if refs:
     problems.append("bare PR/issue ref(s) " + ", ".join(sorted(refs)[:5]) + " — link each: [PR #N](https://github.com/<owner>/<repo>/pull/N); get the repo with `gh repo view --json url`")
 def sha_ok(s):

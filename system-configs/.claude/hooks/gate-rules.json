@@ -49,7 +49,7 @@
       "field": "command",
       "pattern": "(?:{{GIT}}clone|gh[[:space:]]+repo[[:space:]]+clone)(?=[[:space:]])",
       "anchor": "cmd",
-      "exempt": "clone(?:[[:space:]]+-[^[:space:]]+(?:[[:space:]]+[^[:space:]-][^[:space:]]*)?)*[[:space:]]+[^[:space:]-][^[:space:]]*[[:space:]]+(?:[\\\"']?(?:~|\\$\\{?HOME\\}?|{{HOME}})/dev/[^[:space:]\\\"']*[\\\"']?|{{EXTOK}})[[:space:]]*$",
+      "exempt": "clone(?:[[:space:]]+-[^[:space:]]+(?:[[:space:]]+[^[:space:]-][^[:space:]]*)?)*[[:space:]]+[^[:space:]-][^[:space:]]*[[:space:]]+(?:[\\\"']?(?:~|\\$\\{?HOME\\}?|{{HOME}})/dev/(?!(?:[^[:space:]]*/)?\\.\\.(?:/|[[:space:]'\\\"]|$))[^[:space:]\\\"']*[\\\"']?|{{EXTOK}})[[:space:]]*$",
       "action": "deny",
       "message": "Every repo lives at ~/dev/<name>, one copy each. Pass the destination: git clone <url> ~/dev/<name> (or gh repo clone <owner/name> ~/dev/<name>). If the repo is already in ~/dev, use it; never clone into ~/repos, ~/Documents or the home root",
       "scope": ["interactive", "bgjob", "fleet"],

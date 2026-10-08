@@ -286,6 +286,8 @@ out=$(run link-lint.sh "$(sl $'**FYI · see PR #3 for details.**\nx')")
 has "bare PR number blocked" "$out" "#3"
 out=$(run link-lint.sh "$(sl $'**FYI · merged (#128).**\nx')")
 has "squash-merge style (#N) blocked" "$out" "#128"
+out=$(run link-lint.sh "$(sl $'**FYI · see PR #123456 for details.**\nx')")
+has "PR number above five digits blocked" "$out" "#123456"
 out=$(run link-lint.sh "$(sl $'**FYI · see o/r#12.**\nx')")
 has "owner/repo#N blocked" "$out" "#12"
 out=$(run link-lint.sh "$(sl $'**FYI · docs at https://example.org/x.**\nx')")
@@ -361,6 +363,12 @@ has "a 404 on a URL with parentheses is reported with the whole URL" "$out" "gon
 vl $'**FYI · [page](https://example.org/ok).**\nx' >/dev/null
 has "web check does not follow redirects" "$(cat "$T/curl.args")" "--max-redirs 0"
 hasnt "web check never passes -L" "$(cat "$T/curl.args")" " -L"
+: >"$T/curl.args"
+out=$(vl $'**FYI · [x](http://public.example@127.0.0.1:8080/action).**\nx')
+has "userinfo URL is rejected before any fetch" "$out" "userinfo"
+out=$(vl $'**FYI · [docs](https://example.org/gone "manual").**\nx')
+has "a titled link is validated" "$out" "answers 404"
+eq "a titled link that exists passes" "$(vl $'**FYI · [docs](https://example.org/ok "manual").**\nx')" ""
 : >"$T/curl.args"
 eq "link to .internal host is skipped, not fetched" "$(vl $'**FYI · [x](https://svc.internal/gone).**\nx')" ""
 eq ".internal host never reaches curl" "$(cat "$T/curl.args")" ""

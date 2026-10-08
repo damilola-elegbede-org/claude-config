@@ -32,6 +32,7 @@ MODE=$(re_mode link-validate enforce)
 
 RESULT=$(printf '%s' "$MSG" | python3 -c '
 import concurrent.futures as cf, hashlib, ipaddress, os, re, socket, subprocess, sys, time
+from urllib.parse import urlsplit
 
 GH = os.environ.get("LV_GH", "gh")
 CURL = os.environ.get("LV_CURL", "curl")
@@ -43,7 +44,7 @@ msg = sys.stdin.read()
 body = re.sub(r"```.*?```", " ", msg, flags=re.S)
 body = re.sub(r"~~~.*?~~~", " ", body, flags=re.S)
 body = re.sub(r"`[^`\n]*`", " ", body)
-DEST = r"((?:[^()\s]|\([^()\s]*\))*)"
+DEST = r"((?:[^()\s]|\([^()\s]*\))*)(?:\s+(?:\"[^\"]*\"|\x27[^\x27]*\x27))?"
 links = [(m.group(1), m.group(2)) for m in re.finditer(r"\[([^\]]*)\]\(" + DEST + r"\)", body)]
 rest = re.sub(r"\[[^\]]*\]\((?:[^()]|\([^()]*\))*\)", " ", body)
 bare = set()
@@ -64,6 +65,8 @@ def static(label, url):
     if not re.match(r"(https?://|mailto:|tel:|#|\.{0,2}/|[\w.-]+(/|\.\w+$))", url):
         return "not a URL"
     if url.startswith("http"):
+        if "@" in re.match(r"https?://([^/?#]*)", url).group(1):
+            return "URL contains userinfo (user@host), which hides the real host"
         host = re.match(r"https?://([^/?#:]+)", url)
         if not host or not ("." in host.group(1) or host.group(1) == "localhost"):
             return "URL has no valid host"
@@ -156,7 +159,7 @@ def remote(url, label):
         return v
     if re.match(r"^https://linear\.app/", url):
         return "OK"
-    host = re.match(r"https?://([^/?#:]+)", url).group(1)
+    host = urlsplit(url).hostname or ""
     if private_host(host):
         return "SKIP private host"
     # No -L: a redirect is proof the page exists, and following one could reach a private address.
