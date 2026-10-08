@@ -25,6 +25,7 @@ import {
   gist,
   kTokens,
   meter,
+  oneLine,
   prettyModel,
   responseItems,
   settle,
@@ -173,6 +174,93 @@ async function liveAgents($: EngineInterface) {
   });
 }
 
+// The surfaces that show a mod's panes; elsewhere hooks run but nothing draws
+// (code.claude.com/docs/en/plugins/mods/overview, "Where mods run").
+const DRAWING_SURFACES = new Set(["terminal", "desktop"]);
+const SNAPSHOT_ACTIVITY = 10;
+
+// The pane's boxes as markdown, for a surface that draws no pane. A box with
+// nothing to show is left out, as in the pane.
+async function snapshot($: EngineInterface, wasRecording: boolean) {
+  const [l, list, runs, items, gate, edits, now, usage] = await Promise.all([
+    read($, loop),
+    read($, tasks),
+    liveAgents($),
+    read($, feed),
+    read($, checks),
+    read($, changes),
+    $.clock.now(),
+    $.session.usage({ breakdown: "summary" }).catch(() => null),
+  ]);
+  const model = prettyModel(l.model || usage?.context.breakdown?.model || "");
+  const timing =
+    l.phase !== "idle" && l.turnStartedAt !== null
+      ? `${l.phase} · ${timer(now - l.turnStartedAt)}`
+      : l.turnStartedAt !== null && l.turnEndedAt !== null
+        ? `idle · last turn ${duration(l.turnEndedAt - l.turnStartedAt)}`
+        : "idle";
+  const out = [`**glassbox** · ${[model, timing].filter(Boolean).join(" · ")}`];
+
+  const ctx = usage?.context;
+  if (ctx?.percent !== undefined && ctx.percent !== null) {
+    const size =
+      ctx.tokens !== undefined
+        ? ` (${kTokens(ctx.tokens)}/${kTokens(ctx.window)})`
+        : "";
+    const fold = l.compactions > 0 ? ` · compacted ${l.compactions}×` : "";
+    out.push(`**context** ${Math.round(ctx.percent)}%${size}${fold}`);
+  }
+  if (list.length > 0) {
+    const done = list.filter((x) => x.status === "completed").length;
+    out.push(`**plan** ${done}/${list.length}`);
+    for (const x of list) {
+      const text =
+        x.status === "in_progress" ? (x.activeForm ?? x.subject) : x.subject;
+      out.push(
+        x.status === "completed"
+          ? `- [x] ${text}`
+          : x.status === "in_progress"
+            ? `- [ ] **${text}**`
+            : `- [ ] ${text}`,
+      );
+    }
+  }
+  if (runs.length > 0) {
+    out.push(`**agents** ${runs.length}`);
+    for (const r of runs.slice(-6)) {
+      const took = timer((r.endedAt ?? now) - r.startedAt);
+      out.push(`- ${r.status} · ${r.description} · ${r.tools} tools · ${took}`);
+    }
+  }
+  if (gate.length > 0) {
+    const n = tally(gate);
+    out.push(
+      `**gate** ${n.allowed} allowed · ${n.asked} asked · ${n.pending} waiting · ${n.denied} denied`,
+    );
+  }
+  if (edits.length > 0) {
+    out.push(`**changes** ${edits.length} files`);
+    for (const c of edits.slice(0, 6)) {
+      const about = c.approx ? "~" : "";
+      out.push(`- ${shortFile(c.file)} ${about}+${c.added} −${c.removed}`);
+    }
+  }
+  const shown = items
+    .filter((i) => !i.agentId)
+    .slice(-SNAPSHOT_ACTIVITY)
+    .reverse();
+  if (shown.length > 0) {
+    out.push("**activity**");
+    for (const i of shown)
+      out.push(`- ${clockTime(i.at)} ${feedGlyph[i.kind]} ${oneLine(i.text)}`);
+  } else if (!wasRecording) {
+    out.push(
+      "Recording from now: run /glassbox again to see plan, agents and activity.",
+    );
+  }
+  return out.join("\n");
+}
+
 // A watcher must never stand in the way: a hook that fails hands the event on
 // as if it were not there (replay-safe when it had already called `next`).
 const passThrough = <E, R>(_$: unknown, e: E, next: (e: E) => R) => next(e);
@@ -192,8 +280,18 @@ export const register: Register = (on) => {
     return next(e);
   });
 
-  // Opens the pane and prints nothing: glassbox draws only in its pane.
-  on("command.run", { command: "glassbox" }, async ($) => {
+  // Opens the pane and prints nothing where a surface draws one (the terminal,
+  // the desktop app). Where nothing draws (the VS Code chat panel, a cloud
+  // session) it answers with a snapshot in text instead, as does
+  // `/glassbox text` anywhere, and records from then on for the next one.
+  on("command.run", { command: "glassbox" }, async ($, e) => {
+    const surfaces = await $.session.surfaces();
+    const draws = surfaces.some((s) => DRAWING_SURFACES.has(s));
+    if (!draws || (e.args ?? "").trim() === "text") {
+      const text = await snapshot($, hasScreen);
+      hasScreen = true;
+      return { text };
+    }
     const opened = await $.ui.open({
       id: PANE,
       title: "glassbox",

@@ -194,11 +194,66 @@ describe("glassbox", () => {
     expect(await ui.find({ text: /Seen from the phone/ })).toBeDefined();
   });
 
-  test("/glassbox opens the pane and prints nothing in the transcript", async ($, on) => {
+  for (const surface of ["terminal", "desktop"] as const) {
+    test(`/glassbox opens the pane and prints nothing in the transcript (${surface})`, async ($, on) => {
+      engine(on);
+      on("session.surfaces", () => ({ value: [surface] }));
+      let opened = 0;
+      on("ui.open", () => {
+        opened++;
+        return { value: { isPlaced: true } };
+      });
+      const out = await $.command.run({ command: "glassbox" });
+      expect(out.text).toBeUndefined();
+      expect(opened).toBe(1);
+    });
+  }
+
+  for (const [where, surfaces] of [
+    ["the VS Code chat panel", ["vscode"]],
+    ["a headless or cloud session", []],
+  ] as const) {
+    test(`where nothing draws (${where}), /glassbox answers in text and records from then`, async ($, on) => {
+      engine(on);
+      on("session.surfaces", () => ({ value: surfaces }));
+      let opened = 0;
+      on("ui.open", () => {
+        opened++;
+        return { value: { isPlaced: true } };
+      });
+      on("tool.call", () => ({
+        result: { task: { id: "1", subject: "Shown in text" } },
+      }));
+
+      const first = await $.command.run({ command: "glassbox" });
+      expect(first.text).toMatch(/\*\*glassbox\*\*/);
+      expect(first.text).toMatch(/Recording from now/);
+
+      await $.tool.call({
+        tool: "TaskCreate",
+        subject: "Shown in text",
+        description: "x",
+      });
+      const second = await $.command.run({ command: "glassbox" });
+      expect(second.text).toMatch(/\*\*plan\*\* 0\/1/);
+      expect(second.text).toMatch(/- \[ \] Shown in text/);
+      expect(second.text).not.toMatch(/Recording from now/);
+      expect(opened).toBe(0);
+    });
+  }
+
+  test("/glassbox text answers in text even where the pane draws", async ($, on) => {
     engine(on);
-    on("ui.open", () => ({ value: { isPlaced: true } }));
-    const out = await $.command.run({ command: "glassbox" });
-    expect(out.text).toBeUndefined();
+    on("session.surfaces", () => ({ value: ["terminal"] }));
+    let opened = 0;
+    on("ui.open", () => {
+      opened++;
+      return { value: { isPlaced: true } };
+    });
+    await $.ui.mount(band());
+    const out = await $.command.run({ command: "glassbox", args: "text" });
+    expect(out.text).toMatch(/\*\*glassbox\*\*/);
+    expect(opened).toBe(0);
   });
 
   test("TodoWrite and the task tools never overwrite each other", async ($, on) => {
