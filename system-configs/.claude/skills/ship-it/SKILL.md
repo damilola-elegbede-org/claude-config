@@ -104,6 +104,10 @@ that choice.
    - All three of `-c -p -pr` set (including the no-flag default):
      - **Check** that `commit-commands:commit-push-pr` is available (the
        Anthropic-published `commit-commands` plugin installs it).
+     - **If `/codex-review` recorded skipped findings this run** (records with
+       `"source": "codex"` in `.tmp/coderabbit-ignored.json`): skip the plugin and
+       invoke our `/commit` → `/push` → `/pr`, because only `/pr` posts those
+       acknowledgments to the PR.
      - **If available:** one tool call to `commit-commands:commit-push-pr`.
        No TaskCreate ceremony, no orchestration.
      - **If not available:** output `commit-commands:commit-push-pr not

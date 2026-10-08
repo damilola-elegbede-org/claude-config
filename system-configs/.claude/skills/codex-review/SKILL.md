@@ -97,11 +97,13 @@ reviews the fixes from the previous round, and those fixes are where new finding
 ```text
 FOR round in 1..3:
   SET: new_files = `git ls-files --others --exclude-standard`
+  RUN: cp "$(git rev-parse --git-path index)" .tmp/codex-review/index.bak
   RUN: git add -N -- {each path in new_files}   (intent-to-add: the files enter `git diff`
                                                  with their full contents, nothing is staged)
   RUN: codex review --base {target_branch} > .tmp/codex-review/round-{round}.log 2>&1
-  RUN: git reset -q -- {each path in new_files}  (always, whatever the exit code, so the files
-                                                  are untracked again exactly as before)
+  RUN: cp .tmp/codex-review/index.bak "$(git rev-parse --git-path index)"
+       (always, whatever the exit code; restoring the saved index puts every entry back exactly,
+        including a staged deletion whose path was recreated, which `git reset` would not)
   IF: exit code != 0
     OUTPUT: "⚠️ codex review failed (exit {code}); see .tmp/codex-review/round-{round}.log. Skipping."
     WRITE_STATE: status = "skipped"
@@ -115,6 +117,10 @@ FOR round in 1..3:
     Drop exact duplicates (same badge, title, and location); the block can repeat entries.
   IF: no "Full review comments:" block AND the log reports no findings
     SET: findings = []
+  IF: no "Full review comments:" block AND the log does not report no findings
+    OUTPUT: "⚠️ Could not parse the Codex review output; see .tmp/codex-review/round-{round}.log."
+    WRITE_STATE: status = "unverified"
+    END (success)   (an unreadable result is never cached as clean)
 
   IF: findings is empty
     OUTPUT: "✅ Codex review clean (round {round})."
