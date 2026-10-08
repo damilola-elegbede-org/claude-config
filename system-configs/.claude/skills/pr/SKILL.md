@@ -178,6 +178,10 @@ STEP 2.5: Pre-PR Codex review
     OUTPUT: "Not opening the PR: Codex still reports P0/P1 findings (see above)."
     END (failure)
   IF: it committed fixes
+    RUN: /verify --report-only   (gates that passed before the fixes say nothing about them)
+    IF: any gate failed
+      OUTPUT: "Not opening the PR: {n} gate(s) fail after the Codex fixes: {names}."
+      END (failure)
     INVOKE: /push   (the PR must include the fixes)
   IF: it left fixes uncommitted
     OUTPUT: "Not opening the PR: the Codex fixes are uncommitted, so the PR would not include them. Commit them and re-run /pr."
