@@ -75,10 +75,16 @@
       "body_chars": 3000
     },
     "A8-skill-picker": {
-      "mode": { "interactive": "enforce", "bgjob": "shadow" },
+      "mode": "enforce",
       "threshold": 0.7,
+      "likely_threshold": 0.4,
+      "skill_cap": 40,
       "scope": ["interactive", "bgjob"],
       "min_prompt_chars": 15
+    },
+    "A9-skill-router": {
+      "mode": "shadow",
+      "scope": ["interactive", "bgjob"]
     }
   }
 }

@@ -4,6 +4,8 @@ description: Resolve review comments from any source. Use when addressing PR rev
 argument-hint: "[pr-number] [--local|--auto|--dry-run]"
 metadata:
   category: orchestration
+  triggers:
+    - 'cmd:resolveReviewThread|\bgh\s+pr\s+review\b|/pulls/[0-9]+/comments/[0-9]+/replies'
 ---
 
 # /resolve-comments

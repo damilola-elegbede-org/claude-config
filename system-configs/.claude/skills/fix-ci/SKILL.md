@@ -5,6 +5,8 @@ argument-hint: "[run-id|--learn]"
 context: fork
 metadata:
   category: orchestration
+  triggers:
+    - 'cmd:\bgh\s+run\s+(view\b.*--log-failed|rerun\b)'
 ---
 
 # /fix-ci

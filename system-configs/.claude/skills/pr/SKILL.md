@@ -4,6 +4,8 @@ description: Create pull requests with smart title and description generation. U
 argument-hint: "[target_branch] [--draft|--force]"
 metadata:
   category: workflow
+  triggers:
+    - 'cmd:\bgh\s+pr\s+(create|new)\b'
 ---
 
 # /pr
