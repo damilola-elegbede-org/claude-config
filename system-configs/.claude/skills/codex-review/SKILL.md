@@ -60,14 +60,22 @@ RUN: cd "$(git rev-parse --show-toplevel)"
       elsewhere would miss both the review and the cache hash)
 RUN: mkdir -p .tmp/codex-review   (first, so every WRITE_STATE below has a directory to write to)
 
-RUN: mkdir .tmp/codex-review/run.lock, then write this process's PID to run.lock/pid
-IF: mkdir fails AND the PID in run.lock/pid is still running
-  OUTPUT: "⚠️ Another Codex review is running in this worktree — skipping this one."
-  END (success, without WRITE_STATE: the running review owns state.json)
-IF: mkdir fails AND that PID is gone (a crashed run)
-  RUN: replace run.lock/pid with this process's PID
-     (two runs in one worktree would share the review index, round logs and triage files, and
-      one could parse or cache the other's findings)
+Two runs in one worktree would share the review index, round logs and triage files, and one
+could parse or cache the other's findings, so a lock admits one run at a time. `mkdir` is
+atomic, so a failed `mkdir` means another run holds the lock.
+
+RUN: mkdir .tmp/codex-review/run.lock
+IF: it succeeds
+  WRITE: this process's PID to run.lock/pid
+IF: it fails AND the PID in run.lock/pid is still running
+  OUTPUT: "Another Codex review is running in this worktree. Wait for it to finish, then re-run."
+  END (busy, without WRITE_STATE: the running review owns state.json)
+     (busy is not a pass: a caller that proceeded would publish before that review reports)
+IF: it fails AND that PID is gone (a crashed run left the lock)
+  OUTPUT: "A crashed Codex review left .tmp/codex-review/run.lock. Remove it and re-run."
+  END (busy)
+     (reclaiming automatically races: two runs can each remove the other's fresh lock, so a
+      stale lock is cleared by hand once)
 Every END below, success or failure, removes .tmp/codex-review/run.lock first.
 
 RUN: command -v codex
@@ -96,7 +104,9 @@ ELSE
              `CODEX_HOME=~/.codex-review codex login` to enable it."
     WRITE_STATE: status = "skipped"
     END (success)
-  SET: codex_cmd = codex
+  SET: codex_cmd = codex -c 'sandbox_mode="read-only"' -c 'approval_policy="never"'
+       (a review copies the home's sandbox setting, and ~/.codex may allow writes; the review
+        must never modify the worktree it is reviewing)
   OUTPUT: "⚠️ Reviewing under ~/.codex, whose personal skills and AGENTS.md GitHub's Codex never
            sees, so findings may differ from GitHub's. Run `CODEX_HOME=~/.codex-review codex login`
            once for a GitHub-like review."
@@ -180,9 +190,8 @@ FOR round in 1..3:
     END (success)   (an unreadable result is never cached as clean)
 
   IF: findings is empty
-    OUTPUT: "✅ Codex review clean (round {round})."
-    WRITE_STATE: status = "clean"
-    END (success)
+    SET: last_round_clean = true
+    BREAK   (Step 4 still checks blockers deferred in earlier rounds before recording clean)
 
   WRITE: .tmp/review-local.json   (schema below; overwrites any earlier review output,
                                    which /review's own run has already consumed)
@@ -241,16 +250,21 @@ reviewed them, so that content must not be cached as passed. A P0 or P1 that D s
 triage dialog is a decision, not a failure; `/resolve-comments` has already recorded it in
 `.tmp/coderabbit-ignored.json`. A P0 or P1 that triage skipped on its own, because validation
 rejected the guidance or the fix reached outside the finding's files, was never decided by
-anyone and stays a blocker.
+anyone and stays a blocker. Such a blocker stays open even when a later round does not
+report it again: the reviewer is not deterministic, so its silence is not a fix.
 
 ```text
-SET: open_blockers = last-round P0/P1 findings that were neither fixed nor skipped by D in the
+SET: open_blockers = P0/P1 findings from any round that were neither fixed nor skipped by D in the
                     triage dialog (skip_category "user-skipped", "Skip all", or a declined
                     wider edit); automatic skips such as "out-of-scope-edit" or a validation
                     rejection count as open
 IF: open_blockers is empty AND the loop ended on round 3 with fixes applied
   WRITE_STATE: status = "unverified"
   OUTPUT: "⚠️ Codex review: round-3 fixes were not re-reviewed; GitHub's Codex review will be the first to see them."
+  END (success)
+IF: open_blockers is empty AND last_round_clean AND nothing was skipped in any round
+  WRITE_STATE: status = "clean"
+  OUTPUT: "✅ Codex review clean (round {rounds})."
   END (success)
 IF: open_blockers is empty
   WRITE_STATE: status = "acknowledged"

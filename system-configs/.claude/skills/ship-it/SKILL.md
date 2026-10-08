@@ -89,7 +89,8 @@ that choice.
 4. **`-r`**: Invoke `/review`. If issues found, hand off to `/resolve-comments` per its own flow.
 5. **`-x`, or `-pr` set**: Invoke `/codex-review {target_branch}`. Codex reviews every PR on
    GitHub, so any path that opens a PR runs the same reviewer locally first and fixes its findings
-   while the branch is still local. Halt if it ends `blocked`; a `skipped` result (no CLI, not
+   while the branch is still local. Halt if it ends `blocked` or `busy` (another review is still running in this worktree, so its
+   result is unknown); a `skipped` result (no CLI, not
    signed in) is a warning and the ship continues. If it changed any file, run
    `/verify --report-only` again after it and halt on any failing gate, whether verification ran
    through `-v` or through the pre-commit gate. Gates that passed before the fixes say nothing about

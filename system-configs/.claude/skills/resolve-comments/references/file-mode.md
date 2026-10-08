@@ -45,7 +45,10 @@ IF: fixes applied AND fix_count > 0
     Freeform "Other" → default to keep uncommitted
 
   IF: "Commit fixes"
-    RECONCILE: modified_files against git diff --name-only
+    RECONCILE: modified_files against git diff --name-only plus
+               git ls-files --others --exclude-standard
+               (a fix can land in a new, untracked file; leaving it out would report a commit
+                that does not contain the fix)
     RUN: git add {modified_files}      # never git add -A
     RUN: git commit -m "fix: resolve review feedback ({fix_count} issues)"
     OUTPUT: "Committed {fix_count} fixes"

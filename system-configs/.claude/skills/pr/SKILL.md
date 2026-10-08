@@ -174,6 +174,9 @@ STEP 2: Parse $ARGUMENTS
 STEP 2.5: Pre-PR Codex review
   INVOKE: /codex-review {target_branch}
     (skips itself when this exact diff already passed, e.g. when /ship-it ran it first)
+  IF: it ends busy
+    OUTPUT: "Not opening the PR: another Codex review is still running in this worktree. Re-run /pr when it finishes."
+    END (failure)
   IF: it ends blocked
     OUTPUT: "Not opening the PR: Codex still reports P0/P1 findings (see above)."
     END (failure)

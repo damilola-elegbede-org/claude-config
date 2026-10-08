@@ -227,6 +227,15 @@ IF: skipped_issues not empty
     while holding skipped issues from every source. Each record carries its own `source` field.
   OUTPUT: "Saved {count} skipped issues for /pr and /ship-it to acknowledge"
 
+IF: no fixes applied this run AND HEAD has commits its upstream lacks
+    (an earlier run committed fixes, then stopped before pushing)
+  ASK (AskUserQuestion, header "Push"):
+    "PR #{pr} has {n} unpushed commit(s) on {current_branch}. Review and push them?"
+      - "Review and push" → run the /codex-review, uncommitted-change, /verify and push steps
+                            from the flow below, skipping its commit, then post as below
+      - "Leave unpushed"  → no push, no comment
+    Freeform "Other" → treat as "Leave unpushed"
+
 IF: fixes applied
   ASK (AskUserQuestion, header "Commit+push"):
     "Commit, push, and post resolution to PR #{pr}? ({fix_count} fixes on {current_branch})"
@@ -250,6 +259,9 @@ IF: fixes applied
       GitHub's Codex re-reviews every push, and the fixes themselves are where its next round of
       findings comes from, so the same reviewer checks them locally first. /codex-review triages
       in file mode, so it never re-enters this flow.
+      IF: it ends busy
+        OUTPUT: "Not pushing: another Codex review is still running in this worktree. Re-run when it finishes."
+        END
       IF: it ends blocked
         OUTPUT: "Not pushing: Codex still reports P0/P1 findings on the fixes (see above)."
         END
