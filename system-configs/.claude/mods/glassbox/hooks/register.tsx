@@ -215,7 +215,7 @@ async function snapshot($: EngineInterface, wasRecording: boolean) {
   if (list.length > 0) {
     const done = list.filter((x) => x.status === "completed").length;
     out.push(`**plan** ${done}/${list.length}`);
-    for (const x of list) {
+    for (const x of list.slice(0, PLAN_ROWS)) {
       const text =
         x.status === "in_progress" ? (x.activeForm ?? x.subject) : x.subject;
       out.push(
@@ -226,6 +226,7 @@ async function snapshot($: EngineInterface, wasRecording: boolean) {
             : `- [ ] ${text}`,
       );
     }
+    if (list.length > PLAN_ROWS) out.push(`- +${list.length - PLAN_ROWS} more`);
   }
   if (runs.length > 0) {
     out.push(`**agents** ${runs.length}`);
@@ -290,15 +291,16 @@ export const register: Register = (on) => {
   on("command.run", { command: "glassbox" }, async ($, e) => {
     const surfaces = await $.session.surfaces();
     const draws = surfaces.some((s) => DRAWING_SURFACES.has(s));
-    // Typed from claude.ai or the phone (Remote Control), the pane would open on
-    // the machine's terminal, out of the typist's sight: answer in text there.
-    const fromBridge = e.origin?.kind === "bridge";
-    // The origin names how a command came, not which client typed it. With a
-    // client that draws nothing attached (VS Code beside a terminal), only a
-    // command typed at the terminal is sure to be looking at the pane.
-    const mixed = surfaces.some((s) => !DRAWING_SURFACES.has(s));
-    const unseen = mixed && e.origin?.kind !== "composer";
-    if (!draws || fromBridge || unseen || (e.args ?? "").trim() === "text") {
+    // The origin names how a command came, not which client typed it, and a
+    // client that draws nothing (VS Code) need not join the roster. Typed at
+    // the terminal, the person sees its pane. Any other origin opens the pane
+    // only with the desktop app attached; Remote Control (claude.ai, the
+    // phone) never, since its pane would open on the machine, out of sight.
+    const kind = e.origin?.kind ?? "composer";
+    const seen =
+      kind === "composer" ||
+      (kind !== "bridge" && surfaces.includes("desktop"));
+    if (!draws || !seen || (e.args ?? "").trim() === "text") {
       const text = await snapshot($, hasScreen);
       hasScreen = true;
       return { text };
