@@ -42,6 +42,21 @@
       "enforce": true
     },
     {
+      "id": "MG-repo-location",
+      "class": "memory-gotcha",
+      "description": "git clone / gh repo clone with no destination under ~/dev (or a scratch dir)",
+      "tools": "^Bash$",
+      "field": "command",
+      "pattern": "(?:{{GIT}}clone|gh[[:space:]]+repo[[:space:]]+clone)(?=[[:space:]])",
+      "anchor": "cmd",
+      "exempt": "(?:^|[[:space:]])[\\\"']?(?:~|\\$\\{?HOME\\}?|{{HOME}})/dev/|{{EXTOK}}",
+      "action": "deny",
+      "message": "Every repo lives at ~/dev/<name>, one copy each. Pass the destination: git clone <url> ~/dev/<name> (or gh repo clone <owner/name> ~/dev/<name>). If the repo is already in ~/dev, use it; never clone into ~/repos, ~/Documents or the home root",
+      "scope": ["interactive", "bgjob", "fleet"],
+      "lanes": {},
+      "enforce": true
+    },
+    {
       "id": "MG-libsql-temp",
       "class": "memory-gotcha",
       "description": "CREATE TEMP TABLE in a command (Turso remote rejects it)",

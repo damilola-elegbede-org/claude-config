@@ -430,3 +430,11 @@
 {"rule": "G1-rm", "expect": "deny", "tool": "Bash", "input": {"command": "cd /tmp && if true; then cd /home; rm -rf important; fi"}}
 {"rule": "G1-rm", "expect": "deny", "tool": "Bash", "input": {"command": "T=/tmp; for T in /etc; do rm -rf $T; done"}}
 {"rule": "G1-rm", "expect": "deny", "tool": "Bash", "input": {"command": "cd /tmp && `cd /home`; rm -rf important"}}
+{"rule":"MG-repo-location","expect":"deny","tool":"Bash","input":{"command":"git clone https://github.com/o/r.git"}}
+{"rule":"MG-repo-location","expect":"deny","tool":"Bash","input":{"command":"gh repo clone o/r"}}
+{"rule":"MG-repo-location","expect":"deny","tool":"Bash","input":{"command":"cd ~/dev && git clone git@github.com:o/r.git"}}
+{"rule":"MG-repo-location","expect":"deny","tool":"Bash","input":{"command":"git clone https://github.com/o/r.git ~/repos/r"}}
+{"rule":"MG-repo-location","expect":"allow","tool":"Bash","input":{"command":"git clone https://github.com/o/r.git ~/dev/r"}}
+{"rule":"MG-repo-location","expect":"allow","tool":"Bash","input":{"command":"gh repo clone o/r $HOME/dev/r"}}
+{"rule":"MG-repo-location","expect":"allow","tool":"Bash","input":{"command":"git clone --depth 1 https://github.com/o/r.git /tmp/r-repro"}}
+{"rule":"MG-repo-location","expect":"allow","tool":"Bash","input":{"command":"git status"}}

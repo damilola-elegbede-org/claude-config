@@ -19,7 +19,7 @@ SESSION_INPUT=$(cat 2>/dev/null || true) # SessionStart hooks get JSON on stdin;
 # Files absent from the deployed side are not counted. JEV_DRIFT_REPO / JEV_DRIFT_HOOKS override the paths.
 # Silent on any error; the caller bounds it with a timeout.
 drift_count() {
-  local repo="${JEV_DRIFT_REPO:-$HOME/repos/claude-config}"
+  local repo="${JEV_DRIFT_REPO:-$HOME/dev/claude-config}"
   local hooks="${JEV_DRIFT_HOOKS:-$HOME/.claude/hooks}"
   local base=system-configs/.claude/hooks sha path n=0 line
   local -a shas=() paths=() sums=()
