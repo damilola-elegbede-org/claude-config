@@ -325,6 +325,23 @@ describe("glassbox", () => {
     expect(out.text).toMatch(/- \+4 more/);
   });
 
+  test("the text snapshot cuts long rows", async ($, on) => {
+    engine(on);
+    on("session.surfaces", () => ({ value: [] }));
+    on("tool.call", () => ({
+      result: { task: { id: "1", subject: "x".repeat(500) } },
+    }));
+    await $.command.run({ command: "glassbox" });
+    await $.tool.call({
+      tool: "TaskCreate",
+      subject: "x".repeat(500),
+      description: "x",
+    });
+    const out = await $.command.run({ command: "glassbox" });
+    for (const row of String(out.text).split("\n"))
+      expect(row.length).toBeLessThan(200);
+  });
+
   test("/glassbox text answers in text even where the pane draws", async ($, on) => {
     engine(on);
     on("session.surfaces", () => ({ value: ["terminal"] }));

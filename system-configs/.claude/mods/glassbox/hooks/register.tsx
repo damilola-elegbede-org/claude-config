@@ -180,6 +180,8 @@ async function liveAgents($: EngineInterface) {
 // (code.claude.com/docs/en/plugins/mods/overview, "Where mods run").
 const DRAWING_SURFACES = new Set(["terminal", "desktop"]);
 const SNAPSHOT_ACTIVITY = 10;
+// Each row of the snapshot is cut to this many characters, as the pane clips.
+const SNAPSHOT_TEXT = 120;
 
 // The pane's boxes as markdown, for a surface that draws no pane. A box with
 // nothing to show is left out, as in the pane.
@@ -216,8 +218,10 @@ async function snapshot($: EngineInterface, wasRecording: boolean) {
     const done = list.filter((x) => x.status === "completed").length;
     out.push(`**plan** ${done}/${list.length}`);
     for (const x of list.slice(0, PLAN_ROWS)) {
-      const text =
-        x.status === "in_progress" ? (x.activeForm ?? x.subject) : x.subject;
+      const text = clip(
+        x.status === "in_progress" ? (x.activeForm ?? x.subject) : x.subject,
+        SNAPSHOT_TEXT,
+      );
       out.push(
         x.status === "completed"
           ? `- [x] ${text}`
@@ -232,7 +236,9 @@ async function snapshot($: EngineInterface, wasRecording: boolean) {
     out.push(`**agents** ${runs.length}`);
     for (const r of runs.slice(-6)) {
       const took = timer((r.endedAt ?? now) - r.startedAt);
-      out.push(`- ${r.status} · ${r.description} · ${r.tools} tools · ${took}`);
+      out.push(
+        `- ${r.status} · ${clip(r.description, SNAPSHOT_TEXT)} · ${r.tools} tools · ${took}`,
+      );
     }
   }
   if (gate.length > 0) {
@@ -255,7 +261,9 @@ async function snapshot($: EngineInterface, wasRecording: boolean) {
   if (shown.length > 0) {
     out.push("**activity**");
     for (const i of shown)
-      out.push(`- ${clockTime(i.at)} ${feedGlyph[i.kind]} ${oneLine(i.text)}`);
+      out.push(
+        `- ${clockTime(i.at)} ${feedGlyph[i.kind]} ${clip(oneLine(i.text), SNAPSHOT_TEXT)}`,
+      );
   } else if (!wasRecording) {
     out.push(
       "Recording from now: run /glassbox again to see plan, agents and activity.",
