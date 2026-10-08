@@ -245,8 +245,14 @@ IF: fixes applied
           - "Include all" → expand to full git diff --name-only
           Freeform → default to exclude extras
     RUN: git add {modified_files}      # never git add -A
-    RUN: git commit -m "fix: resolve PR review feedback ({fix_count} issues)"
+    RUN: git commit -m "fix: resolve PR review feedback ({fix_count} issues)" with a body that
+      lists every thread this commit resolves, one line each: "- {location} ({source})"
     RUN: git push
+    SET: fix_sha = git rev-parse HEAD — only after the push succeeds
+    SET: fix_url = "https://github.com/{owner}/{repo}/commit/{fix_sha}"
+      Every "Fixed" thread reply below cites fix_url, so the reviewer and D can open the exact
+      change from the thread. A reply that says "Fixed" without the commit is not evidence.
+      IF: the push failed → do not post "Fixed" replies; report the push error and stop.
 ```
 
 ### Post thread resolutions (do not skip)
@@ -364,6 +370,9 @@ FOR_EACH: issue in all_issues          # every thread needs its own mutation —
   IF: issue in fixed_issues
     body_prefix = "Fixed"; body_detail = summary of fix from issue.description
       (if description missing/empty → "Issue resolved")
+    body_commit = " (in {fix_url})" — appended AFTER sanitizing and truncating body_detail, so
+      the link is never cut; fix_url is ours, not comment-derived, and needs no sanitizing.
+      "Local only" never reaches this step, so a Fixed reply always has a pushed commit to cite.
   ELSE
     body_prefix = "Acknowledged"; body_detail = issue.reason
       (if missing/empty → "Reviewed and acknowledged")
@@ -379,10 +388,10 @@ FOR_EACH: issue in all_issues          # every thread needs its own mutation —
     - truncate to 100 chars AFTER sanitization
     IF: empty after sanitization → "Issue resolved"
 
-  COMPOSE reply body by source:
-    coderabbit → "@coderabbitai resolve - {body_prefix}: {body_detail}"
-    codex      → "{body_prefix}: {body_detail}"
-    bot, human → "{body_prefix}: {body_detail}"
+  COMPOSE reply body by source (body_commit is empty for Acknowledged):
+    coderabbit → "@coderabbitai resolve - {body_prefix}: {body_detail}{body_commit}"
+    codex      → "{body_prefix}: {body_detail}{body_commit}"
+    bot, human → "{body_prefix}: {body_detail}{body_commit}"
 
   NOTE: thread_id is opaque per GitHub docs — never decode or pattern-validate node IDs, and never
     build a filesystem path out of it or issue.id for the same reason (see SET below).

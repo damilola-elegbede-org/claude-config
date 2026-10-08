@@ -66,7 +66,7 @@ Summary: 2 to fix, 1 to skip
 Fixed (using coderabbit AI prompt): Missing error handling
 Fixed: Stale timestamp ages the rate
 
-Committed: fix: resolve PR review feedback (2 issues)
+Committed: fix: resolve PR review feedback (2 issues) (a1b2c3d)
 Pushed to origin
 Replied @coderabbitai resolve (coderabbit): auth.ts:45
 Resolved thread (codex, Fixed): api.ts:12

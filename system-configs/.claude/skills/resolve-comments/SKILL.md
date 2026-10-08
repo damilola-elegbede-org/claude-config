@@ -44,6 +44,8 @@ Schemas, caller flags, and worked examples: → `references/schemas.md`.
   depends on the source. CodeRabbit resolves its own off the `@coderabbitai resolve` reply. Codex
   has no such command, so we call `resolveReviewThread` ourselves — same for any other bot. **A
   human's thread is never resolved by us**; we reply and leave it to them.
+- **Every "Fixed" reply links the commit that fixed it.** Push first, then reply on each thread
+  with the commit URL, then resolve. A thread marked fixed with no commit is a claim, not evidence.
 - **Verify only what you acted on.** The post-run check covers threads we resolved plus threads
   awaiting CodeRabbit (after a wait — CodeRabbit is asynchronous). Human threads are reported,
   never waited on, never a failure. Other reviewers' open threads are reported too, never a
