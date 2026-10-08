@@ -7,7 +7,7 @@ on:
 jobs:
   test-changes:
     name: Test Changes
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10  # Prevent indefinite hangs
     permissions:
       contents: read
@@ -125,7 +125,7 @@ jobs:
 
   skill-validation:
     name: Validate Skills
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
 
@@ -246,7 +246,7 @@ jobs:
 
   security-check:
     name: Security Scan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
 

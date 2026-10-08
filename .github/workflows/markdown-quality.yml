@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   markdown-quality:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     name: Markdown Quality Validation
 
     steps:
@@ -74,7 +74,7 @@ jobs:
         fi
 
   quality-metrics:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     name: Quality Metrics Collection
     needs: markdown-quality
     if: always()
