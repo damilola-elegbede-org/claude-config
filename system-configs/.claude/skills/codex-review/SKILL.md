@@ -60,6 +60,16 @@ RUN: cd "$(git rev-parse --show-toplevel)"
       elsewhere would miss both the review and the cache hash)
 RUN: mkdir -p .tmp/codex-review   (first, so every WRITE_STATE below has a directory to write to)
 
+RUN: mkdir .tmp/codex-review/run.lock, then write this process's PID to run.lock/pid
+IF: mkdir fails AND the PID in run.lock/pid is still running
+  OUTPUT: "⚠️ Another Codex review is running in this worktree — skipping this one."
+  END (success, without WRITE_STATE: the running review owns state.json)
+IF: mkdir fails AND that PID is gone (a crashed run)
+  RUN: replace run.lock/pid with this process's PID
+     (two runs in one worktree would share the review index, round logs and triage files, and
+      one could parse or cache the other's findings)
+Every END below, success or failure, removes .tmp/codex-review/run.lock first.
+
 RUN: command -v codex
 IF: not found
   OUTPUT: "⚠️ codex CLI not installed — skipping the local Codex review."
@@ -106,7 +116,8 @@ IF: it fails
   WRITE_STATE: status = "skipped"
   END (success)
 
-RUN: git diff --quiet {merge_base} AND no untracked files (git status --porcelain)
+RUN: git diff --quiet {merge_base} -- ':!.tmp' AND no untracked files outside .tmp/
+     (`git ls-files --others --exclude-standard -- ':!.tmp'` is empty)
 IF: there is nothing to review
   OUTPUT: "No changes against {target_branch} — nothing to review."
   END (success)
@@ -121,9 +132,11 @@ Committing a previously untracked file changes the hash and triggers one more re
 time but never skips new content.
 
 ```text
-SET: diff_hash = sha256 of (`git diff {merge_base}` output
-                            + for each `git ls-files --others --exclude-standard` path: path and
-                              `git hash-object` of its contents)
+SET: diff_hash = sha256 of (`git diff {merge_base} -- ':!.tmp'` output
+                            + for each `git ls-files --others --exclude-standard -- ':!.tmp'`
+                              path: path and `git hash-object` of its contents)
+     (`.tmp/` holds this skill's own state, logs and index; in a repository that does not ignore
+      it, including it would change the hash on every run and send the scratch files for review)
 READ: .tmp/codex-review/state.json
 IF: state.diff_hash == diff_hash AND state.status in (clean, acknowledged)
   OUTPUT: "Codex review already passed for this diff — skipping."
@@ -137,7 +150,7 @@ reviews the fixes from the previous round, and those fixes are where new finding
 
 ```text
 FOR round in 1..3:
-  SET: new_files = `git ls-files --others --exclude-standard`
+  SET: new_files = `git ls-files --others --exclude-standard -- ':!.tmp'`
   SET: review_index = absolute path of .tmp/codex-review/index
   RUN: cp "$(git rev-parse --git-path index)" {review_index}
   RUN: GIT_INDEX_FILE={review_index} git add -N -- {each path in new_files}
@@ -224,12 +237,17 @@ Severity mapping (Codex badge to the `/review` schema):
 ### Step 4: Gate and record
 
 After the loop, the last round's findings decide the outcome. When round 3 applied fixes, nothing
-reviewed them, so that content must not be cached as passed. A P0 or P1 that D skipped during
-triage is a decision, not a failure; `/resolve-comments` has already recorded it in
-`.tmp/coderabbit-ignored.json`.
+reviewed them, so that content must not be cached as passed. A P0 or P1 that D skipped in the
+triage dialog is a decision, not a failure; `/resolve-comments` has already recorded it in
+`.tmp/coderabbit-ignored.json`. A P0 or P1 that triage skipped on its own, because validation
+rejected the guidance or the fix reached outside the finding's files, was never decided by
+anyone and stays a blocker.
 
 ```text
-SET: open_blockers = last-round P0/P1 findings that were neither fixed nor recorded as skipped
+SET: open_blockers = last-round P0/P1 findings that were neither fixed nor skipped by D in the
+                    triage dialog (skip_category "user-skipped", "Skip all", or a declined
+                    wider edit); automatic skips such as "out-of-scope-edit" or a validation
+                    rejection count as open
 IF: open_blockers is empty AND the loop ended on round 3 with fixes applied
   WRITE_STATE: status = "unverified"
   OUTPUT: "⚠️ Codex review: round-3 fixes were not re-reviewed; GitHub's Codex review will be the first to see them."

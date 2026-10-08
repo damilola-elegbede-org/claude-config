@@ -180,8 +180,9 @@ STEP 2.5: Pre-PR Codex review
   Check the repository state, not what this run did: a cached pass applies no fixes, yet an
   earlier run may have left fixes uncommitted or committed but unpushed. Refuse before any
   push, so a partial fix set is never published.
-  IF: `git status --porcelain --untracked-files=no` lists any change
-    OUTPUT: "Not opening the PR: there are uncommitted changes, so the PR would not include them. Commit them and re-run /pr."
+  IF: `git status --porcelain -- ':!.tmp'` lists any change, untracked files included
+      (a fix can add a new file, and leaving it out would publish a fix set that cannot work)
+    OUTPUT: "Not opening the PR: there are uncommitted or untracked changes, so the PR would not include them. Commit them and re-run /pr."
     END (failure)
   IF: HEAD has commits its upstream lacks (or the branch has no upstream yet)
     RUN: /verify --report-only   (gates that passed before the fixes say nothing about them)

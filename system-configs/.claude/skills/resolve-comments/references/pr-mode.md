@@ -253,9 +253,9 @@ IF: fixes applied
       IF: it ends blocked
         OUTPUT: "Not pushing: Codex still reports P0/P1 findings on the fixes (see above)."
         END
-      IF: `git status --porcelain --untracked-files=no` lists any change
+      IF: `git status --porcelain -- ':!.tmp'` lists any change, untracked files included
           (checked before any push, whatever this run did, so a partial fix set is never published)
-        OUTPUT: "Not pushing: there are uncommitted changes, so the push would not include them.
+        OUTPUT: "Not pushing: there are uncommitted or untracked changes, so the push would not include them.
                  Commit them and re-run /resolve-comments."
         END
       IF: HEAD moved past the fix commit above (it committed fixes)
