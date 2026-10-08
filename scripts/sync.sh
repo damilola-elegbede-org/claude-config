@@ -771,10 +771,11 @@ sync_files() {
         # node keeps screen-only mods off its headless sessions. Each is left
         # out of the copy, and removed if an earlier sync put it there (--delete
         # spares excluded paths). Names are checked first, so the unquoted list
-        # below can neither glob nor split a name.
+        # below can neither glob nor split a name, and a local-* name (yours,
+        # never synced) is refused so the removal below can never reach it.
         MODS_EXCLUDE=""
         if [ "$HAVE_MANIFEST" = "true" ]; then
-            bad_mods=$(jq -r '.sync.mods_exclude // [] | .[] | tostring | select(test("^[A-Za-z0-9_-][A-Za-z0-9_.-]*$") | not)' "$MANIFEST")
+            bad_mods=$(jq -r '.sync.mods_exclude // [] | .[] | tostring | select((test("^[A-Za-z0-9_-][A-Za-z0-9_.-]*$") | not) or startswith("local-"))' "$MANIFEST")
             if [ -n "$bad_mods" ]; then
                 echo "  ❌ Mods: invalid mods_exclude entry in $MANIFEST: $bad_mods"
                 return 1

@@ -69,5 +69,9 @@ if [[ "$SYNC_RC" -ne 0 ]]; then ok; else bad "invalid entry: the sync fails"; fi
 if grep -q "invalid mods_exclude entry" <<<"$SYNC_OUT"; then ok; else bad "invalid entry: the error names it"; fi
 if [[ -d "$T/home-invalid/.claude/mods/local-mine" ]]; then ok; else bad "invalid entry: nothing outside mods is removed"; fi
 
+run_sync localname '{"mode":"scoped","sync":{"settings":false,"mods_exclude":["local-mine"]}}'
+if [[ "$SYNC_RC" -ne 0 ]]; then ok; else bad "local-* entry: the sync fails"; fi
+if [[ -f "$T/home-localname/.claude/mods/local-mine/keep" ]]; then ok; else bad "local-* entry: the local mod is never removed"; fi
+
 printf 'mods_exclude sync tests: %d passed, %d failed\n' "$PASS" "$FAIL"
 [[ "$FAIL" -eq 0 ]]
