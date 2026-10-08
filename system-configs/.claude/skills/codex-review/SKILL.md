@@ -30,6 +30,20 @@ anything is committed. Untracked files are not in that diff, so Step 3 marks the
 for the duration of the review; otherwise a brand-new file would be hashed as reviewed without
 the reviewer ever seeing it.
 
+GitHub's Codex reads the repository and its `AGENTS.md`, nothing else. A local run under
+`~/.codex` also loads D's personal skills (linked from `~/.claude/skills`), the global
+`~/.codex/AGENTS.md`, hooks and memories, which steer it away from what GitHub will flag. The
+review therefore runs under a dedicated Codex home, `~/.codex-review`, holding only its own login
+and a minimal config. That home needs its own login rather than a copy of `~/.codex/auth.json`:
+two homes refreshing one copied token can invalidate each other's session.
+
+The run also passes `references/focus.md` as developer instructions. It lists the defect classes
+that make up most GitHub Codex findings in these repositories, largest first, and asks every
+finding to end with a `Files the fix must change:` line. Triage only lets a fix edit files the
+finding names, so that line is what lets a wiring fix reach a registry or manifest outside the
+flagged file. `codex review --base` refuses a custom prompt argument, so the focus goes through
+the `developer_instructions` config key instead.
+
 Findings go through `/resolve-comments --local`, the same triage path `/review` uses, so the
 validation rules, the untrusted-input rules, and the skipped-issue record all apply unchanged.
 
@@ -49,11 +63,35 @@ IF: not found
   WRITE_STATE: status = "skipped"
   END (success)
 
-RUN: codex login status
-IF: exit code != 0 OR output does not start with "Logged in"
-  OUTPUT: "⚠️ codex CLI not signed in — skipping the local Codex review. Run `codex login` to enable it."
-  WRITE_STATE: status = "skipped"
-  END (success)
+SET: review_home = ~/.codex-review
+RUN: mkdir -p {review_home}
+RUN: CODEX_HOME={review_home} codex login status
+IF: exit code == 0 AND output starts with "Logged in"
+  WRITE: {review_home}/config.toml, replacing it every run so it cannot drift:
+           approval_policy = "never"
+           sandbox_mode = "read-only"
+           [features]
+           memories = false
+           hooks = false
+         (no model key: the CLI default is the closest available match to GitHub's reviewer,
+          whose model is not published)
+  SET: codex_cmd = CODEX_HOME={review_home} codex
+ELSE
+  RUN: codex login status
+  IF: exit code != 0 OR output does not start with "Logged in"
+    OUTPUT: "⚠️ codex CLI not signed in — skipping the local Codex review. Run
+             `CODEX_HOME=~/.codex-review codex login` to enable it."
+    WRITE_STATE: status = "skipped"
+    END (success)
+  SET: codex_cmd = codex
+  OUTPUT: "⚠️ Reviewing under ~/.codex, whose personal skills and AGENTS.md GitHub's Codex never
+           sees, so findings may differ from GitHub's. Run `CODEX_HOME=~/.codex-review codex login`
+           once for a GitHub-like review."
+
+SET: focus_file = the `references/focus.md` file next to this SKILL.md
+SET: focus_arg = -c "developer_instructions=<focus_file contents as one JSON string>"
+     (JSON string escaping is valid TOML basic-string syntax; build it with
+      python3 -c 'import json,sys; print(json.dumps(open(sys.argv[1]).read()))' {focus_file})
 
 PARSE: $ARGUMENTS for target_branch and --auto
 IF: no target_branch
@@ -100,7 +138,7 @@ FOR round in 1..3:
   RUN: cp "$(git rev-parse --git-path index)" .tmp/codex-review/index.bak
   RUN: git add -N -- {each path in new_files}   (intent-to-add: the files enter `git diff`
                                                  with their full contents, nothing is staged)
-  RUN: codex review --base {target_branch} > .tmp/codex-review/round-{round}.log 2>&1
+  RUN: {codex_cmd} review --base {target_branch} {focus_arg} > .tmp/codex-review/round-{round}.log 2>&1
   RUN: cp .tmp/codex-review/index.bak "$(git rev-parse --git-path index)"
        (always, whatever the exit code; restoring the saved index puts every entry back exactly,
         including a staged deletion whose path was recreated, which `git reset` would not)
@@ -109,15 +147,17 @@ FOR round in 1..3:
     WRITE_STATE: status = "skipped"
     END (success)
 
-  PARSE: findings from the LAST "Full review comments:" block in the log
+  PARSE: findings from the LAST findings block in the log. The header depends on the count:
+    "Review comment:" for exactly one finding, "Full review comments:" for two or more.
     (the log prints the block more than once; the last copy is the final answer)
     Each finding starts with a line:  - [P<n>] <title> — <absolute path>:<start>-<end>
     followed by indented body lines up to the next "- [P" line or end of block.
     Strip the repository root from the path so it is repo-relative.
     Drop exact duplicates (same badge, title, and location); the block can repeat entries.
-  IF: no "Full review comments:" block AND the log reports no findings
+  IF: no findings block AND the log's closing message says no issues were found
+      (a clean review prints no header, only a summary such as "No actionable issues were found.")
     SET: findings = []
-  IF: no "Full review comments:" block AND the log does not report no findings
+  IF: no findings block AND the closing message does not say that
     OUTPUT: "⚠️ Could not parse the Codex review output; see .tmp/codex-review/round-{round}.log."
     WRITE_STATE: status = "unverified"
     END (success)   (an unreadable result is never cached as clean)
@@ -169,7 +209,7 @@ Severity mapping (Codex badge to the `/review` schema):
       "severity": "HIGH",
       "type": "bugs",
       "description": "[P1] <title>",
-      "suggestion": "<body text>"
+      "suggestion": "<body text, including its Files the fix must change: line>"
     }
   ]
 }
