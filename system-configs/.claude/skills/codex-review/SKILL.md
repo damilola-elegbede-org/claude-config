@@ -123,6 +123,8 @@ FOR round in 1..3:
 
   WRITE: .tmp/review-local.json   (schema below; overwrites any earlier review output,
                                    which /review's own run has already consumed)
+  RUN: rm -f .tmp/codex-review/ignored-before.json   (a snapshot left by an earlier branch must
+                                                     never merge into this one)
   COPY: .tmp/coderabbit-ignored.json → .tmp/codex-review/ignored-before.json (if it exists)
   INVOKE: /resolve-comments --local [--auto if this skill got --auto]
   MERGE: ignored-before.json records back into .tmp/coderabbit-ignored.json, dropping duplicates
