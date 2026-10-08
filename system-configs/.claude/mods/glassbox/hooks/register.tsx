@@ -39,8 +39,10 @@ import {
 
 // glassbox: watch Claude work, in one pane beside the transcript. A box per
 // concern (loop, context, plan, agents, gate, changes, activity); a box with
-// nothing to show takes no room. It draws nothing above the prompt, in the
-// transcript or in the status line, and opens only on /glassbox.
+// nothing to show takes no room. It draws nothing in the transcript or in the
+// status line, and opens only on /glassbox. Where a surface cannot dock a pane
+// (the mobile app, a terminal not in fullscreen) the engine seats it above the
+// prompt, and glassbox draws a shorter version there until it is closed.
 //
 // It only watches. Every recording hook passes the event on unchanged, and none
 // records until a screen has drawn: a headless session (`claude -p`, the fleet)
@@ -53,6 +55,10 @@ const FEED_MAX = 200;
 const ACTIVITY_MAX = 50;
 const CHECKS_MAX = 60;
 const PLAN_ROWS = 8;
+// Seated above the prompt the pane shares the screen with the transcript, so
+// it lists fewer rows and skips the context anatomy.
+const INLINE_ACTIVITY_ROWS = 8;
+const INLINE_PLAN_ROWS = 4;
 const PHASES = ["prompt", "think", "tool", "result"];
 const PLAN_TOOLS = new Set([
   "TaskCreate",
@@ -411,18 +417,21 @@ export const register: Register = (on) => {
     return next(e);
   });
 
+  // A remote client (desktop, the phone, VS Code) joining is a screen too: it
+  // may never draw the space above the prompt before /glassbox is typed.
+  on("session.attach", async (_$, e, next) => {
+    hasScreen = true;
+    return next(e);
+  });
+
   on("ui.render", { component: "Pane", requestId: PANE }, async ($, e) => {
     hasScreen = true;
     const els = $.ui.resolve(e);
     const { Box, Text, Button } = els;
 
-    // Opened in a terminal that is not fullscreen, the engine seats the pane
-    // above the prompt: glassbox never draws there, so it closes itself.
-    if (e.props.placement === "inline") {
-      $.ui.close({ id: PANE }).catch(() => {});
-      $.ui.toast("glassbox shows beside the transcript: switch to fullscreen");
-      return <Box />;
-    }
+    // Seated above the prompt rather than docked beside the transcript.
+    const compact = e.props.placement === "inline";
+    const planMax = compact ? INLINE_PLAN_ROWS : PLAN_ROWS;
 
     const hasClient = "Client" in els;
     const W = Math.max(30, e.props.bodyColumns);
@@ -563,7 +572,7 @@ export const register: Register = (on) => {
     } else {
       contextRows.push(<Text color={C.dim}>No reading yet.</Text>);
     }
-    if (bd && bd.rawMaxTokens > 0) {
+    if (!compact && bd && bd.rawMaxTokens > 0) {
       // Anatomy: one strip, each category in the colour /context gives it.
       const used = bd.categories.filter(
         (c) => c.kind === "used" && c.tokens > 0,
@@ -637,7 +646,7 @@ export const register: Register = (on) => {
           {bar(done, list.length, inner)}
         </Text>,
       );
-      for (const x of list.slice(0, PLAN_ROWS)) {
+      for (const x of list.slice(0, planMax)) {
         const text =
           x.status === "in_progress" ? (x.activeForm ?? x.subject) : x.subject;
         planRows.push(
@@ -658,9 +667,9 @@ export const register: Register = (on) => {
           ),
         );
       }
-      if (list.length > PLAN_ROWS)
+      if (list.length > planMax)
         planRows.push(
-          <Text color={C.dim}>{`+${list.length - PLAN_ROWS} more`}</Text>,
+          <Text color={C.dim}>{`+${list.length - planMax} more`}</Text>,
         );
     }
 
@@ -806,7 +815,7 @@ export const register: Register = (on) => {
     const focus = viewed ? runs.find((r) => r.id === viewed) : undefined;
     const shown = items
       .filter((i) => (viewed ? i.agentId === viewed : !i.agentId))
-      .slice(-ACTIVITY_MAX)
+      .slice(-(compact ? INLINE_ACTIVITY_ROWS : ACTIVITY_MAX))
       .reverse();
     const feedColor = (k: FeedKind) =>
       k === "deny"

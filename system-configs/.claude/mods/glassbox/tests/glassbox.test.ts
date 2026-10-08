@@ -35,8 +35,10 @@ const band = (isWorking = true) =>
     },
   }) as const;
 
+const SURFACES = ["terminal", "desktop", "vscode", "mobile"] as const;
+
 const pane = (
-  surface: "terminal" | "desktop",
+  surface: (typeof SURFACES)[number],
   view: { agentId?: string } = {},
   placement: "dock" | "inline" = "dock",
 ) =>
@@ -82,7 +84,7 @@ describe("glassbox", () => {
     expect(await ui.find({ text: /idle/ })).toBeDefined();
   });
 
-  for (const surface of ["terminal", "desktop"] as const) {
+  for (const surface of SURFACES) {
     test(`the checklist draws as the plan box (${surface})`, async ($, on) => {
       engine(on);
       let made = 0;
@@ -155,13 +157,41 @@ describe("glassbox", () => {
     ).toBeUndefined();
   });
 
-  test("seated above the prompt (not fullscreen), the pane draws nothing", async ($, on) => {
+  for (const surface of SURFACES) {
+    test(`seated above the prompt, the pane draws a shorter version (${surface})`, async ($, on) => {
+      engine(on);
+      on("tool.call", () => ({ result: {} }));
+      await $.ui.mount(band());
+      for (let i = 0; i < 12; i++) {
+        await $.tool.call({ tool: "Read", file_path: `/repo/f${i}.ts` });
+      }
+
+      const ui = await $.ui.mount(pane(surface, {}, "inline"));
+      expect(await ui.find({ text: /╭ context/ })).toBeDefined();
+      expect(await ui.find({ text: /╭ activity/ })).toBeDefined();
+      // Eight activity rows, newest first: the oldest four are left out.
+      expect(await ui.find({ text: /f11\.ts/ })).toBeDefined();
+      expect(await ui.find({ text: /f4\.ts/ })).toBeDefined();
+      expect(await ui.find({ text: /f3\.ts/ })).toBeUndefined();
+    });
+  }
+
+  test("a phone attaching starts the record before the pane opens", async ($, on) => {
     engine(on);
-    await $.ui.mount(band());
-    const ui = await $.ui.mount(pane("terminal", {}, "inline"));
-    expect(
-      await ui.find({ text: /glassbox|context|activity/ }),
-    ).toBeUndefined();
+    on("session.attach", (_$, e) => ({ clientId: e.clientId }));
+    on("tool.call", () => ({
+      result: { task: { id: "1", subject: "Seen from the phone" } },
+    }));
+
+    await $.session.attach({ surface: "mobile", clientId: "mobile:default" });
+    await $.tool.call({
+      tool: "TaskCreate",
+      subject: "Seen from the phone",
+      description: "x",
+    });
+
+    const ui = await $.ui.mount(pane("mobile", {}, "inline"));
+    expect(await ui.find({ text: /Seen from the phone/ })).toBeDefined();
   });
 
   test("/glassbox opens the pane and prints nothing in the transcript", async ($, on) => {
