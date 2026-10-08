@@ -20,6 +20,14 @@
     "scope": ["interactive", "bgjob"],
     "max_lines": 60
   },
+  "link-lint": {
+    "mode": { "interactive": "enforce", "bgjob": "shadow" },
+    "scope": ["interactive", "bgjob"]
+  },
+  "link-validate": {
+    "mode": { "interactive": "enforce", "bgjob": "shadow" },
+    "scope": ["interactive", "bgjob"]
+  },
   "postcompact-log": {
     "mode": "enforce",
     "scope": ["interactive", "bgjob", "fleet"]
