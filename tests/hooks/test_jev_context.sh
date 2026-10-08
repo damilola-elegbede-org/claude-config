@@ -829,15 +829,15 @@ JEV_MOCK="$TEST_HOME/skillonly.json" run_hook a7-a8-prompt-context.sh "$IN"
 check "both rules off: silent, no call" bash -c "[ ! -s '$OUTF' ]"
 check "both rules off: no call made" no_new_calls "$B"
 
-# bgjob: memory notes (A7, shadow) for the FIRST prompt only; the skill pick (A8, enforce) on every prompt
+# bgjob: memory notes (A7, enforce) for the FIRST prompt only; the skill pick (A8, enforce) on every prompt
 rm -f "$HOME/.claude/hooks/jev/jev-rules.json"
 mixed_fixture "$TEST_HOME/job.json" verify 0.85 m0=0.9 m1=0.8 m2=0.1
 prompt_input "please verify the config change works end to end" job1
 B="$(calls)"
 CLAUDE_JOB_DIR=/tmp/job JEV_MOCK="$TEST_HOME/job.json" run_hook a7-a8-prompt-context.sh "$IN"
-check "bgjob first prompt: A8 hint printed, A7 memories not injected (A7 shadow)" out_jq '.hookSpecificOutput.additionalContext | test("/verify") and (test("BODY-") | not)'
+check "bgjob first prompt: A8 hint and A7 memories both printed" out_jq '.hookSpecificOutput.additionalContext | test("/verify") and test("BODY-VERIFY")'
 check "bgjob first prompt: one Jev call" bash -c "[ \"\$(wc -l <'$STUB_COUNT' | tr -d ' ')\" = $((B + 1)) ]"
-check "bgjob first prompt: A7 logged in shadow" shadow_jq '.rule=="A7-memory-inject" and .mode=="shadow" and (.detail.would_inject|length)==2'
+check "bgjob first prompt: A7 logged in enforce" shadow_jq '.rule=="A7-memory-inject" and .mode=="enforce" and (.detail.would_inject|length)==2'
 check "bgjob first prompt: A8 logged in enforce" shadow_jq '.rule=="A8-skill-picker" and .mode=="enforce" and .detail.would_hint==true'
 check "bgjob first prompt: marker written under the state dir" test -e "$HOME/.claude/jev-cache/state/job1.first"
 B="$(calls)"
@@ -917,7 +917,8 @@ bash_in() { jq -cn --arg c "$1" --arg cwd "${2:-$REPO}" --arg tp "$TR" '{session
 write_in() { jq -cn --arg f "$1" --arg tp "$TR" --arg cwd "$REPO" '{session_id:"s9", cwd:$cwd, transcript_path:$tp, hook_event_name:"PreToolUse", tool_name:"Write", tool_input:{file_path:$f, content:"x"}}' >"$IN"; }
 denies() { jq -e --arg s "$1" '.hookSpecificOutput.permissionDecision == "deny" and (.hookSpecificOutput.permissionDecisionReason | contains("/" + $s) and contains("skill: \"" + $s + "\""))' "$OUTF" >/dev/null; }
 
-# shadow (the shipped mode): logs what it would surface, prints nothing, never calls Jev
+# shadow: logs what it would surface, prints nothing, never calls Jev
+set_mode A9-skill-router shadow
 turn t1
 bash_in "git commit -m wip"
 B="$(calls)"
@@ -1009,7 +1010,7 @@ echo "registry + wiring"
 RULES="$SRC/rules.d/context.json"
 check "rules.d/context.json is valid JSON" jq -e . "$RULES"
 check "every Phase 3 rule is registered under the \"rules\" key" jq -e '.rules | has("A1-read-trim") and has("A2-search-rank") and has("A3-bash-trim") and has("A4-task-boundary") and has("A5-compact-reinject") and has("A5b-compact-state") and has("A6-agent-router") and has("A7-memory-inject") and has("A8-skill-picker") and has("A9-skill-router")' "$RULES"
-check "every Jev rule ships enforce (A7: enforce interactive, shadow in a bgjob; A9: shadow until its hit rate is measured)" jq -e '.rules | to_entries | all(.value.mode == "enforce" or .value.mode == {"interactive": "enforce", "bgjob": "shadow"} or (.key == "A9-skill-router" and .value.mode == "shadow"))' "$RULES"
+check "every Jev context rule ships enforce in every session kind" jq -e '.rules | to_entries | all(.value.mode == "enforce")' "$RULES"
 check "A7 and A8 are scoped to interactive and bgjob" jq -e '.rules | (.["A7-memory-inject"].scope == ["interactive","bgjob"]) and (.["A8-skill-picker"].scope == ["interactive","bgjob"])' "$RULES"
 check "every rule declares a scope" jq -e '.rules | to_entries | all(.value.scope | type == "array" and length > 0)' "$RULES"
 SETTINGS="$REPO_ROOT/system-configs/.claude/settings.json"
