@@ -76,8 +76,8 @@ main() {
   local prompt p7=0 p8=0 mode7="" mode8="" thr7="" thr8="" top7 body7 cap7 min7 min8 sid ledger mem memdir first later=0
   # A background job gets memory notes (A7) for its FIRST prompt only (the job brief); the skill pick (A8)
   # runs on every prompt, because each request can need a different skill. A marker under the state dir
-  # records that the first prompt was seen; it is written only once a prompt qualifies for evaluation (not a
-  # slash command, long enough), so a skipped prompt does not use it up.
+  # records that A7 ran on the first prompt; it is written only once a prompt qualifies for A7 (not a slash
+  # command, A7 on, long enough by A7's own minimum), so a skipped or A8-only prompt does not use it up.
   if [ "$(ctx_session_kind)" = "bgjob" ]; then
     sid="$(ctx_in .session_id | tr -dc 'A-Za-z0-9_-')"
     [ -n "$sid" ] || return 0 # no session id: the first prompt cannot be told apart
@@ -105,7 +105,7 @@ main() {
     fi
   fi
   [ "$p7" = 1 ] || [ "$p8" = 1 ] || return 0
-  if [ -n "${first:-}" ]; then
+  if [ -n "${first:-}" ] && [ "$p7" = 1 ]; then
     (
       umask 077
       mkdir -p "$JEV_STATE_DIR" && : >"$first"

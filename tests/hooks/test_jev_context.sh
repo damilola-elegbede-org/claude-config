@@ -868,6 +868,15 @@ prompt_input "please verify the config change works end to end" job3
 CLAUDE_JOB_DIR=/tmp/job JEV_MOCK="$TEST_HOME/job.json" run_hook a7-a8-prompt-context.sh "$IN"
 check "bgjob first qualifying prompt after a skipped one: evaluated" bash -c "! [ \"\$(wc -l <'$STUB_COUNT' | tr -d ' ')\" = $B ]"
 check "bgjob first qualifying prompt: marker written" test -e "$HOME/.claude/jev-cache/state/job3.first"
+# an A8-only first prompt (A7 off) must not use up A7's first prompt
+set_mode A7-memory-inject off
+prompt_input "please verify the config change works end to end" job4
+CLAUDE_JOB_DIR=/tmp/job JEV_MOCK="$TEST_HOME/job.json" run_hook a7-a8-prompt-context.sh "$IN"
+check "bgjob A8-only first prompt: A8 still hints" out_jq '.hookSpecificOutput.additionalContext | test("/verify")'
+check "bgjob A8-only first prompt: A7 marker not consumed" test ! -e "$HOME/.claude/jev-cache/state/job4.first"
+set_mode A7-memory-inject shadow
+CLAUDE_JOB_DIR=/tmp/job JEV_MOCK="$TEST_HOME/job.json" run_hook a7-a8-prompt-context.sh "$IN"
+check "bgjob: A7 gets the first prompt it actually evaluates" jq -e '.questions | has("m0")' "$STUB_LAST"
 
 # ------------------------------------------------------------------ A9: PreToolUse skill router + skill sources
 echo "A9 skill-router + skill catalog sources"
@@ -943,6 +952,9 @@ check "A9: a command only mentioned inside quotes does not match" out_empty
 bash_in "ls -la"
 run_hook a9-skill-router.sh "$IN"
 check "A9: an unrelated command is silent" out_empty
+bash_in 'echo done # git commit later'
+run_hook a9-skill-router.sh "$IN"
+check "A9: a command only mentioned in a shell comment does not match" out_empty
 write_in "$REPO/report.xlsx"
 run_hook a9-skill-router.sh "$IN"
 check "A9: a Write target matching a path trigger surfaces that skill" denies sheet
@@ -954,6 +966,12 @@ bash_in "terraform apply -auto-approve"
 run_hook a9-skill-router.sh "$IN"
 check "A9: enabled plugin skill is routed under <plugin>:<name>" denies infra-plugin:infra
 check "A9: a disabled plugin's skill is never offered" bash -c "! grep -q offskill '$OUTF'"
+mkdir -p "$REPO/.claude"
+printf '{"enabledPlugins":{"off-plugin@mk":true}}' >"$REPO/.claude/settings.json"
+turn t8b
+run_hook a9-skill-router.sh "$IN"
+check "A9: enabling a plugin in project settings takes effect at once (cache keyed on it)" bash -c "grep -q off-plugin:offskill '$OUTF'"
+rm -f "$REPO/.claude/settings.json"
 bash_in "subtool run" "$REPO"
 run_hook a9-skill-router.sh "$IN"
 check "A9: a directory-scoped skill does not apply outside its directory" out_empty
@@ -961,6 +979,13 @@ bash_in "subtool run" "$REPO/sub"
 run_hook a9-skill-router.sh "$IN"
 check "A9: a directory-scoped skill applies inside its directory" denies subtool
 CAT="$TEST_HOME/catalog.json"
+cp -R "$SRC/../../skills/pr" "$HOME/.claude/skills/"
+for c in "gh pr create --fill" "gh -R owner/repo pr create --fill" "gh --repo=owner/repo pr new"; do
+  turn "tpr$RANDOM"
+  bash_in "$c"
+  run_hook a9-skill-router.sh "$IN"
+  check "A9: /pr trigger matches: $c" denies pr
+done
 python3 -I "$HOME/.claude/hooks/jev/skill-catalog.py" "$REPO" "$CAT"
 check "catalog: all four sources present" jq -e 'map(.source) | unique == ["directory","plugin","project","user"]' "$CAT"
 check "catalog: a skill below the cwd is qualified as <dir>:<name>" jq -e 'any(.name == "sub:subtool" and .source == "directory")' "$CAT"

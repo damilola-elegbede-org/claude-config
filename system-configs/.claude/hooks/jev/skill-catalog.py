@@ -200,10 +200,12 @@ def build(cwd):
 
 
 def strip_quoted(cmd):
-    """Remove heredoc bodies and quoted strings, so a commit message or PR body that merely
-    mentions a command is not mistaken for running it."""
+    """Remove heredoc bodies, quoted strings and shell comments, so a commit message, PR body or
+    comment that merely mentions a command is not mistaken for running it."""
     cmd = re.sub(r"<<-?\s*([\"']?)(\w+)\1.*?\n\s*\2\s*(\n|$)", " ", cmd, flags=re.S)
-    return re.sub(r"\"(?:[^\"\\]|\\.)*\"|'[^']*'", '""', cmd, flags=re.S)
+    cmd = re.sub(r"\"(?:[^\"\\]|\\.)*\"|'[^']*'", '""', cmd, flags=re.S)
+    # A comment starts at a # that begins a word (quotes are gone, so none hides inside a string).
+    return re.sub(r"(^|[\s;&|()])#[^\n]*", r"\1", cmd)
 
 
 def turn_state(transcript):
@@ -299,12 +301,16 @@ def _search(rx, text):
 
 
 def signature(cwd):
-    """Cheap change detector for the cache key: mtimes of the skill roots and settings files."""
+    """Cheap change detector for the cache key: mtimes of the skill roots and settings files.
+    Nested directory skill roots are not walked here (that is the cost the cache saves), so a new
+    or edited directory-scoped skill shows up when the cache expires (CACHE_TTL)."""
     top = repo_root(cwd)
     parts = [cwd]
     for p in (os.path.join(CLAUDE, "skills"), os.path.join(CLAUDE, "settings.json"),
               os.path.join(CLAUDE, "plugins", "installed_plugins.json"),
-              os.path.join(top, ".claude", "skills") if top else ""):
+              os.path.join(top, ".claude", "skills") if top else "",
+              os.path.join(top, ".claude", "settings.json") if top else "",
+              os.path.join(top, ".claude", "settings.local.json") if top else ""):
         try:
             parts.append("%s=%d" % (p, os.stat(p).st_mtime_ns))
         except OSError:
