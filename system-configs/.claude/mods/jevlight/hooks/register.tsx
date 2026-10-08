@@ -31,7 +31,8 @@ export type Outcome = {
 };
 
 export const SKY = "#87CEEB";
-const LINE_MAX = 120;
+// A reason is shown whole and the transcript row wraps it; the cap only stops a runaway line.
+const LINE_MAX = 1000;
 // Calls whose marks are kept; older ones scroll out of view anyway.
 const KEEP = 200;
 // Sessions whose marks the store keeps, so a resume can draw them again.

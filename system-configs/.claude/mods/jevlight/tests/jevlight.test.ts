@@ -203,7 +203,12 @@ describe("jevlight", () => {
     expect(Object.keys(all)[0]).toBe("id5");
   });
 
-  test("long reasons are cut to one line", () => {
-    expect(firstLine(`${"x".repeat(150)}\nsecond`)).toHaveLength(120);
+  test("a long reason keeps its whole first line, so the row can wrap it", () => {
+    expect(firstLine(`${"x".repeat(150)}\nsecond`)).toBe("x".repeat(150));
+  });
+
+  test("only a runaway line is cut", () => {
+    expect(firstLine("x".repeat(2000))).toHaveLength(1000);
+    expect(firstLine("x".repeat(2000)).endsWith("…")).toBe(true);
   });
 });
