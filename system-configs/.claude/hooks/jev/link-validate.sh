@@ -110,20 +110,23 @@ def gh_api(path, jq=None):
         return "MISSING", err
     return "ERR", err
 
-def private_host(host):
-    """True for localhost, .local, and any host that resolves to a non-public address."""
+def public_addr(host):
+    """The address curl must connect to, or None when the host is private or unresolvable.
+
+    curl is pinned to this address with --resolve, so a second DNS answer cannot steer it
+    to loopback, RFC1918 or metadata services after this check passed."""
     h = host.lower().rstrip(".")
-    if h == "localhost" or h.endswith(".localhost") or h.endswith(".local") or h.endswith(".internal"):
-        return True
+    if not h or h == "localhost" or h.endswith(".localhost") or h.endswith(".local") or h.endswith(".internal"):
+        return None
     try:
         infos = socket.getaddrinfo(h, None, proto=socket.IPPROTO_TCP)
     except OSError:
-        return False  # unresolvable: curl will fail with 000 and the link is skipped
-    for info in infos:
-        ip = ipaddress.ip_address(info[4][0].split("%")[0])
+        return None
+    addrs = [ipaddress.ip_address(info[4][0].split("%")[0]) for info in infos]
+    for ip in addrs:
         if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_unspecified or ip.is_multicast:
-            return True
-    return False
+            return None
+    return addrs[0] if addrs else None
 
 def remote(url, label):
     c = cached(url)
@@ -150,20 +153,34 @@ def remote(url, label):
         v = {"OK": "OK", "MISSING": "FAIL commit %s not found in %s/%s" % (sha, o, r)}.get(st, "SKIP gh unavailable or rate-limited")
         store(url, v)
         return v
-    m = re.match(r"^https://github\.com/([^/]+)/([^/?#]+)(?:[/?#].*)?$", url)
+    m = re.match(r"^https://github\.com/([^/]+)/([^/?#]+)((?:[/?#].*)?)$", url)
     if m and m.group(1) not in ("orgs", "settings", "marketplace", "features", "about", "topics", "sponsors"):
-        o, r = m.groups()
-        st, _ = gh_api("repos/%s/%s" % (o, re.sub(r"\.git$", "", r)), ".full_name")
-        v = {"OK": "OK", "MISSING": "FAIL repository %s/%s not found" % (o, r)}.get(st, "SKIP gh unavailable or rate-limited")
-        store(url, v)
-        return v
+        o, r, rest = m.groups()
+        st, out = gh_api("repos/%s/%s" % (o, re.sub(r"\.git$", "", r)), ".private")
+        if st == "MISSING":
+            v = "FAIL repository %s/%s not found" % (o, r)
+        elif st == "ERR":
+            v = "SKIP gh unavailable or rate-limited"
+        elif re.match(r"^/?(?:[?#].*)?$", rest):
+            v = "OK"  # the repository page itself
+        elif out.strip() == "true":
+            v = "SKIP private repository sub-path not checked"  # anonymous curl would 404 it
+        else:
+            v = None  # public repository: fall through so curl checks the full path
+        if v is not None:
+            store(url, v)
+            return v
     if re.match(r"^https://linear\.app/", url):
         return "OK"
-    host = urlsplit(url).hostname or ""
-    if private_host(host):
-        return "SKIP private host"
+    parts = urlsplit(url)
+    host = parts.hostname or ""
+    addr = public_addr(host)
+    if addr is None:
+        return "SKIP private or unresolvable host"
+    port = parts.port or (443 if parts.scheme == "https" else 80)
+    pin = "%s:%d:%s" % (host, port, "[%s]" % addr if addr.version == 6 else addr)
     # No -L: a redirect is proof the page exists, and following one could reach a private address.
-    rc, out, _ = run([CURL, "-s", "-o", "/dev/null", "-r", "0-0", "--max-redirs", "0", "--max-time", "5", "-A", "Mozilla/5.0", "-w", "%{http_code}", url], 7)
+    rc, out, _ = run([CURL, "-s", "-o", "/dev/null", "-r", "0-0", "--max-redirs", "0", "--max-time", "5", "--resolve", pin, "-A", "Mozilla/5.0", "-w", "%{http_code}", url], 7)
     code = out[-3:] if out else "000"
     if code in ("404", "410"):
         v = "FAIL page answers %s" % code

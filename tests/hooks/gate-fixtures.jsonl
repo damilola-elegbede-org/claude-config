@@ -444,3 +444,6 @@
 {"rule":"MG-repo-location","expect":"allow","tool":"Bash","input":{"command":"git clone https://github.com/o/r.git \"$HOME/dev/r\""}}
 {"rule":"MG-repo-location","expect":"deny","tool":"Bash","input":{"command":"git clone https://github.com/o/r.git ~/dev/../elsewhere/r"}}
 {"rule":"MG-repo-location","expect":"allow","tool":"Bash","input":{"command":"git clone https://github.com/o/r.git ~/dev/my..repo"}}
+{"rule":"MG-repo-location","expect":"deny","tool":"Bash","input":{"command":"git clone https://github.com/o/r.git ~/repos/build/r"}}
+{"rule":"MG-repo-location","expect":"deny","tool":"Bash","input":{"command":"git clone https://github.com/o/r.git ~/Documents/node_modules/r"}}
+{"rule":"MG-repo-location","expect":"allow","tool":"Bash","input":{"command":"git clone https://github.com/o/r.git $TMPDIR/r"}}
