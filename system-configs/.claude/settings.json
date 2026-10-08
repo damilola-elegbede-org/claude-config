@@ -383,6 +383,16 @@
           },
           {
             "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/link-lint.sh",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/link-validate.sh",
+            "timeout": 20
+          },
+          {
+            "type": "command",
             "command": "${HOME}/.claude/hooks/jev/papercut-nudge.sh",
             "timeout": 10
           }

@@ -64,7 +64,7 @@ NONENFORCE=$(jq -r "to_entries[] | select(.value.threshold != null and (.value |
 eq "every Jev rule (has threshold) ships enforce except the two D kept in shadow" "$NONENFORCE" "executive-scope-creep,executive-tag-correctness"
 eq "executive-tag-correctness ships shadow" "$(jq -r ".\"executive-tag-correctness\" | $IM" "$RJ")" "shadow"
 eq "executive-scope-creep ships shadow" "$(jq -r ".\"executive-scope-creep\" | $IM" "$RJ")" "shadow"
-for r in file-org-guard pr-draft-guard executive-lint retry-counter papercut-grep; do
+for r in file-org-guard pr-draft-guard executive-lint link-lint link-validate retry-counter papercut-grep; do
   eq "regex rule $r ships enforce" "$(jq -r --arg r "$r" ".[\$r] | $IM" "$RJ")" enforce
 done
 # No bg job ever enforces an executive-* or workflow-* rule: those run in shadow there.
@@ -79,7 +79,7 @@ jq -e . "$SJ" >/dev/null 2>&1 && ok || bad "settings.json is valid JSON"
 for want in \
   "PreToolUse:file-org-guard.sh" "PreToolUse:memory-dup-guard.sh" "PreToolUse:pr-draft-guard.sh" \
   "PostToolUseFailure:retry-counter.sh" "PostToolUse:retry-counter.sh" "PostToolUseFailure:papercut-grep.sh" \
-  "Stop:executive-lint.sh" "Stop:papercut-nudge.sh" "StopFailure:stopfailure-hint.sh" \
+  "Stop:executive-lint.sh" "Stop:link-lint.sh" "Stop:link-validate.sh" "Stop:papercut-nudge.sh" "StopFailure:stopfailure-hint.sh" \
   "SessionStart:session-start-project.sh" "SessionEnd:session-end-memory.sh" \
   "Notification:notification-urgency.sh" "PostCompact:postcompact-log.sh"; do
   ev="${want%%:*}"
@@ -278,6 +278,120 @@ eq "empty message skipped" "$(run executive-lint.sh "$(sl '')")" ""
 rules '{"executive-lint":{"mode":"shadow"}}'
 eq "shadow mode logs but does not block" "$(run executive-lint.sh "$(sl 'plain reply')")" ""
 loghas shadow-would-block && ok || bad "shadow-would-block logged"
+
+echo "== link-lint =="
+reset
+eq "linked PR, code span, colour code and option number pass" "$(run link-lint.sh "$(sl $'**FYI · see [PR #3](https://github.com/o/r/pull/3), `#4`, colour #141414, Option #2.**\nx')")" ""
+out=$(run link-lint.sh "$(sl $'**FYI · see PR #3 for details.**\nx')")
+has "bare PR number blocked" "$out" "#3"
+out=$(run link-lint.sh "$(sl $'**FYI · merged (#128).**\nx')")
+has "squash-merge style (#N) blocked" "$out" "#128"
+out=$(run link-lint.sh "$(sl $'**FYI · see PR #123456 for details.**\nx')")
+has "PR number above five digits blocked" "$out" "#123456"
+out=$(run link-lint.sh "$(sl $'**FYI · see o/r#12.**\nx')")
+has "owner/repo#N blocked" "$out" "#12"
+out=$(run link-lint.sh "$(sl $'**FYI · docs at https://example.org/x.**\nx')")
+has "bare URL blocked" "$out" "https://example.org/x"
+hasnt "bold markers are not part of the URL" "$out" "x**"
+out=$(run link-lint.sh "$(sl $'**FYI · fixed in commit 940f2ae.**\nx')")
+has "bare commit SHA blocked" "$out" "940f2ae"
+eq "a word that looks like hex is not a SHA" "$(run link-lint.sh "$(sl $'**FYI · the deadbeef value and a facade.**\nx')")" ""
+eq "autolink <url> passes" "$(run link-lint.sh "$(sl $'**FYI · see <https://example.org/x>.**\nx')")" ""
+eq "refs inside a code fence pass" "$(run link-lint.sh "$(sl $'**FYI · log.**\n```\nPR #3 https://example.org\n```')")" ""
+eq "stop_hook_active never blocks twice" "$(run link-lint.sh "$(sl $'**FYI · PR #3.**\nx' true)")" ""
+eq "subagent skipped" "$(printf '%s' "$(jq -c '. + {agent_id:"a1"}' <<<"$(sl $'**FYI · PR #3.**\nx')")" | bash "$HOOKS/link-lint.sh" 2>/dev/null)" ""
+eq "fleet skipped" "$(BARECLAUDE_AGENT_SLUG=fleet-test run link-lint.sh "$(sl $'**FYI · PR #3.**\nx')")" ""
+rm -rf "$HOME/.claude/jev"
+eq "bg job: bare ref is not blocked" "$(CLAUDE_JOB_DIR=/x run link-lint.sh "$(sl $'**FYI · PR #3.**\nx')")" ""
+loghas '"rule":"link-lint","verdict":"shadow-would-block"' && ok || bad "bg job: bare ref logged as shadow-would-block" "$(cat "$LOG" 2>/dev/null)"
+rules '{"link-lint":{"mode":"off"}}'
+eq "mode off passes" "$(run link-lint.sh "$(sl $'**FYI · PR #3.**\nx')")" ""
+reset
+
+echo "== link-validate =="
+mkdir -p "$T/bin" "$T/tmp"
+cat >"$T/bin/gh" <<'GHEOF'
+#!/bin/bash
+# fake gh: gh api <path> [--jq expr]
+p="$2"
+case "$p" in
+  repos/o/r/issues/9) printf '9\ttrue\n' ;;
+  repos/o/r/issues/7) printf '7\tfalse\n' ;;
+  repos/o/r/issues/404) echo "gh: Not Found (HTTP 404)" >&2; exit 1 ;;
+  repos/o/r/issues/500) echo "gh: HTTP 502 Bad Gateway" >&2; exit 1 ;;
+  repos/o/r/commits/abc1234) echo abc1234 ;;
+  repos/o/r/commits/bad0000) echo "No commit found for SHA: bad0000" >&2; exit 1 ;;
+  repos/o/r) echo o/r ;;
+  repos/o/gone) echo "gh: Not Found (HTTP 404)" >&2; exit 1 ;;
+  *) echo "gh: Not Found (HTTP 404)" >&2; exit 1 ;;
+esac
+GHEOF
+cat >"$T/bin/curl" <<'CEOF'
+#!/bin/bash
+url="${*: -1}"
+[ -n "${CURL_ARGS_FILE:-}" ] && echo "$*" >>"$CURL_ARGS_FILE"
+case "$url" in
+  *gone*) printf 404 ;;
+  *down*) printf 000 ;;
+  *) printf 200 ;;
+esac
+CEOF
+chmod +x "$T/bin/gh" "$T/bin/curl"
+export LV_GH="$T/bin/gh" LV_CURL="$T/bin/curl" TMPDIR="$T/tmp" CURL_ARGS_FILE="$T/curl.args"
+vl() { rm -rf "$T/tmp/claude-link-validate"; run link-validate.sh "$(sl "$1")"; }
+eq "existing PR with matching label passes" "$(vl $'**FYI · [PR #9](https://github.com/o/r/pull/9).**\nx')" ""
+eq "good Linear link, good web link pass" "$(vl $'**FYI · [ENG-13](https://linear.app/b/issue/ENG-13/x) and [docs](https://example.org/ok).**\nx')" ""
+out=$(vl $'**FYI · [PR #404](https://github.com/o/r/pull/404).**\nx')
+has "nonexistent PR blocked" "$out" "does not exist"
+out=$(vl $'**FYI · [PR #3](https://github.com/o/r/pull/9).**\nx')
+has "label number != URL number blocked" "$out" "label says #3 but the URL is #9"
+out=$(vl $'**FYI · [PR #7](https://github.com/o/r/pull/7).**\nx')
+has "/pull/N that is an issue blocked" "$out" "is an issue"
+out=$(vl $'**FYI · [ENG-12](https://linear.app/b/issue/ENG-13/x).**\nx')
+has "Linear label != URL id blocked" "$out" "label says ENG-12 but the URL is ENG-13"
+out=$(vl $'**FYI · [c](https://github.com/o/r/commit/bad0000).**\nx')
+has "missing commit blocked" "$out" "not found"
+eq "existing commit passes" "$(vl $'**FYI · [c](https://github.com/o/r/commit/abc1234).**\nx')" ""
+out=$(vl $'**FYI · [r](https://github.com/o/gone).**\nx')
+has "missing repository blocked" "$out" "repository o/gone not found"
+out=$(vl $'**FYI · [page](https://example.org/gone).**\nx')
+has "web 404 blocked" "$out" "answers 404"
+eq "a link whose URL contains parentheses passes" "$(vl $'**FYI · [article](https://example.org/wiki/Foo_(bar)).**\nx')" ""
+out=$(vl $'**FYI · [article](https://example.org/gone_(x)).**\nx')
+has "a 404 on a URL with parentheses is reported with the whole URL" "$out" "gone_(x))"
+: >"$T/curl.args"
+vl $'**FYI · [page](https://example.org/ok).**\nx' >/dev/null
+has "web check does not follow redirects" "$(cat "$T/curl.args")" "--max-redirs 0"
+hasnt "web check never passes -L" "$(cat "$T/curl.args")" " -L"
+: >"$T/curl.args"
+out=$(vl $'**FYI · [x](http://public.example@127.0.0.1:8080/action).**\nx')
+has "userinfo URL is rejected before any fetch" "$out" "userinfo"
+out=$(vl $'**FYI · [docs](https://example.org/gone "manual").**\nx')
+has "a titled link is validated" "$out" "answers 404"
+eq "a titled link that exists passes" "$(vl $'**FYI · [docs](https://example.org/ok "manual").**\nx')" ""
+: >"$T/curl.args"
+eq "link to .internal host is skipped, not fetched" "$(vl $'**FYI · [x](https://svc.internal/gone).**\nx')" ""
+eq ".internal host never reaches curl" "$(cat "$T/curl.args")" ""
+eq "web no-response is skipped, not blocked" "$(vl $'**FYI · [page](https://example.org/down).**\nx')" ""
+loghas '"rule":"link-validate","verdict":"unverified"' && ok || bad "unverified link logged" "$(cat "$LOG" 2>/dev/null)"
+eq "gh outage is skipped, not blocked" "$(vl $'**FYI · [PR #500](https://github.com/o/r/pull/500).**\nx')" ""
+out=$(vl $'**FYI · [x](TBD) and [](https://example.org/a).**\nx')
+has "placeholder URL blocked" "$out" "placeholder"
+has "empty label blocked" "$out" "empty label"
+eq "bare URL needs no label (lint covers it)" "$(vl $'**FYI · https://example.org/ok.**\nx')" ""
+eq "links inside a code fence are ignored" "$(vl $'**FYI · log.**\n```\n[x](TBD)\n```')" ""
+eq "stop_hook_active never blocks twice" "$(run link-validate.sh "$(sl $'**FYI · [x](TBD).**\nx' true)")" ""
+eq "fleet skipped" "$(BARECLAUDE_AGENT_SLUG=fleet-test run link-validate.sh "$(sl $'**FYI · [x](TBD).**\nx')")" ""
+rm -rf "$HOME/.claude/jev"
+eq "bg job: broken link is not blocked" "$(CLAUDE_JOB_DIR=/x run link-validate.sh "$(sl $'**FYI · [x](TBD).**\nx')")" ""
+loghas '"rule":"link-validate","verdict":"shadow-would-block"' && ok || bad "bg job: broken link logged as shadow-would-block" "$(cat "$LOG" 2>/dev/null)"
+rules '{"link-validate":{"mode":"off"}}'
+eq "mode off passes" "$(run link-validate.sh "$(sl $'**FYI · [x](TBD).**\nx')")" ""
+rules '{"link-validate":{"mode":"enforce"}}'
+eq "LV_OFFLINE skips remote lookups" "$(LV_OFFLINE=1 vl $'**FYI · [PR #404](https://github.com/o/r/pull/404).**\nx')" ""
+unset LV_GH LV_CURL
+export TMPDIR="${TMPDIR_ORIG:-/tmp}"
+reset
 
 echo "== executive-lint: Jev shadow checks =="
 reset
