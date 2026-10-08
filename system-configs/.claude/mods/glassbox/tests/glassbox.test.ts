@@ -35,8 +35,10 @@ const band = (isWorking = true) =>
     },
   }) as const;
 
+const SURFACES = ["terminal", "desktop", "vscode", "mobile"] as const;
+
 const pane = (
-  surface: "terminal" | "desktop",
+  surface: (typeof SURFACES)[number],
   view: { agentId?: string } = {},
   placement: "dock" | "inline" = "dock",
 ) =>
@@ -82,7 +84,7 @@ describe("glassbox", () => {
     expect(await ui.find({ text: /idle/ })).toBeDefined();
   });
 
-  for (const surface of ["terminal", "desktop"] as const) {
+  for (const surface of SURFACES) {
     test(`the checklist draws as the plan box (${surface})`, async ($, on) => {
       engine(on);
       let made = 0;
@@ -155,20 +157,203 @@ describe("glassbox", () => {
     ).toBeUndefined();
   });
 
-  test("seated above the prompt (not fullscreen), the pane draws nothing", async ($, on) => {
+  for (const surface of SURFACES) {
+    test(`seated above the prompt, the pane draws a shorter version (${surface})`, async ($, on) => {
+      engine(on);
+      on("tool.call", () => ({ result: {} }));
+      await $.ui.mount(band());
+      for (let i = 0; i < 12; i++) {
+        await $.tool.call({ tool: "Read", file_path: `/repo/f${i}.ts` });
+      }
+
+      const ui = await $.ui.mount(pane(surface, {}, "inline"));
+      expect(await ui.find({ text: /╭ context/ })).toBeDefined();
+      expect(await ui.find({ text: /╭ activity/ })).toBeDefined();
+      // Eight activity rows, newest first: the oldest four are left out.
+      expect(await ui.find({ text: /f11\.ts/ })).toBeDefined();
+      expect(await ui.find({ text: /f4\.ts/ })).toBeDefined();
+      expect(await ui.find({ text: /f3\.ts/ })).toBeUndefined();
+    });
+  }
+
+  test("a phone attaching starts the record before the pane opens", async ($, on) => {
     engine(on);
-    await $.ui.mount(band());
-    const ui = await $.ui.mount(pane("terminal", {}, "inline"));
-    expect(
-      await ui.find({ text: /glassbox|context|activity/ }),
-    ).toBeUndefined();
+    on("session.attach", (_$, e) => ({ clientId: e.clientId }));
+    on("tool.call", () => ({
+      result: { task: { id: "1", subject: "Seen from the phone" } },
+    }));
+
+    await $.session.attach({ surface: "mobile", clientId: "mobile:default" });
+    await $.tool.call({
+      tool: "TaskCreate",
+      subject: "Seen from the phone",
+      description: "x",
+    });
+
+    const ui = await $.ui.mount(pane("mobile", {}, "inline"));
+    expect(await ui.find({ text: /Seen from the phone/ })).toBeDefined();
   });
 
-  test("/glassbox opens the pane and prints nothing in the transcript", async ($, on) => {
+  for (const [surface, kind] of [
+    ["terminal", "composer"],
+    ["desktop", "sdk"],
+  ] as const) {
+    test(`/glassbox opens the pane and prints nothing in the transcript (${surface})`, async ($, on) => {
+      engine(on);
+      on("session.surfaces", () => ({ value: [surface] }));
+      let opened = 0;
+      on("ui.open", () => {
+        opened++;
+        return { value: { isPlaced: true } };
+      });
+      const out = await $.command.run({
+        command: "glassbox",
+        origin: { kind },
+      } as never);
+      expect(out.text).toBeUndefined();
+      expect(opened).toBe(1);
+    });
+  }
+
+  for (const [where, surfaces] of [
+    ["the VS Code chat panel", ["vscode"]],
+    ["a headless or cloud session", []],
+  ] as const) {
+    test(`where nothing draws (${where}), /glassbox answers in text and records from then`, async ($, on) => {
+      engine(on);
+      on("session.surfaces", () => ({ value: surfaces }));
+      let opened = 0;
+      on("ui.open", () => {
+        opened++;
+        return { value: { isPlaced: true } };
+      });
+      on("tool.call", () => ({
+        result: { task: { id: "1", subject: "Shown in text" } },
+      }));
+
+      const first = await $.command.run({ command: "glassbox" });
+      expect(first.text).toMatch(/\*\*glassbox\*\*/);
+      expect(first.text).toMatch(/Recording from now/);
+
+      await $.tool.call({
+        tool: "TaskCreate",
+        subject: "Shown in text",
+        description: "x",
+      });
+      const second = await $.command.run({ command: "glassbox" });
+      expect(second.text).toMatch(/\*\*plan\*\* 0\/1/);
+      expect(second.text).toMatch(/- \[ \] Shown in text/);
+      expect(second.text).not.toMatch(/Recording from now/);
+      expect(opened).toBe(0);
+    });
+  }
+
+  test("/glassbox from claude.ai or the phone (Remote Control) answers in text", async ($, on) => {
     engine(on);
-    on("ui.open", () => ({ value: { isPlaced: true } }));
+    on("session.surfaces", () => ({ value: ["terminal", "mobile"] }));
+    let opened = 0;
+    on("ui.open", () => {
+      opened++;
+      return { value: { isPlaced: true } };
+    });
+    const out = await $.command.run({
+      command: "glassbox",
+      origin: { kind: "bridge" },
+    } as never);
+    expect(out.text).toMatch(/\*\*glassbox\*\*/);
+    expect(opened).toBe(0);
+  });
+
+  // VS Code need not join the roster: the terminal may be all it shows.
+  for (const [who, roster, origin, wantsText] of [
+    [
+      "the VS Code panel beside a terminal",
+      ["terminal"],
+      { kind: "sdk" },
+      true,
+    ],
+    [
+      "the VS Code panel, listed",
+      ["terminal", "vscode"],
+      { kind: "sdk" },
+      true,
+    ],
+    [
+      "the terminal with VS Code attached",
+      ["terminal", "vscode"],
+      { kind: "composer" },
+      false,
+    ],
+  ] as const) {
+    test(`/glassbox from ${who} ${wantsText ? "answers in text" : "opens the pane"}`, async ($, on) => {
+      engine(on);
+      on("session.surfaces", () => ({ value: roster }));
+      let opened = 0;
+      on("ui.open", () => {
+        opened++;
+        return { value: { isPlaced: true } };
+      });
+      const out = await $.command.run({ command: "glassbox", origin } as never);
+      if (wantsText) {
+        expect(out.text).toMatch(/\*\*glassbox\*\*/);
+        expect(opened).toBe(0);
+      } else {
+        expect(out.text).toBeUndefined();
+        expect(opened).toBe(1);
+      }
+    });
+  }
+
+  test("the text snapshot lists 8 plan rows and counts the rest", async ($, on) => {
+    engine(on);
+    on("session.surfaces", () => ({ value: [] }));
+    let made = 0;
+    on("tool.call", (_$, e) => ({
+      result: { task: { id: String(++made), subject: String(e.subject) } },
+    }));
+    await $.command.run({ command: "glassbox" });
+    for (let i = 1; i <= 12; i++) {
+      await $.tool.call({
+        tool: "TaskCreate",
+        subject: `Step ${i}`,
+        description: "x",
+      });
+    }
     const out = await $.command.run({ command: "glassbox" });
-    expect(out.text).toBeUndefined();
+    expect(out.text).toMatch(/- \[ \] Step 8\n/);
+    expect(out.text).not.toMatch(/Step 9\b/);
+    expect(out.text).toMatch(/- \+4 more/);
+  });
+
+  test("the text snapshot cuts long rows", async ($, on) => {
+    engine(on);
+    on("session.surfaces", () => ({ value: [] }));
+    on("tool.call", () => ({
+      result: { task: { id: "1", subject: "x".repeat(500) } },
+    }));
+    await $.command.run({ command: "glassbox" });
+    await $.tool.call({
+      tool: "TaskCreate",
+      subject: "x".repeat(500),
+      description: "x",
+    });
+    const out = await $.command.run({ command: "glassbox" });
+    for (const row of String(out.text).split("\n"))
+      expect(row.length).toBeLessThan(200);
+  });
+
+  test("/glassbox text answers in text even where the pane draws", async ($, on) => {
+    engine(on);
+    on("session.surfaces", () => ({ value: ["terminal"] }));
+    let opened = 0;
+    on("ui.open", () => {
+      opened++;
+      return { value: { isPlaced: true } };
+    });
+    await $.ui.mount(band());
+    const out = await $.command.run({ command: "glassbox", args: "text" });
+    expect(out.text).toMatch(/\*\*glassbox\*\*/);
+    expect(opened).toBe(0);
   });
 
   test("TodoWrite and the task tools never overwrite each other", async ($, on) => {

@@ -25,6 +25,7 @@ import {
   gist,
   kTokens,
   meter,
+  oneLine,
   prettyModel,
   responseItems,
   settle,
@@ -39,12 +40,16 @@ import {
 
 // glassbox: watch Claude work, in one pane beside the transcript. A box per
 // concern (loop, context, plan, agents, gate, changes, activity); a box with
-// nothing to show takes no room. It draws nothing above the prompt, in the
-// transcript or in the status line, and opens only on /glassbox.
+// nothing to show takes no room. It draws nothing in the transcript or in the
+// status line, and opens only on /glassbox. Where a surface cannot dock a pane
+// (a terminal not in fullscreen) the engine seats it above the prompt, and
+// glassbox draws a shorter version there until it is closed. Where no surface
+// draws a pane at all, /glassbox answers with the same boxes in text.
 //
 // It only watches. Every recording hook passes the event on unchanged, and none
-// records until a screen has drawn: a headless session (`claude -p`, the fleet)
-// never draws, so there the hooks are a bare `next(e)`.
+// records until a screen has drawn, a remote client has attached or /glassbox
+// was typed: a headless session (`claude -p`, the fleet) does none of these
+// (its surface roster is empty), so there the hooks are a bare `next(e)`.
 
 const PANE = "glassbox";
 const PANE_COLUMNS = 52;
@@ -53,6 +58,10 @@ const FEED_MAX = 200;
 const ACTIVITY_MAX = 50;
 const CHECKS_MAX = 60;
 const PLAN_ROWS = 8;
+// Seated above the prompt the pane shares the screen with the transcript, so
+// it lists fewer rows and skips the context anatomy.
+const INLINE_ACTIVITY_ROWS = 8;
+const INLINE_PLAN_ROWS = 4;
 const PHASES = ["prompt", "think", "tool", "result"];
 const PLAN_TOOLS = new Set([
   "TaskCreate",
@@ -167,6 +176,102 @@ async function liveAgents($: EngineInterface) {
   });
 }
 
+// The surfaces that show a mod's panes; elsewhere hooks run but nothing draws
+// (code.claude.com/docs/en/plugins/mods/overview, "Where mods run").
+const DRAWING_SURFACES = new Set(["terminal", "desktop"]);
+const SNAPSHOT_ACTIVITY = 10;
+// Each row of the snapshot is cut to this many characters, as the pane clips.
+const SNAPSHOT_TEXT = 120;
+
+// The pane's boxes as markdown, for a surface that draws no pane. A box with
+// nothing to show is left out, as in the pane.
+async function snapshot($: EngineInterface, wasRecording: boolean) {
+  const [l, list, runs, items, gate, edits, now, usage] = await Promise.all([
+    read($, loop),
+    read($, tasks),
+    liveAgents($),
+    read($, feed),
+    read($, checks),
+    read($, changes),
+    $.clock.now(),
+    $.session.usage({ breakdown: "summary" }).catch(() => null),
+  ]);
+  const model = prettyModel(l.model || usage?.context.breakdown?.model || "");
+  const timing =
+    l.phase !== "idle" && l.turnStartedAt !== null
+      ? `${l.phase} · ${timer(now - l.turnStartedAt)}`
+      : l.turnStartedAt !== null && l.turnEndedAt !== null
+        ? `idle · last turn ${duration(l.turnEndedAt - l.turnStartedAt)}`
+        : "idle";
+  const out = [`**glassbox** · ${[model, timing].filter(Boolean).join(" · ")}`];
+
+  const ctx = usage?.context;
+  if (ctx?.percent !== undefined && ctx.percent !== null) {
+    const size =
+      ctx.tokens !== undefined
+        ? ` (${kTokens(ctx.tokens)}/${kTokens(ctx.window)})`
+        : "";
+    const fold = l.compactions > 0 ? ` · compacted ${l.compactions}×` : "";
+    out.push(`**context** ${Math.round(ctx.percent)}%${size}${fold}`);
+  }
+  if (list.length > 0) {
+    const done = list.filter((x) => x.status === "completed").length;
+    out.push(`**plan** ${done}/${list.length}`);
+    for (const x of list.slice(0, PLAN_ROWS)) {
+      const text = clip(
+        x.status === "in_progress" ? (x.activeForm ?? x.subject) : x.subject,
+        SNAPSHOT_TEXT,
+      );
+      out.push(
+        x.status === "completed"
+          ? `- [x] ${text}`
+          : x.status === "in_progress"
+            ? `- [ ] **${text}**`
+            : `- [ ] ${text}`,
+      );
+    }
+    if (list.length > PLAN_ROWS) out.push(`- +${list.length - PLAN_ROWS} more`);
+  }
+  if (runs.length > 0) {
+    out.push(`**agents** ${runs.length}`);
+    for (const r of runs.slice(-6)) {
+      const took = timer((r.endedAt ?? now) - r.startedAt);
+      out.push(
+        `- ${r.status} · ${clip(r.description, SNAPSHOT_TEXT)} · ${r.tools} tools · ${took}`,
+      );
+    }
+  }
+  if (gate.length > 0) {
+    const n = tally(gate);
+    out.push(
+      `**gate** ${n.allowed} allowed · ${n.asked} asked · ${n.pending} waiting · ${n.denied} denied`,
+    );
+  }
+  if (edits.length > 0) {
+    out.push(`**changes** ${edits.length} files`);
+    for (const c of edits.slice(0, 6)) {
+      const about = c.approx ? "~" : "";
+      out.push(`- ${shortFile(c.file)} ${about}+${c.added} −${c.removed}`);
+    }
+  }
+  const shown = items
+    .filter((i) => !i.agentId)
+    .slice(-SNAPSHOT_ACTIVITY)
+    .reverse();
+  if (shown.length > 0) {
+    out.push("**activity**");
+    for (const i of shown)
+      out.push(
+        `- ${clockTime(i.at)} ${feedGlyph[i.kind]} ${clip(oneLine(i.text), SNAPSHOT_TEXT)}`,
+      );
+  } else if (!wasRecording) {
+    out.push(
+      "Recording from now: run /glassbox again to see plan, agents and activity.",
+    );
+  }
+  return out.join("\n");
+}
+
 // A watcher must never stand in the way: a hook that fails hands the event on
 // as if it were not there (replay-safe when it had already called `next`).
 const passThrough = <E, R>(_$: unknown, e: E, next: (e: E) => R) => next(e);
@@ -186,8 +291,28 @@ export const register: Register = (on) => {
     return next(e);
   });
 
-  // Opens the pane and prints nothing: glassbox draws only in its pane.
-  on("command.run", { command: "glassbox" }, async ($) => {
+  // Opens the pane and prints nothing where a surface draws one (the terminal,
+  // the desktop app). Where nothing draws (the VS Code chat panel, a cloud
+  // session, Remote Control from claude.ai or the phone) it answers with a
+  // snapshot in text instead, as does
+  // `/glassbox text` anywhere, and records from then on for the next one.
+  on("command.run", { command: "glassbox" }, async ($, e) => {
+    const surfaces = await $.session.surfaces();
+    const draws = surfaces.some((s) => DRAWING_SURFACES.has(s));
+    // The origin names how a command came, not which client typed it, and a
+    // client that draws nothing (VS Code) need not join the roster. Typed at
+    // the terminal, the person sees its pane. Any other origin opens the pane
+    // only with the desktop app attached; Remote Control (claude.ai, the
+    // phone) never, since its pane would open on the machine, out of sight.
+    const kind = e.origin?.kind ?? "composer";
+    const seen =
+      kind === "composer" ||
+      (kind !== "bridge" && surfaces.includes("desktop"));
+    if (!draws || !seen || (e.args ?? "").trim() === "text") {
+      const text = await snapshot($, hasScreen);
+      hasScreen = true;
+      return { text };
+    }
     const opened = await $.ui.open({
       id: PANE,
       title: "glassbox",
@@ -411,18 +536,21 @@ export const register: Register = (on) => {
     return next(e);
   });
 
+  // A remote client (desktop, the phone, VS Code) joining is a screen too: it
+  // may never draw the space above the prompt before /glassbox is typed.
+  on("session.attach", async (_$, e, next) => {
+    hasScreen = true;
+    return next(e);
+  });
+
   on("ui.render", { component: "Pane", requestId: PANE }, async ($, e) => {
     hasScreen = true;
     const els = $.ui.resolve(e);
     const { Box, Text, Button } = els;
 
-    // Opened in a terminal that is not fullscreen, the engine seats the pane
-    // above the prompt: glassbox never draws there, so it closes itself.
-    if (e.props.placement === "inline") {
-      $.ui.close({ id: PANE }).catch(() => {});
-      $.ui.toast("glassbox shows beside the transcript: switch to fullscreen");
-      return <Box />;
-    }
+    // Seated above the prompt rather than docked beside the transcript.
+    const compact = e.props.placement === "inline";
+    const planMax = compact ? INLINE_PLAN_ROWS : PLAN_ROWS;
 
     const hasClient = "Client" in els;
     const W = Math.max(30, e.props.bodyColumns);
@@ -563,7 +691,7 @@ export const register: Register = (on) => {
     } else {
       contextRows.push(<Text color={C.dim}>No reading yet.</Text>);
     }
-    if (bd && bd.rawMaxTokens > 0) {
+    if (!compact && bd && bd.rawMaxTokens > 0) {
       // Anatomy: one strip, each category in the colour /context gives it.
       const used = bd.categories.filter(
         (c) => c.kind === "used" && c.tokens > 0,
@@ -637,7 +765,7 @@ export const register: Register = (on) => {
           {bar(done, list.length, inner)}
         </Text>,
       );
-      for (const x of list.slice(0, PLAN_ROWS)) {
+      for (const x of list.slice(0, planMax)) {
         const text =
           x.status === "in_progress" ? (x.activeForm ?? x.subject) : x.subject;
         planRows.push(
@@ -658,9 +786,9 @@ export const register: Register = (on) => {
           ),
         );
       }
-      if (list.length > PLAN_ROWS)
+      if (list.length > planMax)
         planRows.push(
-          <Text color={C.dim}>{`+${list.length - PLAN_ROWS} more`}</Text>,
+          <Text color={C.dim}>{`+${list.length - planMax} more`}</Text>,
         );
     }
 
@@ -806,7 +934,7 @@ export const register: Register = (on) => {
     const focus = viewed ? runs.find((r) => r.id === viewed) : undefined;
     const shown = items
       .filter((i) => (viewed ? i.agentId === viewed : !i.agentId))
-      .slice(-ACTIVITY_MAX)
+      .slice(-(compact ? INLINE_ACTIVITY_ROWS : ACTIVITY_MAX))
       .reverse();
     const feedColor = (k: FeedKind) =>
       k === "deny"
