@@ -767,11 +767,44 @@ sync_files() {
         echo "  ⏭  Mods: skipped by $STATION manifest"
     elif [ -d "$SOURCE_DIR/mods" ]; then
         mkdir -p "$TARGET_DIR/mods"
+        # A manifest's mods_exclude names mods a station never gets: the fleet
+        # node keeps screen-only mods off its headless sessions. Each is left
+        # out of the copy, and removed if an earlier sync put it there (--delete
+        # spares excluded paths). Names are checked first, so the unquoted list
+        # below can neither glob nor split a name.
+        MODS_EXCLUDE=""
+        if [ "$HAVE_MANIFEST" = "true" ]; then
+            bad_mods=$(jq -r '.sync.mods_exclude // [] | .[] | tostring | select(test("^[A-Za-z0-9_-][A-Za-z0-9_.-]*$") | not)' "$MANIFEST")
+            if [ -n "$bad_mods" ]; then
+                echo "  ❌ Mods: invalid mods_exclude entry in $MANIFEST: $bad_mods"
+                return 1
+            fi
+            MODS_EXCLUDE=$(jq -r '.sync.mods_exclude // [] | .[]' "$MANIFEST")
+        fi
+        mods_exclude_file=$(mktemp "${TMPDIR:-/tmp}/claude-sync-mods.XXXXXX")
+        for mod in $MODS_EXCLUDE; do
+            printf '/%s/\n' "$mod" >>"$mods_exclude_file"
+        done
         rsync_output=""
-        if rsync_output=$(rsync -a --delete --exclude='local-*' --exclude='/*/tests/' --exclude='/*/.claude-plugin/types/' --exclude='/*/tsconfig.json' "$SOURCE_DIR/mods/" "$TARGET_DIR/mods/" 2>&1); then
+        if rsync_output=$(rsync -a --delete --exclude='local-*' --exclude='/*/tests/' --exclude='/*/.claude-plugin/types/' --exclude='/*/tsconfig.json' --exclude-from="$mods_exclude_file" "$SOURCE_DIR/mods/" "$TARGET_DIR/mods/" 2>&1); then
+            rm -f "$mods_exclude_file"
             MOD_COUNT=$(find "$SOURCE_DIR/mods" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')
-            echo "  ✅ Mods: $MOD_COUNT mods → ~/.claude/mods/"
+            for mod in $MODS_EXCLUDE; do
+                if [ -d "$SOURCE_DIR/mods/$mod" ]; then
+                    MOD_COUNT=$((MOD_COUNT - 1))
+                fi
+                if [ -d "$TARGET_DIR/mods/$mod" ]; then
+                    rm -rf "${TARGET_DIR:?}/mods/$mod"
+                    echo "  🧹 Mods: removed $mod (excluded on $STATION)"
+                fi
+            done
+            if [ -n "$MODS_EXCLUDE" ]; then
+                echo "  ✅ Mods: $MOD_COUNT mods → ~/.claude/mods/ (excluded on $STATION: $(echo $MODS_EXCLUDE))"
+            else
+                echo "  ✅ Mods: $MOD_COUNT mods → ~/.claude/mods/"
+            fi
         else
+            rm -f "$mods_exclude_file"
             echo "  ❌ Failed to sync mods"
             printf "    %s\n" "$rsync_output"
             return 1

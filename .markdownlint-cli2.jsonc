@@ -140,6 +140,8 @@
     "system-configs/.claude/output-styles/**",
     // Vendored third-party Higgsfield skills (kept verbatim so upstream updates diff cleanly)
     "system-configs/.claude/skills/higgsfield-*/**",
+    // Vendored Anthropic sample mod (claude-code-playground), kept verbatim likewise
+    "system-configs/.claude/mods/replay-theater/**",
     // Technical documentation directories - contain long technical specifications,
     // URLs, detailed diagrams, and complex tables that cannot be reasonably shortened
     "docs/architecture/**",
