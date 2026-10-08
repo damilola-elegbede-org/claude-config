@@ -93,7 +93,9 @@ that choice.
    signed in) is a warning and the ship continues. If it changed any file, run
    `/verify --report-only` again after it and halt on any failing gate, whether verification ran
    through `-v` or through the pre-commit gate. Gates that passed before the fixes say nothing about
-   the code being shipped.
+   the code being shipped. If tracked changes remain uncommitted after it
+   (`git status --porcelain --untracked-files=no`) and `-c` is not set, halt: `/push` would
+   publish the code without the fixes that verification just checked.
    **Skip this step when step 6 will take the `-pr`-only path** (`/pr` without `-c`/`-p`): `/pr`
    runs `/codex-review` itself and then pushes committed fixes or refuses uncommitted ones. Running
    it here first would cache the diff as passed, `/pr`'s run would skip, and those safeguards

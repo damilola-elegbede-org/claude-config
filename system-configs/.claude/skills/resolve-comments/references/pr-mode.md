@@ -253,11 +253,12 @@ IF: fixes applied
       IF: it ends blocked
         OUTPUT: "Not pushing: Codex still reports P0/P1 findings on the fixes (see above)."
         END
-      IF: it left fixes uncommitted
-        OUTPUT: "Not pushing: the Codex fixes are uncommitted, so the push would not include them.
+      IF: `git status --porcelain --untracked-files=no` lists any change
+          (checked before any push, whatever this run did, so a partial fix set is never published)
+        OUTPUT: "Not pushing: there are uncommitted changes, so the push would not include them.
                  Commit them and re-run /resolve-comments."
         END
-      IF: it committed fixes
+      IF: HEAD moved past the fix commit above (it committed fixes)
         RUN: /verify --report-only   (gates that passed before the fixes say nothing about them)
         IF: any gate failed
           OUTPUT: "Not pushing: {n} gate(s) fail after the Codex fixes: {names}."

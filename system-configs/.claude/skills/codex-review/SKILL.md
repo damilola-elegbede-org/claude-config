@@ -55,6 +55,9 @@ Codex is optional on any machine this config syncs to. A missing or signed-out C
 review with a warning; it never blocks a ship.
 
 ```text
+RUN: cd "$(git rev-parse --show-toplevel)"
+     (from a subdirectory, `git ls-files --others` lists only that subtree, so untracked files
+      elsewhere would miss both the review and the cache hash)
 RUN: mkdir -p .tmp/codex-review   (first, so every WRITE_STATE below has a directory to write to)
 
 RUN: command -v codex
@@ -135,13 +138,14 @@ reviews the fixes from the previous round, and those fixes are where new finding
 ```text
 FOR round in 1..3:
   SET: new_files = `git ls-files --others --exclude-standard`
-  RUN: cp "$(git rev-parse --git-path index)" .tmp/codex-review/index.bak
-  RUN: git add -N -- {each path in new_files}   (intent-to-add: the files enter `git diff`
-                                                 with their full contents, nothing is staged)
-  RUN: {codex_cmd} review --base {target_branch} {focus_arg} > .tmp/codex-review/round-{round}.log 2>&1
-  RUN: cp .tmp/codex-review/index.bak "$(git rev-parse --git-path index)"
-       (always, whatever the exit code; restoring the saved index puts every entry back exactly,
-        including a staged deletion whose path was recreated, which `git reset` would not)
+  SET: review_index = absolute path of .tmp/codex-review/index
+  RUN: cp "$(git rev-parse --git-path index)" {review_index}
+  RUN: GIT_INDEX_FILE={review_index} git add -N -- {each path in new_files}
+       (intent-to-add in a private copy of the index: the files enter `git diff` with their full
+        contents, and the live index is never written, so anything another session stages or
+        commits during a review of several minutes is left intact)
+  RUN: GIT_INDEX_FILE={review_index} {codex_cmd} review --base {target_branch} {focus_arg}
+       > .tmp/codex-review/round-{round}.log 2>&1
   IF: exit code != 0
     OUTPUT: "⚠️ codex review failed (exit {code}); see .tmp/codex-review/round-{round}.log. Skipping."
     WRITE_STATE: status = "skipped"
@@ -171,7 +175,9 @@ FOR round in 1..3:
                                    which /review's own run has already consumed)
   RUN: rm -f .tmp/codex-review/ignored-before.json   (a snapshot left by an earlier branch must
                                                      never merge into this one)
-  COPY: .tmp/coderabbit-ignored.json → .tmp/codex-review/ignored-before.json (if it exists)
+  COPY: .tmp/coderabbit-ignored.json → .tmp/codex-review/ignored-before.json (if it exists and
+        its branch field equals the current branch; a file left by another branch in this
+        worktree would otherwise post that branch's skips on this PR)
   INVOKE: /resolve-comments --local [--auto if this skill got --auto]
   MERGE: ignored-before.json records back into .tmp/coderabbit-ignored.json, dropping duplicates
          (same source, location, and description). File mode rewrites that file with only the
