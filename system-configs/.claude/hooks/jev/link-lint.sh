@@ -34,7 +34,7 @@ msg = sys.stdin.read()
 body = re.sub(r"```.*?```", " ", msg, flags=re.S)
 body = re.sub(r"~~~.*?~~~", " ", body, flags=re.S)
 body = re.sub(r"`[^`\n]*`", " ", body)
-body = re.sub(r"\[[^\]]*\]\([^)]*\)", " ", body)
+body = re.sub(r"\[[^\]]*\]\((?:[^()]|\([^()]*\))*\)", " ", body)
 body = re.sub(r"<https?://[^>]+>", " ", body)
 problems = []
 urls = sorted(set(u.rstrip(".,;:") for u in re.findall(r"https?://[^\s)>\]*]+", body)))

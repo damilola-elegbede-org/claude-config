@@ -327,6 +327,7 @@ GHEOF
 cat >"$T/bin/curl" <<'CEOF'
 #!/bin/bash
 url="${*: -1}"
+[ -n "${CURL_ARGS_FILE:-}" ] && echo "$*" >>"$CURL_ARGS_FILE"
 case "$url" in
   *gone*) printf 404 ;;
   *down*) printf 000 ;;
@@ -334,7 +335,7 @@ case "$url" in
 esac
 CEOF
 chmod +x "$T/bin/gh" "$T/bin/curl"
-export LV_GH="$T/bin/gh" LV_CURL="$T/bin/curl" TMPDIR="$T/tmp"
+export LV_GH="$T/bin/gh" LV_CURL="$T/bin/curl" TMPDIR="$T/tmp" CURL_ARGS_FILE="$T/curl.args"
 vl() { rm -rf "$T/tmp/claude-link-validate"; run link-validate.sh "$(sl "$1")"; }
 eq "existing PR with matching label passes" "$(vl $'**FYI · [PR #9](https://github.com/o/r/pull/9).**\nx')" ""
 eq "good Linear link, good web link pass" "$(vl $'**FYI · [ENG-13](https://linear.app/b/issue/ENG-13/x) and [docs](https://example.org/ok).**\nx')" ""
@@ -353,6 +354,16 @@ out=$(vl $'**FYI · [r](https://github.com/o/gone).**\nx')
 has "missing repository blocked" "$out" "repository o/gone not found"
 out=$(vl $'**FYI · [page](https://example.org/gone).**\nx')
 has "web 404 blocked" "$out" "answers 404"
+eq "a link whose URL contains parentheses passes" "$(vl $'**FYI · [article](https://example.org/wiki/Foo_(bar)).**\nx')" ""
+out=$(vl $'**FYI · [article](https://example.org/gone_(x)).**\nx')
+has "a 404 on a URL with parentheses is reported with the whole URL" "$out" "gone_(x))"
+: >"$T/curl.args"
+vl $'**FYI · [page](https://example.org/ok).**\nx' >/dev/null
+has "web check does not follow redirects" "$(cat "$T/curl.args")" "--max-redirs 0"
+hasnt "web check never passes -L" "$(cat "$T/curl.args")" " -L"
+: >"$T/curl.args"
+eq "link to .internal host is skipped, not fetched" "$(vl $'**FYI · [x](https://svc.internal/gone).**\nx')" ""
+eq ".internal host never reaches curl" "$(cat "$T/curl.args")" ""
 eq "web no-response is skipped, not blocked" "$(vl $'**FYI · [page](https://example.org/down).**\nx')" ""
 loghas '"rule":"link-validate","verdict":"unverified"' && ok || bad "unverified link logged" "$(cat "$LOG" 2>/dev/null)"
 eq "gh outage is skipped, not blocked" "$(vl $'**FYI · [PR #500](https://github.com/o/r/pull/500).**\nx')" ""

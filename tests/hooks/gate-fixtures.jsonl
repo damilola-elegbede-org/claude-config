@@ -438,3 +438,7 @@
 {"rule":"MG-repo-location","expect":"allow","tool":"Bash","input":{"command":"gh repo clone o/r $HOME/dev/r"}}
 {"rule":"MG-repo-location","expect":"allow","tool":"Bash","input":{"command":"git clone --depth 1 https://github.com/o/r.git /tmp/r-repro"}}
 {"rule":"MG-repo-location","expect":"allow","tool":"Bash","input":{"command":"git status"}}
+{"rule":"MG-repo-location","expect":"deny","tool":"Bash","input":{"command":"git clone --template ~/dev/t https://github.com/o/r.git /elsewhere/r"}}
+{"rule":"MG-repo-location","expect":"deny","tool":"Bash","input":{"command":"git clone ~/dev/x"}}
+{"rule":"MG-repo-location","expect":"allow","tool":"Bash","input":{"command":"git clone -b main --depth 1 https://github.com/o/r.git ~/dev/r"}}
+{"rule":"MG-repo-location","expect":"allow","tool":"Bash","input":{"command":"git clone https://github.com/o/r.git \"$HOME/dev/r\""}}

@@ -31,7 +31,7 @@ MODE=$(re_mode link-validate enforce)
 [ "$MODE" = off ] && exit 0
 
 RESULT=$(printf '%s' "$MSG" | python3 -c '
-import concurrent.futures as cf, hashlib, os, re, subprocess, sys, time
+import concurrent.futures as cf, hashlib, ipaddress, os, re, socket, subprocess, sys, time
 
 GH = os.environ.get("LV_GH", "gh")
 CURL = os.environ.get("LV_CURL", "curl")
@@ -43,8 +43,9 @@ msg = sys.stdin.read()
 body = re.sub(r"```.*?```", " ", msg, flags=re.S)
 body = re.sub(r"~~~.*?~~~", " ", body, flags=re.S)
 body = re.sub(r"`[^`\n]*`", " ", body)
-links = [(m.group(1), m.group(2)) for m in re.finditer(r"\[([^\]]*)\]\(([^)\s]*)\)", body)]
-rest = re.sub(r"\[[^\]]*\]\([^)]*\)", " ", body)
+DEST = r"((?:[^()\s]|\([^()\s]*\))*)"
+links = [(m.group(1), m.group(2)) for m in re.finditer(r"\[([^\]]*)\]\(" + DEST + r"\)", body)]
+rest = re.sub(r"\[[^\]]*\]\((?:[^()]|\([^()]*\))*\)", " ", body)
 bare = set()
 for m in re.finditer(r"<?(https?://[^\s<>)\]*]+)>?", rest):
     u = m.group(1).rstrip(".,;:!?")
@@ -106,6 +107,21 @@ def gh_api(path, jq=None):
         return "MISSING", err
     return "ERR", err
 
+def private_host(host):
+    """True for localhost, .local, and any host that resolves to a non-public address."""
+    h = host.lower().rstrip(".")
+    if h == "localhost" or h.endswith(".localhost") or h.endswith(".local") or h.endswith(".internal"):
+        return True
+    try:
+        infos = socket.getaddrinfo(h, None, proto=socket.IPPROTO_TCP)
+    except OSError:
+        return False  # unresolvable: curl will fail with 000 and the link is skipped
+    for info in infos:
+        ip = ipaddress.ip_address(info[4][0].split("%")[0])
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_unspecified or ip.is_multicast:
+            return True
+    return False
+
 def remote(url, label):
     c = cached(url)
     if c is not None:
@@ -141,9 +157,10 @@ def remote(url, label):
     if re.match(r"^https://linear\.app/", url):
         return "OK"
     host = re.match(r"https?://([^/?#:]+)", url).group(1)
-    if host in ("localhost",) or re.match(r"(127\.|10\.|192\.168\.|169\.254\.)", host) or host.endswith(".local"):
+    if private_host(host):
         return "SKIP private host"
-    rc, out, _ = run([CURL, "-s", "-o", "/dev/null", "-L", "-r", "0-0", "--max-time", "5", "-A", "Mozilla/5.0", "-w", "%{http_code}", url], 7)
+    # No -L: a redirect is proof the page exists, and following one could reach a private address.
+    rc, out, _ = run([CURL, "-s", "-o", "/dev/null", "-r", "0-0", "--max-redirs", "0", "--max-time", "5", "-A", "Mozilla/5.0", "-w", "%{http_code}", url], 7)
     code = out[-3:] if out else "000"
     if code in ("404", "410"):
         v = "FAIL page answers %s" % code
