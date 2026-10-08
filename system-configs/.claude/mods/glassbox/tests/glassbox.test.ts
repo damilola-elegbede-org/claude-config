@@ -258,6 +258,29 @@ describe("glassbox", () => {
     expect(opened).toBe(0);
   });
 
+  for (const [who, origin, wantsText] of [
+    ["the VS Code panel beside a terminal", { kind: "sdk" }, true],
+    ["the terminal with VS Code attached", { kind: "composer" }, false],
+  ] as const) {
+    test(`/glassbox from ${who} ${wantsText ? "answers in text" : "opens the pane"}`, async ($, on) => {
+      engine(on);
+      on("session.surfaces", () => ({ value: ["terminal", "vscode"] }));
+      let opened = 0;
+      on("ui.open", () => {
+        opened++;
+        return { value: { isPlaced: true } };
+      });
+      const out = await $.command.run({ command: "glassbox", origin } as never);
+      if (wantsText) {
+        expect(out.text).toMatch(/\*\*glassbox\*\*/);
+        expect(opened).toBe(0);
+      } else {
+        expect(out.text).toBeUndefined();
+        expect(opened).toBe(1);
+      }
+    });
+  }
+
   test("/glassbox text answers in text even where the pane draws", async ($, on) => {
     engine(on);
     on("session.surfaces", () => ({ value: ["terminal"] }));

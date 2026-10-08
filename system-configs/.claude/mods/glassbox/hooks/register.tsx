@@ -293,7 +293,12 @@ export const register: Register = (on) => {
     // Typed from claude.ai or the phone (Remote Control), the pane would open on
     // the machine's terminal, out of the typist's sight: answer in text there.
     const fromBridge = e.origin?.kind === "bridge";
-    if (!draws || fromBridge || (e.args ?? "").trim() === "text") {
+    // The origin names how a command came, not which client typed it. With a
+    // client that draws nothing attached (VS Code beside a terminal), only a
+    // command typed at the terminal is sure to be looking at the pane.
+    const mixed = surfaces.some((s) => !DRAWING_SURFACES.has(s));
+    const unseen = mixed && e.origin?.kind !== "composer";
+    if (!draws || fromBridge || unseen || (e.args ?? "").trim() === "text") {
       const text = await snapshot($, hasScreen);
       hasScreen = true;
       return { text };
