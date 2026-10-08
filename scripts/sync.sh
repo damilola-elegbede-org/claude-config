@@ -775,12 +775,16 @@ sync_files() {
         # never synced) is refused so the removal below can never reach it.
         MODS_EXCLUDE=""
         if [ "$HAVE_MANIFEST" = "true" ]; then
-            bad_mods=$(jq -r '.sync.mods_exclude // [] | .[] | tostring | select((test("^[A-Za-z0-9_-][A-Za-z0-9_.-]*$") | not) or startswith("local-"))' "$MANIFEST")
-            if [ -n "$bad_mods" ]; then
-                echo "  ❌ Mods: invalid mods_exclude entry in $MANIFEST: $bad_mods"
+            # One jq run checks the field and every name; any failure stops the
+            # sync (its exit status is checked: set -e is off inside sync_files).
+            mods_exclude_jq='(.sync.mods_exclude // []) as $x
+                | if ($x | type) != "array" then error("mods_exclude must be an array of mod names")
+                  else $x[] | if type == "string" and test("^[A-Za-z0-9_-][A-Za-z0-9_.-]*$") and (startswith("local-") | not)
+                    then . else error("invalid mods_exclude entry: \(tojson)") end end'
+            if ! MODS_EXCLUDE=$(jq -r "$mods_exclude_jq" "$MANIFEST" 2>&1); then
+                echo "  ❌ Mods: $MODS_EXCLUDE ($MANIFEST)"
                 return 1
             fi
-            MODS_EXCLUDE=$(jq -r '.sync.mods_exclude // [] | .[]' "$MANIFEST")
         fi
         mods_exclude_file=$(mktemp "${TMPDIR:-/tmp}/claude-sync-mods.XXXXXX")
         for mod in $MODS_EXCLUDE; do
@@ -795,7 +799,10 @@ sync_files() {
                     MOD_COUNT=$((MOD_COUNT - 1))
                 fi
                 if [ -d "$TARGET_DIR/mods/$mod" ]; then
-                    rm -rf "${TARGET_DIR:?}/mods/$mod"
+                    if ! rm -rf "${TARGET_DIR:?}/mods/$mod" 2>/dev/null || [ -e "$TARGET_DIR/mods/$mod" ]; then
+                        echo "  ❌ Mods: could not remove $mod, excluded on $STATION but still in ~/.claude/mods/"
+                        return 1
+                    fi
                     echo "  🧹 Mods: removed $mod (excluded on $STATION)"
                 fi
             done
