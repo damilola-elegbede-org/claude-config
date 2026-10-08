@@ -26,7 +26,9 @@ reviewer is not deterministic and GitHub's run can still surface something the l
 
 `codex review --base <branch>` diffs from the merge-base to the working tree, so it covers
 commits on the branch plus staged and unstaged changes. That means this skill can run before
-anything is committed.
+anything is committed. Untracked files are not in that diff, so Step 3 marks them intent-to-add
+for the duration of the review; otherwise a brand-new file would be hashed as reviewed without
+the reviewer ever seeing it.
 
 Findings go through `/resolve-comments --local`, the same triage path `/review` uses, so the
 validation rules, the untrusted-input rules, and the skipped-issue record all apply unchanged.
@@ -39,6 +41,8 @@ Codex is optional on any machine this config syncs to. A missing or signed-out C
 review with a warning; it never blocks a ship.
 
 ```text
+RUN: mkdir -p .tmp/codex-review   (first, so every WRITE_STATE below has a directory to write to)
+
 RUN: command -v codex
 IF: not found
   OUTPUT: "⚠️ codex CLI not installed — skipping the local Codex review."
@@ -50,8 +54,6 @@ IF: exit code != 0 OR output does not start with "Logged in"
   OUTPUT: "⚠️ codex CLI not signed in — skipping the local Codex review. Run `codex login` to enable it."
   WRITE_STATE: status = "skipped"
   END (success)
-
-RUN: mkdir -p .tmp/codex-review
 
 PARSE: $ARGUMENTS for target_branch and --auto
 IF: no target_branch
@@ -94,7 +96,12 @@ reviews the fixes from the previous round, and those fixes are where new finding
 
 ```text
 FOR round in 1..3:
+  SET: new_files = `git ls-files --others --exclude-standard`
+  RUN: git add -N -- {each path in new_files}   (intent-to-add: the files enter `git diff`
+                                                 with their full contents, nothing is staged)
   RUN: codex review --base {target_branch} > .tmp/codex-review/round-{round}.log 2>&1
+  RUN: git reset -q -- {each path in new_files}  (always, whatever the exit code, so the files
+                                                  are untracked again exactly as before)
   IF: exit code != 0
     OUTPUT: "⚠️ codex review failed (exit {code}); see .tmp/codex-review/round-{round}.log. Skipping."
     WRITE_STATE: status = "skipped"

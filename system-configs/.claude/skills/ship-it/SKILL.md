@@ -94,6 +94,10 @@ that choice.
    `/verify --report-only` again after it and halt on any failing gate, whether verification ran
    through `-v` or through the pre-commit gate. Gates that passed before the fixes say nothing about
    the code being shipped.
+   **Skip this step when step 6 will take the `-pr`-only path** (`/pr` without `-c`/`-p`): `/pr`
+   runs `/codex-review` itself and then pushes committed fixes or refuses uncommitted ones. Running
+   it here first would cache the diff as passed, `/pr`'s run would skip, and those safeguards
+   would never fire, so the PR could open without the fixes.
 6. **Commit + push + PR** (after any of -d/-t/-v/-r/-x have run): pick the right path
    based on which of `-c`, `-p`, `-pr` are set (in the no-flag default, all
    three are set, so this step runs `commit-commands:commit-push-pr`):
