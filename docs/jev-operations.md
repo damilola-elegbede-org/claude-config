@@ -110,11 +110,11 @@ rule degraded, re-run with `--write-results` only after reviewing it.
 
 What a block tells the session depends on where it runs:
 
-| Session | On a block | Approval |
-| --- | --- | --- |
-| interactive | ask D via AskUserQuestion, then retry once if D approves exactly this action | yes |
-| bgjob (`CLAUDE_JOB_DIR` set, no fleet slug, not a subagent) | same as interactive; if D does not answer, end the report with `needs input:` naming the action | yes |
-| fleet agent or subagent (`agent_id` in the hook input) | end the report with `needs input:` | none |
+| Session                                                     | On a block                                                                                      | Approval |
+| ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | -------- |
+| interactive                                                 | ask D via AskUserQuestion, then retry once if D approves exactly this action                    | yes      |
+| bgjob (`CLAUDE_JOB_DIR` set, no fleet slug, not a subagent) | same as interactive; if D does not answer, end the report with `needs input:` naming the action | yes      |
+| fleet agent or subagent (`agent_id` in the hook input)      | end the report with `needs input:`                                                              | none     |
 
 A job-session approval of a regex checkpoint follows the interactive path (`gate.sh approve <hash>`,
 bound to the checkpoint code in an answered AskUserQuestion). A job-session approval of a Jev gate needs
@@ -190,6 +190,8 @@ would have acted on:
 | Handler                                                | `if`                    |
 | ------------------------------------------------------ | ----------------------- |
 | `pr-draft-guard.sh`                                    | `Bash(gh *pr create*)`  |
+| `pr-landing-gate.sh` (PostToolUse, PR created)         | `Bash(gh *pr create*)`  |
+| `pr-landing-gate.sh` (PostToolUse, pushed to a PR)     | `Bash(git *push*)`      |
 | `memory-dup-guard.sh`                                  | `Write(**/memory/*.md)` |
 | bare-git identity guard (`infra/scripts/git-agent.sh`) | `Bash(git *)`           |
 

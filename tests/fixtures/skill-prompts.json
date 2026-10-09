@@ -285,6 +285,18 @@
       "prompt": "Go through the blocked BareClaude tickets and bounce the ones that are not mine."
     },
 
+    {
+      "skill": "land",
+      "prompt": "Get PR 42 to the point where I can actually click merge."
+    },
+    {
+      "skill": "land",
+      "prompt": "Follow up on the PR you just opened until CI is green and the review threads are resolved."
+    },
+    {
+      "skill": "land",
+      "prompt": "Is this pull request mergeable yet? If not, fix whatever is blocking it."
+    },
     { "skill": "push", "prompt": "Push my committed changes to the remote." },
     { "skill": "push", "prompt": "Push this branch and set the upstream." },
     {
