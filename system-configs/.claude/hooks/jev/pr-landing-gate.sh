@@ -168,6 +168,9 @@ on_stop() {
     return 0
   fi
   re_log "$RULE" block "$open"
+  # Notes (cap reached, state unreadable) are marked as told, so they must ride along here too.
+  [ -n "$notes" ] && open="$open
+Not blocking, but tell D:$notes"
   re_block "Landing gate [pr-landing-gate]: a PR from this session is not mergeable yet, so the task is not done.$open
 Invoke the /land skill on each URL and continue until it reports ready to merge, or records bounded-out with the remaining blocker. Do not tell D a PR is ready to merge before then."
 }

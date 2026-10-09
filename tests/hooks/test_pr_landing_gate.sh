@@ -159,6 +159,8 @@ eq "silent active bot inside grace: pending" "$(PR_LAND_NOW=$((HEAD_EPOCH + 60))
 eq "  kind awaiting-review" "$(PR_LAND_NOW=$((HEAD_EPOCH + 60)) st | jq -r '.pending[0].kind + ":" + .pending[0].detail')" "awaiting-review:coderabbitai"
 pr repo='["coderabbitai"]' reviews='[{"author":{"login":"coderabbitai"},"commit":{"oid":"abc123"},"submittedAt":"2026-10-08T12:05:00Z"}]'
 eq "bot reviewed the head: no wait" "$(PR_LAND_NOW=$((HEAD_EPOCH + 60)) v)" ready
+eq "a review of this commit older than its first sighting (old commit pushed again) is not an answer" \
+  "$(PR_LAND_FIRST_SEEN=$((HEAD_EPOCH + 600)) PR_LAND_NOW=$((HEAD_EPOCH + 660)) v)" pending
 pr repo='["coderabbitai"]' reviews='[{"author":{"login":"coderabbitai"},"commit":{"oid":"old999"},"submittedAt":"2026-10-08T11:00:00Z"}]'
 eq "bot reviewed only an older head: waits" "$(PR_LAND_NOW=$((HEAD_EPOCH + 60)) v)" pending
 pr repo='["chatgpt-codex-connector"]' comments='[{"author":{"login":"chatgpt-codex-connector"},"createdAt":"2026-10-08T12:03:00Z"}]'
@@ -290,6 +292,13 @@ hasnt "after max_blocks (3) for this head: released" "$out" '"decision":"block"'
 has "  and D is told once that the gate gave up" "$out" "still not mergeable after 3 blocks"
 eq "  only once per head" "$(stop true)" ""
 loghas released-cap && ok || bad "cap release logged"
+rm -rf "$SDIR"
+post "gh pr create --title t" "$URL" >/dev/null
+post "gh pr create --title t" "https://github.com/acme/widget/pull/43" >/dev/null
+echo 3 >"$SDIR/https___github_com_acme_widget_pull_42.json.blocks.$HEAD_OID"
+out=$(stop)
+has "one PR capped while another blocks: still blocks" "$out" '"decision":"block"'
+has "  and the cap notice rides along in the reason" "$out" "pull/42: still not mergeable after 3 blocks"
 rm -rf "$SDIR"
 post "gh pr create --title t" "$URL" >/dev/null
 pr mss=BLOCKED checks='[{"__typename":"CheckRun","name":"test","status":"IN_PROGRESS","conclusion":null}]'

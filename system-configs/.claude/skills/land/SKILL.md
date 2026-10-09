@@ -40,7 +40,9 @@ on that branch.
    - `ready`, `merged` or `closed`: go to step 4.
    - `pending` (checks running, mergeability computing, or a review bot that has not answered the
      current head yet): wait with `~/.claude/hooks/jev/pr-land-status.sh <url> --wait 540`, run with a
-     Bash timeout of 600000 ms, then read the new verdict. Waiting is not a remediation round.
+     Bash timeout of 600000 ms, then read the new verdict. Waiting is not a remediation round, but
+     it is bounded: after 4 waits in a row on the same head with no change in what is pending, a
+     check that never finishes needs D, so go to step 3.
    - `blocked`: fix every blocker with the skill its `fix` names, then return to step 1.
 
      | Blocker              | Fix                                                                                |
@@ -56,8 +58,8 @@ on that branch.
      A push starts a new head: CI and the review bots run again, so the next verdict is usually
      `pending`. That is expected; wait it out.
 
-3. Bound the loop. After 3 remediation rounds for the same blocker kind, or immediately for
-   `blocked-other` or a blocker only D can clear, record the stop so the gate releases this head:
+3. Bound the loop. After 3 remediation rounds for the same blocker kind, after 4 unchanged
+   waits, or immediately for `blocked-other` or a blocker only D can clear, record the stop so the gate releases this head:
    `~/.claude/hooks/jev/pr-land-status.sh <url> --bounded-out "<the remaining blocker>"`.
    A later push makes a new head, and the gate tracks that head afresh.
 4. Report with the PR link and the final verdict, one row per PR:

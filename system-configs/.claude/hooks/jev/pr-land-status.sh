@@ -124,10 +124,11 @@ status_once() {
        + [$p.reviews.nodes[], $p.comments.nodes[] | .author.login // empty] | unique) as $seen
     | ($head.committedDate | fromdateiso8601) as $headt
     | ([$headt, ($p.createdAt // "1970-01-01T00:00:00Z" | fromdateiso8601), $first_seen] | max) as $since
-    # A comment answers this head only if it is newer than the head as observed: an old commit pushed
-    # again (force-push back) must not inherit a comment made on the head before it.
+    # A review or comment answers this head only if it is newer than the head as observed: an old
+    # commit pushed again (force-push back) must not inherit an answer given to an earlier push.
     | ([$bots[] as $b | select($seen | index($b))
-        | select(([$p.reviews.nodes[] | select(.author.login == $b and .commit.oid == $p.headRefOid)] | length) == 0
+        | select(([$p.reviews.nodes[] | select(.author.login == $b and .commit.oid == $p.headRefOid
+                    and ((.submittedAt // "1970-01-01T00:00:00Z" | fromdateiso8601) >= $since))] | length) == 0
              and ([$p.comments.nodes[] | select(.author.login == $b and ((.createdAt | fromdateiso8601) >= $since))
                    # a "review running" status comment is not an answer (Codex posts one when it starts)
                    | select((.body // "") | test("\"status\":\"running\"|🔄|review in progress|currently processing"; "i") | not)] | length) == 0)
