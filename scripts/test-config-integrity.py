@@ -52,7 +52,7 @@ SKILLS_DIR = PROJECT_ROOT / "system-configs" / ".claude" / "skills"
 #   `higgsfield` CLI they drive (docs/integrations/HIGGSFIELD_INTEGRATION.md)
 # Note: sync and skills-import are project-local (.claude/skills/), not in system-configs
 EXPECTED_AGENT_COUNT = 7
-EXPECTED_SKILL_COUNT = 49
+EXPECTED_SKILL_COUNT = 50
 
 # Non-agent/command documentation files to skip
 NON_AGENT_FILES = [

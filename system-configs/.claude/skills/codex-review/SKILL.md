@@ -76,7 +76,9 @@ IF: it fails AND that PID is gone (a crashed run left the lock)
   END (busy)
      (reclaiming automatically races: two runs can each remove the other's fresh lock, so a
       stale lock is cleared by hand once)
-Every END below, success or failure, removes .tmp/codex-review/run.lock first.
+Only the run whose `mkdir` succeeded owns the lock. Every END after this point, success or
+failure, removes .tmp/codex-review/run.lock first. The two busy ENDs above never remove it: that
+run does not own the lock, and removing it would let a third run start beside the active one.
 
 RUN: command -v codex
 IF: not found
