@@ -75,7 +75,10 @@ describe("jevlight", () => {
       });
 
       const ui = await $.ui.mount(result(surface, "t1"));
-      const line = await ui.find({ type: "Text", text: /⚡ Jev blocked Bash/ });
+      const line = await ui.find({
+        type: "Text",
+        text: /⚡️ Jev blocked Bash/,
+      });
       expect(line?.props.color).toBe(SKY);
     });
   }
@@ -91,7 +94,7 @@ describe("jevlight", () => {
 
     const id = (ran as { tool_use_id?: string }).tool_use_id ?? "x";
     const ui = await $.ui.mount(result("terminal", id));
-    expect(await ui.find({ text: /⚡ Jev/ })).toBeUndefined();
+    expect(await ui.find({ text: /⚡️ Jev/ })).toBeUndefined();
     expect(logged).toEqual([]);
   });
 
@@ -105,7 +108,7 @@ describe("jevlight", () => {
       block: "Executive style: line 1 needs a tag",
     });
     expect(logged).toEqual([
-      "⚡ Jev held the stop: Executive style: line 1 needs a tag",
+      "⚡️ Jev held the stop: Executive style: line 1 needs a tag",
     ]);
   });
 
@@ -135,9 +138,36 @@ describe("jevlight", () => {
         additionalContext: ["Retry bound hit", "", "Known papercut"],
       }),
     ).toEqual([
-      "⚡ Jev noted Bash failure: Retry bound hit",
-      "⚡ Jev noted Bash failure: Known papercut",
+      "⚡️ Jev noted Bash failure: Retry bound hit",
+      "⚡️ Jev noted Bash failure: Known papercut",
     ]);
+  });
+
+  test("a repeated prompt's note is a plain line, never drawn under the earlier one", async ($, on) => {
+    const logged = engine(on);
+    memoryStore(on);
+    let n = 0;
+    on("classic.UserPromptSubmit", () => ({
+      additionalContext: [`note ${++n}`],
+    }));
+    await $.classic.UserPromptSubmit({ session_id: "s1", prompt: "continue" });
+    await $.classic.UserPromptSubmit({ session_id: "s1", prompt: "continue" });
+
+    const ui = await $.ui.mount({
+      plugin,
+      surface: "terminal",
+      component: "UserMessage",
+      props: {
+        text: "continue",
+        origin: { kind: "composer" },
+        isExpanded: false,
+      },
+    } as never);
+    expect((await ui.find({ type: "Text", text: /note 1/ }))?.props.color).toBe(
+      SKY,
+    );
+    expect(await ui.find({ type: "Text", text: /note 2/ })).toBeUndefined();
+    expect(logged).toEqual(["⚡️ Jev noted your prompt: note 2"]);
   });
 
   test("marks are saved under the session", async ($, on) => {
@@ -154,7 +184,7 @@ describe("jevlight", () => {
     });
 
     expect(store.get("marks:s1")).toEqual({
-      r1: ["⚡ Jev trimmed Read output"],
+      r1: ["⚡️ Jev trimmed Read output"],
     });
     expect(store.get("sessions")).toEqual(["s1"]);
   });
@@ -162,7 +192,7 @@ describe("jevlight", () => {
   test("a resumed session draws its saved marks again", async ($, on) => {
     engine(on);
     const store = memoryStore(on);
-    store.set("marks:s2", { t9: ["⚡ Jev blocked Bash: saved earlier"] });
+    store.set("marks:s2", { t9: ["⚡️ Jev blocked Bash: saved earlier"] });
     on("classic.UserPromptSubmit", () => ({}));
 
     await $.classic.UserPromptSubmit({ session_id: "s2", prompt: "hi" });
@@ -190,12 +220,14 @@ describe("jevlight", () => {
     await $.classic.UserPromptSubmit({ session_id: "s2", prompt: "hi" });
 
     const ui = await $.ui.mount(result("terminal", "dup"));
-    expect(await ui.find({ type: "Text", text: /trimmed Read/ })).toBeUndefined();
+    expect(
+      await ui.find({ type: "Text", text: /trimmed Read/ }),
+    ).toBeUndefined();
   });
 
   test("a trim is marked; old calls drop past the cap", () => {
     expect(actionsOf("Read output", { updatedToolOutput: "short" })).toEqual([
-      "⚡ Jev trimmed Read output",
+      "⚡️ Jev trimmed Read output",
     ]);
     let all = {};
     for (let n = 0; n < 205; n++) all = addMarks(all, `id${n}`, ["x"]);
@@ -203,7 +235,12 @@ describe("jevlight", () => {
     expect(Object.keys(all)[0]).toBe("id5");
   });
 
-  test("long reasons are cut to one line", () => {
-    expect(firstLine(`${"x".repeat(150)}\nsecond`)).toHaveLength(120);
+  test("a long reason keeps its whole first line, so the row can wrap it", () => {
+    expect(firstLine(`${"x".repeat(150)}\nsecond`)).toBe("x".repeat(150));
+  });
+
+  test("only a runaway line is cut", () => {
+    expect(firstLine("x".repeat(2000))).toHaveLength(1000);
+    expect(firstLine("x".repeat(2000)).endsWith("…")).toBe(true);
   });
 });

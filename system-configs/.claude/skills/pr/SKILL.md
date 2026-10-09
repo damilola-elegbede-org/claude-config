@@ -4,6 +4,8 @@ description: Create pull requests with smart title and description generation. U
 argument-hint: "[target_branch] [--draft|--force]"
 metadata:
   category: workflow
+  triggers:
+    - 'cmd:\bgh\b(\s+(-R|--repo)(=|\s+)\S+|\s+--\S+)*\s+pr\s+(create|new)\b'
 ---
 
 # /pr
@@ -240,8 +242,11 @@ STEP 4: Post review acknowledgments
       DELETE: .tmp/coderabbit-ignored.json
       OUTPUT: "Posted acknowledgment for {count} skipped issues"
 
-STEP 5: Report success
+STEP 5: Report creation, then land it
   OUTPUT: "Pull request created: {pr_url}"
+  INVOKE: /land {pr_url}
+  NOTE: creating the PR is not the end of the task. CI and the review bots start now, and the PR
+        is done only when /land reports it ready to merge or bounded out.
   END
 ```
 
@@ -259,3 +264,5 @@ STEP 5: Report success
 - Generates clear, conventional commit style titles
 - Creates concise, informative descriptions
 - Cleans up `.tmp/coderabbit-ignored.json` after posting acknowledgments
+- Hands off to `/land`, which follows the PR until it is mergeable; the `pr-landing-gate` hook
+  blocks the session from ending while a PR it opened is not mergeable

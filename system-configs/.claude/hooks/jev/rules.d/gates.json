@@ -73,7 +73,7 @@
   },
   "G14-non-routine": {
     "mode": "shadow",
-    "threshold": 0.7,
+    "threshold": 0.5,
     "scope": [
       "interactive",
       "bgjob",

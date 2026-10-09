@@ -110,11 +110,11 @@ rule degraded, re-run with `--write-results` only after reviewing it.
 
 What a block tells the session depends on where it runs:
 
-| Session | On a block | Approval |
-| --- | --- | --- |
-| interactive | ask D via AskUserQuestion, then retry once if D approves exactly this action | yes |
-| bgjob (`CLAUDE_JOB_DIR` set, no fleet slug, not a subagent) | same as interactive; if D does not answer, end the report with `needs input:` naming the action | yes |
-| fleet agent or subagent (`agent_id` in the hook input) | end the report with `needs input:` | none |
+| Session                                                     | On a block                                                                                      | Approval |
+| ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | -------- |
+| interactive                                                 | ask D via AskUserQuestion, then retry once if D approves exactly this action                    | yes      |
+| bgjob (`CLAUDE_JOB_DIR` set, no fleet slug, not a subagent) | same as interactive; if D does not answer, end the report with `needs input:` naming the action | yes      |
+| fleet agent or subagent (`agent_id` in the hook input)      | end the report with `needs input:`                                                              | none     |
 
 A job-session approval of a regex checkpoint follows the interactive path (`gate.sh approve <hash>`,
 bound to the checkpoint code in an answered AskUserQuestion). A job-session approval of a Jev gate needs
@@ -150,8 +150,11 @@ is the same action, a safer variant or unrelated (`retry_kind`). These rows neve
   (marker `~/.claude/jev-cache/state/<session_id>.first`).
 - `A6-agent-router` adds a hint pointing at the `/ask-jev` ranking script when a delegation is a file
   search (`Explore`, or a prompt about locating files).
-- The `executive-*` rules lint job-session reports in shadow: nothing blocks, including the regex checks.
-  Look for `executive-lint` rows with outcome `shadow-would-block` and scope `bgjob`.
+- In job sessions the `executive-lint` regex checks enforce: meta line (`executive-lint-meta`), bare Linear IDs
+  (`executive-lint-bare-id`) and the length cap block once per Stop; the tag check blocks only replies longer than
+  `bgjob_tag_min_chars` (500). Shorter untagged replies log `executive-lint-tagshort` / `shadow-would-block`
+  (set `bgjob_tag_min_chars` to 0 to enforce the tag on every reply). Every block also prints a `Jev:` systemMessage
+  to D. The Jev model checks (`executive-tag-correctness`, `-unsourced-claims`, `-scope-creep`) stay shadow in jobs.
 - The `workflow-*` helpers (commit and branch type, mixed commit, review depth, CI and verify failure
   class, Linear presort, click target) run in job sessions in shadow; the skills always run their helper
   and act on the answer only when the mode is `enforce`.
@@ -187,11 +190,14 @@ applies to tool events. What the probe showed:
 Applied only where the script ignores everything the rule filters out, so no hook is skipped for a call it
 would have acted on:
 
-| Handler                                                | `if`                    |
-| ------------------------------------------------------ | ----------------------- |
-| `pr-draft-guard.sh`                                    | `Bash(gh *pr create*)`  |
-| `memory-dup-guard.sh`                                  | `Write(**/memory/*.md)` |
-| bare-git identity guard (`infra/scripts/git-agent.sh`) | `Bash(git *)`           |
+| Handler                                                  | `if`                    |
+| -------------------------------------------------------- | ----------------------- |
+| `pr-draft-guard.sh`                                      | `Bash(gh *pr create*)`  |
+| `pr-landing-gate.sh` (PostToolUse, PR created)           | `Bash(gh *pr create*)`  |
+| `pr-landing-gate.sh` (PostToolUse, pushed to a PR)       | `Bash(git *push*)`      |
+| `pr-landing-gate.sh` (PostToolUse, fleet git-agent push) | `Bash(*git-agent.sh*)`  |
+| `memory-dup-guard.sh`                                    | `Write(**/memory/*.md)` |
+| bare-git identity guard (`infra/scripts/git-agent.sh`)   | `Bash(git *)`           |
 
 Deliberately left without one: `gate.sh` and `jev-gate.sh` (their rules match on redirects and on
 payload content, which a glob cannot see), the destructive-git guard (its `--no-verify` arm is not

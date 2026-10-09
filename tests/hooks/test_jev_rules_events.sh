@@ -61,15 +61,20 @@ jq -e . "$RJ" >/dev/null 2>&1 && ok || bad "rules-events.json is valid JSON"
 # A mode is a string or an object keyed by session type; the interactive value is the shipped behaviour.
 IM='(.mode | if type == "object" then .interactive else . end)'
 NONENFORCE=$(jq -r "to_entries[] | select(.value.threshold != null and (.value | $IM) != \"enforce\") | .key" "$RJ" | sort | paste -sd, -)
-eq "every Jev rule (has threshold) ships enforce except the two D kept in shadow" "$NONENFORCE" "executive-scope-creep,executive-tag-correctness"
-eq "executive-tag-correctness ships shadow" "$(jq -r ".\"executive-tag-correctness\" | $IM" "$RJ")" "shadow"
+# Interactive shadow: the rules whose measured precision did not clear enforce (Monte Carlo tuning, D approved).
+eq "every Jev rule (has threshold) ships enforce except the tuned shadow set" "$NONENFORCE" "executive-scope-creep,executive-unsourced-claims,workflow-branch-type,workflow-ci-class,workflow-verify-class"
+eq "executive-tag-correctness ships enforce" "$(jq -r ".\"executive-tag-correctness\" | $IM" "$RJ")" "enforce"
+eq "executive-unsourced-claims ships shadow" "$(jq -r ".\"executive-unsourced-claims\" | $IM" "$RJ")" "shadow"
+eq "executive-scope-creep flashes at 0.95" "$(jq -r '.["executive-scope-creep"].flash_threshold' "$RJ")" "0.95"
 eq "executive-scope-creep ships shadow" "$(jq -r ".\"executive-scope-creep\" | $IM" "$RJ")" "shadow"
-for r in file-org-guard pr-draft-guard executive-lint retry-counter papercut-grep; do
+for r in file-org-guard pr-draft-guard executive-lint link-lint link-validate retry-counter papercut-grep; do
   eq "regex rule $r ships enforce" "$(jq -r --arg r "$r" ".[\$r] | $IM" "$RJ")" enforce
 done
-# No bg job ever enforces an executive-* or workflow-* rule: those run in shadow there.
-BGENF=$(jq -r 'to_entries[] | select((.key | test("^(executive|workflow)-")) and (.value.mode | type) == "object" and .value.mode.bgjob != "shadow") | .key' "$RJ" | paste -sd, -)
-eq "executive-*/workflow-* rules ship bgjob shadow" "$BGENF" ""
+# A bg job enforces the deterministic executive-lint regex checks and the workflow helpers whose tuning cleared it;
+# every other executive-* / workflow-* rule (the Jev model checks included) ships bgjob shadow.
+BGENF=$(jq -r 'to_entries[] | select((.key | test("^(executive|workflow)-")) and (.key | test("^executive-lint(-meta|-bare-id)?$") | not) and (.value.mode | type) == "object" and .value.mode.bgjob != "shadow") | .key' "$RJ" | paste -sd, -)
+eq "executive-*/workflow-* rules ship bgjob shadow except the lint checks and the tuned workflow helpers" "$BGENF" "workflow-linear-presort,workflow-commit-type,workflow-commit-mixed,workflow-review-depth"
+eq "executive-lint regex checks ship bgjob enforce" "$(jq -r '[.["executive-lint"],.["executive-lint-meta"],.["executive-lint-bare-id"]] | map(.mode.bgjob) | unique | join(",")' "$RJ")" "enforce"
 NOBG=$(jq -r 'to_entries[] | select((.key | test("^(executive|workflow)-")) and ((.value.scope | index("bgjob")) == null)) | .key' "$RJ" | paste -sd, -)
 eq "executive-*/workflow-* rules have bgjob in scope" "$NOBG" ""
 
@@ -79,7 +84,7 @@ jq -e . "$SJ" >/dev/null 2>&1 && ok || bad "settings.json is valid JSON"
 for want in \
   "PreToolUse:file-org-guard.sh" "PreToolUse:memory-dup-guard.sh" "PreToolUse:pr-draft-guard.sh" \
   "PostToolUseFailure:retry-counter.sh" "PostToolUse:retry-counter.sh" "PostToolUseFailure:papercut-grep.sh" \
-  "Stop:executive-lint.sh" "Stop:papercut-nudge.sh" "StopFailure:stopfailure-hint.sh" \
+  "Stop:executive-lint.sh" "Stop:link-lint.sh" "Stop:link-validate.sh" "Stop:papercut-nudge.sh" "StopFailure:stopfailure-hint.sh" \
   "SessionStart:session-start-project.sh" "SessionEnd:session-end-memory.sh" \
   "Notification:notification-urgency.sh" "PostCompact:postcompact-log.sh"; do
   ev="${want%%:*}"
@@ -247,30 +252,52 @@ eq "linked Linear ID passes" "$(run executive-lint.sh "$(sl $'**FYI · see [ENG-
 eq "Linear ID in code span passes" "$(run executive-lint.sh "$(sl $'**FYI · branch `feat/ENG-1234`.**\nx')")" ""
 eq "Linear ID in code fence passes" "$(run executive-lint.sh "$(sl $'**FYI · log.**\n```\nENG-1234 done\n```')")" ""
 eq "UTF-8/SHA-256 are not Linear IDs" "$(run executive-lint.sh "$(sl $'**FYI · UTF-8 and SHA-256 are fine.**\nx')")" ""
-eq "stop_hook_active never blocks twice" "$(run executive-lint.sh "$(sl 'plain reply' true)")" ""
+out=$(run executive-lint.sh "$(sl 'plain reply' true)")
+eq "stop_hook_active never blocks twice" "$(jq -r '.decision // "none"' <<<"$out")" "none"
+has "stop_hook_active lets D see the reply stayed off-style" "$out" "systemMessage"
 loghas allow-stop-hook-active && ok || bad "stop_hook_active allow logged"
 eq "subagent (agent_id) skipped" "$(printf '%s' "$(jq -c '. + {agent_id:"a1"}' <<<"$(sl 'plain reply')")" | bash "$HOOKS/executive-lint.sh" 2>/dev/null)" ""
 eq "fleet skipped" "$(BARECLAUDE_AGENT_SLUG=fleet-test run executive-lint.sh "$(sl 'plain reply')")" ""
-# bg job: linted in shadow. The shipped registry makes every mode a bgjob shadow; nothing blocks.
+# bg job: the regex checks enforce (meta, bare ID, tag on replies over bgjob_tag_min_chars); short untagged replies are only logged.
 reset
 rules "$(cat "$RJ")"
-eq "bg job: reply missing the tag line is not blocked" "$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl 'plain reply')")" ""
-loghas '"rule":"executive-lint","verdict":"shadow-would-block"' && ok || bad "bg job: missing tag logged as shadow-would-block" "$(cat "$LOG" 2>/dev/null)"
+eq "bg job: SHORT reply missing the tag is not blocked" "$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl 'plain reply')")" ""
+loghas '"rule":"executive-lint-tagshort","verdict":"shadow-would-block"' && ok || bad "bg job: short missing tag logged as tagshort shadow-would-block" "$(cat "$LOG" 2>/dev/null)"
 loghas '"scope":"bgjob"' && ok || bad "bg job: decision log carries scope bgjob"
+LONGUNTAG=$(awk 'BEGIN{for(i=0;i<20;i++) print "a finding line that is long enough to pass the five hundred character floor " i}')
+out=$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl "$LONGUNTAG")")
+eq "bg job: LONG reply missing the tag is blocked" "$(jq -r .decision <<<"$out")" "block"
+has "bg job: block carries a user-visible systemMessage (the flash D sees)" "$out" "Jev: executive-lint blocked a reply"
 rm -rf "$HOME/.claude/jev"
-eq "interactive: same reply still blocks (shipped registry)" "$(run executive-lint.sh "$(sl 'plain reply')" | jq -r .decision)" "block"
+eq "interactive: same short reply still blocks (shipped registry)" "$(run executive-lint.sh "$(sl 'plain reply')" | jq -r .decision)" "block"
 rm -rf "$HOME/.claude/jev"
+out=$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl 'Which branch should I merge?')")
+eq "bg job: SHORT untagged reply that asks D a question is blocked" "$(jq -r .decision <<<"$out")" "block"
 LONGBG=$(awk 'BEGIN{print "**FYI · long.**"; for(i=0;i<80;i++) print "line " i}')
-eq "bg job: over-length reply is not blocked" "$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl "$LONGBG")")" ""
-eq "bg job: missing meta line is not blocked" "$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl $'**ACTION · do it.**\nbody without meta')")" ""
-eq "bg job: bare Linear ID is not blocked" "$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl $'**FYI · see ENG-1234.**\nx')")" ""
-loghas shadow-would-block && ok || bad "bg job: Linear/length/meta problems logged"
+eq "bg job: over-length reply is blocked" "$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl "$LONGBG")" | jq -r .decision)" "block"
+out=$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl $'**ACTION · do it.**\nbody without meta')")
+eq "bg job: missing meta line is blocked" "$(jq -r .decision <<<"$out")" "block"
+has "bg job: the block names the meta line" "$out" "meta line"
+out=$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl $'**FYI · see ENG-1234.**\nx')")
+eq "bg job: bare Linear ID is blocked" "$(jq -r .decision <<<"$out")" "block"
+has "bg job: the block quotes the workspace link form" "$out" "https://linear.app/bareclaude/issue/ID"
+eq "bg job: stop_hook_active never blocks twice" "$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl $'**FYI · see ENG-1234.**\nx' true)" | jq -r '.decision // "none"')" "none"
+# The tag check alone, switched to shadow for bgjob, only logs.
+rm -rf "$HOME/.claude/jev"
+rules '{"executive-lint":{"mode":{"interactive":"enforce","bgjob":"shadow"}},"executive-lint-meta":{"mode":{"bgjob":"shadow"}},"executive-lint-bare-id":{"mode":{"bgjob":"shadow"}}}'
+eq "bg job: all lint checks shadow -> nothing blocks" "$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl "$LONGUNTAG")")" ""
+loghas '"rule":"executive-lint-tag","verdict":"shadow-would-block"' && ok || bad "bg job: shadow tag logged per code" "$(cat "$LOG" 2>/dev/null)"
+out=$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl $'**ACTION · see ENG-1234.**\nx')")
+eq "bg job: meta+bare shadow -> nothing blocks" "$out" ""
+loghas '"rule":"executive-lint-meta","verdict":"shadow-would-block"' && ok || bad "bg job: shadow meta logged (no longer hidden behind tag)"
+loghas '"rule":"executive-lint-bare","verdict":"shadow-would-block"' && ok || bad "bg job: shadow bare logged"
+rules "$(cat "$RJ")"
 eq "bg job: subagent skipped" "$(printf '%s' "$(jq -c '. + {agent_id:"a1"}' <<<"$(sl 'plain reply')")" | CLAUDE_JOB_DIR=/x bash "$HOOKS/executive-lint.sh" 2>/dev/null)" ""
-# Even with every rule forced to enforce in config, a bg job never blocks.
+# The Jev MODEL checks never block a bg job, even when forced to enforce in config (only the regex lint does).
 rm -rf "$HOME/.claude/jev"
 rules '{"executive-lint":{"mode":"enforce"},"executive-unsourced-claims":{"mode":"enforce","threshold":0.5}}'
 mock tag '{"answers":{"tag":{"type":"choice","choice":"DECISION","probabilities":{"DECISION":0.95}},"unsourced":{"type":"score","probabilities":{"0":0,"1":0,"2":0.5,"3":0.5}}}}'
-eq "bg job: forced-enforce config still never blocks" "$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl 'plain reply')")" ""
+eq "bg job: forced-enforce Jev tag-correctness never blocks a tagged reply" "$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl "$GOOD")")" ""
 eq "bg job: forced-enforce Jev unsourced never blocks" "$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl "$GOOD")")" ""
 loghas '"rule":"executive-unsourced-claims","verdict":"p=1"' && ok || bad "bg job: Jev unsourced p logged" "$(cat "$LOG" 2>/dev/null)"
 reset
@@ -278,6 +305,120 @@ eq "empty message skipped" "$(run executive-lint.sh "$(sl '')")" ""
 rules '{"executive-lint":{"mode":"shadow"}}'
 eq "shadow mode logs but does not block" "$(run executive-lint.sh "$(sl 'plain reply')")" ""
 loghas shadow-would-block && ok || bad "shadow-would-block logged"
+
+echo "== link-lint =="
+reset
+eq "linked PR, code span, colour code and option number pass" "$(run link-lint.sh "$(sl $'**FYI · see [PR #3](https://github.com/o/r/pull/3), `#4`, colour #141414, Option #2.**\nx')")" ""
+out=$(run link-lint.sh "$(sl $'**FYI · see PR #3 for details.**\nx')")
+has "bare PR number blocked" "$out" "#3"
+out=$(run link-lint.sh "$(sl $'**FYI · merged (#128).**\nx')")
+has "squash-merge style (#N) blocked" "$out" "#128"
+out=$(run link-lint.sh "$(sl $'**FYI · see PR #123456 for details.**\nx')")
+has "PR number above five digits blocked" "$out" "#123456"
+out=$(run link-lint.sh "$(sl $'**FYI · see o/r#12.**\nx')")
+has "owner/repo#N blocked" "$out" "#12"
+out=$(run link-lint.sh "$(sl $'**FYI · docs at https://example.org/x.**\nx')")
+has "bare URL blocked" "$out" "https://example.org/x"
+hasnt "bold markers are not part of the URL" "$out" "x**"
+out=$(run link-lint.sh "$(sl $'**FYI · fixed in commit 940f2ae.**\nx')")
+has "bare commit SHA blocked" "$out" "940f2ae"
+eq "a word that looks like hex is not a SHA" "$(run link-lint.sh "$(sl $'**FYI · the deadbeef value and a facade.**\nx')")" ""
+eq "autolink <url> passes" "$(run link-lint.sh "$(sl $'**FYI · see <https://example.org/x>.**\nx')")" ""
+eq "refs inside a code fence pass" "$(run link-lint.sh "$(sl $'**FYI · log.**\n```\nPR #3 https://example.org\n```')")" ""
+eq "stop_hook_active never blocks twice" "$(run link-lint.sh "$(sl $'**FYI · PR #3.**\nx' true)")" ""
+eq "subagent skipped" "$(printf '%s' "$(jq -c '. + {agent_id:"a1"}' <<<"$(sl $'**FYI · PR #3.**\nx')")" | bash "$HOOKS/link-lint.sh" 2>/dev/null)" ""
+eq "fleet skipped" "$(BARECLAUDE_AGENT_SLUG=fleet-test run link-lint.sh "$(sl $'**FYI · PR #3.**\nx')")" ""
+rm -rf "$HOME/.claude/jev"
+eq "bg job: bare ref is not blocked" "$(CLAUDE_JOB_DIR=/x run link-lint.sh "$(sl $'**FYI · PR #3.**\nx')")" ""
+loghas '"rule":"link-lint","verdict":"shadow-would-block"' && ok || bad "bg job: bare ref logged as shadow-would-block" "$(cat "$LOG" 2>/dev/null)"
+rules '{"link-lint":{"mode":"off"}}'
+eq "mode off passes" "$(run link-lint.sh "$(sl $'**FYI · PR #3.**\nx')")" ""
+reset
+
+echo "== link-validate =="
+mkdir -p "$T/bin" "$T/tmp"
+cat >"$T/bin/gh" <<'GHEOF'
+#!/bin/bash
+# fake gh: gh api <path> [--jq expr]
+p="$2"
+case "$p" in
+  repos/o/r/issues/9) printf '9\ttrue\n' ;;
+  repos/o/r/issues/7) printf '7\tfalse\n' ;;
+  repos/o/r/issues/404) echo "gh: Not Found (HTTP 404)" >&2; exit 1 ;;
+  repos/o/r/issues/500) echo "gh: HTTP 502 Bad Gateway" >&2; exit 1 ;;
+  repos/o/r/commits/abc1234) echo abc1234 ;;
+  repos/o/r/commits/bad0000) echo "No commit found for SHA: bad0000" >&2; exit 1 ;;
+  repos/o/r) echo o/r ;;
+  repos/o/gone) echo "gh: Not Found (HTTP 404)" >&2; exit 1 ;;
+  *) echo "gh: Not Found (HTTP 404)" >&2; exit 1 ;;
+esac
+GHEOF
+cat >"$T/bin/curl" <<'CEOF'
+#!/bin/bash
+url="${*: -1}"
+[ -n "${CURL_ARGS_FILE:-}" ] && echo "$*" >>"$CURL_ARGS_FILE"
+case "$url" in
+  *gone*) printf 404 ;;
+  *down*) printf 000 ;;
+  *) printf 200 ;;
+esac
+CEOF
+chmod +x "$T/bin/gh" "$T/bin/curl"
+export LV_GH="$T/bin/gh" LV_CURL="$T/bin/curl" TMPDIR="$T/tmp" CURL_ARGS_FILE="$T/curl.args"
+vl() { rm -rf "$T/tmp/claude-link-validate"; run link-validate.sh "$(sl "$1")"; }
+eq "existing PR with matching label passes" "$(vl $'**FYI · [PR #9](https://github.com/o/r/pull/9).**\nx')" ""
+eq "good Linear link, good web link pass" "$(vl $'**FYI · [ENG-13](https://linear.app/b/issue/ENG-13/x) and [docs](https://example.org/ok).**\nx')" ""
+out=$(vl $'**FYI · [PR #404](https://github.com/o/r/pull/404).**\nx')
+has "nonexistent PR blocked" "$out" "does not exist"
+out=$(vl $'**FYI · [PR #3](https://github.com/o/r/pull/9).**\nx')
+has "label number != URL number blocked" "$out" "label says #3 but the URL is #9"
+out=$(vl $'**FYI · [PR #7](https://github.com/o/r/pull/7).**\nx')
+has "/pull/N that is an issue blocked" "$out" "is an issue"
+out=$(vl $'**FYI · [ENG-12](https://linear.app/b/issue/ENG-13/x).**\nx')
+has "Linear label != URL id blocked" "$out" "label says ENG-12 but the URL is ENG-13"
+out=$(vl $'**FYI · [c](https://github.com/o/r/commit/bad0000).**\nx')
+has "missing commit blocked" "$out" "not found"
+eq "existing commit passes" "$(vl $'**FYI · [c](https://github.com/o/r/commit/abc1234).**\nx')" ""
+out=$(vl $'**FYI · [r](https://github.com/o/gone).**\nx')
+has "missing repository blocked" "$out" "repository o/gone not found"
+out=$(vl $'**FYI · [page](https://example.org/gone).**\nx')
+has "web 404 blocked" "$out" "answers 404"
+eq "a link whose URL contains parentheses passes" "$(vl $'**FYI · [article](https://example.org/wiki/Foo_(bar)).**\nx')" ""
+out=$(vl $'**FYI · [article](https://example.org/gone_(x)).**\nx')
+has "a 404 on a URL with parentheses is reported with the whole URL" "$out" "gone_(x))"
+: >"$T/curl.args"
+vl $'**FYI · [page](https://example.org/ok).**\nx' >/dev/null
+has "web check does not follow redirects" "$(cat "$T/curl.args")" "--max-redirs 0"
+hasnt "web check never passes -L" "$(cat "$T/curl.args")" " -L"
+: >"$T/curl.args"
+out=$(vl $'**FYI · [x](http://public.example@127.0.0.1:8080/action).**\nx')
+has "userinfo URL is rejected before any fetch" "$out" "userinfo"
+out=$(vl $'**FYI · [docs](https://example.org/gone "manual").**\nx')
+has "a titled link is validated" "$out" "answers 404"
+eq "a titled link that exists passes" "$(vl $'**FYI · [docs](https://example.org/ok "manual").**\nx')" ""
+: >"$T/curl.args"
+eq "link to .internal host is skipped, not fetched" "$(vl $'**FYI · [x](https://svc.internal/gone).**\nx')" ""
+eq ".internal host never reaches curl" "$(cat "$T/curl.args")" ""
+eq "web no-response is skipped, not blocked" "$(vl $'**FYI · [page](https://example.org/down).**\nx')" ""
+loghas '"rule":"link-validate","verdict":"unverified"' && ok || bad "unverified link logged" "$(cat "$LOG" 2>/dev/null)"
+eq "gh outage is skipped, not blocked" "$(vl $'**FYI · [PR #500](https://github.com/o/r/pull/500).**\nx')" ""
+out=$(vl $'**FYI · [x](TBD) and [](https://example.org/a).**\nx')
+has "placeholder URL blocked" "$out" "placeholder"
+has "empty label blocked" "$out" "empty label"
+eq "bare URL needs no label (lint covers it)" "$(vl $'**FYI · https://example.org/ok.**\nx')" ""
+eq "links inside a code fence are ignored" "$(vl $'**FYI · log.**\n```\n[x](TBD)\n```')" ""
+eq "stop_hook_active never blocks twice" "$(run link-validate.sh "$(sl $'**FYI · [x](TBD).**\nx' true)")" ""
+eq "fleet skipped" "$(BARECLAUDE_AGENT_SLUG=fleet-test run link-validate.sh "$(sl $'**FYI · [x](TBD).**\nx')")" ""
+rm -rf "$HOME/.claude/jev"
+eq "bg job: broken link is not blocked" "$(CLAUDE_JOB_DIR=/x run link-validate.sh "$(sl $'**FYI · [x](TBD).**\nx')")" ""
+loghas '"rule":"link-validate","verdict":"shadow-would-block"' && ok || bad "bg job: broken link logged as shadow-would-block" "$(cat "$LOG" 2>/dev/null)"
+rules '{"link-validate":{"mode":"off"}}'
+eq "mode off passes" "$(run link-validate.sh "$(sl $'**FYI · [x](TBD).**\nx')")" ""
+rules '{"link-validate":{"mode":"enforce"}}'
+eq "LV_OFFLINE skips remote lookups" "$(LV_OFFLINE=1 vl $'**FYI · [PR #404](https://github.com/o/r/pull/404).**\nx')" ""
+unset LV_GH LV_CURL
+export TMPDIR="${TMPDIR_ORIG:-/tmp}"
+reset
 
 echo "== executive-lint: Jev shadow checks =="
 reset
@@ -769,6 +910,16 @@ has "drift names the count of differing files (2, not exit_hook/sock)" "$out" "d
 has "drift line says to run /sync" "$out" "/sync"
 eq "drift warns once per session" "$(dc '{"session_id":"s-drift-1"}' | grep -c differ)" "0"
 has "a new session warns again" "$(dc '{"session_id":"s-drift-2"}')" "differ"
+# No jq on PATH: the hand-built fallback must keep the reason (and the /sync instruction) and stay valid JSON.
+nojq() {
+  printf '%s' "$1" | env JEV_MOCK=unavailable JEV_DRIFT_REPO="$DR" JEV_DRIFT_HOOKS="$DH" bash -c \
+    'command() { if [ "$1" = -v ] && [ "$2" = jq ]; then return 1; fi; builtin command "$@"; }; export -f command; bash "$0"' \
+    "$HOOKS/session-check.sh" 2>/dev/null
+}
+out=$(nojq '{"session_id":"s-drift-nojq"}')
+has "without jq the fallback keeps the warning reason" "$out" "differ from claude-config origin/main"
+has "without jq the fallback keeps the /sync instruction" "$out" "/sync"
+eq "without jq the fallback is valid JSON" "$(printf '%s' "$out" | jq -r 'has("systemMessage")' 2>/dev/null)" "true"
 printf 'repo gate.sh\n' >"$DH/gate.sh"
 printf 'repo jev/client.mjs\n' >"$DH/jev/client.mjs"
 hasnt "after sync, no drift line" "$(dc '{"session_id":"s-drift-3"}')" "differ"
@@ -777,6 +928,22 @@ eq "missing repo: silent" "$(printf '{}' | env JEV_MOCK=unavailable JEV_DRIFT_RE
 git -C "$DR" update-ref -d refs/remotes/origin/main
 eq "repo without origin/main: silent" "$(dc | grep -c differ)" "0"
 eq "exits 0 on a broken repo path" "$(printf '{}' | env JEV_MOCK=unavailable JEV_DRIFT_REPO=/dev/null JEV_DRIFT_HOOKS="$DH" bash "$HOOKS/session-check.sh" >/dev/null 2>&1; echo $?)" "0"
+
+# audit-digest: only an interactive session sees (and so consumes) it; only a positive digest marks its date seen.
+AD="$T/audit"
+mkdir -p "$AD"
+ADSEEN="$AD/state/audit-digest.seen"
+ad() { env -u CLAUDE_JOB_DIR -u BARECLAUDE_AGENT_SLUG JEV_AUDIT_DIR="$AD" JEV_STATE_DIR="$AD/state" "$@" bash "$HOOKS/audit-digest.sh" </dev/null 2>/dev/null; }
+printf '{"date":"2026-10-08","flagged":0,"top":[],"report":"r.md"}' >"$AD/jev-audit-latest.json"
+eq "audit digest: zero flags is silent" "$(ad)" ""
+eq "audit digest: zero flags does not mark the date seen" "$(cat "$ADSEEN" 2>/dev/null)" ""
+printf '{"date":"2026-10-08","flagged":2,"top":[{"time":"t","cls":"irreversible","score":0.9,"action":"rm x"}],"report":"r.md"}' >"$AD/jev-audit-latest.json"
+eq "audit digest: a bg job is silent" "$(ad CLAUDE_JOB_DIR=/x)" ""
+eq "audit digest: a fleet session is silent" "$(ad BARECLAUDE_AGENT_SLUG=clara)" ""
+eq "audit digest: neither consumes it" "$(cat "$ADSEEN" 2>/dev/null)" ""
+has "audit digest: a same-date rerun with flags still flashes in an interactive session" "$(ad)" "2 risky action(s)"
+eq "audit digest: marked seen after the positive digest" "$(cat "$ADSEEN" 2>/dev/null)" "2026-10-08"
+eq "audit digest: once per date" "$(ad)" ""
 reset
 
 echo

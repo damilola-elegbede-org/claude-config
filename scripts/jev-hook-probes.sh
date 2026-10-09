@@ -10,11 +10,13 @@
 #      --permission-mode bypassPermissions; is "ask" ignored?
 #   c  PostToolUse updatedToolOutput: does it replace a Bash / Read result?
 #   d  (supplemental) SessionStart: does plain stdout / systemMessage surface?
+#   f  PreToolUse additionalContext: does it reach the model, does stdin carry
+#      transcript_path, and is a running Skill visible in that transcript?
 #   e  hook handler `if` field (permission-rule syntax): does it gate the spawn,
 #      match env-prefixed / compound / wildcard-contained commands, and are two
 #      handlers with the same command string deduplicated?
 #
-# Usage: scripts/jev-hook-probes.sh [a|b|c|d|e|all]   (default: all)
+# Usage: scripts/jev-hook-probes.sh [a|b|c|d|e|f|all]   (default: all)
 #
 # Isolation: each probe runs in its own temp cwd, with --setting-sources project
 # plus --settings <temp file>, so the user's live hooks (TTS on Stop, sounds on
@@ -325,8 +327,66 @@ EOF
   verdict "e-paths: edit-pkg ran for [$(grep '^edit-pkg|' "$d/markers.txt" | cut -d'|' -f2 | xargs -n1 basename 2>/dev/null | tr '\n' ' ')], edit-settings for [$(grep '^edit-settings|' "$d/markers.txt" | cut -d'|' -f2 | xargs -n1 basename 2>/dev/null | tr '\n' ' ')], write-memory for [$(grep '^write-memory|' "$d/markers.txt" | cut -d'|' -f2 | xargs -n1 basename 2>/dev/null | tr '\n' ' ')] (expected: package.json / settings.local.json / note.md only)"
 }
 
+# ---------------------------------------------------------------- probe f
+# The skill router advises through PreToolUse additionalContext and stays silent
+# while the matching skill is running. That needs three facts: the advice reaches
+# the model before its next step, the hook's stdin carries transcript_path, and a
+# Skill invocation is already in that transcript when the skill's own tool calls
+# fire. The session must persist, or there is no transcript to read.
+probe_f() {
+  echo "== probe f: PreToolUse additionalContext delivery + transcript visibility of Skill calls"
+  local d
+  d="$(new_probe_dir f)"
+  mkdir -p "$d/.claude/skills/probe-skill"
+  cat >"$d/.claude/skills/probe-skill/SKILL.md" <<'EOF'
+---
+name: probe-skill
+description: Probe skill. Use when asked to run the probe skill.
+---
+
+# /probe-skill
+
+Run this bash command exactly: echo FROM-PROBE-SKILL
+EOF
+  cat >"$d/ctx.sh" <<EOF
+#!/bin/bash
+in="\$(cat)"
+printf '%s\n' "\$in" >>"$d/stdin.jsonl"
+tp="\$(printf '%s' "\$in" | jq -r '.transcript_path // empty')"
+if [ -n "\$tp" ] && [ -f "\$tp" ] && grep -q '"name":"Skill"' "\$tp" && grep -q 'probe-skill' "\$tp"; then
+  echo SKILL-VISIBLE >>"$d/skill-seen.txt"
+else
+  echo SKILL-NOT-VISIBLE >>"$d/skill-seen.txt"
+fi
+printf '%s' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":"PROBE-CTX: the codeword is PINEAPPLE-42."}}'
+EOF
+  chmod +x "$d/ctx.sh"
+  cat >"$d/f.settings.json" <<EOF
+{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"$d/ctx.sh"}]}]}}
+EOF
+  claude_run "$d" ctx "$d/f.settings.json" \
+    "Run this bash command: echo hi   Then reply with any codeword a hook gave you, or NONE."
+  claude_run "$d" skill "$d/f.settings.json" \
+    "Invoke the probe-skill skill with the Skill tool and follow it. Then reply DONE."
+  local ft
+  ft="$(final_text "$d/ctx.jsonl" | tr '\n' ' ' | cut -c1-160)"
+  echo "  [ctx] final text: $ft"
+  if grep -q "PINEAPPLE-42" <<<"$ft"; then
+    verdict "f-ctx: PreToolUse additionalContext REACHED the model"
+  else
+    verdict "f-ctx: PreToolUse additionalContext did NOT reach the model"
+  fi
+  if jq -e 'has("transcript_path")' "$d/stdin.jsonl" >/dev/null 2>&1; then
+    verdict "f-transcript: PreToolUse stdin carries transcript_path"
+  else
+    verdict "f-transcript: PreToolUse stdin has NO transcript_path"
+  fi
+  verdict "f-skill: during the skill run the hook saw: $(tail -n +2 "$d/skill-seen.txt" 2>/dev/null | sort | uniq -c | tr '\n' ' ')"
+}
+
 case "$WHICH" in
   a) probe_a ;;
+  f) probe_f ;;
   b) probe_b ;;
   c) probe_c ;;
   d) probe_d ;;
@@ -337,9 +397,10 @@ case "$WHICH" in
     probe_a
     probe_d
     probe_e
+    probe_f
     ;;
   *)
-    echo "usage: $0 [a|b|c|d|e|all]" >&2
+    echo "usage: $0 [a|b|c|d|e|f|all]" >&2
     exit 2
     ;;
 esac

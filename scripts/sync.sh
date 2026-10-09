@@ -48,6 +48,17 @@ manifest_flag() {
     fi
 }
 
+# mods_exclude_names — echoes the manifest's sync.mods_exclude, one name per
+# line (nothing without a manifest). Fails, the reason as its output, on a
+# value that is not an array of mod names or that names a local-* mod.
+mods_exclude_names() {
+    [ "$HAVE_MANIFEST" = "true" ] || return 0
+    jq -r '(.sync.mods_exclude // []) as $x
+        | if ($x | type) != "array" then error("mods_exclude must be an array of mod names")
+          else $x[] | if type == "string" and test("^[A-Za-z0-9_-][A-Za-z0-9_.-]*$") and (startswith("local-") | not)
+            then . else error("invalid mods_exclude entry: \(tojson)") end end' "$MANIFEST" 2>&1
+}
+
 # settings mode: replace (default) | merge | skip
 settings_mode() {
     if [ "$HAVE_MANIFEST" = "true" ]; then
@@ -76,11 +87,11 @@ RUNTIME_HOOK_SCRIPTS="statusline.sh hooks/exit_hook.sh hooks/session_start_versi
 # the same directory it is deployed to. Same space-delimited rule as above.
 RUNTIME_HOOK_DATA="hooks/gate-rules.json"
 # Phase 4 (rules, lifecycle events, workflow helpers). .sh only: this list is bash -n'd.
-RUNTIME_HOOK_SCRIPTS="$RUNTIME_HOOK_SCRIPTS hooks/jev/registry.sh hooks/jev/rules-events-lib.sh hooks/jev/executive-lint.sh hooks/jev/file-org-guard.sh hooks/jev/pr-draft-guard.sh hooks/jev/retry-counter.sh hooks/jev/papercut-grep.sh hooks/jev/papercut-nudge.sh hooks/jev/papercut-dedupe.sh hooks/jev/memory-dup-guard.sh hooks/jev/stopfailure-hint.sh hooks/jev/session-start-project.sh hooks/jev/session-end-memory.sh hooks/jev/notification-urgency.sh hooks/jev/postcompact-log.sh hooks/jev/failure-classify.sh hooks/jev/session-check.sh"
+RUNTIME_HOOK_SCRIPTS="$RUNTIME_HOOK_SCRIPTS hooks/jev/registry.sh hooks/jev/rules-events-lib.sh hooks/jev/executive-lint.sh hooks/jev/file-org-guard.sh hooks/jev/pr-draft-guard.sh hooks/jev/pr-landing-gate.sh hooks/jev/pr-land-status.sh hooks/jev/retry-counter.sh hooks/jev/papercut-grep.sh hooks/jev/papercut-nudge.sh hooks/jev/papercut-dedupe.sh hooks/jev/memory-dup-guard.sh hooks/jev/stopfailure-hint.sh hooks/jev/session-start-project.sh hooks/jev/session-end-memory.sh hooks/jev/notification-urgency.sh hooks/jev/postcompact-log.sh hooks/jev/failure-classify.sh hooks/jev/session-check.sh hooks/jev/link-lint.sh hooks/jev/link-validate.sh hooks/jev/audit-digest.sh"
 # Jev decision gates (Phase 2).
 RUNTIME_HOOK_SCRIPTS="$RUNTIME_HOOK_SCRIPTS hooks/jev-gate.sh hooks/jev-gate-lib.sh hooks/jev-ask-channel.sh"
-# Jev context/cost hooks (Phase 3, A1-A8) + their shared lib.
-RUNTIME_HOOK_SCRIPTS="$RUNTIME_HOOK_SCRIPTS hooks/jev/ctx-lib.sh hooks/jev/a1-read-trim.sh hooks/jev/a2-search-rank.sh hooks/jev/a3-bash-trim.sh hooks/jev/a4-task-boundary.sh hooks/jev/a5-compact-reinject.sh hooks/jev/a6-agent-router.sh hooks/jev/a7-a8-prompt-context.sh"
+# Jev context/cost hooks (Phase 3, A1-A9) + their shared lib.
+RUNTIME_HOOK_SCRIPTS="$RUNTIME_HOOK_SCRIPTS hooks/jev/ctx-lib.sh hooks/jev/a1-read-trim.sh hooks/jev/a2-search-rank.sh hooks/jev/a3-bash-trim.sh hooks/jev/a4-task-boundary.sh hooks/jev/a5-compact-reinject.sh hooks/jev/a6-agent-router.sh hooks/jev/a7-a8-prompt-context.sh hooks/jev/a9-skill-router.sh"
 RUNTIME_HOOK_DATA="$RUNTIME_HOOK_DATA hooks/jev/rules.d/context.json hooks/jev/rules.d/skills.json"
 
 # Parse arguments
@@ -601,6 +612,13 @@ sync_jev_hooks() {
             return 1
         }
     done
+    if command -v python3 >/dev/null 2>&1; then
+        jev_err=$(python3 -c 'import ast, sys; ast.parse(open(sys.argv[1]).read())' "$jev_src/skill-catalog.py" 2>&1) || {
+            print_error "Invalid Python: hooks/jev/skill-catalog.py"
+            printf "    %s\n" "$jev_err"
+            return 1
+        }
+    fi
     if command -v node >/dev/null 2>&1; then
         jev_err=$(node --check "$jev_src/client.mjs" 2>&1) || {
             print_error "Invalid JavaScript: hooks/jev/client.mjs"
@@ -767,11 +785,45 @@ sync_files() {
         echo "  ⏭  Mods: skipped by $STATION manifest"
     elif [ -d "$SOURCE_DIR/mods" ]; then
         mkdir -p "$TARGET_DIR/mods"
+        # A manifest's mods_exclude names mods a station never gets: the fleet
+        # node keeps screen-only mods off its headless sessions. Each is left
+        # out of the copy, and removed if an earlier sync put it there (--delete
+        # spares excluded paths). Names are checked first, so the unquoted list
+        # below can neither glob nor split a name, and a local-* name (yours,
+        # never synced) is refused so the removal below can never reach it.
+        # Any failure stops the sync (its exit status is checked: set -e is
+        # off inside sync_files).
+        if ! MODS_EXCLUDE=$(mods_exclude_names); then
+            echo "  ❌ Mods: $MODS_EXCLUDE ($MANIFEST)"
+            return 1
+        fi
+        mods_exclude_file=$(mktemp "${TMPDIR:-/tmp}/claude-sync-mods.XXXXXX")
+        for mod in $MODS_EXCLUDE; do
+            printf '/%s/\n' "$mod" >>"$mods_exclude_file"
+        done
         rsync_output=""
-        if rsync_output=$(rsync -a --delete --exclude='local-*' --exclude='/*/tests/' --exclude='/*/.claude-plugin/types/' --exclude='/*/tsconfig.json' "$SOURCE_DIR/mods/" "$TARGET_DIR/mods/" 2>&1); then
+        if rsync_output=$(rsync -a --delete --exclude='local-*' --exclude='/*/tests/' --exclude='/*/.claude-plugin/types/' --exclude='/*/tsconfig.json' --exclude-from="$mods_exclude_file" "$SOURCE_DIR/mods/" "$TARGET_DIR/mods/" 2>&1); then
+            rm -f "$mods_exclude_file"
             MOD_COUNT=$(find "$SOURCE_DIR/mods" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')
-            echo "  ✅ Mods: $MOD_COUNT mods → ~/.claude/mods/"
+            for mod in $MODS_EXCLUDE; do
+                if [ -d "$SOURCE_DIR/mods/$mod" ]; then
+                    MOD_COUNT=$((MOD_COUNT - 1))
+                fi
+                if [ -d "$TARGET_DIR/mods/$mod" ]; then
+                    if ! rm -rf "${TARGET_DIR:?}/mods/$mod" 2>/dev/null || [ -e "$TARGET_DIR/mods/$mod" ]; then
+                        echo "  ❌ Mods: could not remove $mod, excluded on $STATION but still in ~/.claude/mods/"
+                        return 1
+                    fi
+                    echo "  🧹 Mods: removed $mod (excluded on $STATION)"
+                fi
+            done
+            if [ -n "$MODS_EXCLUDE" ]; then
+                echo "  ✅ Mods: $MOD_COUNT mods → ~/.claude/mods/ (excluded on $STATION: $(echo $MODS_EXCLUDE))"
+            else
+                echo "  ✅ Mods: $MOD_COUNT mods → ~/.claude/mods/"
+            fi
         else
+            rm -f "$mods_exclude_file"
             echo "  ❌ Failed to sync mods"
             printf "    %s\n" "$rsync_output"
             return 1
@@ -1049,7 +1101,21 @@ main() {
             echo "  - $(find "$SOURCE_DIR/rules" -name "*.md" 2>/dev/null | wc -l | tr -d ' ') rule files → ~/.claude/rules/ (--delete; local-*.md kept)"
         fi
         if [ "$(manifest_flag mods)" = "true" ] && [ -d "$SOURCE_DIR/mods" ]; then
-            echo "  - $(find "$SOURCE_DIR/mods" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ') mods → ~/.claude/mods/ (--delete; local-* kept)"
+            if ! preview_exclude=$(mods_exclude_names); then
+                echo "  - mods ⚠️  $preview_exclude (real sync would fail)"
+            else
+                preview_mods=$(find "$SOURCE_DIR/mods" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')
+                for mod in $preview_exclude; do
+                    if [ -d "$SOURCE_DIR/mods/$mod" ]; then
+                        preview_mods=$((preview_mods - 1))
+                    fi
+                done
+                if [ -n "$preview_exclude" ]; then
+                    echo "  - $preview_mods mods → ~/.claude/mods/ (--delete; local-* kept; excluded on $STATION: $(echo $preview_exclude))"
+                else
+                    echo "  - $preview_mods mods → ~/.claude/mods/ (--delete; local-* kept)"
+                fi
+            fi
         fi
         SETTINGS_MODE=$(settings_mode)
         echo "  - settings.json → ~/.claude/settings.json (mode: $SETTINGS_MODE)"

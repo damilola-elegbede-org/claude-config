@@ -66,4 +66,7 @@ mkdir -p "$(dirname "$CAND_FILE")" 2>/dev/null || exit 0
 [ -f "$CAND_FILE" ] || printf '%s\n' '# Memory candidates' 'Corrections from D that may deserve a memory entry. Review, then save or discard; never auto-written to memory.' 'Format: date (UTC) · session · cwd · quote · p' >"$CAND_FILE"
 QUOTE=$(printf '%s\n' "$CORR" | tail -1 | cut -c1-200 | tr '·' '.')
 printf '%s · %s · %s · "%s" · p=%s\n' "$(date -u +%F)" "${SID:0:8}" "$(basename "$CWD")" "$QUOTE" "$P" >>"$CAND_FILE"
+# The session is ending, so nothing can be drawn now: leave a note for the next SessionStart (session-start-project.sh) to flash.
+mkdir -p "$RE_STATE_DIR" 2>/dev/null && jq -nc --arg q "$QUOTE" --arg p "$P" --arg f "$CAND_FILE" --argjson ts "$(date +%s)" \
+  '{ts:$ts,quote:$q,p:$p,file:$f}' >"$RE_STATE_DIR/last-memory-candidate.json" 2>/dev/null
 exit 0

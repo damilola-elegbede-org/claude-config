@@ -14,12 +14,32 @@ PATH="$PATH:/opt/homebrew/bin:/usr/local/bin"
 
 SESSION_INPUT=$(cat 2>/dev/null || true) # SessionStart hooks get JSON on stdin; only session_id is used
 
+# Plain stdout of a SessionStart hook reaches the model but is NOT drawn for D (verified in the TUI);
+# a `systemMessage` is drawn as "SessionStart:startup says: ...". Every warning goes out as ONE systemMessage.
+MSGS=""
+say() { MSGS="${MSGS:+$MSGS }$1"; }
+emit_and_exit() {
+  if [ -n "$MSGS" ]; then
+    if command -v jq >/dev/null 2>&1; then
+      jq -nc --arg m "⚡ Jev: $MSGS" '{systemMessage:$m,hookSpecificOutput:{hookEventName:"SessionStart",additionalContext:$m}}'
+    else
+      # No jq to build the JSON: escape the collected reasons by hand so none is lost.
+      local m="${MSGS//\\/\\\\}"
+      m="${m//\"/\\\"}"
+      m="${m//$'\n'/ }"
+      m="${m//$'\t'/ }"
+      printf '{"systemMessage":"⚡ Jev: %s (jq missing)"}\n' "$m"
+    fi
+  fi
+  exit 0
+}
+
 # Deployed-hook drift: count hook files under ~/.claude/hooks whose content differs from the claude-config
 # clone's origin/main copy (whatever the clone last fetched; never fetches). Prints one line when any differ.
 # Files absent from the deployed side are not counted. JEV_DRIFT_REPO / JEV_DRIFT_HOOKS override the paths.
 # Silent on any error; the caller bounds it with a timeout.
 drift_count() {
-  local repo="${JEV_DRIFT_REPO:-$HOME/repos/claude-config}"
+  local repo="${JEV_DRIFT_REPO:-$HOME/dev/claude-config}"
   local hooks="${JEV_DRIFT_HOOKS:-$HOME/.claude/hooks}"
   local base=system-configs/.claude/hooks sha path n=0 line
   local -a shas=() paths=() sums=()
@@ -62,7 +82,7 @@ drift_warn_once() {
   wait "$pid" 2>/dev/null
   kill "$wd" 2>/dev/null
   if [ -s "$out" ]; then
-    cat "$out"
+    say "$(cat "$out")"
     if [ -n "$marker" ]; then
       mkdir -p "$(dirname "$marker")" 2>/dev/null && : >"$marker" 2>/dev/null
     fi
@@ -73,8 +93,8 @@ drift_warn_once() {
 drift_warn_once 2>/dev/null || true
 
 if ! command -v node >/dev/null 2>&1; then
-  echo "Jev checkpoints degraded to regex: node not found, so jev-ask cannot run."
-  exit 0
+  say "Jev checkpoints degraded to regex: node not found, so jev-ask cannot run."
+  emit_and_exit
 fi
 
 reason=$(node "$DIR/client.mjs" --check 2>/dev/null)
@@ -85,16 +105,16 @@ case "$reason" in
     fi
     ;;
   no_key)
-    echo "Jev checkpoints degraded to regex: no gateway key (export VERCEL_AI_GATEWAY_TOKEN in ~/.zshrc or set AI_GATEWAY_API_KEY)."
+    say "Jev checkpoints degraded to regex: no gateway key (export VERCEL_AI_GATEWAY_TOKEN in ~/.zshrc or set AI_GATEWAY_API_KEY)."
     ;;
   no_sdk)
-    echo "Jev checkpoints degraded to regex: SDK not installed in ~/.claude/hooks/jev (run /sync, which runs npm ci)."
+    say "Jev checkpoints degraded to regex: SDK not installed in ~/.claude/hooks/jev (run /sync, which runs npm ci)."
     ;;
   kill_switch)
-    echo "Jev checkpoints degraded to regex: kill switch ~/.claude/jev.off is present."
+    say "Jev checkpoints degraded to regex: kill switch ~/.claude/jev.off is present."
     ;;
   *)
-    echo "Jev checkpoints degraded to regex: unavailable ($reason)."
+    say "Jev checkpoints degraded to regex: unavailable ($reason)."
     ;;
 esac
-exit 0
+emit_and_exit

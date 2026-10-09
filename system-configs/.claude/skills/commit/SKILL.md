@@ -4,6 +4,8 @@ description: Create git commits with intelligent message generation. Use when ch
 argument-hint: "[--amend]"
 metadata:
   category: workflow
+  triggers:
+    - 'cmd:\bgit\b(\s+-[A-Za-z]\s+\S+|\s+--\S+)*\s+commit\b'
 ---
 
 # /commit

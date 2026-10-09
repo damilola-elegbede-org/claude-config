@@ -782,7 +782,7 @@ JEV_MOCK="$TEST_HOME/mix.json" run_hook a7-a8-prompt-context.sh "$IN"
 check "enforce: UserPromptSubmit additionalContext" out_jq '.hookSpecificOutput.hookEventName=="UserPromptSubmit"'
 check "enforce: memory bodies injected without frontmatter" out_jq '.hookSpecificOutput.additionalContext | test("BODY-VERIFY") and test("BODY-MERGE") and (test("type: feedback") | not)'
 check "enforce: below-threshold memory not injected" out_jq '.hookSpecificOutput.additionalContext | test("BODY-PAPERCUT") | not'
-check "enforce: skill hint" out_jq '.hookSpecificOutput.additionalContext | test("Relevant skill: /verify — consider invoking it")'
+check "enforce: skill hint names the exact Skill call" out_jq '.hookSpecificOutput.additionalContext | test("Relevant skill: /verify \\(p=0.85\\)") and test("skill: \"verify\"")'
 check "enforce: memories flagged as possibly stale" out_jq '.hookSpecificOutput.additionalContext | test("may be stale")'
 B="$(calls)"
 mixed_fixture "$TEST_HOME/mix2.json" verify 0.85 m0=0.9
@@ -809,9 +809,13 @@ check "trivial prompt: no Jev call" no_new_calls "$B"
 prompt_input "please verify the config change works end to end" s7y
 JEV_MOCK=unavailable run_hook a7-a8-prompt-context.sh "$IN"
 check "Jev unavailable: prompt untouched, exit 0" bash -c "[ ! -s '$OUTF' ] && [ '$HOOK_RC' = 0 ]"
-mixed_fixture "$TEST_HOME/lowskill.json" verify 0.4 m0=0.1 m1=0.1 m2=0.1
+mixed_fixture "$TEST_HOME/lowskill.json" verify 0.3 m0=0.1 m1=0.1 m2=0.1
 JEV_MOCK="$TEST_HOME/lowskill.json" run_hook a7-a8-prompt-context.sh "$IN"
 check "nothing above thresholds: silent" out_empty
+mixed_fixture "$TEST_HOME/likely.json" verify 0.5 m0=0.1 m1=0.1 m2=0.1
+JEV_MOCK="$TEST_HOME/likely.json" run_hook a7-a8-prompt-context.sh "$IN"
+check "likely band (0.4 <= p < 0.7): 'Possibly relevant' hint" out_jq '.hookSpecificOutput.additionalContext | test("Possibly relevant skill: /verify \\(p=0.5\\)")'
+check "likely band: logged as would_hint_likely" shadow_jq '.rule=="A8-skill-picker" and .detail.would_hint_likely==true and .detail.would_hint==false'
 mixed_fixture "$TEST_HOME/none.json" none 0.95 m0=0.1 m1=0.1 m2=0.1
 JEV_MOCK="$TEST_HOME/none.json" run_hook a7-a8-prompt-context.sh "$IN"
 check "skill pick 'none': silent" out_empty
@@ -825,21 +829,21 @@ JEV_MOCK="$TEST_HOME/skillonly.json" run_hook a7-a8-prompt-context.sh "$IN"
 check "both rules off: silent, no call" bash -c "[ ! -s '$OUTF' ]"
 check "both rules off: no call made" no_new_calls "$B"
 
-# job-start hints: bgjob sees only its FIRST prompt, in shadow; interactive stays enforce
+# bgjob: memory notes (A7, enforce) for the FIRST prompt only; the skill pick (A8, enforce) on every prompt
 rm -f "$HOME/.claude/hooks/jev/jev-rules.json"
 mixed_fixture "$TEST_HOME/job.json" verify 0.85 m0=0.9 m1=0.8 m2=0.1
 prompt_input "please verify the config change works end to end" job1
 B="$(calls)"
 CLAUDE_JOB_DIR=/tmp/job JEV_MOCK="$TEST_HOME/job.json" run_hook a7-a8-prompt-context.sh "$IN"
-check "bgjob first prompt: shadow, nothing printed" out_empty
+check "bgjob first prompt: A8 hint and A7 memories both printed" out_jq '.hookSpecificOutput.additionalContext | test("/verify") and test("BODY-VERIFY")'
 check "bgjob first prompt: one Jev call" bash -c "[ \"\$(wc -l <'$STUB_COUNT' | tr -d ' ')\" = $((B + 1)) ]"
-check "bgjob first prompt: A7 logged in shadow" shadow_jq '.rule=="A7-memory-inject" and .mode=="shadow" and (.detail.would_inject|length)==2'
-check "bgjob first prompt: A8 logged in shadow" shadow_jq '.rule=="A8-skill-picker" and .mode=="shadow" and .detail.would_hint==true'
+check "bgjob first prompt: A7 logged in enforce" shadow_jq '.rule=="A7-memory-inject" and .mode=="enforce" and (.detail.would_inject|length)==2'
+check "bgjob first prompt: A8 logged in enforce" shadow_jq '.rule=="A8-skill-picker" and .mode=="enforce" and .detail.would_hint==true'
 check "bgjob first prompt: marker written under the state dir" test -e "$HOME/.claude/jev-cache/state/job1.first"
 B="$(calls)"
 CLAUDE_JOB_DIR=/tmp/job JEV_MOCK="$TEST_HOME/job.json" run_hook a7-a8-prompt-context.sh "$IN"
-check "bgjob second prompt: skipped" out_empty
-check "bgjob second prompt: no Jev call" no_new_calls "$B"
+check "bgjob second prompt: A8 still hints" out_jq '.hookSpecificOutput.additionalContext | test("/verify")'
+check "bgjob second prompt: one Jev call, skill question only (no memory questions)" bash -c "[ \"\$(wc -l <'$STUB_COUNT' | tr -d ' ')\" = $((B + 1)) ] && jq -e '(.questions | has(\"skill\")) and (.questions | has(\"m0\") | not)' '$STUB_LAST' >/dev/null"
 prompt_input "please verify the config change works end to end" job2
 CLAUDE_JOB_DIR=/tmp/job JEV_MOCK="$TEST_HOME/job.json" run_hook a7-a8-prompt-context.sh "$IN"
 check "bgjob: a different session gets its own first prompt" bash -c "! [ \"\$(wc -l <'$STUB_COUNT' | tr -d ' ')\" = $B ]"
@@ -864,17 +868,224 @@ prompt_input "please verify the config change works end to end" job3
 CLAUDE_JOB_DIR=/tmp/job JEV_MOCK="$TEST_HOME/job.json" run_hook a7-a8-prompt-context.sh "$IN"
 check "bgjob first qualifying prompt after a skipped one: evaluated" bash -c "! [ \"\$(wc -l <'$STUB_COUNT' | tr -d ' ')\" = $B ]"
 check "bgjob first qualifying prompt: marker written" test -e "$HOME/.claude/jev-cache/state/job3.first"
+# an A8-only first prompt (A7 off) must not use up A7's first prompt
+set_mode A7-memory-inject off
+prompt_input "please verify the config change works end to end" job4
+CLAUDE_JOB_DIR=/tmp/job JEV_MOCK="$TEST_HOME/job.json" run_hook a7-a8-prompt-context.sh "$IN"
+check "bgjob A8-only first prompt: A8 still hints" out_jq '.hookSpecificOutput.additionalContext | test("/verify")'
+check "bgjob A8-only first prompt: A7 marker not consumed" test ! -e "$HOME/.claude/jev-cache/state/job4.first"
+set_mode A7-memory-inject shadow
+CLAUDE_JOB_DIR=/tmp/job JEV_MOCK="$TEST_HOME/job.json" run_hook a7-a8-prompt-context.sh "$IN"
+check "bgjob: A7 gets the first prompt it actually evaluates" jq -e '.questions | has("m0")' "$STUB_LAST"
+
+# ------------------------------------------------------------------ A9: PreToolUse skill router + skill sources
+echo "A9 skill-router + skill catalog sources"
+setup_home
+sk() { # sk <dir> <name> <description> [trigger...]  -> <dir>/<name>/SKILL.md
+  local d="$1/$2" n="$2" desc="$3" t
+  shift 3
+  mkdir -p "$d"
+  { printf -- '---\nname: %s\ndescription: %s\nmetadata:\n  category: workflow\n' "$n" "$desc"
+    if [ "$#" -gt 0 ]; then printf '  triggers:\n'; for t in "$@"; do printf "    - '%s'\n" "$t"; done; fi
+    printf -- '---\n\n# /%s\n' "$n"; } >"$d/SKILL.md"
+}
+sk "$HOME/.claude/skills" commit "Create git commits." 'cmd:\bgit\b(\s+-[A-Za-z]\s+\S+|\s+--\S+)*\s+commit\b'
+sk "$HOME/.claude/skills" sheet "Edit spreadsheets." 'path:*.xlsx'
+sk "$HOME/.claude/skills" ship-it "Ship through docs, test and commit."
+printf '\nRuns /commit, then pushes.\n' >>"$HOME/.claude/skills/ship-it/SKILL.md"
+REPO="$TEST_HOME/repo"
+mkdir -p "$REPO/sub"
+git -C "$REPO" init -q
+sk "$REPO/.claude/skills" proj-only "Project deploy." 'cmd:\bmake\s+deploy\b'
+sk "$REPO/sub/.claude/skills" subtool "Sub-directory tool." 'cmd:\bsubtool\s+run\b'
+PLUG="$TEST_HOME/plugins/infra-plugin/1.0.0"
+OFFP="$TEST_HOME/plugins/off-plugin/1.0.0"
+sk "$PLUG/skills" infra "Terraform changes." 'cmd:\bterraform\s+apply\b'
+sk "$OFFP/skills" offskill "Disabled plugin skill." 'cmd:\bterraform\s+apply\b'
+mkdir -p "$HOME/.claude/plugins"
+jq -n --arg p "$PLUG" --arg o "$OFFP" '{version: 2, plugins: {"infra-plugin@mk": [{installPath: $p}], "off-plugin@mk": [{installPath: $o}]}}' >"$HOME/.claude/plugins/installed_plugins.json"
+printf '{"enabledPlugins":{"infra-plugin@mk":true,"off-plugin@mk":false}}' >"$HOME/.claude/settings.json"
+
+TR="$TEST_HOME/transcript.jsonl"
+turn() { # turn <uuid> [skill-loaded...]  -> a transcript whose last real user message is <uuid>
+  local u="$1" s
+  shift
+  jq -cn --arg u "$u" '{type:"user", uuid:$u, message:{content:"please ship this change"}}' >"$TR"
+  for s in "$@"; do jq -cn --arg s "$s" '{type:"assistant", message:{content:[{type:"tool_use", name:"Skill", input:{skill:$s}}]}}' >>"$TR"; done
+}
+bash_in() { jq -cn --arg c "$1" --arg cwd "${2:-$REPO}" --arg tp "$TR" '{session_id:"s9", cwd:$cwd, transcript_path:$tp, hook_event_name:"PreToolUse", tool_name:"Bash", tool_input:{command:$c}}' >"$IN"; }
+write_in() { jq -cn --arg f "$1" --arg tp "$TR" --arg cwd "$REPO" '{session_id:"s9", cwd:$cwd, transcript_path:$tp, hook_event_name:"PreToolUse", tool_name:"Write", tool_input:{file_path:$f, content:"x"}}' >"$IN"; }
+denies() { jq -e --arg s "$1" '.hookSpecificOutput.permissionDecision == "deny" and (.hookSpecificOutput.permissionDecisionReason | contains("/" + $s) and contains("skill: \"" + $s + "\""))' "$OUTF" >/dev/null; }
+
+# shadow: logs what it would surface, prints nothing, never calls Jev
+set_mode A9-skill-router shadow
+turn t1
+bash_in "git commit -m wip"
+B="$(calls)"
+run_hook a9-skill-router.sh "$IN"
+check "A9 shadow: nothing printed" out_empty
+check "A9 shadow: logged the skill it would surface" shadow_jq '.rule=="A9-skill-router" and .mode=="shadow" and .detail.surfaced==["commit"]'
+check "A9: no Jev call (deterministic match)" no_new_calls "$B"
+
+set_mode A9-skill-router enforce
+turn t2
+bash_in "git -C $REPO commit -q -F msg.txt"
+run_hook a9-skill-router.sh "$IN"
+check "A9 enforce: raw git commit is held once, naming /commit and the Skill call" denies commit
+run_hook a9-skill-router.sh "$IN"
+check "A9 enforce: the same call again in the same turn proceeds" out_empty
+turn t3
+run_hook a9-skill-router.sh "$IN"
+check "A9 enforce: a new user turn surfaces it again" denies commit
+turn t4 commit
+run_hook a9-skill-router.sh "$IN"
+check "A9: silent once the skill is loaded this turn" out_empty
+turn t5 "some/dir:commit"
+run_hook a9-skill-router.sh "$IN"
+check "A9: a directory-qualified Skill name counts as loaded" out_empty
+turn t6 ship-it
+run_hook a9-skill-router.sh "$IN"
+check "A9: silent while an orchestrator that runs /commit is loaded" out_empty
+turn t7
+bash_in 'git add a.txt && echo "remember to git commit later"'
+run_hook a9-skill-router.sh "$IN"
+check "A9: a command only mentioned inside quotes does not match" out_empty
+bash_in "ls -la"
+run_hook a9-skill-router.sh "$IN"
+check "A9: an unrelated command is silent" out_empty
+bash_in 'echo done # git commit later'
+run_hook a9-skill-router.sh "$IN"
+check "A9: a command only mentioned in a shell comment does not match" out_empty
+write_in "$REPO/report.xlsx"
+run_hook a9-skill-router.sh "$IN"
+check "A9: a Write target matching a path trigger surfaces that skill" denies sheet
+turn t8
+bash_in "make deploy"
+run_hook a9-skill-router.sh "$IN"
+check "A9: project skill (<repo>/.claude/skills) is routed" denies proj-only
+bash_in "terraform apply -auto-approve"
+run_hook a9-skill-router.sh "$IN"
+check "A9: enabled plugin skill is routed under <plugin>:<name>" denies infra-plugin:infra
+check "A9: a disabled plugin's skill is never offered" bash -c "! grep -q offskill '$OUTF'"
+mkdir -p "$REPO/.claude"
+printf '{"enabledPlugins":{"off-plugin@mk":true}}' >"$REPO/.claude/settings.json"
+turn t8b
+run_hook a9-skill-router.sh "$IN"
+check "A9: enabling a plugin in project settings takes effect at once (cache keyed on it)" bash -c "grep -q off-plugin:offskill '$OUTF'"
+rm -f "$REPO/.claude/settings.json"
+bash_in "subtool run" "$REPO"
+run_hook a9-skill-router.sh "$IN"
+check "A9: a directory-scoped skill does not apply outside its directory" out_empty
+bash_in "subtool run" "$REPO/sub"
+run_hook a9-skill-router.sh "$IN"
+check "A9: a directory-scoped skill applies inside its directory" denies subtool
+CAT="$TEST_HOME/catalog.json"
+cp -R "$SRC/../../skills/pr" "$HOME/.claude/skills/"
+for c in "gh pr create --fill" "gh -R owner/repo pr create --fill" "gh --repo=owner/repo pr new"; do
+  turn "tpr$RANDOM"
+  bash_in "$c"
+  run_hook a9-skill-router.sh "$IN"
+  check "A9: /pr trigger matches: $c" denies pr
+done
+cp -R "$SRC/../../skills/fix-ci" "$SRC/../../skills/resolve-comments" "$HOME/.claude/skills/"
+for c in "gh run rerun 123" "gh -R owner/repo run view 123 --log-failed" "gh --repo owner/repo run rerun 123"; do
+  turn "tfc$RANDOM"
+  bash_in "$c"
+  run_hook a9-skill-router.sh "$IN"
+  check "A9: /fix-ci trigger matches: $c" denies fix-ci
+done
+for c in "gh pr review 5 --approve" "gh -R owner/repo pr review --approve" "gh --repo=owner/repo pr review --approve"; do
+  turn "trc$RANDOM"
+  bash_in "$c"
+  run_hook a9-skill-router.sh "$IN"
+  check "A9: /resolve-comments trigger matches: $c" denies resolve-comments
+done
+turn t8c
+bash_in "bash -lc 'git commit -m wip'"
+run_hook a9-skill-router.sh "$IN"
+check "A9: a command run through a shell's -c script is matched" denies commit
+turn t8d
+bash_in 'sh -c "cd /x && git commit -q -m \"bash -c later\""'
+run_hook a9-skill-router.sh "$IN"
+check "A9: a double-quoted -c script is matched" denies commit
+turn t8e
+bash_in "echo \"try bash -lc 'git commit -m wip' later\""
+run_hook a9-skill-router.sh "$IN"
+check "A9: a -c script only mentioned inside a quoted string does not match" out_empty
+turn t8e2
+bash_in 'result="$(git commit -m wip)"'
+run_hook a9-skill-router.sh "$IN"
+check "A9: a command substitution inside double quotes is matched" denies commit
+turn t8e3
+bash_in "gh api graphql -f query='mutation{resolveReviewThread(input:{threadId:\"T1\"}){thread{isResolved}}}'"
+run_hook a9-skill-router.sh "$IN"
+check "A9: a raw: trigger matches an action inside a quoted GraphQL query" denies resolve-comments
+turn t8e4
+bash_in "git commit -m 'note: resolveReviewThread is the mutation'"
+run_hook a9-skill-router.sh "$IN"
+check "A9: a raw: trigger anchored to gh api ignores prose that mentions it" bash -c "! grep -q resolve-comments '$OUTF'"
+NOGIT="$TEST_HOME/nogit"
+sk "$NOGIT/.claude/skills" nogit-tool "Project tool before git init." 'cmd:\bnogit\s+go\b'
+turn t8e5
+bash_in "nogit go" "$NOGIT"
+run_hook a9-skill-router.sh "$IN"
+check "A9: project skills are found outside a git repository" denies nogit-tool
+sk "$REPO/.claude/skills" commit "Project commit variant." 'cmd:\bgit\b(\s+-[A-Za-z]\s+\S+|\s+--\S+)*\s+commit\b'
+turn t8f
+bash_in "git commit -m wip"
+python3 -I "$HOME/.claude/hooks/jev/skill-catalog.py" --match "$IN" "$TEST_HOME/route.json"
+check "A9: a personal skill wins over a same-name project skill (Claude Code precedence)" jq -e '[.route[] | select(.base == "commit")] | length == 1 and .[0].source == "user"' "$TEST_HOME/route.json"
+rm -rf "$REPO/.claude/skills/commit"
+printf '{"skillOverrides":{"proj-only":"off"}}' >"$REPO/.claude/settings.local.json"
+turn t8g
+bash_in "make deploy"
+run_hook a9-skill-router.sh "$IN"
+check "A9: a skill turned off in .claude/settings.local.json (where /skills writes) is not routed" out_empty
+rm -f "$REPO/.claude/settings.local.json"
+mkdir -p "$HOME/.claude/jev-cache/state"
+touch -t 202001010000 "$HOME/.claude/jev-cache/state/skills-deadbeefdeadbeef.json"
+python3 -I "$HOME/.claude/hooks/jev/skill-catalog.py" "$REPO/sub" "$TEST_HOME/cat-prune.json"
+check "catalog: a rebuild prunes skill caches that expired over a day ago" bash -c "[ ! -e '$HOME/.claude/jev-cache/state/skills-deadbeefdeadbeef.json' ]"
+check "catalog: a rebuild keeps the live cache" bash -c "ls '$HOME/.claude/jev-cache/state/' | grep -q '^skills-'"
+python3 -I "$HOME/.claude/hooks/jev/skill-catalog.py" "$REPO" "$CAT"
+check "catalog: all four sources present" jq -e 'map(.source) | unique == ["directory","plugin","project","user"]' "$CAT"
+check "catalog: a skill below the cwd is qualified as <dir>:<name>" jq -e 'any(.name == "sub:subtool" and .source == "directory")' "$CAT"
+check "catalog: an orchestrator records the routed skills it runs" jq -e 'any(.name == "ship-it" and .invokes == ["commit"])' "$CAT"
+set_mode A9-skill-router off
+bash_in "git commit -m wip"
+turn t9
+run_hook a9-skill-router.sh "$IN"
+check "A9 off: silent" out_empty
+
+# A8 sees the same four sources
+mixed_fixture "$TEST_HOME/a8cat.json" infra-plugin:infra 0.9
+jq -cn --arg cwd "$REPO" '{session_id:"s8cat", cwd:$cwd, hook_event_name:"UserPromptSubmit", prompt:"apply the terraform change to staging"}' >"$IN"
+set_mode A7-memory-inject off
+JEV_MOCK="$TEST_HOME/a8cat.json" run_hook a7-a8-prompt-context.sh "$IN"
+check "A8: the request offers user, project and plugin skills" jq -e '.questions.skill.criteria | has("commit") and has("proj-only") and has("infra-plugin:infra")' "$STUB_LAST"
+check "A8: a hint can name a plugin skill" out_jq '.hookSpecificOutput.additionalContext | test("/infra-plugin:infra")'
+sk "$PLUG/skills" commit "Plugin commit helper." 'cmd:\bgit\s+commit\b'
+touch "$HOME/.claude/plugins/installed_plugins.json"
+JEV_MOCK="$TEST_HOME/a8cat.json" run_hook a7-a8-prompt-context.sh "$IN"
+check "A8: a plugin skill sharing a plain skill's base name is still offered" jq -e '.questions.skill.criteria | has("commit") and has("infra-plugin:commit")' "$STUB_LAST"
+python3 -I "$HOME/.claude/hooks/jev/skill-catalog.py" "$REPO" "$TEST_HOME/all.json"
+jq '{skillOverrides: ([.[] | .name, .base] | unique | map({(.): "off"}) | add)}' "$TEST_HOME/all.json" >"$REPO/.claude/settings.local.json"
+mixed_fixture "$TEST_HOME/a8off.json" commit 0.9
+jq -cn --arg cwd "$REPO" '{session_id:"s8off", cwd:$cwd, hook_event_name:"UserPromptSubmit", prompt:"commit this change"}' >"$IN"
+JEV_MOCK="$TEST_HOME/a8off.json" run_hook a7-a8-prompt-context.sh "$IN"
+check "A8: an empty catalog (every skill turned off) is honoured, not replaced by the unfiltered list" bash -c "! grep -q '/commit' '$OUTF'"
+rm -f "$REPO/.claude/settings.local.json"
 
 # ------------------------------------------------------------------ registry / wiring
 echo "registry + wiring"
 RULES="$SRC/rules.d/context.json"
 check "rules.d/context.json is valid JSON" jq -e . "$RULES"
-check "every Phase 3 rule is registered under the \"rules\" key" jq -e '.rules | has("A1-read-trim") and has("A2-search-rank") and has("A3-bash-trim") and has("A4-task-boundary") and has("A5-compact-reinject") and has("A5b-compact-state") and has("A6-agent-router") and has("A7-memory-inject") and has("A8-skill-picker")' "$RULES"
-check "every Jev rule ships enforce (A7/A8: enforce interactive, shadow in a bgjob)" jq -e '.rules | to_entries | all(.value.mode == "enforce" or .value.mode == {"interactive": "enforce", "bgjob": "shadow"})' "$RULES"
+check "every Phase 3 rule is registered under the \"rules\" key" jq -e '.rules | has("A1-read-trim") and has("A2-search-rank") and has("A3-bash-trim") and has("A4-task-boundary") and has("A5-compact-reinject") and has("A5b-compact-state") and has("A6-agent-router") and has("A7-memory-inject") and has("A8-skill-picker") and has("A9-skill-router")' "$RULES"
+check "every Jev context rule ships enforce in every session kind" jq -e '.rules | to_entries | all(.value.mode == "enforce")' "$RULES"
 check "A7 and A8 are scoped to interactive and bgjob" jq -e '.rules | (.["A7-memory-inject"].scope == ["interactive","bgjob"]) and (.["A8-skill-picker"].scope == ["interactive","bgjob"])' "$RULES"
 check "every rule declares a scope" jq -e '.rules | to_entries | all(.value.scope | type == "array" and length > 0)' "$RULES"
 SETTINGS="$REPO_ROOT/system-configs/.claude/settings.json"
-for s in a1-read-trim a2-search-rank a3-bash-trim a4-task-boundary a5-compact-reinject a6-agent-router a7-a8-prompt-context; do
+for s in a1-read-trim a2-search-rank a3-bash-trim a4-task-boundary a5-compact-reinject a6-agent-router a7-a8-prompt-context a9-skill-router; do
   check "settings.json registers $s.sh" jq -e --arg s "hooks/jev/$s.sh" '[.hooks[][].hooks[].command] | any(endswith($s))' "$SETTINGS"
   check "$s.sh exists, is executable and parses" bash -c "[ -x '$SRC/$s.sh' ] && bash -n '$SRC/$s.sh'"
   check "scripts/sync.sh deploys $s.sh" grep -q "hooks/jev/$s.sh" "$REPO_ROOT/scripts/sync.sh"

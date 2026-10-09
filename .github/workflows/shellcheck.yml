@@ -18,7 +18,7 @@ permissions:
 jobs:
   shellcheck:
     name: ShellCheck Analysis
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
     - name: Checkout code
@@ -26,7 +26,7 @@ jobs:
 
     - name: Install ShellCheck
       run: |
-        # ShellCheck is pre-installed on ubuntu-latest runners
+        # ShellCheck is pre-installed on ubuntu-24.04 runners
         if command -v shellcheck &> /dev/null; then
           echo "✓ ShellCheck already installed:"
           shellcheck --version
@@ -169,7 +169,7 @@ jobs:
 
   shellcheck-critical:
     name: Critical Scripts Validation
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # This job validates critical scripts with slightly stricter rules than general scripts
     # but still uses warning-level severity to avoid blocking on style preferences
 
@@ -179,7 +179,7 @@ jobs:
 
     - name: Install ShellCheck
       run: |
-        # ShellCheck is pre-installed on ubuntu-latest runners
+        # ShellCheck is pre-installed on ubuntu-24.04 runners
         if command -v shellcheck &> /dev/null; then
           echo "✓ ShellCheck already installed:"
           shellcheck --version

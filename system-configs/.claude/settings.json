@@ -44,21 +44,21 @@
     "claude-md-management@claude-plugins-official": true,
     "claude-security@claude-plugins-official": true,
     "code-review@claude-plugins-official": false,
-    "cowork-plugin-management@knowledge-work-plugins": true,
-    "customer-support@knowledge-work-plugins": true,
+    "cowork-plugin-management@knowledge-work-plugins": false,
+    "customer-support@knowledge-work-plugins": false,
     "data@knowledge-work-plugins": true,
-    "design@knowledge-work-plugins": true,
+    "design@knowledge-work-plugins": false,
     "discernment-nudge@anthropic-agent-skills": false,
     "document-skills@anthropic-agent-skills": false,
     "engineering@knowledge-work-plugins": true,
     "enterprise-search@knowledge-work-plugins": true,
-    "example-skills@anthropic-agent-skills": true,
-    "finance@knowledge-work-plugins": true,
+    "example-skills@anthropic-agent-skills": false,
+    "finance@knowledge-work-plugins": false,
     "frontend-design@claude-plugins-official": true,
-    "human-resources@knowledge-work-plugins": true,
+    "human-resources@knowledge-work-plugins": false,
     "legal@knowledge-work-plugins": true,
     "marketing@knowledge-work-plugins": true,
-    "operations@knowledge-work-plugins": true,
+    "operations@knowledge-work-plugins": false,
     "pdf-viewer@knowledge-work-plugins": false,
     "plugin-dev@claude-plugins-official": true,
     "product-management@knowledge-work-plugins": true,
@@ -66,7 +66,7 @@
     "promptfoo-evals@claude-community": true,
     "pyright-lsp@claude-plugins-official": true,
     "ralph-loop@claude-plugins-official": true,
-    "sales@knowledge-work-plugins": true,
+    "sales@knowledge-work-plugins": false,
     "session-report@claude-plugins-official": true,
     "skill-creator@claude-plugins-official": true,
     "small-business@knowledge-work-plugins": true,
@@ -201,6 +201,16 @@
             "timeout": 5
           }
         ]
+      },
+      {
+        "matcher": "Bash|Write|Edit|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/a9-skill-router.sh",
+            "timeout": 5
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -264,6 +274,29 @@
             "timeout": 5
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/pr-landing-gate.sh",
+            "if": "Bash(gh *pr create*)",
+            "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/pr-landing-gate.sh",
+            "if": "Bash(git *push*)",
+            "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/pr-landing-gate.sh",
+            "if": "Bash(*git-agent.sh*)",
+            "timeout": 15
+          }
+        ]
       }
     ],
     "PreCompact": [
@@ -304,6 +337,11 @@
           {
             "type": "command",
             "command": "${HOME}/.claude/hooks/jev/session-check.sh",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/audit-digest.sh",
             "timeout": 5
           }
         ]
@@ -383,6 +421,16 @@
           },
           {
             "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/link-lint.sh",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/link-validate.sh",
+            "timeout": 20
+          },
+          {
+            "type": "command",
             "command": "${HOME}/.claude/hooks/jev/papercut-nudge.sh",
             "timeout": 10
           }
@@ -403,6 +451,15 @@
             "type": "command",
             "command": "${HOME}/.claude/hooks/jev/a4-task-boundary.sh",
             "timeout": 10
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/pr-landing-gate.sh",
+            "timeout": 60
           }
         ]
       }
