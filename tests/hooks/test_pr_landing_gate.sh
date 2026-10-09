@@ -163,6 +163,8 @@ pr repo='["coderabbitai"]' reviews='[{"author":{"login":"coderabbitai"},"commit"
 eq "bot reviewed only an older head: waits" "$(PR_LAND_NOW=$((HEAD_EPOCH + 60)) v)" pending
 pr repo='["chatgpt-codex-connector"]' comments='[{"author":{"login":"chatgpt-codex-connector"},"createdAt":"2026-10-08T12:03:00Z"}]'
 eq "bot commented after the head: no wait" "$(PR_LAND_NOW=$((HEAD_EPOCH + 60)) v)" ready
+eq "a comment older than the head's first sighting (old commit pushed again) is not an answer" \
+  "$(PR_LAND_FIRST_SEEN=$((HEAD_EPOCH + 600)) PR_LAND_NOW=$((HEAD_EPOCH + 660)) v)" pending
 pr repo='["chatgpt-codex-connector"]' comments='[{"author":{"login":"chatgpt-codex-connector"},"createdAt":"2026-10-08T12:01:00Z","body":"<!-- codex-security-review:v1 {\"status\":\"running\"} --> Code Review 🔄 Running"}]'
 eq "a bot's 'review running' comment is not an answer" "$(PR_LAND_NOW=$((HEAD_EPOCH + 60)) v)" pending
 pr repo='["someone-else"]'

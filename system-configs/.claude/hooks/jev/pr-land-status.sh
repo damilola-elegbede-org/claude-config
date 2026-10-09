@@ -123,13 +123,15 @@ status_once() {
     | ([$r.pullRequests.nodes[] | (.reviews.nodes[], .comments.nodes[]) | .author.login // empty]
        + [$p.reviews.nodes[], $p.comments.nodes[] | .author.login // empty] | unique) as $seen
     | ($head.committedDate | fromdateiso8601) as $headt
+    | ([$headt, ($p.createdAt // "1970-01-01T00:00:00Z" | fromdateiso8601), $first_seen] | max) as $since
+    # A comment answers this head only if it is newer than the head as observed: an old commit pushed
+    # again (force-push back) must not inherit a comment made on the head before it.
     | ([$bots[] as $b | select($seen | index($b))
         | select(([$p.reviews.nodes[] | select(.author.login == $b and .commit.oid == $p.headRefOid)] | length) == 0
-             and ([$p.comments.nodes[] | select(.author.login == $b and ((.createdAt | fromdateiso8601) >= $headt))
+             and ([$p.comments.nodes[] | select(.author.login == $b and ((.createdAt | fromdateiso8601) >= $since))
                    # a "review running" status comment is not an answer (Codex posts one when it starts)
                    | select((.body // "") | test("\"status\":\"running\"|🔄|review in progress|currently processing"; "i") | not)] | length) == 0)
         | $b]) as $silent
-    | ([$headt, ($p.createdAt // "1970-01-01T00:00:00Z" | fromdateiso8601), $first_seen] | max) as $since
     | (($now - $since) < ($grace * 60)) as $in_grace
     | ([ if $p.isDraft then {kind:"draft", fix:"gh pr ready"} else empty end,
          if $p.mergeStateStatus == "DIRTY" or $p.mergeable == "CONFLICTING" then {kind:"conflicts", fix:"/rebase, then /push"} else empty end,
