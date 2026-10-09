@@ -140,7 +140,7 @@ def slash: "[slash command] " + (try (match("<command-name>([^<]*)</command-name
             elif .type=="tool_result" then
               ($tools[.tool_use_id] // {n:"", c:""}) as $tl
               | (.content | txt) as $b
-              | if $tl.n == "AskUserQuestion" then {r:"D", t:($b | clip(800)), u:$m.uuid, ts:$m.timestamp, ask:true}
+              | if $tl.n == "AskUserQuestion" then {r:"D", t:($b | if length > 800 then .[0:350] + " ... " + .[-450:] else . end), u:$m.uuid, ts:$m.timestamp, ask:true}
                 elif (($tl.n | test("gmail|slack"; "i")) or ($tl.n == "Bash" and ($tl.c | test("gmail|slack"; "i")))) then
                   {r:"untrusted", src:(if ($tl.n + $tl.c | test("gmail"; "i")) then "gmail" else "slack" end), t:"[body withheld by egress policy]"}
                 elif (($tl.n | test("^(WebFetch|WebSearch)$|^mcp__")) or ($tl.n == "Bash" and ($tl.c | test("\\b(gh\\s+(pr|issue|api)|curl|wget)\\b")))) then

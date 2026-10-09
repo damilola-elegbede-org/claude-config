@@ -33,11 +33,20 @@ TRANSCRIPT=$(jq -r '.transcript_path // empty' <<<"$INPUT" 2>/dev/null)
 CWD=$(jq -r '.cwd // empty' <<<"$INPUT" 2>/dev/null)
 
 LINT_MODE=$(re_mode executive-lint enforce)
+META_MODE=$(re_mode executive-lint-meta "$LINT_MODE")
+BARE_MODE=$(re_mode executive-lint-bare-id "$LINT_MODE")
+# Tag problems on replies this short are logged (tagshort) but never block, unless the reply asks D a question
+# (a "?" means D has a move to make, so it needs its INPUT/DECISION tag).
+TAG_MIN_CHARS=0
+[ "$SESSION_SCOPE" = bgjob ] && TAG_MIN_CHARS=$(re_cfg executive-lint bgjob_tag_min_chars 500)
+case "$TAG_MIN_CHARS" in '' | *[!0-9]*) TAG_MIN_CHARS=0 ;; esac
+# Where a bare ticket ID should link; the block message quotes it so the agent never invents a slug-less URL.
+LINEAR_URL=$(re_cfg executive-lint linear_issue_url "${RE_LINEAR_URL:-https://linear.app/bareclaude/issue}")
 MAX_LINES=$(re_cfg executive-lint max_lines 60)
 case "$MAX_LINES" in '' | *[!0-9]*) MAX_LINES=60 ;; esac
 
 # --- regex checks -------------------------------------------------------------
-LINT=$(printf '%s' "$MSG" | RE_MAX_LINES="$MAX_LINES" RE_LINEAR="${RE_LINEAR_PREFIXES:-ENG|OPS}" python3 -c '
+LINT=$(printf '%s' "$MSG" | RE_MAX_LINES="$MAX_LINES" RE_LINEAR="${RE_LINEAR_PREFIXES:-ENG|OPS}" RE_TAG_MIN="$TAG_MIN_CHARS" RE_LINEAR_URL="$LINEAR_URL" python3 -c '
 import os, re, sys
 msg = sys.stdin.read()
 lines = msg.rstrip("\n").split("\n")
@@ -47,21 +56,22 @@ first = next((l for l in lines if l.strip()), "")
 m = re.match(r"^\*\*(" + TAGS + r")(?=[\s*:·—-]|$)", first.strip())
 tag = m.group(1) if m else ""
 if not m or first.count("**") < 2:
-    problems.append("line 1 must be one bold sentence starting with a tag (" + TAGS.replace("|", "/") + "), e.g. **ACTION · conclusion.**")
+    code = "tag" if (len(msg) > int(os.environ.get("RE_TAG_MIN", "0")) or "?" in msg) else "tagshort"
+    problems.append(code + "\tline 1 must be one bold sentence starting with a tag (" + TAGS.replace("|", "/") + "), e.g. **ACTION · conclusion.** (DECISION/APPROVAL/ACTION/BLOCKED also need line 2 to be exactly: Confidence **high/medium/low** (basis) · Reversible **yes/no** · Deadline **when**)")
 if tag in ("DECISION", "APPROVAL", "ACTION", "BLOCKED"):
     head = "\n".join(lines[:6])
     if not (re.search(r"Confidence\b", head) and re.search(r"Reversible\b", head) and re.search(r"Deadline\b", head)):
-        problems.append(tag + " needs the meta line right after line 1: Confidence **high/medium/low** (basis) · Reversible **yes/no** · Deadline **when**")
+        problems.append("meta\t" + tag + " needs the meta line right after line 1: Confidence **high/medium/low** (basis) · Reversible **yes/no** · Deadline **when**")
 limit = int(os.environ.get("RE_MAX_LINES", "60"))
 if len(lines) > limit:
-    problems.append("reply is %d lines; a brief fits on one screen (max %d) — cut it, or move the bulk into an artifact/file" % (len(lines), limit))
+    problems.append("len\treply is %d lines; a brief fits on one screen (max %d) — cut it, or move the bulk into an artifact/file" % (len(lines), limit))
 body = re.sub(r"```.*?```", " ", msg, flags=re.S)
 body = re.sub(r"`[^`\n]*`", " ", body)
 body = re.sub(r"\[[^\]]*\]\([^)]*\)", " ", body)
 body = re.sub(r"https?://\S+", " ", body)
 bare = sorted(set(re.findall(r"(?<![\w/.-])(?:" + os.environ.get("RE_LINEAR", "ENG|OPS") + r")-\d+\b", body)))
 if bare:
-    problems.append("bare Linear ID(s) " + ", ".join(bare) + " — every ticket reference is a full clickable link [ID](url)")
+    problems.append("bare\tbare Linear ID(s) " + ", ".join(bare) + " — every ticket reference is a full clickable link, including in line 1: [ID](" + os.environ.get("RE_LINEAR_URL", "") + "/ID)")
 print(tag)
 for p in problems:
     print(p)
@@ -71,16 +81,17 @@ PROBLEMS=$(printf '%s\n' "$LINT" | tail -n +2)
 
 # --- Jev shadow checks (never affect the verdict unless a rule is set to enforce) --
 EXTRA=""
+SCOPE_FLASH=""
 TAG_MODE=$(re_mode executive-tag-correctness shadow)
 SRC_MODE=$(re_mode executive-unsourced-claims shadow)
 SCOPE_MODE=$(re_mode executive-scope-creep shadow)
-# A background job's report is read by D, never re-prompted: nothing blocks there. Whatever the
-# registry says, every rule runs in shadow (logged as would-block) and the hook exits 0.
+# A background job's Jev model checks (tag-correctness, unsourced, scope) never block: forced to
+# shadow. The regex lint modes (executive-lint, -meta, -bare-id) are honored per scope from the registry.
 if [ "$SESSION_SCOPE" = bgjob ]; then
-  for m in LINT_MODE TAG_MODE SRC_MODE SCOPE_MODE; do
+  for m in TAG_MODE SRC_MODE SCOPE_MODE; do
     [ "${!m}" = enforce ] && printf -v "$m" shadow
   done
-  [ "$LINT_MODE$TAG_MODE$SRC_MODE$SCOPE_MODE" = offoffoffoff ] && exit 0
+  [ "$LINT_MODE$META_MODE$BARE_MODE$TAG_MODE$SRC_MODE$SCOPE_MODE" = offoffoffoffoffoff ] && exit 0
 fi
 if [ "$ACTIVE" != true ] && [ -n "$TAG" ] && { [ "$TAG_MODE" != off ] || [ "$SRC_MODE" != off ] || [ "$SCOPE_MODE" != off ]; }; then
   FIRST_PROMPT=""
@@ -114,7 +125,10 @@ PYEOF
     Q=$(jq -c '. + {scope:{type:"boolean",instructions:"Does the diff stat show changes beyond what the first user prompt asked for (refactors, adjacent files, extra features)?",criteria:{"true":"files or areas changed that the prompt did not imply","false":"every changed file is implied by the prompt"}}}' <<<"$Q")
   fi
   if [ "$Q" != '{}' ]; then
-    STATE=$(jq -nc --arg reply "${MSG:0:3500}" --arg prompt "$FIRST_PROMPT" --arg diff "$DIFFSTAT" \
+    # Long replies keep their head and tail: the tag is at the top and the Next line at the bottom.
+    REPLY_J="$MSG"
+    if [ "${#MSG}" -gt 3500 ]; then REPLY_J="${MSG:0:1200}"$'\n[... middle omitted ...]\n'"${MSG: -2200}"; fi
+    STATE=$(jq -nc --arg reply "$REPLY_J" --arg prompt "$FIRST_PROMPT" --arg diff "$DIFFSTAT" \
       '{reply:$reply,first_user_prompt:$prompt,diff_stat:$diff}')
     if RESP=$(re_jev_req executive-lint "$STATE" "$Q" 1500 | re_jev_call 2>/dev/null) && [ -n "$RESP" ]; then
       ACT_TAG="$TAG"
@@ -125,7 +139,7 @@ PYEOF
         re_log executive-tag-correctness "$([ "$JTAG" = "$ACT_TAG" ] && echo agree || echo mismatch)" "actual=$ACT_TAG jev=$JTAG p=$JP"
         if [ "$TAG_MODE" = enforce ] && [ "$JTAG" != "$ACT_TAG" ] && \
           awk -v p="${JP:-0}" -v t="$(re_cfg executive-tag-correctness threshold 0.9)" 'BEGIN{exit !(p+0>=t+0)}'; then
-          EXTRA="${EXTRA}tag ${TAG} looks wrong: D's next move reads as ${JTAG}"$'\n'
+          EXTRA="${EXTRA}tag ${TAG} looks wrong: D's next move reads as ${JTAG}. Retag line 1; DECISION, APPROVAL and ACTION also need the meta line (Confidence · Reversible · Deadline), and a DECISION, APPROVAL or INPUT goes to D through AskUserQuestion"$'\n'
         fi
       fi
       # Jev's score answer carries a probability per level, not a level: P(level>=2) = p["2"] + p["3"].
@@ -133,7 +147,7 @@ PYEOF
       if [ -n "$JSRC" ]; then
         re_log executive-unsourced-claims "p=$JSRC" ""
         if [ "$SRC_MODE" = enforce ] && \
-          awk -v p="$JSRC" -v t="$(re_cfg executive-unsourced-claims threshold 0.85)" 'BEGIN{exit !(p+0>=t+0)}'; then
+          awk -v p="$JSRC" -v t="$(re_cfg executive-unsourced-claims threshold 0.92)" 'BEGIN{exit !(p+0>=t+0)}'; then
           EXTRA="${EXTRA}claims D may act on lack sources — add file:line / command output / URL, or mark untested or inference"$'\n'
         fi
       fi
@@ -143,25 +157,54 @@ PYEOF
         if [ "$SCOPE_MODE" = enforce ] && awk -v p="$JSC" -v t="$(re_cfg executive-scope-creep threshold 0.9)" 'BEGIN{exit !(p+0>=t+0)}'; then
           EXTRA="${EXTRA}the diff looks wider than the request (CLAUDE.md Changes: touch only what the request implies)"$'\n'
         fi
+        # Advisory flash: never blocks, any mode but off, any scope (incl. bgjob), at most once per session.
+        if awk -v p="$JSC" -v t="$(re_cfg executive-scope-creep flash_threshold 0.95)" 'BEGIN{exit !(p+0>=t+0)}'; then
+          FLASH_MARK="$(re_session_dir "$(jq -r '.session_id // empty' <<<"$INPUT" 2>/dev/null)")/scope-flash"
+          if [ ! -e "$FLASH_MARK" ]; then
+            mkdir -p "$(dirname "$FLASH_MARK")" 2>/dev/null && : >"$FLASH_MARK" 2>/dev/null
+            SCOPE_FLASH="Jev: the changes so far look wider than what you asked for (scope check p=${JSC}). Advisory only; nothing was blocked."
+            re_log executive-scope-creep flash "p=$JSC"
+          fi
+        fi
       fi
     fi
   fi
 fi
 
-if [ -n "$PROBLEMS" ] && [ "$LINT_MODE" = shadow ]; then
-  re_log executive-lint shadow-would-block "$(printf '%s' "$PROBLEMS" | head -1)"
-fi
+# One would-block row per shadowed check (the old code logged only the first problem, hiding meta/bare).
 BLOCKING=""
-[ "$LINT_MODE" = enforce ] && BLOCKING="$PROBLEMS"
+BLOCKCODES=""
+while IFS=$'\t' read -r code text; do
+  [ -n "$code" ] || continue
+  case "$code" in
+    tag) mode=$LINT_MODE ;;
+    len) mode=$LINT_MODE ;;
+    meta) mode=$META_MODE ;;
+    bare) mode=$BARE_MODE ;;
+    *) mode=shadow ;; # tagshort: short replies are never blocked
+  esac
+  case "$mode" in
+    enforce)
+      BLOCKING="${BLOCKING}${text}"$'\n'
+      BLOCKCODES="${BLOCKCODES:+$BLOCKCODES,}$code"
+      ;;
+    shadow) re_log "executive-lint-$code" shadow-would-block "$text" ;;
+  esac
+done <<<"$PROBLEMS"
 ALL=$(printf '%s%s' "$BLOCKING" "${EXTRA:+$'\n'$EXTRA}" | sed '/^$/d')
-[ -n "$ALL" ] || exit 0
-
-[ "$SESSION_SCOPE" = bgjob ] && exit 0
+# A bgjob blocks only on regex-lint problems; Jev model extras are shadow-only there (forced above).
+if [ -z "$ALL" ] || { [ "$SESSION_SCOPE" = bgjob ] && [ -z "$BLOCKING" ]; }; then
+  [ -n "$SCOPE_FLASH" ] && jq -nc --arg m "$SCOPE_FLASH" '{systemMessage:$m}'
+  exit 0
+fi
+# D sees every Jev action: systemMessage is the user-visible channel (the model only gets `reason`).
+WHAT="${BLOCKCODES:-jev model check}"
 if [ "$ACTIVE" = true ]; then
   re_log executive-lint allow-stop-hook-active "$(printf '%s' "$ALL" | head -1)"
+  jq -nc --arg m "Jev: executive-lint let a reply through after one retry, still off-style ($WHAT)${SCOPE_FLASH:+ | $SCOPE_FLASH}" '{systemMessage:$m}'
   exit 0
 fi
 re_log executive-lint block "$(printf '%s' "$ALL" | head -1)"
-REASON="Executive style violations in your last reply (output style Executive; fix and send the corrected reply, do not mention this check):"$'\n'"$(printf '%s' "$ALL" | sed 's/^/- /')"
-re_block "$REASON"
+REASON="Executive style violations in your last reply (output style Executive; fix and send the corrected reply):"$'\n'"$(printf '%s' "$ALL" | sed 's/^/- /')"
+jq -nc --arg r "$REASON" --arg m "Jev: executive-lint blocked a reply and asked for a rewrite ($WHAT)${SCOPE_FLASH:+ | $SCOPE_FLASH}" '{decision:"block",reason:$r,systemMessage:$m}'
 exit 0
