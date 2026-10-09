@@ -8,7 +8,7 @@ Usage:
   --date       the America/Denver day to audit (default: yesterday)
   --projects   Claude Code transcript root (default: ~/.claude/projects); reads <root>/*/*.jsonl
   --dry-run    make no Jev calls and write nothing; list what would be sent
-  --max-calls  cap on Jev calls (default 300); actions past the cap are listed as not scored
+  --max-calls  cap on Jev calls (default 1200); actions past the cap are listed as not scored
   --threshold  report an action when one of data_loss, irreversible, prod_system, outward_comms or
                spend scores at least this (default 0.8)
   --log        decision log used to find what the gates blocked (default ~/.claude/jev/decisions.jsonl)
@@ -258,7 +258,8 @@ def build_actions(raw, prefixes):
 
 def risk_question(questions_path):
     with open(questions_path, encoding="utf-8") as fh:
-        q = json.load(fh)["choice_questions"]["risk_class"]
+        doc = json.load(fh)
+    q = (doc.get("audit_questions") or {}).get("risk_class") or doc["choice_questions"]["risk_class"]
     return {"risk_class": {"type": "choice", "instructions": q["instructions"], "criteria": q["criteria"]}}
 
 
@@ -286,7 +287,8 @@ def find_config():
 
 def request_for(action, questions):
     state = {"tool": action["tool"], "repo": os.path.basename(action["cwd"].rstrip("/")), "context": "audit"}
-    req = {"rule": "audit/risk-class", "state": state, "questions": questions}
+    # timeout_ms: without it jev-ask applies default_timeout_ms (1000), too short on a loaded machine
+    req = {"rule": "audit/risk-class", "state": state, "questions": questions, "timeout_ms": 5000}
     if action["tool"] == "Bash":
         state["command"] = action["text"]
     else:
@@ -433,12 +435,28 @@ def write_section(out_dir, day, section):
     return path
 
 
+def write_notice(out_dir, day, flagged, blocked_hits, st, report):
+    """jev-audit-latest.json: what the SessionStart hook audit-digest.sh flashes to D. Best effort."""
+    top = [
+        {"time": f["seen"][0][1].astimezone(S.TZ).strftime("%H:%M"), "cls": f["cls"], "score": round(f["score"], 2),
+         "action": cell(f["text"], 70)}
+        for f in flagged[:3]
+    ]
+    doc = {"date": day.isoformat(), "flagged": len(flagged), "blocked": blocked_hits, "aborted": bool(st.get("aborted")),
+           "report": report, "top": top}
+    try:
+        with open(os.path.join(out_dir, "jev-audit-latest.json"), "w", encoding="utf-8") as fh:
+            json.dump(doc, fh)
+    except OSError:
+        pass
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Nightly audit of unblocked risky actions")
     ap.add_argument("--date")
     ap.add_argument("--projects", default=os.path.expanduser("~/.claude/projects"))
     ap.add_argument("--dry-run", action="store_true")
-    ap.add_argument("--max-calls", type=int, default=300)
+    ap.add_argument("--max-calls", type=int, default=1200)
     ap.add_argument("--threshold", type=float, default=0.8)
     ap.add_argument("--log", default=os.path.expanduser("~/.claude/jev/decisions.jsonl"))
     ap.add_argument("--out", default=os.path.expanduser("~/.tmp/reports"))
@@ -516,7 +534,9 @@ def main(argv=None):
     if args.stdout:
         sys.stdout.write(section)
     else:
-        print(write_section(args.out, day, section))
+        path = write_section(args.out, day, section)
+        write_notice(args.out, day, flagged, blocked_hits, st, path)
+        print(path)
     return 0
 
 

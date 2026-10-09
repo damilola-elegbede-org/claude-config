@@ -75,7 +75,7 @@ describe("jevlight", () => {
       });
 
       const ui = await $.ui.mount(result(surface, "t1"));
-      const line = await ui.find({ type: "Text", text: /⚡ Jev blocked Bash/ });
+      const line = await ui.find({ type: "Text", text: /⚡️ Jev blocked Bash/ });
       expect(line?.props.color).toBe(SKY);
     });
   }
@@ -91,7 +91,7 @@ describe("jevlight", () => {
 
     const id = (ran as { tool_use_id?: string }).tool_use_id ?? "x";
     const ui = await $.ui.mount(result("terminal", id));
-    expect(await ui.find({ text: /⚡ Jev/ })).toBeUndefined();
+    expect(await ui.find({ text: /⚡️ Jev/ })).toBeUndefined();
     expect(logged).toEqual([]);
   });
 
@@ -105,7 +105,7 @@ describe("jevlight", () => {
       block: "Executive style: line 1 needs a tag",
     });
     expect(logged).toEqual([
-      "⚡ Jev held the stop: Executive style: line 1 needs a tag",
+      "⚡️ Jev held the stop: Executive style: line 1 needs a tag",
     ]);
   });
 
@@ -135,8 +135,8 @@ describe("jevlight", () => {
         additionalContext: ["Retry bound hit", "", "Known papercut"],
       }),
     ).toEqual([
-      "⚡ Jev noted Bash failure: Retry bound hit",
-      "⚡ Jev noted Bash failure: Known papercut",
+      "⚡️ Jev noted Bash failure: Retry bound hit",
+      "⚡️ Jev noted Bash failure: Known papercut",
     ]);
   });
 
@@ -154,7 +154,7 @@ describe("jevlight", () => {
     });
 
     expect(store.get("marks:s1")).toEqual({
-      r1: ["⚡ Jev trimmed Read output"],
+      r1: ["⚡️ Jev trimmed Read output"],
     });
     expect(store.get("sessions")).toEqual(["s1"]);
   });
@@ -162,7 +162,7 @@ describe("jevlight", () => {
   test("a resumed session draws its saved marks again", async ($, on) => {
     engine(on);
     const store = memoryStore(on);
-    store.set("marks:s2", { t9: ["⚡ Jev blocked Bash: saved earlier"] });
+    store.set("marks:s2", { t9: ["⚡️ Jev blocked Bash: saved earlier"] });
     on("classic.UserPromptSubmit", () => ({}));
 
     await $.classic.UserPromptSubmit({ session_id: "s2", prompt: "hi" });
@@ -195,7 +195,7 @@ describe("jevlight", () => {
 
   test("a trim is marked; old calls drop past the cap", () => {
     expect(actionsOf("Read output", { updatedToolOutput: "short" })).toEqual([
-      "⚡ Jev trimmed Read output",
+      "⚡️ Jev trimmed Read output",
     ]);
     let all = {};
     for (let n = 0; n < 205; n++) all = addMarks(all, `id${n}`, ["x"]);

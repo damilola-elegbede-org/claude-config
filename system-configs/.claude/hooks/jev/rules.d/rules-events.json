@@ -16,9 +16,19 @@
     "scope": ["interactive", "bgjob", "fleet"]
   },
   "executive-lint": {
-    "mode": { "interactive": "enforce", "bgjob": "shadow" },
+    "mode": { "interactive": "enforce", "bgjob": "enforce" },
     "scope": ["interactive", "bgjob"],
-    "max_lines": 60
+    "max_lines": 60,
+    "bgjob_tag_min_chars": 500,
+    "linear_issue_url": "https://linear.app/bareclaude/issue"
+  },
+  "executive-lint-meta": {
+    "mode": { "interactive": "enforce", "bgjob": "enforce" },
+    "scope": ["interactive", "bgjob"]
+  },
+  "executive-lint-bare-id": {
+    "mode": { "interactive": "enforce", "bgjob": "enforce" },
+    "scope": ["interactive", "bgjob"]
   },
   "link-lint": {
     "mode": { "interactive": "enforce", "bgjob": "shadow" },
@@ -35,18 +45,19 @@
   "stopfailure-hint": { "mode": "enforce", "scope": ["interactive"] },
 
   "executive-tag-correctness": {
-    "mode": { "interactive": "shadow", "bgjob": "shadow" },
+    "mode": { "interactive": "enforce", "bgjob": "shadow" },
     "threshold": 0.9,
     "scope": ["interactive", "bgjob"]
   },
   "executive-unsourced-claims": {
-    "mode": { "interactive": "enforce", "bgjob": "shadow" },
-    "threshold": 0.85,
+    "mode": { "interactive": "shadow", "bgjob": "shadow" },
+    "threshold": 0.92,
     "scope": ["interactive", "bgjob"]
   },
   "executive-scope-creep": {
     "mode": { "interactive": "shadow", "bgjob": "shadow" },
     "threshold": 0.9,
+    "flash_threshold": 0.95,
     "scope": ["interactive", "bgjob"]
   },
   "papercut-nudge": {
@@ -86,36 +97,36 @@
   },
 
   "workflow-linear-presort": {
-    "mode": { "interactive": "enforce", "bgjob": "shadow" },
+    "mode": { "interactive": "enforce", "bgjob": "enforce" },
     "threshold": 0.5,
     "scope": ["interactive", "bgjob"]
   },
   "workflow-commit-type": {
-    "mode": { "interactive": "enforce", "bgjob": "shadow" },
-    "threshold": 0.7,
+    "mode": { "interactive": "enforce", "bgjob": "enforce" },
+    "threshold": 0.8,
     "scope": ["interactive", "bgjob"]
   },
   "workflow-commit-mixed": {
-    "mode": { "interactive": "enforce", "bgjob": "shadow" },
+    "mode": { "interactive": "enforce", "bgjob": "enforce" },
     "threshold": 0.8,
     "scope": ["interactive", "bgjob"]
   },
   "workflow-branch-type": {
-    "mode": { "interactive": "enforce", "bgjob": "shadow" },
+    "mode": { "interactive": "shadow", "bgjob": "shadow" },
     "threshold": 0.7,
     "scope": ["interactive", "bgjob"]
   },
   "workflow-review-depth": {
-    "mode": { "interactive": "enforce", "bgjob": "shadow" },
+    "mode": { "interactive": "enforce", "bgjob": "enforce" },
     "scope": ["interactive", "bgjob"]
   },
   "workflow-ci-class": {
-    "mode": { "interactive": "enforce", "bgjob": "shadow" },
+    "mode": { "interactive": "shadow", "bgjob": "shadow" },
     "threshold": 0.7,
     "scope": ["interactive", "bgjob"]
   },
   "workflow-verify-class": {
-    "mode": { "interactive": "enforce", "bgjob": "shadow" },
+    "mode": { "interactive": "shadow", "bgjob": "shadow" },
     "threshold": 0.7,
     "scope": ["interactive", "bgjob"]
   },

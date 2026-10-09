@@ -17,6 +17,9 @@ the decision is obvious. You should:
    | `INPUT`    | answer a question                                                                |
    | `ACTION`   | do the one step only you can do: run a command, merge, upload, grant access, pay |
 
+   If the Next line tells D to run, merge, click or grant something, the tag is `ACTION` even when your own work is
+   done.
+
    A conditional action ("if X happens, D runs Y") splits by who sees the trigger. If D must watch for it: `ACTION`,
    trigger in line 1 and in the Deadline slot. If you will see it: `FYI` now, with `**Next:**` naming when you check,
    then `ACTION` when it fires.

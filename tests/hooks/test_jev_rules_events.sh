@@ -61,15 +61,20 @@ jq -e . "$RJ" >/dev/null 2>&1 && ok || bad "rules-events.json is valid JSON"
 # A mode is a string or an object keyed by session type; the interactive value is the shipped behaviour.
 IM='(.mode | if type == "object" then .interactive else . end)'
 NONENFORCE=$(jq -r "to_entries[] | select(.value.threshold != null and (.value | $IM) != \"enforce\") | .key" "$RJ" | sort | paste -sd, -)
-eq "every Jev rule (has threshold) ships enforce except the two D kept in shadow" "$NONENFORCE" "executive-scope-creep,executive-tag-correctness"
-eq "executive-tag-correctness ships shadow" "$(jq -r ".\"executive-tag-correctness\" | $IM" "$RJ")" "shadow"
+# Interactive shadow: the rules whose measured precision did not clear enforce (Monte Carlo tuning, D approved).
+eq "every Jev rule (has threshold) ships enforce except the tuned shadow set" "$NONENFORCE" "executive-scope-creep,executive-unsourced-claims,workflow-branch-type,workflow-ci-class,workflow-verify-class"
+eq "executive-tag-correctness ships enforce" "$(jq -r ".\"executive-tag-correctness\" | $IM" "$RJ")" "enforce"
+eq "executive-unsourced-claims ships shadow" "$(jq -r ".\"executive-unsourced-claims\" | $IM" "$RJ")" "shadow"
+eq "executive-scope-creep flashes at 0.95" "$(jq -r '.["executive-scope-creep"].flash_threshold' "$RJ")" "0.95"
 eq "executive-scope-creep ships shadow" "$(jq -r ".\"executive-scope-creep\" | $IM" "$RJ")" "shadow"
 for r in file-org-guard pr-draft-guard executive-lint link-lint link-validate retry-counter papercut-grep; do
   eq "regex rule $r ships enforce" "$(jq -r --arg r "$r" ".[\$r] | $IM" "$RJ")" enforce
 done
-# No bg job ever enforces an executive-* or workflow-* rule: those run in shadow there.
-BGENF=$(jq -r 'to_entries[] | select((.key | test("^(executive|workflow)-")) and (.value.mode | type) == "object" and .value.mode.bgjob != "shadow") | .key' "$RJ" | paste -sd, -)
-eq "executive-*/workflow-* rules ship bgjob shadow" "$BGENF" ""
+# A bg job enforces the deterministic executive-lint regex checks and the workflow helpers whose tuning cleared it;
+# every other executive-* / workflow-* rule (the Jev model checks included) ships bgjob shadow.
+BGENF=$(jq -r 'to_entries[] | select((.key | test("^(executive|workflow)-")) and (.key | test("^executive-lint(-meta|-bare-id)?$") | not) and (.value.mode | type) == "object" and .value.mode.bgjob != "shadow") | .key' "$RJ" | paste -sd, -)
+eq "executive-*/workflow-* rules ship bgjob shadow except the lint checks and the tuned workflow helpers" "$BGENF" "workflow-linear-presort,workflow-commit-type,workflow-commit-mixed,workflow-review-depth"
+eq "executive-lint regex checks ship bgjob enforce" "$(jq -r '[.["executive-lint"],.["executive-lint-meta"],.["executive-lint-bare-id"]] | map(.mode.bgjob) | unique | join(",")' "$RJ")" "enforce"
 NOBG=$(jq -r 'to_entries[] | select((.key | test("^(executive|workflow)-")) and ((.value.scope | index("bgjob")) == null)) | .key' "$RJ" | paste -sd, -)
 eq "executive-*/workflow-* rules have bgjob in scope" "$NOBG" ""
 
@@ -247,30 +252,52 @@ eq "linked Linear ID passes" "$(run executive-lint.sh "$(sl $'**FYI · see [ENG-
 eq "Linear ID in code span passes" "$(run executive-lint.sh "$(sl $'**FYI · branch `feat/ENG-1234`.**\nx')")" ""
 eq "Linear ID in code fence passes" "$(run executive-lint.sh "$(sl $'**FYI · log.**\n```\nENG-1234 done\n```')")" ""
 eq "UTF-8/SHA-256 are not Linear IDs" "$(run executive-lint.sh "$(sl $'**FYI · UTF-8 and SHA-256 are fine.**\nx')")" ""
-eq "stop_hook_active never blocks twice" "$(run executive-lint.sh "$(sl 'plain reply' true)")" ""
+out=$(run executive-lint.sh "$(sl 'plain reply' true)")
+eq "stop_hook_active never blocks twice" "$(jq -r '.decision // "none"' <<<"$out")" "none"
+has "stop_hook_active lets D see the reply stayed off-style" "$out" "systemMessage"
 loghas allow-stop-hook-active && ok || bad "stop_hook_active allow logged"
 eq "subagent (agent_id) skipped" "$(printf '%s' "$(jq -c '. + {agent_id:"a1"}' <<<"$(sl 'plain reply')")" | bash "$HOOKS/executive-lint.sh" 2>/dev/null)" ""
 eq "fleet skipped" "$(BARECLAUDE_AGENT_SLUG=fleet-test run executive-lint.sh "$(sl 'plain reply')")" ""
-# bg job: linted in shadow. The shipped registry makes every mode a bgjob shadow; nothing blocks.
+# bg job: the regex checks enforce (meta, bare ID, tag on replies over bgjob_tag_min_chars); short untagged replies are only logged.
 reset
 rules "$(cat "$RJ")"
-eq "bg job: reply missing the tag line is not blocked" "$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl 'plain reply')")" ""
-loghas '"rule":"executive-lint","verdict":"shadow-would-block"' && ok || bad "bg job: missing tag logged as shadow-would-block" "$(cat "$LOG" 2>/dev/null)"
+eq "bg job: SHORT reply missing the tag is not blocked" "$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl 'plain reply')")" ""
+loghas '"rule":"executive-lint-tagshort","verdict":"shadow-would-block"' && ok || bad "bg job: short missing tag logged as tagshort shadow-would-block" "$(cat "$LOG" 2>/dev/null)"
 loghas '"scope":"bgjob"' && ok || bad "bg job: decision log carries scope bgjob"
+LONGUNTAG=$(awk 'BEGIN{for(i=0;i<20;i++) print "a finding line that is long enough to pass the five hundred character floor " i}')
+out=$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl "$LONGUNTAG")")
+eq "bg job: LONG reply missing the tag is blocked" "$(jq -r .decision <<<"$out")" "block"
+has "bg job: block carries a user-visible systemMessage (the flash D sees)" "$out" "Jev: executive-lint blocked a reply"
 rm -rf "$HOME/.claude/jev"
-eq "interactive: same reply still blocks (shipped registry)" "$(run executive-lint.sh "$(sl 'plain reply')" | jq -r .decision)" "block"
+eq "interactive: same short reply still blocks (shipped registry)" "$(run executive-lint.sh "$(sl 'plain reply')" | jq -r .decision)" "block"
 rm -rf "$HOME/.claude/jev"
+out=$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl 'Which branch should I merge?')")
+eq "bg job: SHORT untagged reply that asks D a question is blocked" "$(jq -r .decision <<<"$out")" "block"
 LONGBG=$(awk 'BEGIN{print "**FYI · long.**"; for(i=0;i<80;i++) print "line " i}')
-eq "bg job: over-length reply is not blocked" "$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl "$LONGBG")")" ""
-eq "bg job: missing meta line is not blocked" "$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl $'**ACTION · do it.**\nbody without meta')")" ""
-eq "bg job: bare Linear ID is not blocked" "$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl $'**FYI · see ENG-1234.**\nx')")" ""
-loghas shadow-would-block && ok || bad "bg job: Linear/length/meta problems logged"
+eq "bg job: over-length reply is blocked" "$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl "$LONGBG")" | jq -r .decision)" "block"
+out=$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl $'**ACTION · do it.**\nbody without meta')")
+eq "bg job: missing meta line is blocked" "$(jq -r .decision <<<"$out")" "block"
+has "bg job: the block names the meta line" "$out" "meta line"
+out=$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl $'**FYI · see ENG-1234.**\nx')")
+eq "bg job: bare Linear ID is blocked" "$(jq -r .decision <<<"$out")" "block"
+has "bg job: the block quotes the workspace link form" "$out" "https://linear.app/bareclaude/issue/ID"
+eq "bg job: stop_hook_active never blocks twice" "$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl $'**FYI · see ENG-1234.**\nx' true)" | jq -r '.decision // "none"')" "none"
+# The tag check alone, switched to shadow for bgjob, only logs.
+rm -rf "$HOME/.claude/jev"
+rules '{"executive-lint":{"mode":{"interactive":"enforce","bgjob":"shadow"}},"executive-lint-meta":{"mode":{"bgjob":"shadow"}},"executive-lint-bare-id":{"mode":{"bgjob":"shadow"}}}'
+eq "bg job: all lint checks shadow -> nothing blocks" "$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl "$LONGUNTAG")")" ""
+loghas '"rule":"executive-lint-tag","verdict":"shadow-would-block"' && ok || bad "bg job: shadow tag logged per code" "$(cat "$LOG" 2>/dev/null)"
+out=$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl $'**ACTION · see ENG-1234.**\nx')")
+eq "bg job: meta+bare shadow -> nothing blocks" "$out" ""
+loghas '"rule":"executive-lint-meta","verdict":"shadow-would-block"' && ok || bad "bg job: shadow meta logged (no longer hidden behind tag)"
+loghas '"rule":"executive-lint-bare","verdict":"shadow-would-block"' && ok || bad "bg job: shadow bare logged"
+rules "$(cat "$RJ")"
 eq "bg job: subagent skipped" "$(printf '%s' "$(jq -c '. + {agent_id:"a1"}' <<<"$(sl 'plain reply')")" | CLAUDE_JOB_DIR=/x bash "$HOOKS/executive-lint.sh" 2>/dev/null)" ""
-# Even with every rule forced to enforce in config, a bg job never blocks.
+# The Jev MODEL checks never block a bg job, even when forced to enforce in config (only the regex lint does).
 rm -rf "$HOME/.claude/jev"
 rules '{"executive-lint":{"mode":"enforce"},"executive-unsourced-claims":{"mode":"enforce","threshold":0.5}}'
 mock tag '{"answers":{"tag":{"type":"choice","choice":"DECISION","probabilities":{"DECISION":0.95}},"unsourced":{"type":"score","probabilities":{"0":0,"1":0,"2":0.5,"3":0.5}}}}'
-eq "bg job: forced-enforce config still never blocks" "$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl 'plain reply')")" ""
+eq "bg job: forced-enforce Jev tag-correctness never blocks a tagged reply" "$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl "$GOOD")")" ""
 eq "bg job: forced-enforce Jev unsourced never blocks" "$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl "$GOOD")")" ""
 loghas '"rule":"executive-unsourced-claims","verdict":"p=1"' && ok || bad "bg job: Jev unsourced p logged" "$(cat "$LOG" 2>/dev/null)"
 reset

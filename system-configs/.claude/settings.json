@@ -305,6 +305,11 @@
             "type": "command",
             "command": "${HOME}/.claude/hooks/jev/session-check.sh",
             "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/audit-digest.sh",
+            "timeout": 5
           }
         ]
       },

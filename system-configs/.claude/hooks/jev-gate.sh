@@ -113,11 +113,12 @@ check_approval_call() {
     return 0
   fi
   state=$(jq -nc --arg tool "$TOOL" --arg action "$ACTION" --argjson t "$TAILJSON" '{tool:$tool, action:$action, turns:$t.turns}')
-  q=$(printf '%s' "$RULES" | jq -c '{d_approved_exact_action: {type:"boolean", instructions:.["approval-detector"].instructions, criteria:.["approval-detector"].criteria}}')
+  q=$(printf '%s' "$RULES" | jq -c '{d_approved_exact_action: {type:"choice", instructions:.["approval-detector"].instructions, criteria:.["approval-detector"].criteria}}')
   req=$(jev_build_request approval-detector "$state" '{}' "$q")
   resp=$(jev_call "$req") || { jev_log approval-detector "unavailable" "" ""; return 0; }
   jev_note "$resp"
-  p=$(jev_prob "$resp" d_approved_exact_action)
+  # A choice question: approved_exact vs approved_other vs not_approved; only an exact approval releases.
+  p=$(printf '%s' "$resp" | jq -r '.answers.d_approved_exact_action.probabilities.approved_exact // empty')
   if ! jev_ge "${p:-0}" "$thr"; then
     jev_log approval-detector "not-approved" "" "$p"
     return 0
@@ -134,6 +135,7 @@ check_approval_call() {
     return 0
   fi
   jev_log approval-detector "approved" "" "$p"
+  APPROVAL_P="$p"
   APPROVED=1
 }
 
@@ -159,6 +161,9 @@ resolve_hits() {
   check_approval 0
   if [ "$APPROVED" = "1" ]; then
     jev_log "$enforce_ids" "allow-approved-once" "enforce" ""
+    # D sees every Jev action: a release is one, so it carries a visible note.
+    jq -nc --arg m "Jev released ${enforce_ids} once: D approved exactly this action (p=${APPROVAL_P:-?})" \
+      '{hookSpecificOutput:{hookEventName:"PreToolUse",additionalContext:$m}}'
     finish
   fi
   reason=$(jev_deny_reason "$enforce_ids" "$labels" "$ACTION")
@@ -550,7 +555,7 @@ handle_generic() {
       subject="workflow"
       ACTION="Workflow launch"
       NORM_RAW="$ACTION"
-      state=$(printf '%s' "$INPUT" | jq -c --arg ctx "$JEV_CTX" --arg repo "$REPO" '{tool:"Workflow", repo:$repo, context:$ctx, input_keys:((.tool_input // {}) | if type=="object" then keys else [] end), name:((.tool_input.name // .tool_input.workflow // "") | tostring | .[0:80])}')
+      state=$(printf '%s' "$INPUT" | jq -c --arg ctx "$JEV_CTX" --arg repo "$REPO" '{tool:"Workflow", repo:$repo, context:$ctx, input_keys:((.tool_input // {}) | if type=="object" then keys else [] end), name:((.tool_input.name // .tool_input.workflow // "") | tostring | .[0:80]), workflow:((.tool_input.script // "") | tostring as $s | {name:(($s | capture("name:\\s*[\u0027\"`](?<n>[^\u0027\"`]+)") | .n) // ""), description:(($s | capture("description:\\s*[\u0027\"`](?<d>[^\u0027\"`]{1,300})") | .d) // "")})}')
       ;;
     Artifact)
       subject=$(printf '%s' "$INPUT" | jq -r '.tool_input.action // "publish"')

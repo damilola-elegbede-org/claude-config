@@ -41,6 +41,14 @@ assert_eq() { # name expected actual
 assert_empty() {
   if [[ -z "$2" ]]; then pass; else fail "$1 (expected no output, got: $(printf '%s' "$2" | head -c 300))"; fi
 }
+# A released call is let through with a visible note for D, never a deny.
+assert_released() {
+  if printf '%s' "$2" | jq -e '(.hookSpecificOutput.permissionDecision // "") != "deny" and (.hookSpecificOutput.additionalContext | test("^Jev released .* once: D approved exactly this action"))' >/dev/null 2>&1; then
+    pass
+  else
+    fail "$1 (expected a release note, got: $(printf '%s' "$2" | head -c 300))"
+  fi
+}
 
 # ------------------------------------------------------------------ harness --
 
@@ -74,8 +82,8 @@ set_mode() { # id|all mode
 # mock '{"G1-irreversible-local":0.95,"d_approved_exact_action":0.97}'
 # Gates with an `expects` block are answered the way Jev answers them: the risk gates (G1, G3-G8, G13) through the
 # shared risk_class + scope choice questions (probability of the gate's first expected class, scope in the expected
-# blast radius), G15 through the origin choice question (probability of "injected"). Every other key (G14, G16,
-# d_approved_exact_action) is a plain boolean probability.
+# blast radius), G15 through the origin choice question (probability of "injected"), d_approved_exact_action through
+# the approval choice question (probability of "approved_exact"). Every other key (G14, G16) is a plain boolean probability.
 mock() {
   jq -nc --argjson p "$1" --slurpfile q "$SRC/jev/gate-questions.json" '
     $q[0].gates as $g
@@ -85,7 +93,10 @@ mock() {
     | ($cls | map({key: .cls, value: .p}) | from_entries) as $rp
     | (first($cls[] | .sc | select(. != null) | .[0]) // "local") as $sc
     | {answers:
-        (($e | map(select($g[.key].expects == null) | {key, value: {type: "boolean", probability: .value}}) | from_entries)
+        (($e | map(select($g[.key].expects == null and .key != "d_approved_exact_action") | {key, value: {type: "boolean", probability: .value}}) | from_entries)
+         + ($e | map(select(.key == "d_approved_exact_action")
+                     | {key, value: {type: "choice", choice: (if .value >= 0.5 then "approved_exact" else "not_approved" end),
+                                     probabilities: {approved_exact: .value, not_approved: (1 - .value)}}}) | from_entries)
          + (if ($cls | length) > 0
             then {risk_class: {type: "choice", choice: ($rp | to_entries | max_by(.value) | .key), probabilities: $rp},
                   scope: {type: "choice", choice: $sc, probabilities: {($sc): 0.99}}}
@@ -334,7 +345,7 @@ set_mode G3-merge enforce
 mock '{"G3-merge":0.95,"d_approved_exact_action":0.97}'
 IN=$(bash_in 'gh pr merge 42 --squash' "$T/t1.jsonl")
 OUT=$(run_hook jev-gate.sh "$IN")
-assert_empty "explicit D approval lets it through once" "$OUT"
+assert_released "explicit D approval lets it through once" "$OUT"
 assert_contains "approval logged" "$(gate_log)" '"verdict":"allow-approved-once"'
 OUT=$(run_hook jev-gate.sh "$IN")
 assert_contains "same approval cannot be reused" "$OUT" '"permissionDecision":"deny"'
@@ -344,7 +355,7 @@ assert_contains "reuse logged" "$(gate_log)" "approval-already-used"
   line_user u3 "yes go ahead"
 } >>"$T/t1.jsonl"
 OUT=$(run_hook jev-gate.sh "$IN")
-assert_empty "a fresh D message re-arms the approval" "$OUT"
+assert_released "a fresh D message re-arms the approval" "$OUT"
 
 new_home
 set_mode G3-merge enforce
@@ -396,7 +407,7 @@ set_mode G3-merge enforce
 } >"$T/t4.jsonl"
 mock '{"G3-merge":0.95,"d_approved_exact_action":0.97}'
 OUT=$(run_hook jev-gate.sh "$(bash_in 'gh pr merge 42' "$T/t4.jsonl")")
-assert_empty "AskUserQuestion answer is approval evidence" "$OUT"
+assert_released "AskUserQuestion answer is approval evidence" "$OUT"
 assert_contains "dialog answer reached the approval request" "$(grep d_approved_exact_action "$T/stub.log")" "Yes, merge"
 
 # approval detector can be switched off: then every hit denies
@@ -511,10 +522,9 @@ assert_eq "scratch overwrite makes no call" "0" "$(calls)"
 mock '{"G14-non-routine":0.95}'
 WIN=$(jq -nc '{tool_name:"Edit", tool_input:{file_path:"/x/demo/package.json", old_string:"a", new_string:"\"left-pad\": \"^1.3.0\",\n  \"scripts\": {\"build\": \"tsc\"}"}, session_id:"s1", transcript_path:"", cwd:"/x/demo"}')
 OUT=$(run_hook jev-gate.sh "$WIN")
-assert_contains "dependency manifest edit hits G14" "$OUT" "G14-non-routine"
-REQ=$(tail -n 1 "$T/stub.log" | grep . | head -1)
-assert_contains "dependency line sent" "$(grep G14 "$T/stub.log" | tail -1)" "left-pad"
-assert_not_contains "non-dependency content not sent" "$(grep G14 "$T/stub.log" | tail -1)" "tsc"
+# G14 judges installs and Workflow launches; a manifest edit is not a G14 candidate (it was noise in replay).
+assert_not_contains "dependency manifest edit is not a G14 candidate" "$OUT" "G14-non-routine"
+assert_not_contains "no G14 request for a manifest edit" "$(cat "$T/stub.log" 2>/dev/null)" "G14-non-routine"
 
 mock '{"G6-spend":0.95}'
 WIN=$(jq -nc '{tool_name:"Edit", tool_input:{file_path:"/Users/x/.claude/settings.json", old_string:"a", new_string:"\"model\": \"opus\""}, session_id:"s1", transcript_path:"", cwd:"/x/demo"}')
@@ -612,9 +622,9 @@ set_mode mcp-classifier enforce
 {
   line_user u1 "send Dana the notes email"
 } >"$T/t7.jsonl"
-jq -nc '{answers:{class:{type:"choice", choice:"outward", probabilities:{outward:0.95}}, prod_infra:{type:"boolean", probability:0}, d_approved_exact_action:{type:"boolean", probability:0.96}}}' >"$T/mock.json"
+jq -nc '{answers:{class:{type:"choice", choice:"outward", probabilities:{outward:0.95}}, prod_infra:{type:"boolean", probability:0}, d_approved_exact_action:{type:"choice", choice:"approved_exact", probabilities:{approved_exact:0.96, not_approved:0.04}}}}' >"$T/mock.json"
 OUT=$(run_hook jev-gate.sh "$(mcp_in mcp__claude_ai_Gmail__send_message "$T/t7.jsonl")")
-assert_empty "explicit D order lets the mcp send through once" "$OUT"
+assert_released "explicit D order lets the mcp send through once" "$OUT"
 OUT=$(run_hook jev-gate.sh "$(mcp_in mcp__claude_ai_Gmail__send_message "$T/t7.jsonl")")
 assert_contains "second identical send denied" "$OUT" "outward-facing"
 
@@ -734,7 +744,7 @@ if command -v node >/dev/null 2>&1; then
   } >"$T/t-real.jsonl"
   mock '{"G3-merge":0.95,"d_approved_exact_action":0.97}'
   OUT=$(run_hook jev-gate.sh "$(bash_in 'gh pr merge 42 --squash' "$T/t-real.jsonl")")
-  assert_empty "real client: approval-detector request accepted, D approval lets it through" "$OUT"
+  assert_released "real client: approval-detector request accepted, D approval lets it through" "$OUT"
   assert_contains "real client logged approval-detector" "$(shadow_log)" '"rule":"approval-detector"'
 else
   pass
@@ -844,7 +854,7 @@ for i in 1 2 3 4 5 6; do
 done
 wait
 ALLOWED=0
-for i in 1 2 3 4 5 6; do [[ ! -s "$T/race.$i.out" ]] && ALLOWED=$((ALLOWED + 1)); done
+for i in 1 2 3 4 5 6; do grep -q '"permissionDecision":"deny"' "$T/race.$i.out" || ALLOWED=$((ALLOWED + 1)); done
 assert_eq "six concurrent identical calls: exactly one consumes the approval" "1" "$ALLOWED"
 assert_eq "the claim is a directory under approvals.d" "1" "$(find "$T/home/.claude/jev-state/approvals.d" -mindepth 1 -maxdepth 1 -type d | grep -c .)"
 
@@ -1151,7 +1161,7 @@ assert_contains "job: the answer covers the denied action only, not another one"
 OUT=$(run_hook jev-gate.sh "$(BJIN 'rm -rf build/ data/')" CLAUDE_JOB_DIR=/tmp/job)
 assert_contains "job: the trail holds the other action, so this one is denied again" "$OUT" '"permissionDecision":"deny"'
 OUT=$(run_hook jev-gate.sh "$(BJIN 'rm -rf build/ data/')" CLAUDE_JOB_DIR=/tmp/job)
-assert_empty "job: D's yes after the deny passes the exact action once" "$OUT"
+assert_released "job: D's yes after the deny passes the exact action once" "$OUT"
 assert_contains "job: the approval is logged" "$(gate_log)" '"verdict":"allow-approved-once"'
 OUT=$(run_hook jev-gate.sh "$(BJIN 'rm -rf build/ data/')" CLAUDE_JOB_DIR=/tmp/job)
 assert_contains "job: a second retry is denied" "$OUT" '"permissionDecision":"deny"'
@@ -1175,7 +1185,7 @@ mock '{"G1-irreversible-local":0.95,"d_approved_exact_action":0.97}'
   line_user u2 "yes"
 } >"$T/t-int.jsonl"
 OUT=$(run_hook jev-gate.sh "$(bash_in 'rm -rf build/ data/' "$T/t-int.jsonl" sess-int)")
-assert_empty "interactive: a typed yes is still an approval" "$OUT"
+assert_released "interactive: a typed yes is still an approval" "$OUT"
 
 # ============================================================================
 # Replay harness (mock backend only: CI never calls the Gateway)

@@ -66,7 +66,7 @@ if [ "$Q" = '{}' ]; then
 fi
 STATE=$(jq -nc --arg desc "$DESC" --arg files "$FILES" --arg stat "$STAT" --arg diff "$DIFFHEAD" \
   '{description:$desc,changed_files:($files|split("\n")),diff_stat:$stat,diff_start:$diff}')
-if ! RESP=$(re_jev_req "$TYPE_RULE" "$STATE" "$Q" 2000 | re_jev_call 2>/dev/null) || [ -z "$RESP" ]; then
+if ! RESP=$(re_jev_req "$TYPE_RULE" "$STATE" "$Q" 5000 | re_jev_call 2>/dev/null) || [ -z "$RESP" ]; then
   jq -c '. + {mode:"unavailable"}' <<<"$OUT"
   exit 0
 fi

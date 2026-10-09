@@ -377,7 +377,7 @@ def build_mcp_request(qdoc, ex):
 def build_approval_request(qdoc, ex):
     a = qdoc["approval"]
     state = {"tool": ex["tool"], "action": trim(redact(ex["action"]), 700), "turns": ex["turns"]}
-    q = {"d_approved_exact_action": {"type": "boolean", "instructions": a["instructions"], "criteria": a["criteria"]}}
+    q = {"d_approved_exact_action": {"type": "choice", "instructions": a["instructions"], "criteria": a["criteria"]}}
     return {"rule": "approval-detector", "state": state, "questions": q}
 
 
@@ -634,7 +634,11 @@ def collect(qdoc, scored, style="choice"):
             asked = rid in s["ids"]
             p, scope_ok = None, True
             if asked and res and res.get("ok"):
-                if rid in ANSWER_NAME:
+                if rid == "approval-detector":
+                    # A choice question, as jev-gate.sh asks it: only an exact approval releases.
+                    ans = res["answers"].get(ANSWER_NAME[rid]) or {}
+                    p = (ans.get("probabilities") or {}).get("approved_exact")
+                elif rid in ANSWER_NAME:
                     p = answer_prob(res, ANSWER_NAME[rid])
                 else:
                     p, scope_ok = gate_eval(qdoc, res["answers"], rid, style)
@@ -939,6 +943,7 @@ def questions_fingerprint(qdoc):
     d = json.loads(json.dumps(qdoc))
     d.pop("note", None)
     d.pop("version", None)
+    d.pop("audit_questions", None)  # nightly audit wording; no gate is asked it
     d.get("mcp", {}).pop("heuristics", None)
     return hashlib.sha256(json.dumps(d, sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:16]
 
