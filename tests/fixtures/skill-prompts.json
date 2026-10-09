@@ -329,6 +329,18 @@
       "skill": "review",
       "prompt": "Run a deep multi-perspective review: code quality, security and accessibility."
     },
+    {
+      "skill": "codex-review",
+      "prompt": "Run Codex review locally on this branch and fix what it finds before I open the PR."
+    },
+    {
+      "skill": "codex-review",
+      "prompt": "Catch the Codex comments before the PR goes up so we skip the review back-and-forth."
+    },
+    {
+      "skill": "codex-review",
+      "prompt": "Pre-review my changes with the codex CLI until there are no P1s left."
+    },
 
     {
       "skill": "ship-it",

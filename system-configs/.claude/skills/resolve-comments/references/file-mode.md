@@ -1,6 +1,6 @@
 # File mode — triage `/review` output from `.tmp/`
 
-Active when `--local` is passed. Reads the file `/review` writes (`.tmp/review-local.json`).
+Active when `--local` is passed. Reads the file `/review` and `/codex-review` write (`.tmp/review-local.json`).
 
 ## STEP 1: Load issues
 
@@ -19,7 +19,9 @@ IF: --local flag
       OUTPUT: "⚠️ Schema version mismatch in review-local.json (found: {v}, expected: {CURRENT}).
                Backed up to {backup_path}. Re-run /review to regenerate."
       END
-  APPEND: issues with source="code-reviewer"
+  APPEND: issues with source = "codex" when the file's top-level "source" is "codex"
+          (written by /codex-review), else "code-reviewer" (covers /review's "code-reviewer"
+          and "deep-review" files, which triage treats as one source)
   OUTPUT: "Loaded {count} AI reviewer issues"
 
 IF: issues empty
@@ -43,7 +45,11 @@ IF: fixes applied AND fix_count > 0
     Freeform "Other" → default to keep uncommitted
 
   IF: "Commit fixes"
-    RECONCILE: modified_files against git diff --name-only
+    RECONCILE: modified_files against git diff --name-only plus the untracked files
+               (git ls-files --others --exclude-standard) that are already in modified_files
+               (a fix can land in a new, untracked file; leaving it out would report a commit
+                that does not contain the fix. Untracked files that triage did not write are
+                never added: they may be unrelated or sensitive user files)
     RUN: git add {modified_files}      # never git add -A
     RUN: git commit -m "fix: resolve review feedback ({fix_count} issues)"
     OUTPUT: "Committed {fix_count} fixes"

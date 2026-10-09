@@ -227,6 +227,15 @@ IF: skipped_issues not empty
     while holding skipped issues from every source. Each record carries its own `source` field.
   OUTPUT: "Saved {count} skipped issues for /pr and /ship-it to acknowledge"
 
+IF: no fixes applied this run AND HEAD has commits its upstream lacks
+    (an earlier run committed fixes, then stopped before pushing)
+  ASK (AskUserQuestion, header "Push"):
+    "PR #{pr} has {n} unpushed commit(s) on {current_branch}. Review and push them?"
+      - "Review and push" → run the /codex-review, uncommitted-change, /verify and push steps
+                            from the flow below, skipping its commit, then post as below
+      - "Leave unpushed"  → no push, no comment
+    Freeform "Other" → treat as "Leave unpushed"
+
 IF: fixes applied
   ASK (AskUserQuestion, header "Commit+push"):
     "Commit, push, and post resolution to PR #{pr}? ({fix_count} fixes on {current_branch})"
@@ -246,6 +255,26 @@ IF: fixes applied
           Freeform → default to exclude extras
     RUN: git add {modified_files}      # never git add -A
     RUN: git commit -m "fix: resolve PR review feedback ({fix_count} issues)"
+    INVOKE: /codex-review {base branch of PR #{pr}, from gh pr view {pr} --json baseRefName}
+      GitHub's Codex re-reviews every push, and the fixes themselves are where its next round of
+      findings comes from, so the same reviewer checks them locally first. /codex-review triages
+      in file mode, so it never re-enters this flow.
+      IF: it ends busy
+        OUTPUT: "Not pushing: another Codex review is still running in this worktree. Re-run when it finishes."
+        END
+      IF: it ends blocked
+        OUTPUT: "Not pushing: Codex still reports P0/P1 findings on the fixes (see above)."
+        END
+      IF: `git status --porcelain -- ':!.tmp'` lists any change, untracked files included
+          (checked before any push, whatever this run did, so a partial fix set is never published)
+        OUTPUT: "Not pushing: there are uncommitted or untracked changes, so the push would not include them.
+                 Commit them and re-run /resolve-comments."
+        END
+      IF: HEAD moved past the fix commit above (it committed fixes)
+        RUN: /verify --report-only   (gates that passed before the fixes say nothing about them)
+        IF: any gate failed
+          OUTPUT: "Not pushing: {n} gate(s) fail after the Codex fixes: {names}."
+          END
     RUN: git push
 ```
 
