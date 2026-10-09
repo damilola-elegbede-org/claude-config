@@ -4,6 +4,8 @@ description: Create branches with intelligent naming patterns. Use when creating
 argument-hint: "[description]"
 metadata:
   category: workflow
+  triggers:
+    - 'cmd:\bgit\b(\s+-[A-Za-z]\s+\S+|\s+--\S+)*\s+(checkout\s+-[bB]\b|switch\s+(-c|--create)\b|worktree\s+add\b.*\s-[bB]\s)'
 ---
 
 # /branch

@@ -328,7 +328,7 @@ ctx_cache_commit() {
     mkdir -p "$JEV_CACHE_DIR" "$JEV_STATE_DIR"
   ) 2>/dev/null || return 1
   [ -f "$2" ] || (umask 077 && cp "$1" "$2") 2>/dev/null || return 1
-  find "$JEV_CACHE_DIR" -type f \( -name '*.txt' -o -name '*.mem' -o -name '*.a4' -o -name '*.first' \) -mtime +14 -delete 2>/dev/null
+  find "$JEV_CACHE_DIR" -type f \( -name '*.txt' -o -name '*.mem' -o -name '*.a4' -o -name '*.a9' -o -name '*.first' \) -mtime +14 -delete 2>/dev/null
   return 0
 }
 
