@@ -1009,6 +1009,17 @@
       "coverage": "none"
     },
     {
+      "id": "MEM-PR-3",
+      "source": "memory/pr-done-means-mergeable.md:11",
+      "anchor": "A PR is done only when D can click Merge",
+      "text": "A PR is done only when GitHub would let D click Merge (CI green, threads resolved, no conflicts); after creating or pushing one, follow it with /land, never call it ready on creation.",
+      "enforcement": "regex",
+      "hook": "pr-landing-gate.sh",
+      "mode": "enforce",
+      "coverage": "partial",
+      "note": "PostToolUse on gh pr create / git push records the PR and tells the model to run /land; Stop blocks while pr-land-status.sh says it is not mergeable, released by ready/merged/closed, a /land bounded-out record for the head, or max_blocks. Verdicts are GitHub state, no Jev call. Covers PRs created or pushed in this session only."
+    },
+    {
       "id": "MEM-TRI-1",
       "source": "memory/triage-records-agents-execute.md:11",
       "anchor": "an approval from D is a **record**",
