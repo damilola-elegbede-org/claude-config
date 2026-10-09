@@ -40,9 +40,12 @@ a8_skills() {
     jq -e 'type == "array" and length > 0' "${WORK}/catalog.json" >/dev/null 2>&1; then
     jq --arg cwd "$cwd" '
       def applies: .scope_dir as $d | $d == "" or ($cwd + "/" | startswith($d + "/"));
-      def rank: if .source == "directory" and applies then 0 elif .source == "project" then 1
-                elif .source == "user" then 2 elif .source == "plugin" then 3 else 4 end;
-      [ group_by(.base)[] | sort_by(rank) | .[0] | select(.source != "directory" or applies) ]
+      # Claude Code resolves a shared plain name personal over project; a plugin skill is invoked as
+      # <plugin>:<name>, so it is grouped by its full name and never competes with a plain one.
+      def rank: if .source == "user" then 0 elif .source == "directory" and applies then 1
+                elif .source == "project" then 2 else 3 end;
+      [ group_by(if .source == "plugin" then .name else .base end)[] | sort_by(rank) | .[0]
+        | select(.source != "directory" or applies) ]
       | map({id: .name, text: ((.name + " " + .desc) | .[0:260]), plugin: (.source == "plugin")})' \
       "${WORK}/catalog.json" >"${WORK}/sk-all.json" 2>/dev/null || { echo '{}' >"$1"; return 0; }
     jq '[.[] | select(.plugin)]' "${WORK}/sk-all.json" >"${WORK}/sk-plugin.json"

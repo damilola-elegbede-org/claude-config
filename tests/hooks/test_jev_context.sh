@@ -987,6 +987,48 @@ for c in "gh pr create --fill" "gh -R owner/repo pr create --fill" "gh --repo=ow
   run_hook a9-skill-router.sh "$IN"
   check "A9: /pr trigger matches: $c" denies pr
 done
+cp -R "$SRC/../../skills/fix-ci" "$SRC/../../skills/resolve-comments" "$HOME/.claude/skills/"
+for c in "gh run rerun 123" "gh -R owner/repo run view 123 --log-failed" "gh --repo owner/repo run rerun 123"; do
+  turn "tfc$RANDOM"
+  bash_in "$c"
+  run_hook a9-skill-router.sh "$IN"
+  check "A9: /fix-ci trigger matches: $c" denies fix-ci
+done
+for c in "gh pr review 5 --approve" "gh -R owner/repo pr review --approve" "gh --repo=owner/repo pr review --approve"; do
+  turn "trc$RANDOM"
+  bash_in "$c"
+  run_hook a9-skill-router.sh "$IN"
+  check "A9: /resolve-comments trigger matches: $c" denies resolve-comments
+done
+turn t8c
+bash_in "bash -lc 'git commit -m wip'"
+run_hook a9-skill-router.sh "$IN"
+check "A9: a command run through a shell's -c script is matched" denies commit
+turn t8d
+bash_in 'sh -c "cd /x && git commit -q -m \"bash -c later\""'
+run_hook a9-skill-router.sh "$IN"
+check "A9: a double-quoted -c script is matched" denies commit
+turn t8e
+bash_in "echo \"try bash -lc 'git commit -m wip' later\""
+run_hook a9-skill-router.sh "$IN"
+check "A9: a -c script only mentioned inside a quoted string does not match" out_empty
+sk "$REPO/.claude/skills" commit "Project commit variant." 'cmd:\bgit\b(\s+-[A-Za-z]\s+\S+|\s+--\S+)*\s+commit\b'
+turn t8f
+bash_in "git commit -m wip"
+python3 -I "$HOME/.claude/hooks/jev/skill-catalog.py" --match "$IN" "$TEST_HOME/route.json"
+check "A9: a personal skill wins over a same-name project skill (Claude Code precedence)" jq -e '[.route[] | select(.base == "commit")] | length == 1 and .[0].source == "user"' "$TEST_HOME/route.json"
+rm -rf "$REPO/.claude/skills/commit"
+printf '{"skillOverrides":{"proj-only":"off"}}' >"$REPO/.claude/settings.local.json"
+turn t8g
+bash_in "make deploy"
+run_hook a9-skill-router.sh "$IN"
+check "A9: a skill turned off in .claude/settings.local.json (where /skills writes) is not routed" out_empty
+rm -f "$REPO/.claude/settings.local.json"
+mkdir -p "$HOME/.claude/jev-cache/state"
+touch -t 202001010000 "$HOME/.claude/jev-cache/state/skills-deadbeefdeadbeef.json"
+python3 -I "$HOME/.claude/hooks/jev/skill-catalog.py" "$REPO/sub" "$TEST_HOME/cat-prune.json"
+check "catalog: a rebuild prunes skill caches that expired over a day ago" bash -c "[ ! -e '$HOME/.claude/jev-cache/state/skills-deadbeefdeadbeef.json' ]"
+check "catalog: a rebuild keeps the live cache" bash -c "ls '$HOME/.claude/jev-cache/state/' | grep -q '^skills-'"
 python3 -I "$HOME/.claude/hooks/jev/skill-catalog.py" "$REPO" "$CAT"
 check "catalog: all four sources present" jq -e 'map(.source) | unique == ["directory","plugin","project","user"]' "$CAT"
 check "catalog: a skill below the cwd is qualified as <dir>:<name>" jq -e 'any(.name == "sub:subtool" and .source == "directory")' "$CAT"
@@ -1004,6 +1046,10 @@ set_mode A7-memory-inject off
 JEV_MOCK="$TEST_HOME/a8cat.json" run_hook a7-a8-prompt-context.sh "$IN"
 check "A8: the request offers user, project and plugin skills" jq -e '.questions.skill.criteria | has("commit") and has("proj-only") and has("infra-plugin:infra")' "$STUB_LAST"
 check "A8: a hint can name a plugin skill" out_jq '.hookSpecificOutput.additionalContext | test("/infra-plugin:infra")'
+sk "$PLUG/skills" commit "Plugin commit helper." 'cmd:\bgit\s+commit\b'
+touch "$HOME/.claude/plugins/installed_plugins.json"
+JEV_MOCK="$TEST_HOME/a8cat.json" run_hook a7-a8-prompt-context.sh "$IN"
+check "A8: a plugin skill sharing a plain skill's base name is still offered" jq -e '.questions.skill.criteria | has("commit") and has("infra-plugin:commit")' "$STUB_LAST"
 
 # ------------------------------------------------------------------ registry / wiring
 echo "registry + wiring"

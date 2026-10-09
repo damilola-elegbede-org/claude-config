@@ -6,7 +6,7 @@ context: fork
 metadata:
   category: orchestration
   triggers:
-    - 'cmd:\bgh\s+run\s+(view\b.*--log-failed|rerun\b)'
+    - 'cmd:\bgh\b(\s+(-R|--repo)(=|\s+)\S+|\s+--\S+)*\s+run\s+(view\b.*--log-failed|rerun\b)'
 ---
 
 # /fix-ci

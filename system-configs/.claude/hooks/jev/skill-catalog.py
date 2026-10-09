@@ -174,7 +174,12 @@ def enabled_plugins(top):
 
 def build(cwd):
     top = repo_root(cwd)
-    overrides = load_json(os.path.join(CLAUDE, "settings.json")).get("skillOverrides") or {}
+    # The /skills menu writes skillOverrides to <repo>/.claude/settings.local.json; the narrower file wins.
+    overrides = {}
+    for path in [os.path.join(CLAUDE, "settings.json")] + (
+            [os.path.join(top, ".claude", "settings.json"), os.path.join(top, ".claude", "settings.local.json")] if top else []):
+        o = load_json(path).get("skillOverrides")
+        overrides.update(o if isinstance(o, dict) else {})
     skills = []
     for base, md in skill_dirs(os.path.join(CLAUDE, "skills")):
         skills.append(entry(md, base, "user", "", "{base}"))
@@ -199,11 +204,29 @@ def build(cwd):
     return skills
 
 
-def strip_quoted(cmd):
+_QUOTED = r"\"(?:[^\"\\]|\\.)*\"|'[^']*'"
+# A quoted string, or a shell's -c script (bash -lc '...'), whose quoted body is a command that runs.
+_QUOTED_OR_SHELL_C = re.compile(
+    r"(?P<sh>(?<![\w./-])(?:[\w./~-]*/)?(?:ba|z|da|k)?sh\s+(?:-[A-Za-z]+\s+)*-[A-Za-z]*c[A-Za-z]*\s+)(?P<arg>"
+    + _QUOTED + ")|" + _QUOTED, re.S)
+
+
+def strip_quoted(cmd, depth=0):
     """Remove heredoc bodies, quoted strings and shell comments, so a commit message, PR body or
-    comment that merely mentions a command is not mistaken for running it."""
+    comment that merely mentions a command is not mistaken for running it. A shell's -c script is
+    kept (itself stripped), because that quoted body is what runs."""
     cmd = re.sub(r"<<-?\s*([\"']?)(\w+)\1.*?\n\s*\2\s*(\n|$)", " ", cmd, flags=re.S)
-    cmd = re.sub(r"\"(?:[^\"\\]|\\.)*\"|'[^']*'", '""', cmd, flags=re.S)
+
+    def keep_script(m):
+        if not m.group("sh") or depth >= 3:
+            return '""'
+        body = m.group("arg")[1:-1]
+        if m.group("arg")[0] == '"':
+            body = re.sub(r"\\(.)", r"\1", body)
+        return m.group("sh") + strip_quoted(body, depth + 1) + " ;"
+
+    # One left-to-right pass, so a "bash -c" that only appears inside a quoted string stays quoted.
+    cmd = _QUOTED_OR_SHELL_C.sub(keep_script, cmd)
     # A comment starts at a # that begins a word (quotes are gone, so none hides inside a string).
     return re.sub(r"(^|[\s;&|()])#[^\n]*", r"\1", cmd)
 
@@ -276,11 +299,15 @@ def match(hook_input, out):
             if any(fnmatch.fnmatch(target, g) or fnmatch.fnmatch(rel, g) for g in s["path"]):
                 cands.append(s)
     cands = [s for s in cands if under(target, s["scope_dir"])]
+    # One per invocable name. Claude Code resolves a shared plain name personal over project, and a
+    # plugin skill is invoked as <plugin>:<name>, so it never competes with a plain one.
+    rank = lambda s: (s["source"] == "user", len(s["scope_dir"]))
     best = {}
-    for s in cands:  # one per base name: the narrowest scope that covers the target wins
-        cur = best.get(s["base"])
-        if cur is None or len(s["scope_dir"]) > len(cur["scope_dir"]):
-            best[s["base"]] = s
+    for s in cands:
+        key = s["name"] if s["source"] == "plugin" else s["base"]
+        cur = best.get(key)
+        if cur is None or rank(s) > rank(cur):
+            best[key] = s
     turn, loaded = turn_state(inp.get("transcript_path"))
     by_base = {s["base"]: s for s in skills}
     covered = set(loaded)
@@ -331,6 +358,14 @@ def load_catalog(cwd):
     with open(tmp, "w", encoding="utf-8") as fh:
         json.dump(result, fh)
     os.replace(tmp, cache)
+    # Each cwd or settings change keys a new file; drop the ones that expired a day ago.
+    for name in os.listdir(CACHE_DIR):
+        old = os.path.join(CACHE_DIR, name)
+        try:
+            if name.startswith("skills-") and time.time() - os.path.getmtime(old) > CACHE_TTL + 86400:
+                os.remove(old)
+        except OSError:
+            pass
     return result
 
 
