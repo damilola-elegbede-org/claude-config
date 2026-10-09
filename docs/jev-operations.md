@@ -187,13 +187,14 @@ applies to tool events. What the probe showed:
 Applied only where the script ignores everything the rule filters out, so no hook is skipped for a call it
 would have acted on:
 
-| Handler                                                | `if`                    |
-| ------------------------------------------------------ | ----------------------- |
-| `pr-draft-guard.sh`                                    | `Bash(gh *pr create*)`  |
-| `pr-landing-gate.sh` (PostToolUse, PR created)         | `Bash(gh *pr create*)`  |
-| `pr-landing-gate.sh` (PostToolUse, pushed to a PR)     | `Bash(git *push*)`      |
-| `memory-dup-guard.sh`                                  | `Write(**/memory/*.md)` |
-| bare-git identity guard (`infra/scripts/git-agent.sh`) | `Bash(git *)`           |
+| Handler                                                  | `if`                    |
+| -------------------------------------------------------- | ----------------------- |
+| `pr-draft-guard.sh`                                      | `Bash(gh *pr create*)`  |
+| `pr-landing-gate.sh` (PostToolUse, PR created)           | `Bash(gh *pr create*)`  |
+| `pr-landing-gate.sh` (PostToolUse, pushed to a PR)       | `Bash(git *push*)`      |
+| `pr-landing-gate.sh` (PostToolUse, fleet git-agent push) | `Bash(*git-agent.sh*)`  |
+| `memory-dup-guard.sh`                                    | `Write(**/memory/*.md)` |
+| bare-git identity guard (`infra/scripts/git-agent.sh`)   | `Bash(git *)`           |
 
 Deliberately left without one: `gate.sh` and `jev-gate.sh` (their rules match on redirects and on
 payload content, which a glob cannot see), the destructive-git guard (its `--no-verify` arm is not

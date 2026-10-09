@@ -53,6 +53,7 @@ cat >"$FAKE" <<'EOF'
 #!/bin/bash
 echo "gh $*" >>"$FAKE_GH_DIR/calls.log"
 [ -f "$FAKE_GH_DIR/fail" ] && { echo "HTTP 502" >&2; exit 1; }
+[ -f "$FAKE_GH_DIR/slow" ] && sleep 5
 case "$1 $2" in
   "api graphql") cat "$FAKE_GH_DIR/graphql.json" ;;
   "pr view") jq -r '.url' "$FAKE_GH_DIR/prview.json" ;;
@@ -65,21 +66,21 @@ export PR_LAND_GH="$FAKE" FAKE_GH_DIR="$T"
 # pr <field=value...>: write a GraphQL response. Defaults describe a ready PR.
 pr() {
   local state=OPEN draft=false mergeable=MERGEABLE mss=CLEAN decision=null checks='[{"__typename":"CheckRun","name":"test","status":"COMPLETED","conclusion":"SUCCESS"}]'
-  local threads='[]' reviews='[]' comments='[]' repo_logins='[]' kv
+  local threads='[]' reviews='[]' comments='[]' repo_logins='[]' rollup=SUCCESS kv
   for kv in "$@"; do
     case "$kv" in
       state=*) state="${kv#*=}" ;; draft=*) draft="${kv#*=}" ;; mergeable=*) mergeable="${kv#*=}" ;;
       mss=*) mss="${kv#*=}" ;; decision=*) decision="\"${kv#*=}\"" ;; checks=*) checks="${kv#*=}" ;;
       threads=*) threads="${kv#*=}" ;; reviews=*) reviews="${kv#*=}" ;; comments=*) comments="${kv#*=}" ;;
-      repo=*) repo_logins="${kv#*=}" ;;
+      repo=*) repo_logins="${kv#*=}" ;; rollup=*) rollup="${kv#*=}" ;;
     esac
   done
   jq -n --arg state "$state" --argjson draft "$draft" --arg m "$mergeable" --arg mss "$mss" --argjson dec "$decision" \
     --argjson checks "$checks" --argjson threads "$threads" --argjson reviews "$reviews" --argjson comments "$comments" \
-    --argjson repo "$repo_logins" --arg oid "$HEAD_OID" --arg ht "$HEAD_TIME" '
+    --argjson repo "$repo_logins" --arg rollup "$rollup" --arg oid "$HEAD_OID" --arg ht "$HEAD_TIME" '
     {data:{repository:{
       pullRequest:{state:$state, isDraft:$draft, mergeable:$m, mergeStateStatus:$mss, reviewDecision:$dec, headRefOid:$oid,
-        commits:{nodes:[{commit:{oid:$oid, committedDate:$ht, statusCheckRollup:{contexts:{nodes:$checks}}}}]},
+        commits:{nodes:[{commit:{oid:$oid, committedDate:$ht, statusCheckRollup:{state:$rollup, contexts:{nodes:$checks}}}}]},
         reviewThreads:{nodes:$threads}, reviews:{nodes:$reviews}, comments:{nodes:$comments}},
       pullRequests:{nodes:[{reviews:{nodes:[$repo[] | {author:{login:.}}]}, comments:{nodes:[]}}]}}}}' >"$T/graphql.json"
 }
@@ -102,6 +103,15 @@ pr checks='[{"__typename":"StatusContext","context":"ci/legacy","state":"ERROR"}
 eq "a failed commit status counts too" "$(kinds)" failing-checks
 pr checks='[{"__typename":"CheckRun","name":"test","status":"COMPLETED","conclusion":"SKIPPED"},{"__typename":"CheckRun","name":"x","status":"COMPLETED","conclusion":"NEUTRAL"}]'
 eq "skipped/neutral checks do not block" "$(v)" ready
+pr mss=UNSTABLE checks='[{"__typename":"CheckRun","name":"test","status":"COMPLETED","conclusion":"STALE"}]'
+eq "a STALE check is not green" "$(kinds)" failing-checks
+pr mss=UNSTABLE rollup=FAILURE
+eq "rollup FAILURE blocks even when the listed checks are green (checks past the first 100)" "$(kinds)" failing-checks
+pr mss=BLOCKED rollup=PENDING
+eq "rollup PENDING: pending" "$(kinds)" checks-running
+pr checks='[]'
+eq "no checks registered yet, inside grace: pending" "$(PR_LAND_NOW=$((HEAD_EPOCH + 60)) st | jq -r '.pending[0].kind')" checks-not-started
+eq "no checks at all, past grace: ready" "$(v)" ready
 pr mss=BLOCKED threads='[{"isResolved":false},{"isResolved":true},{"isResolved":false}]'
 eq "unresolved threads: blocked" "$(kinds)" unresolved-threads
 eq "  counts only unresolved" "$(st | jq -r .unresolved_threads)" 2
@@ -139,6 +149,8 @@ pr repo='["coderabbitai"]' reviews='[{"author":{"login":"coderabbitai"},"commit"
 eq "bot reviewed only an older head: waits" "$(PR_LAND_NOW=$((HEAD_EPOCH + 60)) v)" pending
 pr repo='["chatgpt-codex-connector"]' comments='[{"author":{"login":"chatgpt-codex-connector"},"createdAt":"2026-10-08T12:03:00Z"}]'
 eq "bot commented after the head: no wait" "$(PR_LAND_NOW=$((HEAD_EPOCH + 60)) v)" ready
+pr repo='["chatgpt-codex-connector"]' comments='[{"author":{"login":"chatgpt-codex-connector"},"createdAt":"2026-10-08T12:01:00Z","body":"<!-- codex-security-review:v1 {\"status\":\"running\"} --> Code Review 🔄 Running"}]'
+eq "a bot's 'review running' comment is not an answer" "$(PR_LAND_NOW=$((HEAD_EPOCH + 60)) v)" pending
 pr repo='["someone-else"]'
 eq "configured bot never active on the repo: not awaited" "$(PR_LAND_NOW=$((HEAD_EPOCH + 60)) v)" ready
 rules '{"rules":{"pr-landing-gate":{"review_grace_min":0}}}'
@@ -186,6 +198,9 @@ out=$(post "git push origin feat/x" "")
 has "git push to a branch with an open PR: hint" "$out" "/land skill on $URL"
 [[ -f "$SDIR/https___github_com_acme_widget_pull_42.json" ]] && ok || bad "git push recorded the branch's PR"
 rm -rf "$SDIR"
+out=$(post "infra/scripts/git-agent.sh dara push origin feat/x" "")
+has "fleet git-agent.sh wrapper push: hint" "$out" "/land skill on $URL"
+rm -rf "$SDIR"
 printf '{"url":"","state":""}' >"$T/prview.json"
 eq "git push with no PR for the branch: nothing" "$(post "git push -u origin feat/y" "")" ""
 rules '{"rules":{"pr-landing-gate":{"mode":"shadow"}}}'
@@ -230,6 +245,13 @@ hasnt "gh down: fail open" "$out" '"decision":"block"'
 has "  and D is told the PR was not checked" "$out" "could not read its state from GitHub"
 loghas fail-open-status-error && ok || bad "fail-open logged"
 rm -f "$T/fail"
+if command -v perl >/dev/null 2>&1; then
+  touch "$T/slow"
+  out=$(PR_LAND_CALL_TIMEOUT=1 stop)
+  hasnt "a status call past its timeout: fail open" "$out" '"decision":"block"'
+  has "  with the not-checked notice" "$out" "could not read its state from GitHub"
+  rm -f "$T/slow"
+fi
 pr mss=BLOCKED threads='[{"isResolved":false}]'
 st --bounded-out "needs D" >/dev/null
 eq "bounded-out for the current head: released" "$(stop)" ""
@@ -252,9 +274,9 @@ eq "another session's PR does not block this one" "$(stop)" ""
 echo "== wiring =="
 SJ="$SRC/settings.json"
 RJ="$HOOKS/rules.d/rules-events.json"
-eq "PostToolUse registers the gate for gh pr create and git push" \
+eq "PostToolUse registers the gate for gh pr create, git push and the fleet git-agent wrapper" \
   "$(jq -r '[.hooks.PostToolUse[].hooks[] | select(.command | contains("pr-landing-gate.sh")) | .if] | join(",")' "$SJ")" \
-  'Bash(gh *pr create*),Bash(git *push*)'
+  'Bash(gh *pr create*),Bash(git *push*),Bash(*git-agent.sh*)'
 eq "Stop registers the gate once, without an if" \
   "$(jq -r '[.hooks.Stop[].hooks[] | select(.command | contains("pr-landing-gate.sh")) | .if // "none"] | join(",")' "$SJ")" none
 eq "rule ships enforce" "$(jq -r '."pr-landing-gate".mode' "$RJ")" enforce

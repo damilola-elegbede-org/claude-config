@@ -238,4 +238,4 @@ STEP 5: Report creation, then land it
 - Creates concise, informative descriptions
 - Cleans up `.tmp/coderabbit-ignored.json` after posting acknowledgments
 - Hands off to `/land`, which follows the PR until it is mergeable; the `pr-landing-gate` hook
-  blocks the session from ending while a PR it opened is not
+  blocks the session from ending while a PR it opened is not mergeable

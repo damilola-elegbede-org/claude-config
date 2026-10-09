@@ -53,11 +53,11 @@ case "$GRACE" in '' | *[!0-9]*) GRACE=15 ;; esac
 # shellcheck disable=SC2016 # GraphQL variables, not shell
 QUERY='query($o:String!,$n:String!,$num:Int!){repository(owner:$o,name:$n){
   pullRequest(number:$num){state isDraft mergeable mergeStateStatus reviewDecision headRefOid
-    commits(last:1){nodes{commit{oid committedDate statusCheckRollup{contexts(first:100){nodes{
+    commits(last:1){nodes{commit{oid committedDate statusCheckRollup{state contexts(first:100){nodes{
       __typename ... on CheckRun{name status conclusion} ... on StatusContext{context state}}}}}}}
     reviewThreads(first:100){nodes{isResolved}}
     reviews(last:50){nodes{author{login} commit{oid} submittedAt}}
-    comments(last:50){nodes{author{login} createdAt}}}
+    comments(last:50){nodes{author{login} createdAt body}}}
   pullRequests(last:10,states:[OPEN,MERGED]){nodes{
     reviews(last:20){nodes{author{login}}} comments(last:20){nodes{author{login}}}}}}}'
 
@@ -71,25 +71,35 @@ status_once() {
     | ($p.commits.nodes[0].commit) as $head
     | ([$head.statusCheckRollup.contexts.nodes[]?
         | if .__typename == "CheckRun" then {name, run: (.status != "COMPLETED"),
-              bad: ((.conclusion // "") | IN("FAILURE","TIMED_OUT","CANCELLED","ACTION_REQUIRED","STARTUP_FAILURE"))}
+              bad: ((.conclusion // "") | IN("FAILURE","TIMED_OUT","CANCELLED","ACTION_REQUIRED","STARTUP_FAILURE","STALE"))}
           else {name: .context, run: (.state | IN("PENDING","EXPECTED")), bad: (.state | IN("FAILURE","ERROR"))} end]) as $checks
+    # The rollup state aggregates every context, including any past the first 100 listed above.
+    | ($head.statusCheckRollup.state // "") as $rollup
     | ([$p.reviewThreads.nodes[] | select(.isResolved | not)] | length) as $threads
     | ([$r.pullRequests.nodes[] | (.reviews.nodes[], .comments.nodes[]) | .author.login // empty]
        + [$p.reviews.nodes[], $p.comments.nodes[] | .author.login // empty] | unique) as $seen
     | ($head.committedDate | fromdateiso8601) as $headt
     | ([$bots[] as $b | select($seen | index($b))
         | select(([$p.reviews.nodes[] | select(.author.login == $b and .commit.oid == $p.headRefOid)] | length) == 0
-             and ([$p.comments.nodes[] | select(.author.login == $b and ((.createdAt | fromdateiso8601) >= $headt))] | length) == 0)
+             and ([$p.comments.nodes[] | select(.author.login == $b and ((.createdAt | fromdateiso8601) >= $headt))
+                   # a "review running" status comment is not an answer (Codex posts one when it starts)
+                   | select((.body // "") | test("\"status\":\"running\"|🔄|review in progress|currently processing"; "i") | not)] | length) == 0)
         | $b]) as $silent
     | (($now - $headt) < ($grace * 60)) as $in_grace
     | ([ if $p.isDraft then {kind:"draft", fix:"gh pr ready"} else empty end,
          if $p.mergeStateStatus == "DIRTY" or $p.mergeable == "CONFLICTING" then {kind:"conflicts", fix:"/rebase, then /push"} else empty end,
          if $p.mergeStateStatus == "BEHIND" then {kind:"behind-base", fix:"/rebase, then /push"} else empty end,
-         ($checks | map(select(.bad)) | if length > 0 then {kind:"failing-checks", detail:(map(.name) | join(", ")), fix:"/fix-ci"} else empty end),
+         ($checks | map(select(.bad)) | if length > 0 then {kind:"failing-checks", detail:(map(.name) | join(", ")), fix:"/fix-ci"}
+            elif ($rollup | IN("FAILURE","ERROR")) then {kind:"failing-checks", detail:"rollup \($rollup) (a check past the first 100)", fix:"/fix-ci"}
+            else empty end),
          if $threads > 0 then {kind:"unresolved-threads", detail:"\($threads) unresolved", fix:"/resolve-comments"} else empty end,
          if $p.reviewDecision == "CHANGES_REQUESTED" then {kind:"changes-requested", fix:"/resolve-comments"} else empty end
        ]) as $blockers
-    | ([ ($checks | map(select(.run)) | if length > 0 then {kind:"checks-running", detail:(map(.name) | join(", "))} else empty end),
+    | ([ ($checks | map(select(.run)) | if length > 0 then {kind:"checks-running", detail:(map(.name) | join(", "))}
+            elif ($rollup | IN("PENDING","EXPECTED")) then {kind:"checks-running", detail:"rollup \($rollup)"}
+            else empty end),
+         # Right after a push CI may not have registered yet: no checks is not the same as green.
+         if ($checks | length) == 0 and $in_grace then {kind:"checks-not-started"} else empty end,
          if $p.mergeStateStatus == "UNKNOWN" then {kind:"mergeability-computing"} else empty end,
          if ($silent | length) > 0 and $in_grace then {kind:"awaiting-review", detail:($silent | join(", "))} else empty end
        ]) as $pending
@@ -113,8 +123,13 @@ if [ "${2:-}" = "--bounded-out" ]; then
     exit 2
   }
   mkdir -p "$BOUNDED_DIR" || err "cannot write $BOUNDED_DIR"
+  # Write then rename, so the Stop hook never reads a partial record.
+  tmp="$BOUNDED_DIR/.$KEY.json.$$"
   printf '%s' "$out" | jq -c --arg why "${3:-unspecified}" --arg ts "$(date -u +%FT%TZ)" \
-    '{url, head, reason:$why, ts:$ts, blockers}' >"$BOUNDED_DIR/$KEY.json"
+    '{url, head, reason:$why, ts:$ts, blockers}' >"$tmp" && mv -f "$tmp" "$BOUNDED_DIR/$KEY.json" || {
+    rm -f "$tmp"
+    err "cannot record bounded-out in $BOUNDED_DIR"
+  }
   jq -c '. + {recorded:"bounded-out"}' "$BOUNDED_DIR/$KEY.json"
   exit 1
 fi

@@ -279,6 +279,12 @@
             "command": "${HOME}/.claude/hooks/jev/pr-landing-gate.sh",
             "if": "Bash(git *push*)",
             "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/pr-landing-gate.sh",
+            "if": "Bash(*git-agent.sh*)",
+            "timeout": 15
           }
         ]
       }

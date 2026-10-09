@@ -1,8 +1,9 @@
 #!/bin/bash
 # pr-landing-gate.sh — a PR is done when GitHub would let D click Merge, not when it is created.
 #
-#   PostToolUse(Bash, if gh pr create / git push): record the session's PR (a push records the open PR
-#     of the pushed branch, if any) and, in enforce, tell the model in-band to run /land on it now.
+#   PostToolUse(Bash, if gh pr create / git push / git-agent.sh <agent> push): record the session's PR
+#     (a push records the open PR of the pushed branch, if any) and, in enforce, tell the model in-band
+#     to run /land on it now.
 #   Stop: while a recorded PR is not ready (pr-land-status.sh), block the stop with the blockers and
 #     "run /land <url>". Released by: ready, merged, closed, or a /land bounded-out record for the
 #     current head. Re-blocks even on a stop-hook continuation (that is the point), capped at
@@ -50,7 +51,7 @@ on_post() {
   bare=$(printf '%s' "$cmd" | sed -E "s/\"([^\"\\\\]|\\\\.)*\"//g; s/'[^']*'//g")
   if printf '%s' "$bare" | grep -qE '(^|[[:space:];&|(])gh[[:space:]]+(-R[[:space:]]+[^[:space:]]+[[:space:]]+)?pr[[:space:]]+create([[:space:]]|$)'; then
     url=$(printf '%s' "$out" | grep -oE 'https://github\.com/[^/[:space:]]+/[^/[:space:]]+/pull/[0-9]+' | tail -1)
-  elif printf '%s' "$bare" | grep -qE '(^|[[:space:];&|(])git([[:space:]]+-C[[:space:]]+[^[:space:]]+)?[[:space:]]+push([[:space:]]|$)'; then
+  elif printf '%s' "$bare" | grep -qE '(^|[[:space:];&|(])(git([[:space:]]+-C[[:space:]]+[^[:space:]]+)?|([^[:space:]]*/)?git-agent\.sh[[:space:]]+[A-Za-z0-9_-]+)[[:space:]]+push([[:space:]]|$)'; then
     cwd=$(printf '%s' "$INPUT" | jq -r '.cwd // empty')
     [ -n "$cwd" ] && [ -d "$cwd" ] || return 0
     url=$(cd "$cwd" && "$GH" pr view --json url,state --jq 'select(.state == "OPEN") | .url' 2>/dev/null)
@@ -76,7 +77,12 @@ on_stop() {
     [ -e "$f" ] || continue
     url=$(jq -r '.url // empty' "$f" 2>/dev/null)
     [ -n "$url" ] || continue
-    st=$(PR_LAND_GH="$GH" bash "$STATUS" "$url" 2>/dev/null)
+    # Bound each call so several PRs stay inside the hook's 60s budget; a timeout fails open below.
+    if command -v perl >/dev/null 2>&1; then
+      st=$(PR_LAND_GH="$GH" perl -e 'alarm shift; exec @ARGV' "${PR_LAND_CALL_TIMEOUT:-15}" bash "$STATUS" "$url" 2>/dev/null)
+    else
+      st=$(PR_LAND_GH="$GH" bash "$STATUS" "$url" 2>/dev/null)
+    fi
     v=$(printf '%s' "$st" | jq -r '.verdict // "error"' 2>/dev/null)
     case "$v" in
       ready | merged | closed)
