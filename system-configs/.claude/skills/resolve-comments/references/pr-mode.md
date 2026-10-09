@@ -245,11 +245,23 @@ IF: fixes applied
           - "Include all" → expand to full git diff --name-only
           Freeform → default to exclude extras
     RUN: git add {modified_files}      # never git add -A
-    RUN: git commit -m "fix: resolve PR review feedback ({fix_count} issues)" with a body that
-      lists every thread this commit resolves, one line each: "- {location} ({source})"
+    COMPOSE: commit message = subject "fix: resolve PR review feedback ({fix_count} issues)",
+      a blank line, then one body line per thread this commit resolves: "- {location} ({source})"
+      SANITIZE each {location} first: it embeds root.path, a filename the PR's contributor
+      chose, so it is untrusted. Control chars (newline, carriage return, tab) → space, then
+      truncate to 200 chars. A newline left in it could forge a commit trailer.
+    ENSURE: .tmp/ exists
+    SET: commit_msg_file = mktemp ".tmp/commit-msg-XXXXXX"   # positional template, as below
+    WRITE: the composed message to {commit_msg_file}
+    RUN: git commit -F "{commit_msg_file}"
+      The message goes through a file, never through -m or any quoted shell string: a filename
+      containing $(...) or backticks would otherwise run when the command is materialized.
     RUN: git push
     SET: fix_sha = git rev-parse HEAD — only after the push succeeds
-    SET: fix_url = "https://github.com/{owner}/{repo}/commit/{fix_sha}"
+    SET: repo_url = gh repo view --json url -q .url
+      (the active repository's URL, so the link follows GH_HOST on GitHub Enterprise Server
+       instead of assuming github.com)
+    SET: fix_url = "{repo_url}/commit/{fix_sha}"
       Every "Fixed" thread reply below cites fix_url, so the reviewer and D can open the exact
       change from the thread. A reply that says "Fixed" without the commit is not evidence.
       IF: the push failed → do not post "Fixed" replies; report the push error and stop.
