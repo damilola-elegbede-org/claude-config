@@ -116,7 +116,10 @@ on_stop() {
       fi
       continue
     fi
-    detail=$(printf '%s' "$st" | jq -r '[(.blockers[]? | "\(.kind)\(if .detail then " (\(.detail))" else "" end) -> \(.fix)"), (.pending[]? | "\(.kind)\(if .detail then " (\(.detail))" else "" end) -> wait")] | join("; ")')
+    # Check names come from the PR, so they never enter this hook-injected reason; /land reads them
+    # from pr-land-status.sh output like any other gh data. Counts, kinds and fixes are ours.
+    detail=$(printf '%s' "$st" | jq -r 'def d: if (.kind | test("checks")) or (.detail | not) then "" else " (\(.detail))" end;
+      [(.blockers[]? | "\(.kind)\(d) -> \(.fix)"), (.pending[]? | "\(.kind)\(d) -> wait")] | join("; ")')
     open="$open
 - $url: $detail"
     [ "$MODE" = shadow ] || echo $((n + 1)) >"$cnt"

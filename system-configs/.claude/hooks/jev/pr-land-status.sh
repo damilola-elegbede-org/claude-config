@@ -26,6 +26,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 GH="${PR_LAND_GH:-gh}"
 BOUNDED_DIR="${RE_STATE_DIR:-$HOME/.claude/jev/state}/landing-bounded"
+HEADS_DIR="${RE_STATE_DIR:-$HOME/.claude/jev/state}/landing-heads"
 
 err() { jq -nc --arg u "${URL:-}" --arg d "$1" '{url:$u, verdict:"error", detail:$d}'; exit 2; }
 
@@ -52,7 +53,7 @@ case "$GRACE" in '' | *[!0-9]*) GRACE=15 ;; esac
 
 # shellcheck disable=SC2016 # GraphQL variables, not shell
 QUERY='query($o:String!,$n:String!,$num:Int!){repository(owner:$o,name:$n){
-  pullRequest(number:$num){state isDraft mergeable mergeStateStatus reviewDecision headRefOid
+  pullRequest(number:$num){state isDraft mergeable mergeStateStatus reviewDecision headRefOid createdAt
     commits(last:1){nodes{commit{oid committedDate statusCheckRollup{state contexts(first:100){nodes{
       __typename ... on CheckRun{name status conclusion} ... on StatusContext{context state}}}}}}}
     reviewThreads(first:100){nodes{isResolved}}
@@ -66,13 +67,34 @@ status_once() {
   raw=$("$GH" api graphql -f query="$QUERY" -F o="$OWNER" -F n="$NAME" -F num="$NUM" 2>&1) || err "gh api failed: ${raw:0:200}"
   printf '%s' "$raw" | jq -e '.data.repository.pullRequest' >/dev/null 2>&1 || err "no PR data: ${raw:0:200}"
   now="${PR_LAND_NOW:-$(date +%s)}"
-  printf '%s' "$raw" | jq -c --arg url "$URL" --argjson bots "$BOTS" --argjson grace "$GRACE" --argjson now "$now" '
+  # When was this head first seen? A commit prepared locally can be hours older than the push, so
+  # the grace window starts at the latest of: commit date, PR creation, first sighting of the head.
+  local head seen=0 sf s_head s_time
+  head=$(printf '%s' "$raw" | jq -r '.data.repository.pullRequest.headRefOid // empty')
+  sf="$HEADS_DIR/$KEY"
+  if [ -n "${PR_LAND_FIRST_SEEN:-}" ]; then
+    seen="$PR_LAND_FIRST_SEEN"
+  elif [ -n "$head" ]; then
+    [ -f "$sf" ] && read -r s_head s_time <"$sf"
+    if [ "${s_head:-}" = "$head" ] && [ -n "${s_time:-}" ]; then
+      seen="$s_time"
+    else
+      seen="$now"
+      mkdir -p "$HEADS_DIR" 2>/dev/null && printf '%s %s\n' "$head" "$now" >"$sf.$$" && mv -f "$sf.$$" "$sf" 2>/dev/null
+    fi
+  fi
+  case "$seen" in '' | *[!0-9]*) seen=0 ;; esac
+  printf '%s' "$raw" | jq -c --arg url "$URL" --argjson bots "$BOTS" --argjson grace "$GRACE" --argjson now "$now" --argjson first_seen "$seen" '
+    # Check names come from the PR (a PR can add or rename workflows), and they reach the model in the
+    # Stop reason: keep a short, plain-character label so a name can never read as an instruction.
+    def safe_name: tostring | gsub("[^A-Za-z0-9 ._/:()#+-]"; "?") | .[0:60];
+    def names: map(.name) | (.[0:10] | join(", ")) + (if length > 10 then " (+\(length - 10) more)" else "" end);
     .data.repository as $r | $r.pullRequest as $p
     | ($p.commits.nodes[0].commit) as $head
     | ([$head.statusCheckRollup.contexts.nodes[]?
-        | if .__typename == "CheckRun" then {name, run: (.status != "COMPLETED"),
+        | if .__typename == "CheckRun" then {name: (.name | safe_name), run: (.status != "COMPLETED"),
               bad: ((.conclusion // "") | IN("FAILURE","TIMED_OUT","CANCELLED","ACTION_REQUIRED","STARTUP_FAILURE","STALE"))}
-          else {name: .context, run: (.state | IN("PENDING","EXPECTED")), bad: (.state | IN("FAILURE","ERROR"))} end]) as $checks
+          else {name: (.context | safe_name), run: (.state | IN("PENDING","EXPECTED")), bad: (.state | IN("FAILURE","ERROR"))} end]) as $checks
     # The rollup state aggregates every context, including any past the first 100 listed above.
     | ($head.statusCheckRollup.state // "") as $rollup
     | ([$p.reviewThreads.nodes[] | select(.isResolved | not)] | length) as $threads
@@ -85,17 +107,18 @@ status_once() {
                    # a "review running" status comment is not an answer (Codex posts one when it starts)
                    | select((.body // "") | test("\"status\":\"running\"|🔄|review in progress|currently processing"; "i") | not)] | length) == 0)
         | $b]) as $silent
-    | (($now - $headt) < ($grace * 60)) as $in_grace
+    | ([$headt, ($p.createdAt // "1970-01-01T00:00:00Z" | fromdateiso8601), $first_seen] | max) as $since
+    | (($now - $since) < ($grace * 60)) as $in_grace
     | ([ if $p.isDraft then {kind:"draft", fix:"gh pr ready"} else empty end,
          if $p.mergeStateStatus == "DIRTY" or $p.mergeable == "CONFLICTING" then {kind:"conflicts", fix:"/rebase, then /push"} else empty end,
          if $p.mergeStateStatus == "BEHIND" then {kind:"behind-base", fix:"/rebase, then /push"} else empty end,
-         ($checks | map(select(.bad)) | if length > 0 then {kind:"failing-checks", detail:(map(.name) | join(", ")), fix:"/fix-ci"}
+         ($checks | map(select(.bad)) | if length > 0 then {kind:"failing-checks", detail:names, fix:"/fix-ci"}
             elif ($rollup | IN("FAILURE","ERROR")) then {kind:"failing-checks", detail:"rollup \($rollup) (a check past the first 100)", fix:"/fix-ci"}
             else empty end),
          if $threads > 0 then {kind:"unresolved-threads", detail:"\($threads) unresolved", fix:"/resolve-comments"} else empty end,
          if $p.reviewDecision == "CHANGES_REQUESTED" then {kind:"changes-requested", fix:"/resolve-comments"} else empty end
        ]) as $blockers
-    | ([ ($checks | map(select(.run)) | if length > 0 then {kind:"checks-running", detail:(map(.name) | join(", "))}
+    | ([ ($checks | map(select(.run)) | if length > 0 then {kind:"checks-running", detail:names}
             elif ($rollup | IN("PENDING","EXPECTED")) then {kind:"checks-running", detail:"rollup \($rollup)"}
             else empty end),
          # Right after a push CI may not have registered yet: no checks is not the same as green.
@@ -113,7 +136,7 @@ status_once() {
                   else "ready" end)
     | if .verdict == "blocked" and ($blockers | length) == 0 then
         .blockers = [{kind:"blocked-other", detail:"GitHub reports BLOCKED with checks green and threads resolved: likely a required human approval", fix:"needs D"}]
-        | .needs_human = true else . end'
+        | .needs_human = true else . end' || err "could not evaluate the PR state"
 }
 
 if [ "${2:-}" = "--bounded-out" ]; then
