@@ -254,7 +254,17 @@ IF: fixes applied
           - "Include all" → expand to full git diff --name-only
           Freeform → default to exclude extras
     RUN: git add {modified_files}      # never git add -A
-    RUN: git commit -m "fix: resolve PR review feedback ({fix_count} issues)"
+    COMPOSE: commit message = subject "fix: resolve PR review feedback ({fix_count} issues)",
+      a blank line, then one body line per thread this commit resolves: "- {location} ({source})"
+      SANITIZE each {location} first: it embeds root.path, a filename the PR's contributor
+      chose, so it is untrusted. Control chars (newline, carriage return, tab) → space, then
+      truncate to 200 chars. A newline left in it could forge a commit trailer.
+    ENSURE: .tmp/ exists
+    SET: commit_msg_file = mktemp ".tmp/commit-msg-XXXXXX"   # positional template, as below
+    WRITE: the composed message to {commit_msg_file}
+    RUN: git commit -F "{commit_msg_file}"
+      The message goes through a file, never through -m or any quoted shell string: a filename
+      containing $(...) or backticks would otherwise run when the command is materialized.
     INVOKE: /codex-review {base branch of PR #{pr}, from gh pr view {pr} --json baseRefName}
       GitHub's Codex re-reviews every push, and the fixes themselves are where its next round of
       findings comes from, so the same reviewer checks them locally first. /codex-review triages
@@ -276,6 +286,14 @@ IF: fixes applied
           OUTPUT: "Not pushing: {n} gate(s) fail after the Codex fixes: {names}."
           END
     RUN: git push
+    SET: fix_sha = git rev-parse HEAD — only after the push succeeds
+    SET: repo_url = gh repo view --json url -q .url
+      (the active repository's URL, so the link follows GH_HOST on GitHub Enterprise Server
+       instead of assuming github.com)
+    SET: fix_url = "{repo_url}/commit/{fix_sha}"
+      Every "Fixed" thread reply below cites fix_url, so the reviewer and D can open the exact
+      change from the thread. A reply that says "Fixed" without the commit is not evidence.
+      IF: the push failed → do not post "Fixed" replies; report the push error and stop.
 ```
 
 ### Post thread resolutions (do not skip)
@@ -393,6 +411,9 @@ FOR_EACH: issue in all_issues          # every thread needs its own mutation —
   IF: issue in fixed_issues
     body_prefix = "Fixed"; body_detail = summary of fix from issue.description
       (if description missing/empty → "Issue resolved")
+    body_commit = " (in {fix_url})" — appended AFTER sanitizing and truncating body_detail, so
+      the link is never cut; fix_url is ours, not comment-derived, and needs no sanitizing.
+      "Local only" never reaches this step, so a Fixed reply always has a pushed commit to cite.
   ELSE
     body_prefix = "Acknowledged"; body_detail = issue.reason
       (if missing/empty → "Reviewed and acknowledged")
@@ -408,10 +429,10 @@ FOR_EACH: issue in all_issues          # every thread needs its own mutation —
     - truncate to 100 chars AFTER sanitization
     IF: empty after sanitization → "Issue resolved"
 
-  COMPOSE reply body by source:
-    coderabbit → "@coderabbitai resolve - {body_prefix}: {body_detail}"
-    codex      → "{body_prefix}: {body_detail}"
-    bot, human → "{body_prefix}: {body_detail}"
+  COMPOSE reply body by source (body_commit is empty for Acknowledged):
+    coderabbit → "@coderabbitai resolve - {body_prefix}: {body_detail}{body_commit}"
+    codex      → "{body_prefix}: {body_detail}{body_commit}"
+    bot, human → "{body_prefix}: {body_detail}{body_commit}"
 
   NOTE: thread_id is opaque per GitHub docs — never decode or pattern-validate node IDs, and never
     build a filesystem path out of it or issue.id for the same reason (see SET below).
