@@ -144,6 +144,9 @@ eq "configured bot never active on the repo: not awaited" "$(PR_LAND_NOW=$((HEAD
 rules '{"rules":{"pr-landing-gate":{"review_grace_min":0}}}'
 pr repo='["coderabbitai"]'
 eq "review_grace_min from the rule config" "$(PR_LAND_NOW=$((HEAD_EPOCH + 60)) v)" ready
+rules '{"rules":{"pr-landing-gate":{"review_bots":["somebot"]}}}'
+pr repo='["coderabbitai","somebot"]'
+eq "review_bots from the rule config: only listed bots are awaited" "$(PR_LAND_NOW=$((HEAD_EPOCH + 60)) st | jq -r '.pending[0].detail')" somebot
 unset JEV_RULES_FILE
 
 echo "== pr-land-status: errors and bounded-out =="
@@ -204,7 +207,10 @@ has "  and the blocker with its fix" "$out" "unresolved-threads (1 unresolved) -
 has "  and the skill" "$out" "/land skill"
 has "re-blocks on a stop-hook continuation (block 2)" "$(stop true)" '"decision":"block"'
 has "block 3" "$(stop true)" '"decision":"block"'
-eq "after max_blocks (3) for this head: released" "$(stop true)" ""
+out=$(stop true)
+hasnt "after max_blocks (3) for this head: released" "$out" '"decision":"block"'
+has "  and D is told once that the gate gave up" "$out" "still not mergeable after 3 blocks"
+eq "  only once per head" "$(stop true)" ""
 loghas released-cap && ok || bad "cap release logged"
 rm -rf "$SDIR"
 post "gh pr create --title t" "$URL" >/dev/null
@@ -219,7 +225,9 @@ pr state=MERGED
 eq "merged: released" "$(stop)" ""
 post "gh pr create --title t" "$URL" >/dev/null
 touch "$T/fail"
-eq "gh down: fail open" "$(stop)" ""
+out=$(stop)
+hasnt "gh down: fail open" "$out" '"decision":"block"'
+has "  and D is told the PR was not checked" "$out" "could not read its state from GitHub"
 loghas fail-open-status-error && ok || bad "fail-open logged"
 rm -f "$T/fail"
 pr mss=BLOCKED threads='[{"isResolved":false}]'
