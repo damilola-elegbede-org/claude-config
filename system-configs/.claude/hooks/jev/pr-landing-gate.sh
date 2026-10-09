@@ -42,6 +42,28 @@ record() { # <url> -> 0 when newly recorded
   jq -nc --arg u "$1" --arg ts "$(date -u +%FT%TZ)" '{url:$u, recorded_at:$ts}' >"$f"
 }
 
+# pushed_branch <command>: the branch a push updated ("" = the current branch); fails for a
+# dry run or a delete, which change no PR. Reads the first push in the command, first refspec only.
+pushed_branch() {
+  local args a pos=0 ref=""
+  args=$(printf '%s' "$1" | grep -oE '(git|git-agent\.sh)[^;&|]*[[:space:]]push([[:space:]][^;&|]*)?' | head -1 | sed -E 's/^.*[[:space:]]push//')
+  for a in $args; do
+    case "$a" in
+      --dry-run | -n | --delete | -d) return 1 ;;
+      -*) ;;
+      *)
+        pos=$((pos + 1))
+        [ "$pos" -eq 2 ] && ref="$a"
+        ;;
+    esac
+  done
+  ref="${ref#+}"
+  case "$ref" in :* | *:) return 1 ;; *:*) ref="${ref#*:}" ;; esac
+  ref="${ref#refs/heads/}"
+  case "$ref" in HEAD | '') ref="" ;; *[!A-Za-z0-9._/-]*) return 1 ;; esac
+  printf '%s' "$ref"
+}
+
 on_post() {
   local cmd out url cwd
   cmd=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty')
@@ -54,7 +76,10 @@ on_post() {
   elif printf '%s' "$bare" | grep -qE '(^|[[:space:];&|(])(git([[:space:]]+-C[[:space:]]+[^[:space:]]+)?|([^[:space:]]*/)?git-agent\.sh[[:space:]]+[A-Za-z0-9_-]+)[[:space:]]+push([[:space:]]|$)'; then
     cwd=$(printf '%s' "$INPUT" | jq -r '.cwd // empty')
     [ -n "$cwd" ] && [ -d "$cwd" ] || return 0
-    url=$(cd "$cwd" && "$GH" pr view --json url,state --jq 'select(.state == "OPEN") | .url' 2>/dev/null)
+    local branch
+    branch=$(pushed_branch "$bare") || return 0
+    # shellcheck disable=SC2086 # $branch is one ref name, or empty for the current branch
+    url=$(cd "$cwd" && "$GH" pr view $branch --json url,state --jq 'select(.state == "OPEN") | .url' 2>/dev/null)
   else
     return 0
   fi

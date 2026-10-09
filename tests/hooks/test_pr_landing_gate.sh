@@ -56,7 +56,7 @@ echo "gh $*" >>"$FAKE_GH_DIR/calls.log"
 [ -f "$FAKE_GH_DIR/fail" ] && { echo "HTTP 502" >&2; exit 1; }
 [ -f "$FAKE_GH_DIR/slow" ] && sleep 5
 case "$1 $2" in
-  "api graphql") cat "$FAKE_GH_DIR/graphql.json" ;;
+  "api graphql") case "$*" in *" c="*) cat "$FAKE_GH_DIR/graphql-page2.json" ;; *) cat "$FAKE_GH_DIR/graphql.json" ;; esac ;;
   "pr view") jq -r '.url' "$FAKE_GH_DIR/prview.json" ;;
   *) exit 1 ;;
 esac
@@ -121,6 +121,14 @@ eq "no checks at all, past grace: ready" "$(v)" ready
 pr mss=BLOCKED threads='[{"isResolved":false},{"isResolved":true},{"isResolved":false}]'
 eq "unresolved threads: blocked" "$(kinds)" unresolved-threads
 eq "  counts only unresolved" "$(st | jq -r .unresolved_threads)" 2
+pr mss=BLOCKED threads='[{"isResolved":true}]'
+jq -c '.data.repository.pullRequest.reviewThreads.pageInfo = {hasNextPage:true, endCursor:"CUR1"}' "$T/graphql.json" >"$T/g1" && mv "$T/g1" "$T/graphql.json"
+jq -n '{data:{repository:{pullRequest:{reviewThreads:{pageInfo:{hasNextPage:false,endCursor:"CUR2"},nodes:[{isResolved:false}]}}}}}' >"$T/graphql-page2.json"
+eq "an unresolved thread past the first 100 still blocks" "$(kinds)" unresolved-threads
+eq "  counted across pages" "$(st | jq -r .unresolved_threads)" 1
+echo 'not json' >"$T/graphql-page2.json"
+eq "a bad thread page: error verdict" "$(v)" error
+rm -f "$T/graphql-page2.json"
 pr mss=DIRTY mergeable=CONFLICTING
 eq "conflicts: blocked with rebase fix" "$(st | jq -r '.blockers[0] | .kind + " " + .fix')" "conflicts /rebase, then /push"
 pr mss=BEHIND
@@ -224,6 +232,23 @@ rm -rf "$SDIR"
 out=$(post "infra/scripts/git-agent.sh dara push origin feat/x" "")
 has "fleet git-agent.sh wrapper push: hint" "$out" "/land skill on $URL"
 rm -rf "$SDIR"
+: >"$T/calls.log"
+post "git push -u origin feat/other" "" >/dev/null
+grep -qx 'gh pr view feat/other --json url,state --jq select(.state == "OPEN") | .url' "$T/calls.log" && ok || bad "push of a named branch looks up that branch's PR" "$(cat "$T/calls.log")"
+rm -rf "$SDIR"
+: >"$T/calls.log"
+post "git push origin +HEAD:refs/heads/feat/z" "" >/dev/null
+grep -q '^gh pr view feat/z ' "$T/calls.log" && ok || bad "src:dst refspec looks up the destination branch" "$(cat "$T/calls.log")"
+rm -rf "$SDIR"
+: >"$T/calls.log"
+post "git push" "" >/dev/null
+grep -q '^gh pr view --json' "$T/calls.log" && ok || bad "bare git push looks up the current branch" "$(cat "$T/calls.log")"
+rm -rf "$SDIR"
+eq "dry-run push records nothing" "$(post "git push --dry-run origin feat/x" "")" ""
+eq "  nor -n" "$(post "git push -n origin feat/x" "")" ""
+eq "branch delete records nothing" "$(post "git push origin --delete feat/x" "")" ""
+eq "  nor a :branch delete refspec" "$(post "git push origin :feat/x" "")" ""
+[[ ! -d "$SDIR" ]] && ok || bad "dry run and deletes recorded nothing"
 printf '{"url":"","state":""}' >"$T/prview.json"
 eq "git push with no PR for the branch: nothing" "$(post "git push -u origin feat/y" "")" ""
 rules '{"rules":{"pr-landing-gate":{"mode":"shadow"}}}'

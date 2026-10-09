@@ -56,16 +56,38 @@ QUERY='query($o:String!,$n:String!,$num:Int!){repository(owner:$o,name:$n){
   pullRequest(number:$num){state isDraft mergeable mergeStateStatus reviewDecision headRefOid createdAt
     commits(last:1){nodes{commit{oid committedDate statusCheckRollup{state contexts(first:100){nodes{
       __typename ... on CheckRun{name status conclusion} ... on StatusContext{context state}}}}}}}
-    reviewThreads(first:100){nodes{isResolved}}
+    reviewThreads(first:100){pageInfo{hasNextPage endCursor} nodes{isResolved}}
     reviews(last:50){nodes{author{login} commit{oid} submittedAt}}
     comments(last:50){nodes{author{login} createdAt body}}}
   pullRequests(last:10,states:[OPEN,MERGED]){nodes{
     reviews(last:20){nodes{author{login}}} comments(last:20){nodes{author{login}}}}}}}'
+# shellcheck disable=SC2016 # GraphQL variables, not shell
+THREADS_QUERY='query($o:String!,$n:String!,$num:Int!,$c:String!){repository(owner:$o,name:$n){
+  pullRequest(number:$num){reviewThreads(first:100,after:$c){pageInfo{hasNextPage endCursor} nodes{isResolved}}}}}'
+
+# more_threads <raw>: fold every later page of review threads into the first response, so an
+# unresolved thread past the first 100 still counts. Bounded at 20 pages (2,000 threads).
+more_threads() {
+  local raw="$1" page cursor i=0
+  while [ "$(printf '%s' "$raw" | jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage // false')" = true ] && [ "$i" -lt 20 ]; do
+    i=$((i + 1))
+    cursor=$(printf '%s' "$raw" | jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.endCursor')
+    page=$("$GH" api graphql -f query="$THREADS_QUERY" -F o="$OWNER" -F n="$NAME" -F num="$NUM" -f c="$cursor" 2>&1) || err "gh api failed: ${page:0:200}"
+    raw=$(jq -c --argjson p "$page" '.data.repository.pullRequest.reviewThreads |=
+      {pageInfo: $p.data.repository.pullRequest.reviewThreads.pageInfo,
+       nodes: (.nodes + $p.data.repository.pullRequest.reviewThreads.nodes)}' <<<"$raw") || err "could not read a review-thread page"
+  done
+  printf '%s' "$raw"
+}
 
 status_once() {
   local raw now
   raw=$("$GH" api graphql -f query="$QUERY" -F o="$OWNER" -F n="$NAME" -F num="$NUM" 2>&1) || err "gh api failed: ${raw:0:200}"
   printf '%s' "$raw" | jq -e '.data.repository.pullRequest' >/dev/null 2>&1 || err "no PR data: ${raw:0:200}"
+  raw=$(more_threads "$raw") || {
+    printf '%s\n' "$raw"
+    exit 2
+  }
   now="${PR_LAND_NOW:-$(date +%s)}"
   # When was this head first seen? A commit prepared locally can be hours older than the push, so
   # the grace window starts at the latest of: commit date, PR creation, first sighting of the head.
