@@ -244,6 +244,19 @@ rm -rf "$SDIR"
 post "git push" "" >/dev/null
 grep -q '^gh pr view --json' "$T/calls.log" && ok || bad "bare git push looks up the current branch" "$(cat "$T/calls.log")"
 rm -rf "$SDIR"
+: >"$T/calls.log"
+post 'git push origin "feat/q"' "" >/dev/null
+grep -q '^gh pr view feat/q ' "$T/calls.log" && ok || bad "a quoted refspec is still the pushed branch" "$(cat "$T/calls.log")"
+rm -rf "$SDIR"
+: >"$T/calls.log"
+post "git push --recurse-submodules check -o ci.skip origin feat/r" "" >/dev/null
+grep -q '^gh pr view feat/r ' "$T/calls.log" && ok || bad "options with a separate value are not operands" "$(cat "$T/calls.log")"
+rm -rf "$SDIR"
+: >"$T/calls.log"
+post "git push -- origin feat/s" "" >/dev/null
+grep -q '^gh pr view feat/s ' "$T/calls.log" && ok || bad "-- ends the options" "$(cat "$T/calls.log")"
+rm -rf "$SDIR"
+eq "a commit message that mentions a push records nothing" "$(post "git commit -m 'run git push origin feat/x later'" "")" ""
 eq "dry-run push records nothing" "$(post "git push --dry-run origin feat/x" "")" ""
 eq "  nor -n" "$(post "git push -n origin feat/x" "")" ""
 eq "branch delete records nothing" "$(post "git push origin --delete feat/x" "")" ""

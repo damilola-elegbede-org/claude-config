@@ -45,12 +45,19 @@ record() { # <url> -> 0 when newly recorded
 # pushed_branch <command>: the branch a push updated ("" = the current branch); fails for a
 # dry run or a delete, which change no PR. Reads the first push in the command, first refspec only.
 pushed_branch() {
-  local args a pos=0 ref=""
+  local args a pos=0 ref="" skip=0 opts=1
   args=$(printf '%s' "$1" | grep -oE '(git|git-agent\.sh)[^;&|]*[[:space:]]push([[:space:]][^;&|]*)?' | head -1 | sed -E 's/^.*[[:space:]]push//')
   for a in $args; do
-    case "$a" in
-      --dry-run | -n | --delete | -d) return 1 ;;
-      -*) ;;
+    if [ "$skip" = 1 ]; then
+      skip=0
+      continue
+    fi
+    case "$opts:$a" in
+      1:--dry-run | 1:-n | 1:--delete | 1:-d) return 1 ;;
+      # Options whose value is the next word (git push -h); the =value forms fall to -* below.
+      1:--repo | 1:--receive-pack | 1:--exec | 1:-o | 1:--push-option | 1:--recurse-submodules) skip=1 ;;
+      1:--) opts=0 ;;
+      1:-*) ;;
       *)
         pos=$((pos + 1))
         [ "$pos" -eq 2 ] && ref="$a"
@@ -68,9 +75,10 @@ on_post() {
   local cmd out url cwd
   cmd=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty')
   out=$(printf '%s' "$INPUT" | jq -r '.tool_response.stdout // empty')
-  # Strip quoted strings so a commit message that MENTIONS these commands is not one.
+  # Strip quoted strings so a commit message that MENTIONS these commands is not one. A quoted
+  # word with no space (git push origin "feat/x") is unwrapped first: a ref never has a space.
   local bare
-  bare=$(printf '%s' "$cmd" | sed -E "s/\"([^\"\\\\]|\\\\.)*\"//g; s/'[^']*'//g")
+  bare=$(printf '%s' "$cmd" | sed -E "s/\"([^\"[:space:]\\\\]*)\"/\\1/g; s/'([^'[:space:]]*)'/\\1/g; s/\"([^\"\\\\]|\\\\.)*\"//g; s/'[^']*'//g")
   if printf '%s' "$bare" | grep -qE '(^|[[:space:];&|(])gh[[:space:]]+(-R[[:space:]]+[^[:space:]]+[[:space:]]+)?pr[[:space:]]+create([[:space:]]|$)'; then
     url=$(printf '%s' "$out" | grep -oE 'https://github\.com/[^/[:space:]]+/[^/[:space:]]+/pull/[0-9]+' | tail -1)
   elif printf '%s' "$bare" | grep -qE '(^|[[:space:];&|(])(git([[:space:]]+-C[[:space:]]+[^[:space:]]+)?|([^[:space:]]*/)?git-agent\.sh[[:space:]]+[A-Za-z0-9_-]+)[[:space:]]+push([[:space:]]|$)'; then
