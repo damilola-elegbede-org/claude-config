@@ -39,6 +39,19 @@ if [ "$(re_mode stopfailure-hint enforce)" != off ] && [ -f "$PEND" ]; then
   fi
 fi
 
+# --- 1b. memory candidate left by the previous session's end (interactive only: a headless/fleet/bg session must neither
+# consume the note nor feed "save or discard it" into a model that cannot act on it) ------------------------------
+MC="$RE_STATE_DIR/last-memory-candidate.json"
+if [ "$(re_scope)" = interactive ] && [ -f "$MC" ]; then
+  MCQ=$(jq -r '.quote // empty' "$MC" 2>/dev/null)
+  MCF=$(jq -r '.file // empty' "$MC" 2>/dev/null)
+  if [ -n "$MCQ" ]; then
+    CTX="${CTX:+$CTX$'\n\n'}Jev saved a memory candidate when the last session ended: \"${MCQ}\". Review ${MCF:-~/.claude/memory-candidates.md}; save or discard it."
+    re_log session-end-memory surfaced "next-start"
+  fi
+  mv -f "$MC" "$MC.consumed" 2>/dev/null
+fi
+
 # --- 2. project memories -----------------------------------------------------------
 PROJ_MODE=$(re_mode session-project-memories shadow)
 if [ "$PROJ_MODE" != off ] && [ "$(re_scope)" = interactive ]; then

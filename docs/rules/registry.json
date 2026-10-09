@@ -71,9 +71,9 @@
       "text": "Back every claim D may act on with its source: file:line, the command and its output, a URL, or a quote.",
       "enforcement": "jev",
       "hook": "executive-lint.sh",
-      "mode": "enforce",
+      "mode": "shadow",
       "coverage": "partial",
-      "note": "Jev score executive-unsourced-claims over the final reply; enforce, blocks once at P(level>=2) >= 0.85."
+      "note": "Jev score executive-unsourced-claims over the final reply; shadow, flashes at P(level>=2) >= 0.92."
     },
     {
       "id": "CLAUDE-EVD-2",
@@ -82,7 +82,7 @@
       "text": "Say \"untested\" when something wasn't tested.",
       "enforcement": "jev",
       "hook": "executive-lint.sh",
-      "mode": "enforce",
+      "mode": "shadow",
       "coverage": "partial",
       "note": "Covered by the same unsourced-claims score."
     },
@@ -93,7 +93,7 @@
       "text": "Label inference as inference.",
       "enforcement": "jev",
       "hook": "executive-lint.sh",
-      "mode": "enforce",
+      "mode": "shadow",
       "coverage": "partial",
       "note": "Covered by the same unsourced-claims score."
     },
@@ -104,7 +104,7 @@
       "text": "Never present a guess as fact.",
       "enforcement": "jev",
       "hook": "executive-lint.sh",
-      "mode": "enforce",
+      "mode": "shadow",
       "coverage": "partial",
       "note": "Covered by the same unsourced-claims score."
     },
@@ -117,7 +117,7 @@
       "hook": "executive-lint.sh",
       "mode": "shadow",
       "coverage": "partial",
-      "note": "Jev boolean executive-scope-creep: git diff --stat vs the first user prompt; shadow only."
+      "note": "Jev boolean executive-scope-creep: git diff --stat vs the first user prompt; shadow, with one advisory flash per session at P >= 0.95."
     },
     {
       "id": "CLAUDE-CHG-2",
@@ -245,13 +245,13 @@
       "text": "The tag names D's next move correctly (FYI read, DECISION choose, APPROVAL yes/no, INPUT answer, ACTION do the one step only D can).",
       "enforcement": "jev",
       "hook": "executive-lint.sh",
-      "mode": "shadow",
+      "mode": "enforce",
       "coverage": "partial",
-      "note": "Jev choice executive-tag-correctness; shadow only."
+      "note": "Jev choice executive-tag-correctness; enforce in interactive sessions (bg jobs shadow), holds once at P >= 0.9."
     },
     {
       "id": "EXEC-03",
-      "source": "system-configs/.claude/output-styles/executive.md:20",
+      "source": "system-configs/.claude/output-styles/executive.md:23",
       "anchor": "A conditional action",
       "text": "A conditional action splits by who sees the trigger: D watches then ACTION; Claude sees it then FYI now and ACTION when it fires.",
       "enforcement": "none",
@@ -261,7 +261,7 @@
     },
     {
       "id": "EXEC-04",
-      "source": "system-configs/.claude/output-styles/executive.md:24",
+      "source": "system-configs/.claude/output-styles/executive.md:27",
       "anchor": "**Add the meta line when D must act**",
       "text": "Add the meta line (Confidence / Reversible / Deadline) when D must act.",
       "enforcement": "regex",
@@ -272,7 +272,7 @@
     },
     {
       "id": "EXEC-05",
-      "source": "system-configs/.claude/output-styles/executive.md:25",
+      "source": "system-configs/.claude/output-styles/executive.md:28",
       "anchor": "**Bad news first",
       "text": "Bad news first, then only what changes the decision.",
       "enforcement": "none",
@@ -282,7 +282,7 @@
     },
     {
       "id": "EXEC-06",
-      "source": "system-configs/.claude/output-styles/executive.md:25",
+      "source": "system-configs/.claude/output-styles/executive.md:28",
       "anchor": "No preamble, no recap",
       "text": "No preamble, no recap, leave out empty sections.",
       "enforcement": "none",
@@ -292,7 +292,7 @@
     },
     {
       "id": "EXEC-07",
-      "source": "system-configs/.claude/output-styles/executive.md:26",
+      "source": "system-configs/.claude/output-styles/executive.md:29",
       "anchor": "paragraph over two lines becomes bullets",
       "text": "A paragraph over two lines becomes bullets or a table.",
       "enforcement": "none",
@@ -302,7 +302,7 @@
     },
     {
       "id": "EXEC-08",
-      "source": "system-configs/.claude/output-styles/executive.md:26",
+      "source": "system-configs/.claude/output-styles/executive.md:29",
       "anchor": "A brief fits on one screen",
       "text": "A brief fits on one screen.",
       "enforcement": "regex",
@@ -313,7 +313,7 @@
     },
     {
       "id": "EXEC-09",
-      "source": "system-configs/.claude/output-styles/executive.md:27",
+      "source": "system-configs/.claude/output-styles/executive.md:30",
       "anchor": "**Pick the form that fits each point",
       "text": "Pick the form that fits each point, and vary it.",
       "enforcement": "none",
@@ -323,7 +323,7 @@
     },
     {
       "id": "EXEC-10",
-      "source": "system-configs/.claude/output-styles/executive.md:41",
+      "source": "system-configs/.claude/output-styles/executive.md:44",
       "anchor": "Tables wrap past",
       "text": "Keep table cells short (tables wrap past ~100 columns).",
       "enforcement": "none",
@@ -333,7 +333,7 @@
     },
     {
       "id": "EXEC-11",
-      "source": "system-configs/.claude/output-styles/executive.md:41",
+      "source": "system-configs/.claude/output-styles/executive.md:44",
       "anchor": "Diagrams stay fenced",
       "text": "Diagrams stay fenced and under 80 columns; mermaid renders only inside artifacts.",
       "enforcement": "none",
@@ -343,7 +343,7 @@
     },
     {
       "id": "EXEC-12",
-      "source": "system-configs/.claude/output-styles/executive.md:42",
+      "source": "system-configs/.claude/output-styles/executive.md:45",
       "anchor": "An artifact always comes with",
       "text": "An artifact always comes with a 1-3 line summary and the link.",
       "enforcement": "none",
@@ -353,7 +353,7 @@
     },
     {
       "id": "EXEC-13",
-      "source": "system-configs/.claude/output-styles/executive.md:44",
+      "source": "system-configs/.claude/output-styles/executive.md:47",
       "anchor": "**Emoji mark surprises",
       "text": "Emoji mark surprises, not status: usually 0-2 per message.",
       "enforcement": "none",
@@ -363,7 +363,7 @@
     },
     {
       "id": "EXEC-14",
-      "source": "system-configs/.claude/output-styles/executive.md:44",
+      "source": "system-configs/.claude/output-styles/executive.md:47",
       "anchor": "🔴 problem or risk",
       "text": "Emoji meanings: red problem/risk, warning caveat/untested, check only to close a flagged item, star the recommendation in tables.",
       "enforcement": "none",
@@ -373,7 +373,7 @@
     },
     {
       "id": "EXEC-15",
-      "source": "system-configs/.claude/output-styles/executive.md:45",
+      "source": "system-configs/.claude/output-styles/executive.md:48",
       "anchor": "Bold one phrase per bullet",
       "text": "Bold one phrase per bullet at most; white space between sections; a horizontal rule only between separate topics.",
       "enforcement": "none",
@@ -383,7 +383,7 @@
     },
     {
       "id": "EXEC-16",
-      "source": "system-configs/.claude/output-styles/executive.md:47",
+      "source": "system-configs/.claude/output-styles/executive.md:50",
       "anchor": "**Say it plainly**",
       "text": "Plain words, jargon defined or dropped, no hedging.",
       "enforcement": "none",
@@ -393,7 +393,7 @@
     },
     {
       "id": "EXEC-17",
-      "source": "system-configs/.claude/output-styles/executive.md:47",
+      "source": "system-configs/.claude/output-styles/executive.md:50",
       "anchor": "Numbers with a comparison point",
       "text": "Numbers with a comparison point, never \"most\" or \"significant\".",
       "enforcement": "none",
@@ -403,29 +403,29 @@
     },
     {
       "id": "EXEC-18",
-      "source": "system-configs/.claude/output-styles/executive.md:49",
+      "source": "system-configs/.claude/output-styles/executive.md:52",
       "anchor": "**Source every claim D may act on**",
       "text": "Source every claim D may act on: file:line, command and result, URL, or quote.",
       "enforcement": "jev",
       "hook": "executive-lint.sh",
-      "mode": "enforce",
+      "mode": "shadow",
       "coverage": "partial",
-      "note": "Jev score executive-unsourced-claims; enforce, blocks once at P(level>=2) >= 0.85."
+      "note": "Jev score executive-unsourced-claims; shadow, flashes at P(level>=2) >= 0.92 (measured precision too low to block)."
     },
     {
       "id": "EXEC-19",
-      "source": "system-configs/.claude/output-styles/executive.md:49",
+      "source": "system-configs/.claude/output-styles/executive.md:52",
       "anchor": "Mark **untested** and",
       "text": "Mark untested and inference explicitly.",
       "enforcement": "jev",
       "hook": "executive-lint.sh",
-      "mode": "enforce",
+      "mode": "shadow",
       "coverage": "partial",
       "note": "Same unsourced-claims score."
     },
     {
       "id": "EXEC-20",
-      "source": "system-configs/.claude/output-styles/executive.md:51",
+      "source": "system-configs/.claude/output-styles/executive.md:54",
       "anchor": "**Close with Next**",
       "text": "Close with **Next:** naming who acts and when, carrying any ask.",
       "enforcement": "none",
@@ -435,7 +435,7 @@
     },
     {
       "id": "EXEC-21",
-      "source": "system-configs/.claude/output-styles/executive.md:51",
+      "source": "system-configs/.claude/output-styles/executive.md:54",
       "anchor": "DECISION and APPROVAL add",
       "text": "DECISION and APPROVAL add **If you don't decide:**.",
       "enforcement": "none",
@@ -445,7 +445,7 @@
     },
     {
       "id": "EXEC-22",
-      "source": "system-configs/.claude/output-styles/executive.md:54",
+      "source": "system-configs/.claude/output-styles/executive.md:57",
       "anchor": "Where these rules conflict",
       "text": "Where these rules conflict with more general formatting guidance, these rules win, except the ask skill's dialog format.",
       "enforcement": "none",
@@ -798,7 +798,7 @@
       "text": "Evidence or nothing: every claim D acts on cites its source; say untested; label inference.",
       "enforcement": "jev",
       "hook": "executive-lint.sh",
-      "mode": "enforce",
+      "mode": "shadow",
       "coverage": "partial",
       "note": "Same unsourced-claims score; duplicates EXEC-18."
     },
@@ -1007,6 +1007,17 @@
       "hook": null,
       "mode": "none",
       "coverage": "none"
+    },
+    {
+      "id": "MEM-PR-3",
+      "source": "memory/pr-done-means-mergeable.md:11",
+      "anchor": "A PR is done only when D can click Merge",
+      "text": "A PR is done only when GitHub would let D click Merge (CI green, threads resolved, no conflicts); after creating or pushing one, follow it with /land, never call it ready on creation.",
+      "enforcement": "regex",
+      "hook": "pr-landing-gate.sh",
+      "mode": "enforce",
+      "coverage": "partial",
+      "note": "PostToolUse on gh pr create / git push records the PR and tells the model to run /land; Stop blocks while pr-land-status.sh says it is not mergeable, released by ready/merged/closed, a /land bounded-out record for the head, or max_blocks. Verdicts are GitHub state, no Jev call. Covers PRs created or pushed in this session only."
     },
     {
       "id": "MEM-TRI-1",

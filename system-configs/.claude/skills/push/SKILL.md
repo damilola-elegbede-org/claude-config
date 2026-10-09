@@ -4,6 +4,8 @@ description: Push changes to remote repository with validation. Use when pushing
 argument-hint: "[--force|--dry-run]"
 metadata:
   category: workflow
+  triggers:
+    - 'cmd:\bgit\b(\s+-[A-Za-z]\s+\S+|\s+--\S+)*\s+push\b'
 ---
 
 # /push

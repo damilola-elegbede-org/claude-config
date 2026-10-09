@@ -37,7 +37,7 @@ fi
 STAT=$(git diff --stat "$BASE" 2>/dev/null | tail -60 | cut -c1-200)
 DIFFHEAD=$(git diff "$BASE" 2>/dev/null | head -c 8000)
 STATE=$(jq -nc --arg stat "$STAT" --arg diff "$DIFFHEAD" '{diff_stat:$stat,diff_start:$diff}')
-Q='{"risk":{"type":"score","instructions":"How risky is this change set to merge without a thorough review?","criteria":["trivial: docs, comments, formatting, renames","ordinary logic change with tests","touches auth, data, payments, shell execution, infrastructure or permissions","security-critical or hard to reverse"]}}'
+Q='{"risk":{"type":"score","instructions":"Could a bug in this change cause security, money, data-loss, outage or hard-to-reverse harm that a quick one-pass review might miss?","criteria":["trivial or cosmetic: docs, comments, copy, formatting, renames, test-only","routine logic change with a small, bounded blast radius","complex or cross-cutting logic, shell execution, permissions, data handling or CI where subtle bugs are plausible","security-critical, money-moving, destructive or hard to reverse"]}}'
 if ! RESP=$(re_jev_req workflow-review-depth "$STATE" "$Q" 2000 | re_jev_call 2>/dev/null) || [ -z "$RESP" ]; then
   jq -c '. + {mode:"unavailable"}' <<<"$BASEOUT"
   exit 0

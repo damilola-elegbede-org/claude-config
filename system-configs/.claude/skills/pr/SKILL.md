@@ -4,6 +4,8 @@ description: Create pull requests with smart title and description generation. U
 argument-hint: "[target_branch] [--draft|--force]"
 metadata:
   category: workflow
+  triggers:
+    - 'cmd:\bgh\b(\s+(-R|--repo)(=|\s+)\S+|\s+--\S+)*\s+pr\s+(create|new)\b'
 ---
 
 # /pr
@@ -56,10 +58,11 @@ Use --force to create another PR
    - If PR exists and `--force` not set: Output PR URL and exit (success)
    - If PR exists and `--force` set: Continue to create new PR
    - If no PR exists: Continue
-2. **Analyze Changes**: Get diff between current branch and target branch
-3. **Generate Content**: Create title and description based on commits and changes
-4. **Create PR**: Submit to GitHub with generated content
-5. **Post Review Acknowledgments**: If `.tmp/coderabbit-ignored.json` exists, post skipped issues as PR comment
+2. **Pre-PR Codex Review**: Run `/codex-review` so Codex's findings are fixed before the PR opens
+3. **Analyze Changes**: Get diff between current branch and target branch
+4. **Generate Content**: Create title and description based on commits and changes
+5. **Create PR**: Submit to GitHub with generated content
+6. **Post Review Acknowledgments**: If `.tmp/coderabbit-ignored.json` exists, post skipped issues as PR comment
 
 ### Agent Usage (Minimal)
 
@@ -170,6 +173,29 @@ STEP 2: Parse $ARGUMENTS
   IF: no target_branch given
     SET: target_branch = main (or master if the repo has no main)
 
+STEP 2.5: Pre-PR Codex review
+  INVOKE: /codex-review {target_branch}
+    (skips itself when this exact diff already passed, e.g. when /ship-it ran it first)
+  IF: it ends busy
+    OUTPUT: "Not opening the PR: another Codex review is still running in this worktree. Re-run /pr when it finishes."
+    END (failure)
+  IF: it ends blocked
+    OUTPUT: "Not opening the PR: Codex still reports P0/P1 findings (see above)."
+    END (failure)
+  Check the repository state, not what this run did: a cached pass applies no fixes, yet an
+  earlier run may have left fixes uncommitted or committed but unpushed. Refuse before any
+  push, so a partial fix set is never published.
+  IF: `git status --porcelain -- ':!.tmp'` lists any change, untracked files included
+      (a fix can add a new file, and leaving it out would publish a fix set that cannot work)
+    OUTPUT: "Not opening the PR: there are uncommitted or untracked changes, so the PR would not include them. Commit them and re-run /pr."
+    END (failure)
+  IF: HEAD has commits its upstream lacks (or the branch has no upstream yet)
+    RUN: /verify --report-only   (gates that passed before the fixes say nothing about them)
+    IF: any gate failed
+      OUTPUT: "Not opening the PR: {n} gate(s) fail on the unpushed commits: {names}."
+      END (failure)
+    INVOKE: /push   (the PR must include the fixes)
+
 STEP 3: Analyze and create PR
   RUN: git diff {target_branch}...HEAD
   RUN: git log {target_branch}..HEAD
@@ -216,8 +242,11 @@ STEP 4: Post review acknowledgments
       DELETE: .tmp/coderabbit-ignored.json
       OUTPUT: "Posted acknowledgment for {count} skipped issues"
 
-STEP 5: Report success
+STEP 5: Report creation, then land it
   OUTPUT: "Pull request created: {pr_url}"
+  INVOKE: /land {pr_url}
+  NOTE: creating the PR is not the end of the task. CI and the review bots start now, and the PR
+        is done only when /land reports it ready to merge or bounded out.
   END
 ```
 
@@ -230,7 +259,10 @@ STEP 5: Report success
 ## Notes
 
 - Checks for existing PR before creation (skips gracefully unless --force)
+- Runs `/codex-review` before creating the PR; a missing or signed-out codex CLI skips it with a warning
 - Posts skipped review issues from `/review` as PR comment
 - Generates clear, conventional commit style titles
 - Creates concise, informative descriptions
 - Cleans up `.tmp/coderabbit-ignored.json` after posting acknowledgments
+- Hands off to `/land`, which follows the PR until it is mergeable; the `pr-landing-gate` hook
+  blocks the session from ending while a PR it opened is not mergeable

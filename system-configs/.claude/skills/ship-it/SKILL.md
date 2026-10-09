@@ -1,7 +1,7 @@
 ---
 name: ship-it
 description: Orchestrate development workflows with composable flags. Use when shipping code through docs, test, commit, review, push, and PR stages.
-argument-hint: "[-d] [-t] [-v] [-c] [-r] [-p] [-pr] [--dry-run]"
+argument-hint: "[-d] [-t] [-v] [-c] [-r] [-x] [-p] [-pr] [--dry-run]"
 metadata:
   category: orchestration
 ---
@@ -11,10 +11,11 @@ metadata:
 ## Usage
 
 ```bash
-/ship-it                    # Full: docs → test → review → commit-push-pr
+/ship-it                    # Full: docs → test → review → codex-review → commit-push-pr
 /ship-it -c -p              # Quick: delegate commit+push to commit-commands:commit-push-pr (no PR)
 /ship-it -t -c -p           # Test first, then commit+push
 /ship-it -r -c -p           # Review gate, then commit+push
+/ship-it -x -c -p           # Local Codex review loop, then commit+push
 /ship-it -d -t -c -r -p     # Everything except PR
 /ship-it -pr                # Just create PR (uses /pr for CodeRabbit acknowledgment if present)
 /ship-it --dry-run          # Preview without executing
@@ -39,6 +40,7 @@ back to invoking our own skill instead.
 | `-t`               | Run `/test` first                                                                                                               |
 | `-v`               | Run `/verify` first (gates must be green to proceed)                                                                            |
 | `-r`               | Run `/review` first                                                                                                             |
+| `-x`               | Run `/codex-review` first (also runs automatically whenever `-pr` is set)                                                      |
 | `-c -p -pr`        | Commit + push + PR (delegated to `commit-commands:commit-push-pr`)                                                              |
 | `-c -p` (no `-pr`) | Commit + push only (`commit-commands:commit-push-pr` without the PR step is not available, so fall back to `/commit` + `/push`) |
 | `-c` alone         | Run `/commit` only                                                                                                              |
@@ -85,12 +87,31 @@ that choice.
 2. **`-t`**: Invoke `/test`.
 3. **`-v`**: Invoke `/verify`. Halt if it ends with gates still failing.
 4. **`-r`**: Invoke `/review`. If issues found, hand off to `/resolve-comments` per its own flow.
-5. **Commit + push + PR** (after any of -d/-t/-v/-r have run): pick the right path
+5. **`-x`, or `-pr` set**: Invoke `/codex-review {target_branch}`. Codex reviews every PR on
+   GitHub, so any path that opens a PR runs the same reviewer locally first and fixes its findings
+   while the branch is still local. Halt if it ends `blocked` or `busy` (another review is still running in this worktree, so its
+   result is unknown); a `skipped` result (no CLI, not
+   signed in) is a warning and the ship continues. If it changed any file, run
+   `/verify --report-only` again after it and halt on any failing gate, whether verification ran
+   through `-v` or through the pre-commit gate. Gates that passed before the fixes say nothing about
+   the code being shipped. If `-p` or `-pr` is set, `-c` is not, and changes remain uncommitted
+   after it (`git status --porcelain -- ':!.tmp'`, untracked files included), halt: the push
+   would publish the code without the fixes that verification just checked. With no push or PR
+   step there is nothing to publish, so `-x` alone never halts here.
+   **Skip this step when step 6 will take the `-pr`-only path** (`/pr` without `-c`/`-p`): `/pr`
+   runs `/codex-review` itself and then pushes committed fixes or refuses uncommitted ones. Running
+   it here first would cache the diff as passed, `/pr`'s run would skip, and those safeguards
+   would never fire, so the PR could open without the fixes.
+6. **Commit + push + PR** (after any of -d/-t/-v/-r/-x have run): pick the right path
    based on which of `-c`, `-p`, `-pr` are set (in the no-flag default, all
    three are set, so this step runs `commit-commands:commit-push-pr`):
    - All three of `-c -p -pr` set (including the no-flag default):
      - **Check** that `commit-commands:commit-push-pr` is available (the
        Anthropic-published `commit-commands` plugin installs it).
+     - **If `/codex-review` recorded skipped findings this run** (records with
+       `"source": "codex"` in `.tmp/coderabbit-ignored.json`): skip the plugin and
+       invoke our `/commit` → `/push` → `/pr`, because only `/pr` posts those
+       acknowledgments to the PR.
      - **If available:** one tool call to `commit-commands:commit-push-pr`.
        No TaskCreate ceremony, no orchestration.
      - **If not available:** output `commit-commands:commit-push-pr not
@@ -98,7 +119,7 @@ that choice.
        `/push` → `/pr` in sequence.
    - `-c -p` without `-pr`: `commit-commands:commit-push-pr` always creates a
      PR, so for "commit + push only" invoke our `/commit` followed by `/push`.
-   - `-pr` alone or alongside only `-d`/`-t`/`-r` (not `-c`/`-p`): invoke our
+   - `-pr` alone or alongside only `-d`/`-t`/`-r`/`-x` (not `-c`/`-p`): invoke our
      `/pr` so the CodeRabbit comment integration (via
      `.tmp/coderabbit-ignored.json`) and flags like `--draft` work.
    - `-c` alone: invoke our `/commit`.
@@ -119,7 +140,7 @@ the commit/push/pr triplet. Don't execute anything.
 ## Expected Output
 
 ```text
-🚀 ship-it: docs → test → review → commit-push-pr
+🚀 ship-it: docs → test → review → codex-review → commit-push-pr
 
 📋 /docs
   ✅ done
@@ -129,6 +150,9 @@ the commit/push/pr triplet. Don't execute anything.
 
 📋 /review
   ✅ done
+
+📋 /codex-review
+  ✅ clean (round 2)
 
 📋 commit-commands:commit-push-pr
   ✅ commit + push + PR

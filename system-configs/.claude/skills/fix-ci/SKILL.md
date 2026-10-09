@@ -5,6 +5,8 @@ argument-hint: "[run-id|--learn]"
 context: fork
 metadata:
   category: orchestration
+  triggers:
+    - 'cmd:\bgh\b(\s+(-R|--repo)(=|\s+)\S+|\s+--\S+)*\s+run\s+(view\b.*--log-failed|rerun\b)'
 ---
 
 # /fix-ci
@@ -90,9 +92,12 @@ gh run view <run-id> --json jobs,conclusion
 
 Extract: job names, failure messages, log URLs
 
-Always, before any retry (it logs the Jev call even when it withholds the answer): pipe each failed job's log tail through
+Always, before any retry (it logs the Jev call even when it withholds the answer): pipe the log of the job or step that
+holds the error through
 `${HOME}/.claude/hooks/jev/failure-classify.sh ci` and follow its `steer` when `class` is `infra` or `flaky`
-(one `gh run rerun <run-id> --failed` before diagnosing). `real` or `unknown` changes nothing.
+(one `gh run rerun <run-id> --failed` before diagnosing). `real` or `unknown` changes nothing. An aggregator job that
+only reports other jobs' status (for example a required-checks or gate-status job) holds no error: classify the
+failing job it points to instead, or the classifier sees a status summary and steers wrongly.
 
 ### Step 2: Diagnose (Parallel Subagents)
 

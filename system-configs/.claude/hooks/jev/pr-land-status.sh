@@ -1,0 +1,201 @@
+#!/bin/bash
+# pr-land-status.sh — the ONE definition of "this PR is done": GitHub would let D click Merge.
+# Shared by the pr-landing-gate Stop hook and the /land skill so they can never disagree.
+#
+#   pr-land-status.sh <pr-url>                       one JSON verdict on stdout
+#   pr-land-status.sh <pr-url> --wait <secs>         re-poll every 30s while the verdict is "pending"
+#   pr-land-status.sh <pr-url> --bounded-out "<why>" record that /land gave up on the CURRENT head
+#
+# Verdicts: ready | merged | closed | pending | blocked | error. Exit 0 for ready/merged/closed,
+# 1 for pending/blocked, 2 for error (gh missing, unauthenticated, network) — callers fail open on 2.
+#
+# Not ready when ANY of: draft; conflicts (DIRTY) or behind base (BEHIND); a check still running or
+# failed (checks are read directly: repos without required checks report red CI as UNSTABLE, which
+# GitHub lets you merge); an unresolved review thread; CHANGES_REQUESTED; a review bot that is active
+# on this repo has not answered the current head yet (bounded by review_grace_min); or BLOCKED for a
+# reason none of those explain (e.g. a required human approval: needs_human).
+#
+# Config (rules.d/rules-events.json "pr-landing-gate"): review_bots, review_grace_min.
+# Test seams: PR_LAND_GH (gh binary), PR_LAND_NOW (epoch seconds).
+# shellcheck shell=bash
+set -u
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=rules-events-lib.sh
+. "$HERE/rules-events-lib.sh" 2>/dev/null || true
+
+GH="${PR_LAND_GH:-gh}"
+BOUNDED_DIR="${RE_STATE_DIR:-$HOME/.claude/jev/state}/landing-bounded"
+HEADS_DIR="${RE_STATE_DIR:-$HOME/.claude/jev/state}/landing-heads"
+
+err() { jq -nc --arg u "${URL:-}" --arg d "$1" '{url:$u, verdict:"error", detail:$d}'; exit 2; }
+
+URL="${1:-}"
+[ -n "$URL" ] || {
+  echo "usage: pr-land-status.sh <pr-url> [--wait <secs> | --bounded-out <reason>]" >&2
+  exit 2
+}
+command -v jq >/dev/null 2>&1 || {
+  echo '{"verdict":"error","detail":"jq missing"}'
+  exit 2
+}
+if ! printf '%s' "$URL" | grep -qE '^https://github\.com/[^/]+/[^/]+/pull/[0-9]+$'; then err "not a GitHub PR URL"; fi
+OWNER=$(printf '%s' "$URL" | cut -d/ -f4)
+NAME=$(printf '%s' "$URL" | cut -d/ -f5)
+NUM=$(printf '%s' "$URL" | cut -d/ -f7)
+KEY=$(printf '%s' "$URL" | tr -c 'A-Za-z0-9' '_')
+
+cfg() { if command -v re_cfg >/dev/null 2>&1; then re_cfg pr-landing-gate "$1" "$2"; else printf '%s' "$2"; fi; }
+BOTS=$(cfg review_bots '["coderabbitai","chatgpt-codex-connector"]')
+printf '%s' "$BOTS" | jq -e 'type == "array"' >/dev/null 2>&1 || BOTS='["coderabbitai","chatgpt-codex-connector"]'
+GRACE=$(cfg review_grace_min 15)
+case "$GRACE" in '' | *[!0-9]*) GRACE=15 ;; esac
+
+# shellcheck disable=SC2016 # GraphQL variables, not shell
+QUERY='query($o:String!,$n:String!,$num:Int!){repository(owner:$o,name:$n){
+  pullRequest(number:$num){state isDraft mergeable mergeStateStatus reviewDecision headRefOid createdAt
+    commits(last:1){nodes{commit{oid committedDate statusCheckRollup{state contexts(first:100){nodes{
+      __typename ... on CheckRun{name status conclusion} ... on StatusContext{context state}}}}}}}
+    reviewThreads(first:100){pageInfo{hasNextPage endCursor} nodes{isResolved}}
+    reviews(last:50){nodes{author{login} commit{oid} submittedAt}}
+    comments(last:50){nodes{author{login} createdAt body}}}
+  pullRequests(last:10,states:[OPEN,MERGED]){nodes{
+    reviews(last:20){nodes{author{login}}} comments(last:20){nodes{author{login}}}}}}}'
+# shellcheck disable=SC2016 # GraphQL variables, not shell
+THREADS_QUERY='query($o:String!,$n:String!,$num:Int!,$c:String!){repository(owner:$o,name:$n){
+  pullRequest(number:$num){reviewThreads(first:100,after:$c){pageInfo{hasNextPage endCursor} nodes{isResolved}}}}}'
+
+# more_threads <raw>: fold every later page of review threads into the first response, so an
+# unresolved thread past the first 100 still counts. Bounded at 20 pages (2,000 threads).
+more_threads() {
+  local raw="$1" page cursor i=0
+  while [ "$(printf '%s' "$raw" | jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage // false')" = true ] && [ "$i" -lt 20 ]; do
+    i=$((i + 1))
+    cursor=$(printf '%s' "$raw" | jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.endCursor')
+    page=$("$GH" api graphql -f query="$THREADS_QUERY" -F o="$OWNER" -F n="$NAME" -F num="$NUM" -f c="$cursor" 2>&1) || err "gh api failed: ${page:0:200}"
+    raw=$(jq -c --argjson p "$page" '.data.repository.pullRequest.reviewThreads |=
+      {pageInfo: $p.data.repository.pullRequest.reviewThreads.pageInfo,
+       nodes: (.nodes + $p.data.repository.pullRequest.reviewThreads.nodes)}' <<<"$raw") || err "could not read a review-thread page"
+  done
+  printf '%s' "$raw"
+}
+
+status_once() {
+  local raw now
+  raw=$("$GH" api graphql -f query="$QUERY" -F o="$OWNER" -F n="$NAME" -F num="$NUM" 2>&1) || err "gh api failed: ${raw:0:200}"
+  printf '%s' "$raw" | jq -e '.data.repository.pullRequest' >/dev/null 2>&1 || err "no PR data: ${raw:0:200}"
+  raw=$(more_threads "$raw") || {
+    printf '%s\n' "$raw"
+    exit 2
+  }
+  now="${PR_LAND_NOW:-$(date +%s)}"
+  # When was this head first seen? A commit prepared locally can be hours older than the push, so
+  # the grace window starts at the latest of: commit date, PR creation, first sighting of the head.
+  local head seen=0 sf s_head s_time
+  head=$(printf '%s' "$raw" | jq -r '.data.repository.pullRequest.headRefOid // empty')
+  sf="$HEADS_DIR/$KEY"
+  if [ -n "${PR_LAND_FIRST_SEEN:-}" ]; then
+    seen="$PR_LAND_FIRST_SEEN"
+  elif [ -n "$head" ]; then
+    [ -f "$sf" ] && read -r s_head s_time <"$sf"
+    if [ "${s_head:-}" = "$head" ] && [ -n "${s_time:-}" ]; then
+      seen="$s_time"
+    else
+      seen="$now"
+      mkdir -p "$HEADS_DIR" 2>/dev/null && printf '%s %s\n' "$head" "$now" >"$sf.$$" && mv -f "$sf.$$" "$sf" 2>/dev/null
+    fi
+  fi
+  case "$seen" in '' | *[!0-9]*) seen=0 ;; esac
+  printf '%s' "$raw" | jq -c --arg url "$URL" --argjson bots "$BOTS" --argjson grace "$GRACE" --argjson now "$now" --argjson first_seen "$seen" '
+    # Check names come from the PR (a PR can add or rename workflows), and they reach the model in the
+    # Stop reason: keep a short, plain-character label so a name can never read as an instruction.
+    def safe_name: tostring | gsub("[^A-Za-z0-9 ._/:()#+-]"; "?") | .[0:60];
+    def names: map(.name) | (.[0:10] | join(", ")) + (if length > 10 then " (+\(length - 10) more)" else "" end);
+    .data.repository as $r | $r.pullRequest as $p
+    | ($p.commits.nodes[0].commit) as $head
+    | ([$head.statusCheckRollup.contexts.nodes[]?
+        | if .__typename == "CheckRun" then {name: (.name | safe_name), run: (.status != "COMPLETED"),
+              bad: ((.conclusion // "") | IN("FAILURE","TIMED_OUT","CANCELLED","ACTION_REQUIRED","STARTUP_FAILURE","STALE"))}
+          else {name: (.context | safe_name), run: (.state | IN("PENDING","EXPECTED")), bad: (.state | IN("FAILURE","ERROR"))} end]) as $checks
+    # The rollup state aggregates every context, including any past the first 100 listed above.
+    | ($head.statusCheckRollup.state // "") as $rollup
+    | ([$p.reviewThreads.nodes[] | select(.isResolved | not)] | length) as $threads
+    | ([$r.pullRequests.nodes[] | (.reviews.nodes[], .comments.nodes[]) | .author.login // empty]
+       + [$p.reviews.nodes[], $p.comments.nodes[] | .author.login // empty] | unique) as $seen
+    | ($head.committedDate | fromdateiso8601) as $headt
+    | ([$headt, ($p.createdAt // "1970-01-01T00:00:00Z" | fromdateiso8601), $first_seen] | max) as $since
+    # A review or comment answers this head only if it is newer than the head as observed: an old
+    # commit pushed again (force-push back) must not inherit an answer given to an earlier push.
+    | ([$bots[] as $b | select($seen | index($b))
+        | select(([$p.reviews.nodes[] | select(.author.login == $b and .commit.oid == $p.headRefOid
+                    and ((.submittedAt // "1970-01-01T00:00:00Z" | fromdateiso8601) >= $since))] | length) == 0
+             and ([$p.comments.nodes[] | select(.author.login == $b and ((.createdAt | fromdateiso8601) >= $since))
+                   # a "review running" status comment is not an answer (Codex posts one when it starts)
+                   | select((.body // "") | test("\"status\":\"running\"|🔄|review in progress|currently processing"; "i") | not)] | length) == 0)
+        | $b]) as $silent
+    | (($now - $since) < ($grace * 60)) as $in_grace
+    | ([ if $p.isDraft then {kind:"draft", fix:"gh pr ready"} else empty end,
+         if $p.mergeStateStatus == "DIRTY" or $p.mergeable == "CONFLICTING" then {kind:"conflicts", fix:"/rebase, then /push"} else empty end,
+         if $p.mergeStateStatus == "BEHIND" then {kind:"behind-base", fix:"/rebase, then /push"} else empty end,
+         ($checks | map(select(.bad)) | if length > 0 then {kind:"failing-checks", detail:names, fix:"/fix-ci"}
+            elif ($rollup | IN("FAILURE","ERROR")) then {kind:"failing-checks", detail:"rollup \($rollup) (a check past the first 100)", fix:"/fix-ci"}
+            else empty end),
+         if $threads > 0 then {kind:"unresolved-threads", detail:"\($threads) unresolved", fix:"/resolve-comments"} else empty end,
+         if $p.reviewDecision == "CHANGES_REQUESTED" then {kind:"changes-requested", fix:"/resolve-comments"} else empty end
+       ]) as $blockers
+    | ([ ($checks | map(select(.run)) | if length > 0 then {kind:"checks-running", detail:names}
+            elif ($rollup | IN("PENDING","EXPECTED")) then {kind:"checks-running", detail:"rollup \($rollup)"}
+            else empty end),
+         # Right after a push CI may not have registered yet: no checks is not the same as green.
+         if ($checks | length) == 0 and $in_grace then {kind:"checks-not-started"} else empty end,
+         if $p.mergeStateStatus == "UNKNOWN" then {kind:"mergeability-computing"} else empty end,
+         if ($silent | length) > 0 and $in_grace then {kind:"awaiting-review", detail:($silent | join(", "))} else empty end
+       ]) as $pending
+    | {url:$url, state:$p.state, head:$p.headRefOid, mergeStateStatus:$p.mergeStateStatus,
+       unresolved_threads:$threads, blockers:$blockers, pending:$pending,
+       notes:(if ($silent | length) > 0 and ($in_grace | not) then ["no review from \($silent | join(", ")) on this head after \($grace) min; not waiting longer"] else [] end)}
+    | .verdict = (if $p.state == "MERGED" then "merged" elif $p.state == "CLOSED" then "closed"
+                  elif ($blockers | length) > 0 then "blocked"
+                  elif ($pending | length) > 0 then "pending"
+                  elif $p.mergeStateStatus == "BLOCKED" then "blocked"
+                  else "ready" end)
+    | if .verdict == "blocked" and ($blockers | length) == 0 then
+        .blockers = [{kind:"blocked-other", detail:"GitHub reports BLOCKED with checks green and threads resolved: likely a required human approval", fix:"needs D"}]
+        | .needs_human = true else . end' || err "could not evaluate the PR state"
+}
+
+if [ "${2:-}" = "--bounded-out" ]; then
+  out=$(status_once)
+  [ $? -eq 2 ] && {
+    printf '%s\n' "$out"
+    exit 2
+  }
+  mkdir -p "$BOUNDED_DIR" || err "cannot write $BOUNDED_DIR"
+  # Write then rename, so the Stop hook never reads a partial record.
+  tmp="$BOUNDED_DIR/.$KEY.json.$$"
+  printf '%s' "$out" | jq -c --arg why "${3:-unspecified}" --arg ts "$(date -u +%FT%TZ)" \
+    '{url, head, reason:$why, ts:$ts, blockers}' >"$tmp" && mv -f "$tmp" "$BOUNDED_DIR/$KEY.json" || {
+    rm -f "$tmp"
+    err "cannot record bounded-out in $BOUNDED_DIR"
+  }
+  jq -c '. + {recorded:"bounded-out"}' "$BOUNDED_DIR/$KEY.json"
+  exit 1
+fi
+
+deadline=0
+if [ "${2:-}" = "--wait" ]; then
+  case "${3:-}" in '' | *[!0-9]*) deadline=0 ;; *) deadline=$(($(date +%s) + $3)) ;; esac
+fi
+while :; do
+  out=$(status_once)
+  rc=$?
+  [ "$rc" -eq 2 ] && {
+    printf '%s\n' "$out"
+    exit 2
+  }
+  v=$(printf '%s' "$out" | jq -r .verdict)
+  if [ "$v" != pending ] || [ "$(date +%s)" -ge "$deadline" ]; then break; fi
+  sleep 30
+done
+printf '%s\n' "$out"
+case "$v" in ready | merged | closed) exit 0 ;; *) exit 1 ;; esac

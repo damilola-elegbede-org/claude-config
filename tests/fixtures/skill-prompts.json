@@ -285,6 +285,18 @@
       "prompt": "Go through the blocked BareClaude tickets and bounce the ones that are not mine."
     },
 
+    {
+      "skill": "land",
+      "prompt": "Get PR 42 to the point where I can actually click merge."
+    },
+    {
+      "skill": "land",
+      "prompt": "Follow up on the PR you just opened until CI is green and the review threads are resolved."
+    },
+    {
+      "skill": "land",
+      "prompt": "Is this pull request mergeable yet? If not, fix whatever is blocking it."
+    },
     { "skill": "push", "prompt": "Push my committed changes to the remote." },
     { "skill": "push", "prompt": "Push this branch and set the upstream." },
     {
@@ -316,6 +328,18 @@
     {
       "skill": "review",
       "prompt": "Run a deep multi-perspective review: code quality, security and accessibility."
+    },
+    {
+      "skill": "codex-review",
+      "prompt": "Run Codex review locally on this branch and fix what it finds before I open the PR."
+    },
+    {
+      "skill": "codex-review",
+      "prompt": "Catch the Codex comments before the PR goes up so we skip the review back-and-forth."
+    },
+    {
+      "skill": "codex-review",
+      "prompt": "Pre-review my changes with the codex CLI until there are no P1s left."
     },
 
     {
