@@ -37,7 +37,7 @@ a8_skills() {
   cwd="$(cd "$cwd" 2>/dev/null && pwd -P)" || cwd="$PWD"
   cap="$(ctx_cfg skill_cap 40)"
   if command -v python3 >/dev/null 2>&1 && python3 -I "${JEV_DIR}/skill-catalog.py" "$cwd" "${WORK}/catalog.json" &&
-    jq -e 'type == "array" and length > 0' "${WORK}/catalog.json" >/dev/null 2>&1; then
+    jq -e 'type == "array"' "${WORK}/catalog.json" >/dev/null 2>&1; then
     jq --arg cwd "$cwd" '
       def applies: .scope_dir as $d | $d == "" or ($cwd + "/" | startswith($d + "/"));
       # Claude Code resolves a shared plain name personal over project; a plugin skill is invoked as

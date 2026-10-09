@@ -5,7 +5,8 @@ argument-hint: "[pr-number] [--local|--auto|--dry-run]"
 metadata:
   category: orchestration
   triggers:
-    - 'cmd:resolveReviewThread|\bgh\b(\s+(-R|--repo)(=|\s+)\S+|\s+--\S+)*\s+pr\s+review\b|/pulls/[0-9]+/comments/[0-9]+/replies'
+    - 'cmd:\bgh\b(\s+(-R|--repo)(=|\s+)\S+|\s+--\S+)*\s+pr\s+review\b|/pulls/[0-9]+/comments/[0-9]+/replies'
+    - 'raw:(?s)\bgh\b[^;&|]*\bapi\b.*(resolveReviewThread|/pulls/[0-9]+/comments/[0-9]+/replies)'
 ---
 
 # /resolve-comments

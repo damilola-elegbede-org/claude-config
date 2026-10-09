@@ -1012,6 +1012,24 @@ turn t8e
 bash_in "echo \"try bash -lc 'git commit -m wip' later\""
 run_hook a9-skill-router.sh "$IN"
 check "A9: a -c script only mentioned inside a quoted string does not match" out_empty
+turn t8e2
+bash_in 'result="$(git commit -m wip)"'
+run_hook a9-skill-router.sh "$IN"
+check "A9: a command substitution inside double quotes is matched" denies commit
+turn t8e3
+bash_in "gh api graphql -f query='mutation{resolveReviewThread(input:{threadId:\"T1\"}){thread{isResolved}}}'"
+run_hook a9-skill-router.sh "$IN"
+check "A9: a raw: trigger matches an action inside a quoted GraphQL query" denies resolve-comments
+turn t8e4
+bash_in "git commit -m 'note: resolveReviewThread is the mutation'"
+run_hook a9-skill-router.sh "$IN"
+check "A9: a raw: trigger anchored to gh api ignores prose that mentions it" bash -c "! grep -q resolve-comments '$OUTF'"
+NOGIT="$TEST_HOME/nogit"
+sk "$NOGIT/.claude/skills" nogit-tool "Project tool before git init." 'cmd:\bnogit\s+go\b'
+turn t8e5
+bash_in "nogit go" "$NOGIT"
+run_hook a9-skill-router.sh "$IN"
+check "A9: project skills are found outside a git repository" denies nogit-tool
 sk "$REPO/.claude/skills" commit "Project commit variant." 'cmd:\bgit\b(\s+-[A-Za-z]\s+\S+|\s+--\S+)*\s+commit\b'
 turn t8f
 bash_in "git commit -m wip"
@@ -1050,6 +1068,13 @@ sk "$PLUG/skills" commit "Plugin commit helper." 'cmd:\bgit\s+commit\b'
 touch "$HOME/.claude/plugins/installed_plugins.json"
 JEV_MOCK="$TEST_HOME/a8cat.json" run_hook a7-a8-prompt-context.sh "$IN"
 check "A8: a plugin skill sharing a plain skill's base name is still offered" jq -e '.questions.skill.criteria | has("commit") and has("infra-plugin:commit")' "$STUB_LAST"
+python3 -I "$HOME/.claude/hooks/jev/skill-catalog.py" "$REPO" "$TEST_HOME/all.json"
+jq '{skillOverrides: ([.[] | .name, .base] | unique | map({(.): "off"}) | add)}' "$TEST_HOME/all.json" >"$REPO/.claude/settings.local.json"
+mixed_fixture "$TEST_HOME/a8off.json" commit 0.9
+jq -cn --arg cwd "$REPO" '{session_id:"s8off", cwd:$cwd, hook_event_name:"UserPromptSubmit", prompt:"commit this change"}' >"$IN"
+JEV_MOCK="$TEST_HOME/a8off.json" run_hook a7-a8-prompt-context.sh "$IN"
+check "A8: an empty catalog (every skill turned off) is honoured, not replaced by the unfiltered list" bash -c "! grep -q '/commit' '$OUTF'"
+rm -f "$REPO/.claude/settings.local.json"
 
 # ------------------------------------------------------------------ registry / wiring
 echo "registry + wiring"

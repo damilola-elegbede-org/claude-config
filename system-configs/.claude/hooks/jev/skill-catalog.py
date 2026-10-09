@@ -15,8 +15,11 @@ Writes a JSON list of {name, base, desc, source, scope_dir, cmd, path, invokes}:
   cmd/path   triggers the skill declares in its frontmatter, under metadata.triggers:
                metadata:
                  triggers:
-                   - "cmd:<regex matched against a Bash command>"
+                   - "cmd:<regex matched against a Bash command, quoted text removed>"
+                   - "raw:<regex matched against the Bash command as written, quotes kept>"
                    - "path:<glob matched against a Write/Edit target>"
+             (raw: is for an action that only appears inside a quoted argument, such as a GraphQL
+             mutation name; anchor it to the command so prose that mentions it does not match)
   invokes    base names of trigger-bearing skills this skill's body runs as /<name>
              (an orchestrator such as /ship-it runs /commit, so loading it covers /commit)
 
@@ -110,10 +113,11 @@ def entry(skill_md, base_default, source, scope_dir, name):
         return None
     base = fields.get("name") or base_default
     cmd = [t[4:] for t in fields.get("triggers", []) if t.startswith("cmd:")]
+    raw = [t[4:] for t in fields.get("triggers", []) if t.startswith("raw:")]
     path = [t[5:] for t in fields.get("triggers", []) if t.startswith("path:")]
     return {"name": name.replace("{base}", base), "base": base,
             "desc": (fields.get("description") or "")[:200], "source": source,
-            "scope_dir": scope_dir, "cmd": cmd, "path": path, "_body": body}
+            "scope_dir": scope_dir, "cmd": cmd, "raw": raw, "path": path, "_body": body}
 
 
 def skill_dirs(root):
@@ -132,6 +136,15 @@ def repo_root(cwd):
         return out.stdout.strip() if out.returncode == 0 else ""
     except (OSError, subprocess.SubprocessError):
         return ""
+
+
+def project_root(cwd):
+    """The git root, or outside git the cwd itself: project skills do not need a repository.
+    The home directory is never a project (its .claude/skills are the personal skills)."""
+    top = repo_root(cwd)
+    if top or not cwd or os.path.realpath(cwd) == os.path.realpath(HOME):
+        return top
+    return os.path.realpath(cwd)
 
 
 def nested_skill_roots(top):
@@ -173,7 +186,7 @@ def enabled_plugins(top):
 
 
 def build(cwd):
-    top = repo_root(cwd)
+    top = project_root(cwd)
     # The /skills menu writes skillOverrides to <repo>/.claude/settings.local.json; the narrower file wins.
     overrides = {}
     for path in [os.path.join(CLAUDE, "settings.json")] + (
@@ -197,7 +210,7 @@ def build(cwd):
         for base, md in skill_dirs(root):
             skills.append(entry(md, base, "plugin", "", plugin + ":{base}"))
     skills = [s for s in skills if s and overrides.get(s["name"]) != "off" and overrides.get(s["base"]) != "off"]
-    routed = {s["base"] for s in skills if s["cmd"] or s["path"]}
+    routed = {s["base"] for s in skills if s["cmd"] or s.get("raw") or s["path"]}
     for s in skills:
         body = s.pop("_body")
         s["invokes"] = sorted(b for b in routed if b != s["base"] and re.search(r"(?<![\w/])/" + re.escape(b) + r"\b", body))
@@ -218,8 +231,12 @@ def strip_quoted(cmd, depth=0):
     cmd = re.sub(r"<<-?\s*([\"']?)(\w+)\1.*?\n\s*\2\s*(\n|$)", " ", cmd, flags=re.S)
 
     def keep_script(m):
-        if not m.group("sh") or depth >= 3:
+        if depth >= 3:
             return '""'
+        if not m.group("sh"):
+            # A double-quoted string still runs its command substitutions: x="$(git commit ...)".
+            subs = re.findall(r"\$\(((?:[^()]|\([^()]*\))*)\)|`([^`]*)`", m.group(0)[1:-1]) if m.group(0)[0] == '"' else []
+            return '""' + "".join(" ; " + strip_quoted(a or b, depth + 1) + " ;" for a, b in subs)
         body = m.group("arg")[1:-1]
         if m.group("arg")[0] == '"':
             body = re.sub(r"\\(.)", r"\1", body)
@@ -281,13 +298,14 @@ def match(hook_input, out):
     # /private/var on macOS) would otherwise fall outside every project and directory scope.
     cwd = os.path.realpath(inp.get("cwd") or os.getcwd())
     skills = load_catalog(cwd)
-    top = repo_root(cwd)
+    top = project_root(cwd)
     cands = []
     if tool == "Bash":
-        cmd = strip_quoted(str(ti.get("command", "")))
+        raw = str(ti.get("command", ""))
+        cmd = strip_quoted(raw)
         target = cwd
         for s in skills:
-            if any(_search(rx, cmd) for rx in s["cmd"]):
+            if any(_search(rx, cmd) for rx in s["cmd"]) or any(_search(rx, raw) for rx in s.get("raw", [])):
                 cands.append(s)
     else:
         target = str(ti.get("file_path") or ti.get("notebook_path") or "")
@@ -331,7 +349,7 @@ def signature(cwd):
     """Cheap change detector for the cache key: mtimes of the skill roots and settings files.
     Nested directory skill roots are not walked here (that is the cost the cache saves), so a new
     or edited directory-scoped skill shows up when the cache expires (CACHE_TTL)."""
-    top = repo_root(cwd)
+    top = project_root(cwd)
     parts = [cwd]
     for p in (os.path.join(CLAUDE, "skills"), os.path.join(CLAUDE, "settings.json"),
               os.path.join(CLAUDE, "plugins", "installed_plugins.json"),
