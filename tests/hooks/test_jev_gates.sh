@@ -357,6 +357,14 @@ assert_contains "reuse logged" "$(gate_log)" "approval-already-used"
 OUT=$(run_hook jev-gate.sh "$IN")
 assert_released "a fresh D message re-arms the approval" "$OUT"
 
+# The Jev contract does not require probabilities: a lone choice of approved_exact counts as 1.
+new_home
+set_mode G3-merge enforce
+mock '{"G3-merge":0.95,"d_approved_exact_action":0.97}'
+jq -c '.answers.d_approved_exact_action |= del(.probabilities)' "$T/mock.json" >"$T/mock.tmp" && mv "$T/mock.tmp" "$T/mock.json"
+OUT=$(run_hook jev-gate.sh "$IN")
+assert_released "a choice-only approved_exact answer (no probabilities) releases once" "$OUT"
+
 new_home
 set_mode G3-merge enforce
 mock '{"G3-merge":0.95,"d_approved_exact_action":0.2}'

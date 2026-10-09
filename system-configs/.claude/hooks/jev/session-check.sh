@@ -23,7 +23,12 @@ emit_and_exit() {
     if command -v jq >/dev/null 2>&1; then
       jq -nc --arg m "⚡ Jev: $MSGS" '{systemMessage:$m,hookSpecificOutput:{hookEventName:"SessionStart",additionalContext:$m}}'
     else
-      printf '{"systemMessage":"Jev: checkpoints degraded (jq missing)"}\n'
+      # No jq to build the JSON: escape the collected reasons by hand so none is lost.
+      local m="${MSGS//\\/\\\\}"
+      m="${m//\"/\\\"}"
+      m="${m//$'\n'/ }"
+      m="${m//$'\t'/ }"
+      printf '{"systemMessage":"⚡ Jev: %s (jq missing)"}\n' "$m"
     fi
   fi
   exit 0

@@ -637,7 +637,7 @@ def collect(qdoc, scored, style="choice"):
                 if rid == "approval-detector":
                     # A choice question, as jev-gate.sh asks it: only an exact approval releases.
                     ans = res["answers"].get(ANSWER_NAME[rid]) or {}
-                    p = (ans.get("probabilities") or {}).get("approved_exact")
+                    p = _probs(ans).get("approved_exact")
                 elif rid in ANSWER_NAME:
                     p = answer_prob(res, ANSWER_NAME[rid])
                 else:

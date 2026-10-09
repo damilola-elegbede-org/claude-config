@@ -219,7 +219,9 @@ const mark = async (
     if (at.id) {
       await update($, marks, (all) => addMarks(all ?? {}, at.id!, lines));
       await persist($);
-    } else if (at.anchor) {
+    } else if (at.anchor && !(await read($, notes))[at.anchor]) {
+      // A row is found by its text alone, so only a text's first occurrence is anchored; a repeat
+      // ("continue" twice) falls through to a plain line where it happened, never under the first.
       const key = at.anchor;
       drawn.delete(key);
       await update($, notes, (all) => addMarks(all ?? {}, key, lines));

@@ -75,7 +75,10 @@ describe("jevlight", () => {
       });
 
       const ui = await $.ui.mount(result(surface, "t1"));
-      const line = await ui.find({ type: "Text", text: /⚡️ Jev blocked Bash/ });
+      const line = await ui.find({
+        type: "Text",
+        text: /⚡️ Jev blocked Bash/,
+      });
       expect(line?.props.color).toBe(SKY);
     });
   }
@@ -140,6 +143,33 @@ describe("jevlight", () => {
     ]);
   });
 
+  test("a repeated prompt's note is a plain line, never drawn under the earlier one", async ($, on) => {
+    const logged = engine(on);
+    memoryStore(on);
+    let n = 0;
+    on("classic.UserPromptSubmit", () => ({
+      additionalContext: [`note ${++n}`],
+    }));
+    await $.classic.UserPromptSubmit({ session_id: "s1", prompt: "continue" });
+    await $.classic.UserPromptSubmit({ session_id: "s1", prompt: "continue" });
+
+    const ui = await $.ui.mount({
+      plugin,
+      surface: "terminal",
+      component: "UserMessage",
+      props: {
+        text: "continue",
+        origin: { kind: "composer" },
+        isExpanded: false,
+      },
+    } as never);
+    expect((await ui.find({ type: "Text", text: /note 1/ }))?.props.color).toBe(
+      SKY,
+    );
+    expect(await ui.find({ type: "Text", text: /note 2/ })).toBeUndefined();
+    expect(logged).toEqual(["⚡️ Jev noted your prompt: note 2"]);
+  });
+
   test("marks are saved under the session", async ($, on) => {
     engine(on);
     const store = memoryStore(on);
@@ -190,7 +220,9 @@ describe("jevlight", () => {
     await $.classic.UserPromptSubmit({ session_id: "s2", prompt: "hi" });
 
     const ui = await $.ui.mount(result("terminal", "dup"));
-    expect(await ui.find({ type: "Text", text: /trimmed Read/ })).toBeUndefined();
+    expect(
+      await ui.find({ type: "Text", text: /trimmed Read/ }),
+    ).toBeUndefined();
   });
 
   test("a trim is marked; old calls drop past the cap", () => {

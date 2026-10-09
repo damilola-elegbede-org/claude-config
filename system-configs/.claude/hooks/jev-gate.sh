@@ -118,7 +118,9 @@ check_approval_call() {
   resp=$(jev_call "$req") || { jev_log approval-detector "unavailable" "" ""; return 0; }
   jev_note "$resp"
   # A choice question: approved_exact vs approved_other vs not_approved; only an exact approval releases.
-  p=$(printf '%s' "$resp" | jq -r '.answers.d_approved_exact_action.probabilities.approved_exact // empty')
+  # A lone `choice` with no distribution counts as probability 1 for that option (the Jev contract
+  # does not require probabilities).
+  p=$(printf '%s' "$resp" | jq -r '.answers.d_approved_exact_action // {} | (.probabilities // (if .choice then {(.choice): 1} else {} end)).approved_exact // empty')
   if ! jev_ge "${p:-0}" "$thr"; then
     jev_log approval-detector "not-approved" "" "$p"
     return 0

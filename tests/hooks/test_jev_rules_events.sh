@@ -910,6 +910,16 @@ has "drift names the count of differing files (2, not exit_hook/sock)" "$out" "d
 has "drift line says to run /sync" "$out" "/sync"
 eq "drift warns once per session" "$(dc '{"session_id":"s-drift-1"}' | grep -c differ)" "0"
 has "a new session warns again" "$(dc '{"session_id":"s-drift-2"}')" "differ"
+# No jq on PATH: the hand-built fallback must keep the reason (and the /sync instruction) and stay valid JSON.
+nojq() {
+  printf '%s' "$1" | env JEV_MOCK=unavailable JEV_DRIFT_REPO="$DR" JEV_DRIFT_HOOKS="$DH" bash -c \
+    'command() { if [ "$1" = -v ] && [ "$2" = jq ]; then return 1; fi; builtin command "$@"; }; export -f command; bash "$0"' \
+    "$HOOKS/session-check.sh" 2>/dev/null
+}
+out=$(nojq '{"session_id":"s-drift-nojq"}')
+has "without jq the fallback keeps the warning reason" "$out" "differ from claude-config origin/main"
+has "without jq the fallback keeps the /sync instruction" "$out" "/sync"
+eq "without jq the fallback is valid JSON" "$(printf '%s' "$out" | jq -r 'has("systemMessage")' 2>/dev/null)" "true"
 printf 'repo gate.sh\n' >"$DH/gate.sh"
 printf 'repo jev/client.mjs\n' >"$DH/jev/client.mjs"
 hasnt "after sync, no drift line" "$(dc '{"session_id":"s-drift-3"}')" "differ"
@@ -918,6 +928,22 @@ eq "missing repo: silent" "$(printf '{}' | env JEV_MOCK=unavailable JEV_DRIFT_RE
 git -C "$DR" update-ref -d refs/remotes/origin/main
 eq "repo without origin/main: silent" "$(dc | grep -c differ)" "0"
 eq "exits 0 on a broken repo path" "$(printf '{}' | env JEV_MOCK=unavailable JEV_DRIFT_REPO=/dev/null JEV_DRIFT_HOOKS="$DH" bash "$HOOKS/session-check.sh" >/dev/null 2>&1; echo $?)" "0"
+
+# audit-digest: only an interactive session sees (and so consumes) it; only a positive digest marks its date seen.
+AD="$T/audit"
+mkdir -p "$AD"
+ADSEEN="$AD/state/audit-digest.seen"
+ad() { env -u CLAUDE_JOB_DIR -u BARECLAUDE_AGENT_SLUG JEV_AUDIT_DIR="$AD" JEV_STATE_DIR="$AD/state" "$@" bash "$HOOKS/audit-digest.sh" </dev/null 2>/dev/null; }
+printf '{"date":"2026-10-08","flagged":0,"top":[],"report":"r.md"}' >"$AD/jev-audit-latest.json"
+eq "audit digest: zero flags is silent" "$(ad)" ""
+eq "audit digest: zero flags does not mark the date seen" "$(cat "$ADSEEN" 2>/dev/null)" ""
+printf '{"date":"2026-10-08","flagged":2,"top":[{"time":"t","cls":"irreversible","score":0.9,"action":"rm x"}],"report":"r.md"}' >"$AD/jev-audit-latest.json"
+eq "audit digest: a bg job is silent" "$(ad CLAUDE_JOB_DIR=/x)" ""
+eq "audit digest: a fleet session is silent" "$(ad BARECLAUDE_AGENT_SLUG=clara)" ""
+eq "audit digest: neither consumes it" "$(cat "$ADSEEN" 2>/dev/null)" ""
+has "audit digest: a same-date rerun with flags still flashes in an interactive session" "$(ad)" "2 risky action(s)"
+eq "audit digest: marked seen after the positive digest" "$(cat "$ADSEEN" 2>/dev/null)" "2026-10-08"
+eq "audit digest: once per date" "$(ad)" ""
 reset
 
 echo
