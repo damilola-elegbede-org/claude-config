@@ -33,6 +33,13 @@
     "scope": ["interactive", "bgjob", "fleet"]
   },
   "stopfailure-hint": { "mode": "enforce", "scope": ["interactive"] },
+  "pr-landing-gate": {
+    "mode": "enforce",
+    "scope": ["interactive", "bgjob", "fleet"],
+    "max_blocks": 3,
+    "review_grace_min": 15,
+    "review_bots": ["coderabbitai", "chatgpt-codex-connector"]
+  },
 
   "executive-tag-correctness": {
     "mode": { "interactive": "shadow", "bgjob": "shadow" },
