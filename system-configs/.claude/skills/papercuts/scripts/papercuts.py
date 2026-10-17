@@ -130,7 +130,10 @@ def git_lines(repo, args):
 def open_prs(repo):
     try:
         out = subprocess.run(
-            ["gh", "pr", "list", "--state", "open", "--limit", "100", "--json", "number,title,url,files"],
+            # No titles: PR text is untrusted, and this output reaches Claude
+            # through a python3 command the untrusted-content gate doesn't
+            # recognise. The skill reads titles with `gh pr view` instead.
+            ["gh", "pr", "list", "--state", "open", "--limit", "100", "--json", "number,url,files"],
             cwd=repo, capture_output=True, text=True, timeout=60)
     except (OSError, subprocess.TimeoutExpired):
         return None
@@ -176,7 +179,7 @@ def cluster(entries, rules, repo, offline):
                 repo, ["log", ref, f"--since={c['last']}", "--date=short", "--format=%h %ad %s", "--", *c["files"]])
             if prs is not None:
                 c["open_prs"] = [
-                    {"number": p["number"], "title": p["title"], "url": p["url"]}
+                    {"number": p["number"], "url": p["url"]}
                     for p in prs
                     if any(f["path"] in c["files"] for f in p.get("files", []))
                 ]
