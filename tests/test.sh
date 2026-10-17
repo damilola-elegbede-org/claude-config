@@ -168,6 +168,7 @@ run_test "Test Command" "commands/test_test.sh"
 run_test "Prime Command" "commands/test_prime.sh"
 run_test "Sync Command" "commands/test_sync.sh"
 run_test "Verify Command" "commands/test_verify.sh"
+run_test "Verify Gate Detection" "commands/test_verify_run_checks.sh"
 # NOTE: command-audit.md merged into audit.md with --scope flag
 # run_test "Command Audit" "commands/test_command_audit.sh"
 
