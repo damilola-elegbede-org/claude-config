@@ -47,11 +47,19 @@ def parse_log(path, label):
 
 
 def load_entries(log, archive_dir):
-    entries = []
+    found = []
     if archive_dir.is_dir():
         for archive in sorted(archive_dir.glob("*.md")):
-            entries += parse_log(archive, f"archive/{archive.name}")
-    entries += parse_log(log, log.name)
+            found += parse_log(archive, f"archive/{archive.name}")
+    found += parse_log(log, log.name)
+    # An interrupted archive run leaves the same line in an archive and the
+    # live log (archive-papercuts.sh recovers from that); count it once.
+    entries, seen = [], set()
+    for e in found:
+        key = (e["date"], e["source"], e["symptom"], e["fix"], e["project"])
+        if key not in seen:
+            seen.add(key)
+            entries.append(e)
     return entries
 
 
@@ -104,9 +112,9 @@ def attribute(entry, rules, repo, repos_dir):
         skill_md = repo / "system-configs/.claude/skills" / entry["source"] / "SKILL.md"
         return "ours", f"skill {entry['source']} → {skill_md.relative_to(repo)}:1"
     first = re.split(r"[/\s]", entry["project"].strip(), maxsplit=1)[0]
+    if first in (repo.name, "claude-config"):
+        return "ours-unverified", "project path is this repo; no greppable signal"
     if first and (repos_dir / first).is_dir():
-        if first == repo.name or first == "claude-config":
-            return "ours-unverified", "project path is this repo; no greppable signal"
         return f"other:{first}", f"{repos_dir / first}"
     return "external", "no repo or shipped-config signal"
 
@@ -134,12 +142,18 @@ def open_prs(repo):
 def cluster(entries, rules, repo, offline):
     prs = None if offline else open_prs(repo)
     ref = "origin/main"
-    if not offline and git_lines(repo, ["rev-parse", "--verify", "-q", ref]) is None:
-        ref = "HEAD"
+    if not offline:
+        # A stale origin/main would hide a fix merged since the last fetch,
+        # while open_prs() no longer lists it.
+        git_lines(repo, ["fetch", "-q", "origin", "main"])
+        if git_lines(repo, ["rev-parse", "--verify", "-q", ref]) is None:
+            ref = "HEAD"
     clusters = []
     for rule in rules["clusters"]:
         rx = re.compile(rule["match"], re.IGNORECASE)
-        hits = [e for e in entries if rx.search(e["symptom"])]
+        scope = rule.get("scope")
+        hits = [e for e in entries
+                if rx.search(e["symptom"]) and (not scope or e["owner"] in scope)]
         if not hits:
             continue
         first = min(e["date"] for e in hits)
@@ -176,7 +190,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("command", choices=["report"])
     ap.add_argument("--days", type=int, default=7)
-    ap.add_argument("--today", default=dt.date.today().isoformat())
+    # papercut.sh stamps entries with `date -u`, so the window uses the UTC day.
+    ap.add_argument("--today", default=dt.datetime.now(dt.timezone.utc).date().isoformat())
     ap.add_argument("--log", type=Path, default=Path(os.environ.get("PAPERCUT_LOG", home / ".claude/papercuts.md")))
     ap.add_argument("--archive-dir", type=Path,
                     default=Path(os.environ.get("PAPERCUT_ARCHIVE_DIR", home / ".claude/papercuts/archive")))
@@ -201,8 +216,8 @@ def main():
     entries = load_entries(a.log, a.archive_dir)
     for e in entries:
         e["in_window"] = since <= e["date"] <= a.today
-        if e["in_window"]:
-            e["owner"], e["evidence"] = attribute(e, rules, a.repo, a.repos_dir)
+        # Every entry gets an owner: cluster scopes filter on it across the whole log.
+        e["owner"], e["evidence"] = attribute(e, rules, a.repo, a.repos_dir)
 
     window = [e for e in entries if e["in_window"]]
     owners = {}

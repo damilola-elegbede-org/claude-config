@@ -63,6 +63,25 @@ run --log "$TEST_DIR/live.md" --days 30 >"$OUT"
 check "archive entries counted" "6" "$(q "$OUT" "d['totals']['log']")"
 check "archive ids" "archive/2026-09.md:5" "$(q "$OUT" "d['entries'][0]['id']")"
 
+echo "papercuts skill: a line in both an archive and the live log counts once"
+sed -n '1,5p' "$FIXTURE" >"$TEST_DIR/live.md"
+run --log "$TEST_DIR/live.md" --days 30 >"$OUT"
+check "duplicate counted once" "6" "$(q "$OUT" "d['totals']['log']")"
+
+echo "papercuts skill: cluster scope and this-repo attribution"
+rm -f "$TEST_DIR/archive/2026-09.md"
+{
+    head -4 "$FIXTURE"
+    echo "2026-10-15 · claude · unit test flakes under load, green on rerun · rerun · damilola.tech/tests"
+    echo "2026-10-16 · claude · infra test flakes again, green on rerun · rerun · bareclaude/tests"
+    echo "2026-10-16 · claude · session notes went missing · none · claude-config/docs"
+} >"$TEST_DIR/live.md"
+run --log "$TEST_DIR/live.md" --days 7 --repos-dir "$TEST_DIR/empty" >"$OUT"
+check "this repo without a sibling dir" "ours-unverified" "$(q "$OUT" "d['entries'][-1]['owner']")"
+run --log "$TEST_DIR/live.md" --days 7 >"$OUT"
+check "flaky-ci ignores other repos" "[]" \
+    "$(q "$OUT" "[c['entries'] for c in d['clusters'] if c['key']=='flaky-ci']")"
+
 echo "papercuts skill: missing log is an error, not an empty report"
 if run --log "$TEST_DIR/nope.md" >"$OUT"; then
     check "missing log exits non-zero" "1" "0"

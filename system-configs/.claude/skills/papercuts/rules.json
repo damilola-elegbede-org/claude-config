@@ -1,5 +1,5 @@
 {
-  "_comment": "Attribution signals and root-cause clusters for scripts/papercuts.py. A signal marks an entry `ours` only when its evidence greps out of this repo. Cluster `match` runs case-insensitively against the symptom field. Add a cluster when /papercuts finds an unclustered repeat.",
+  "_comment": "Attribution signals and root-cause clusters for scripts/papercuts.py. A signal marks an entry `ours` only when its evidence greps out of this repo. Cluster `match` runs case-insensitively against the symptom field; an optional `scope` limits a cluster to entries whose attributed owner is listed. Add a cluster when /papercuts finds an unclustered repeat.",
   "signals": [
     {
       "kind": "gate",
@@ -33,6 +33,7 @@
       "name": "Gate matches words inside data (heredoc, string, jq), not a command",
       "match": "(checkpoint|gate|hook).*(heredoc|jq|literal text|doesn't expand|no sql ran|merely contained)",
       "owner": "ours",
+      "scope": ["ours", "ours-unverified"],
       "files": [
         "system-configs/.claude/hooks/gate-rules.json",
         "system-configs/.claude/hooks/gate.sh",
@@ -45,6 +46,7 @@
       "name": "Gate keeps blocking after D approves the command",
       "match": "approval (did not|never)|after D approved",
       "owner": "ours",
+      "scope": ["ours", "ours-unverified"],
       "files": [
         "system-configs/.claude/hooks/gate.sh",
         "system-configs/.claude/hooks/jev-gate.sh",
@@ -57,6 +59,7 @@
       "name": "Format-on-edit hook rewrites the whole file",
       "match": "(prettier|formatter).*(reformat|rewr|re-pad|-line diff)",
       "owner": "ours",
+      "scope": ["ours", "ours-unverified"],
       "files": ["system-configs/.claude/settings.json"]
     },
     {
@@ -71,6 +74,7 @@
       "name": "CI test fails, then passes on rerun",
       "match": "flake|green on rerun|passes locally",
       "owner": "other:bareclaude",
+      "scope": ["other:bareclaude"],
       "files": []
     }
   ]
