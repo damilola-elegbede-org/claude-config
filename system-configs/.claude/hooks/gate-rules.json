@@ -247,7 +247,7 @@
       "description": "DROP TABLE/DATABASE/SCHEMA/INDEX, TRUNCATE, DELETE FROM without WHERE, ALTER TABLE ... DROP",
       "tools": "^Bash$",
       "field": "command",
-      "pattern": "DROP[[:space:]]+(?:TABLE|DATABASE|SCHEMA|INDEX)(?=[[:space:]]|$|;)|TRUNCATE[[:space:]]+(?:TABLE[[:space:]]+[A-Za-z_\\\"`\\[][^;\\\"'\\n]*|(?:ONLY[[:space:]]+)?[A-Za-z_\\\"`\\[][A-Za-z0-9_.\\\"`\\]]*(?:[[:space:]]*\\*)?(?:[[:space:]]*,[[:space:]]*[A-Za-z_\\\"`\\[][A-Za-z0-9_.\\\"`\\]]*(?:[[:space:]]*\\*)?)*(?=[[:space:]]*(?:$|[;\\\"'`)]|(?:CASCADE|RESTRICT|RESTART|CONTINUE)(?![A-Za-z0-9_]))))|DELETE[[:space:]]+FROM[[:space:]]+[^;\\\"']*|ALTER[[:space:]]+TABLE[[:space:]]+[^;\\\"'\\n]*?[[:space:]]DROP(?=[[:space:]]|$)",
+      "pattern": "DROP[[:space:]]+(?:TABLE|DATABASE|SCHEMA|INDEX)(?=[[:space:]]|$|;)|TRUNCATE[[:space:]]+(?:TABLE[[:space:]]+[A-Za-z_\\\"`\\[][^;\\\"'\\n]*|(?:ONLY[[:space:]]+)?[A-Za-z_\\\"`\\[][A-Za-z0-9_.\\\"`\\]]*(?:[[:space:]]*\\*)?(?:[[:space:]]*,[[:space:]]*[A-Za-z_\\\"`\\[][A-Za-z0-9_.\\\"`\\]]*(?:[[:space:]]*\\*)?)*(?=[[:space:]]*(?:$|[;\\\"'`)#\\\\]|--|/\\*|(?:CASCADE|RESTRICT|RESTART|CONTINUE)(?![A-Za-z0-9_]))))|DELETE[[:space:]]+FROM[[:space:]]+[^;\\\"']*|ALTER[[:space:]]+TABLE[[:space:]]+[^;\\\"'\\n]*?[[:space:]]DROP(?=[[:space:]]|$)",
       "flags": "i",
       "exempt": "^DELETE[[:space:]]+FROM[[:space:]]+[^;\\\"']*[[:space:]]WHERE[[:space:](]",
       "exempt_all": "^[[:space:]]*(?:git[[:space:]]+(?:commit|log|grep|show)|grep|rg|ag)[[:space:]][^;&]*$",
