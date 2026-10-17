@@ -56,6 +56,18 @@
       "skill": "goal-status",
       "prompt": "Show me progress on the goal you're working toward, with a bar and what's still failing."
     },
+    {
+      "skill": "papercuts",
+      "prompt": "Do some papercut analysis from the last week. Are we contributing to it?"
+    },
+    {
+      "skill": "papercuts",
+      "prompt": "Go through the papercut log and tell me which problems keep coming back without a fix."
+    },
+    {
+      "skill": "papercuts",
+      "prompt": "What tooling friction has been slowing us down this month, and how much of it is our own hooks?"
+    },
 
     {
       "skill": "colorwheel",
