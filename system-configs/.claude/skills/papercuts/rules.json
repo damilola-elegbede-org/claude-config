@@ -1,0 +1,77 @@
+{
+  "_comment": "Attribution signals and root-cause clusters for scripts/papercuts.py. A signal marks an entry `ours` only when its evidence greps out of this repo. Cluster `match` runs case-insensitively against the symptom field. Add a cluster when /papercuts finds an unclustered repeat.",
+  "signals": [
+    {
+      "kind": "gate",
+      "name": "decision gate",
+      "match": "\\b(?:MG-[a-z]+(?:-[a-z]+)*|G\\d+(?:-[a-z]+)*)\\b",
+      "paths": ["system-configs/.claude/hooks"]
+    },
+    {
+      "kind": "skill",
+      "name": "skill",
+      "match": "(?:^|\\s)/([a-z][a-z-]+)\\b|\\b([a-z][a-z-]+) skill\\b",
+      "paths": []
+    },
+    {
+      "kind": "grep",
+      "name": "format-on-edit hook",
+      "match": "\\b(?:prettier|formatter)\\b",
+      "evidence": "prettier --write",
+      "paths": ["system-configs/.claude/settings.json"]
+    },
+    {
+      "kind": "hookfile",
+      "name": "hook script named in the entry",
+      "match": "\\b[a-z]+(?:-[a-z]+)+\\b",
+      "paths": []
+    }
+  ],
+  "clusters": [
+    {
+      "key": "gate-matches-text",
+      "name": "Gate matches words inside data (heredoc, string, jq), not a command",
+      "match": "(checkpoint|gate|hook).*(heredoc|jq|literal text|doesn't expand|no sql ran|merely contained)",
+      "owner": "ours",
+      "files": [
+        "system-configs/.claude/hooks/gate-rules.json",
+        "system-configs/.claude/hooks/gate.sh",
+        "system-configs/.claude/hooks/jev-gate.sh",
+        "system-configs/.claude/hooks/jev-gate-lib.sh"
+      ]
+    },
+    {
+      "key": "approval-not-taking",
+      "name": "Gate keeps blocking after D approves the command",
+      "match": "approval (did not|never)|after D approved",
+      "owner": "ours",
+      "files": [
+        "system-configs/.claude/hooks/gate.sh",
+        "system-configs/.claude/hooks/jev-gate.sh",
+        "system-configs/.claude/hooks/jev-gate-lib.sh",
+        "system-configs/.claude/hooks/jev-ask-channel.sh"
+      ]
+    },
+    {
+      "key": "whole-file-formatter",
+      "name": "Format-on-edit hook rewrites the whole file",
+      "match": "(prettier|formatter).*(reformat|rewr|re-pad|-line diff)",
+      "owner": "ours",
+      "files": ["system-configs/.claude/settings.json"]
+    },
+    {
+      "key": "guard-pinned-after-move",
+      "name": "Worktree guard stays pinned to a moved or deleted path",
+      "match": "guard stayed pinned",
+      "owner": "external",
+      "files": []
+    },
+    {
+      "key": "flaky-ci",
+      "name": "CI test fails, then passes on rerun",
+      "match": "flake|green on rerun|passes locally",
+      "owner": "other:bareclaude",
+      "files": []
+    }
+  ]
+}
