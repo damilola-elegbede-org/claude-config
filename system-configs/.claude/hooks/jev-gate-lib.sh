@@ -327,10 +327,10 @@ jev_deny_reason() {
     printf 'Jev gate [%s]: %s needs D, and this session cannot ask. Do not retry or work around it. End your final message with `needs input:` followed by the action and the decision D must make. Action: %s' \
       "$ids" "$label" "$action"
   elif [ "${JEV_CTX:-interactive}" = "bgjob" ]; then
-    printf 'Jev gate [%s]: %s. Put this to D via AskUserQuestion before doing it (one question, state the exact action). If D approves exactly this action, retry it once; the approval does not carry to any other action. If D does not answer, do not retry or work around it: end your final message with `needs input:` naming the action. Action: %s' \
+    printf 'Jev gate [%s]: %s. Put this to D via AskUserQuestion after this deny (an answer given before it does not count): one question that quotes the exact command verbatim, env prefixes, redirections and pipes included. If D approves exactly this action, retry it once; the approval does not carry to any other action. If D does not answer, do not retry or work around it: end your final message with `needs input:` naming the action. Action: %s' \
       "$ids" "$label" "$action"
   else
-    printf 'Jev gate [%s]: %s. Put this to D via AskUserQuestion before doing it (one question, state the exact action). If D approves exactly this action, retry it once; the approval does not carry to any other action. Action: %s' \
+    printf 'Jev gate [%s]: %s. Put this to D via AskUserQuestion before doing it: one question that quotes the exact command verbatim, env prefixes, redirections and pipes included. If D approves exactly this action, retry it once; the approval does not carry to any other action. Action: %s' \
       "$ids" "$label" "$action"
   fi
 }
@@ -431,6 +431,34 @@ jev_write_last_deny() {
       mv "$tmp" "$JEV_LAST_DENY_DIR/$sid.json" 2>/dev/null || rm -f "$tmp"
   ) 2>/dev/null
   return 0
+}
+
+# jev_write_action_deny -> records when the Jev gate last denied THIS action (ACTION_SHA) in this session:
+# jev-state/denied/<session>/<ACTION_SHA> holds the epoch. A job session's approval must come after it. Unlike the
+# last-deny trail it is per action and written by the Jev gate only, so gate.sh denying the same call in parallel,
+# or another action denied in between, cannot move it. Always returns 0.
+jev_write_action_deny() {
+  local sid d
+  sid=$(jev_deny_session) || return 0
+  case "${ACTION_SHA:-}" in "" | *[!0-9a-f]*) return 0 ;; esac
+  d="$JEV_STATE_DIR/denied/$sid"
+  (
+    umask 077
+    mkdir -p "$d" 2>/dev/null || exit 0
+    date +%s >"$d/$ACTION_SHA.tmp.$$" 2>/dev/null && mv -f "$d/$ACTION_SHA.tmp.$$" "$d/$ACTION_SHA" 2>/dev/null
+    rm -f "$d/$ACTION_SHA.tmp.$$" 2>/dev/null
+  ) 2>/dev/null
+  return 0
+}
+
+# jev_action_deny_epoch -> the epoch jev_write_action_deny recorded for this action; fails when there is none.
+jev_action_deny_epoch() {
+  local sid e
+  sid=$(jev_deny_session) || return 1
+  case "${ACTION_SHA:-}" in "" | *[!0-9a-f]*) return 1 ;; esac
+  e=$(cat "$JEV_STATE_DIR/denied/$sid/$ACTION_SHA" 2>/dev/null) || return 1
+  case "$e" in "" | *[!0-9]*) return 1 ;; esac
+  printf '%s' "$e"
 }
 
 # jev_retry_prior NORM -> one JSON line {sim, rule, src, age, norm} when the session's last deny is at most 600 s

@@ -70,18 +70,58 @@ hit_label() { # ID
   esac
 }
 
-# bgjob_ask_answer_after_deny -> 0 when the last deny recorded for this session was for exactly this action
-# and the last genuine D turn in the transcript is an AskUserQuestion answer stamped at or after that deny.
-# The detector then judges whether the answer approves it. Fails closed on a missing deny record or timestamp.
+# bgjob_ask_answer_after_deny -> 0 when the Jev gate denied exactly this action in this session and the last
+# genuine D turn in the transcript is an AskUserQuestion answer stamped at or after that deny. The record is
+# this action's own (jev_write_action_deny), not the shared last-deny trail: gate.sh denying the same call in
+# parallel re-stamps that trail later than D's answer (papercut 33). The detector then judges whether the answer
+# approves it. Fails closed on a missing deny record or timestamp.
 bgjob_ask_answer_after_deny() {
-  local sid f norm
-  sid=$(jev_deny_session) || return 1
-  f="$JEV_LAST_DENY_DIR/$sid.json"
-  [ -f "$f" ] || return 1
-  norm=$(jev_norm "$NORM_RAW")
-  printf '%s' "$TAILJSON" | jq -e --slurpfile d "$f" --arg norm "$norm" '
-    .d_ask == true and (.d_epoch | type) == "number" and ($d[0].epoch | type) == "number"
-    and $d[0].norm == $norm and .d_epoch >= $d[0].epoch' >/dev/null 2>&1
+  local e
+  e=$(jev_action_deny_epoch) || return 1
+  printf '%s' "$TAILJSON" | jq -e --argjson e "$e" '
+    .d_ask == true and (.d_epoch | type) == "number" and .d_epoch >= $e' >/dev/null 2>&1
+}
+
+# regex_gate_hash -> gate.sh's approval identity for this Bash call (sha256 of tool, raw command, cwd, scope;
+# gate.sh's action_id), so the two gates can recognise the same action.
+regex_gate_hash() {
+  [ "$TOOL" = "Bash" ] || return 1
+  printf '%s' "$INPUT" | jq -j --arg s "$JEV_CTX" '[.tool_name, (.tool_input.command // ""), (.cwd // ""), $s] | join("\u001f")' 2>/dev/null |
+    shasum -a 256 2>/dev/null | cut -d' ' -f1
+}
+
+# claim_regex_release -> 0 once when `gate.sh approve` released exactly this Bash action in the last 30 minutes:
+# D answered the checkpoint dialog that carried its code, after the deny (gate.sh verifies that). The token is
+# single use (an atomic rename). Never for a fleet agent or a subagent, which cannot put an action to D.
+REGEX_CODE=""
+claim_regex_release() {
+  local h f mine
+  [ "$JEV_CTX" != "fleet" ] && [ -z "${JEV_SUBAGENT:-}" ] || return 1
+  h=$(regex_gate_hash) || return 1
+  case "$h" in "" | *[!0-9a-f]*) return 1 ;; esac
+  [ "${#h}" -eq 64 ] || return 1
+  f="$JEV_CLAUDE_DIR/gate-approved/jev.$h"
+  [ -f "$f" ] && [ ! -L "$f" ] || return 1
+  mine="$JEV_CLAUDE_DIR/gate-approved/.claim.jev.$h.$$"
+  mv "$f" "$mine" 2>/dev/null || return 1
+  if [ -n "$(find "$mine" -mmin +30 2>/dev/null)" ]; then
+    rm -f "$mine"
+    return 1
+  fi
+  rm -f "$mine"
+  REGEX_CODE="${h:0:12}"
+  return 0
+}
+
+# regex_checkpoint_note -> when gate.sh also denied this call (its pending checkpoint exists), the steps that
+# clear both gates; only one deny reason reaches Claude, so the Jev reason must carry gate.sh's code too.
+regex_checkpoint_note() {
+  local h
+  [ "$JEV_CTX" != "fleet" ] && [ -z "${JEV_SUBAGENT:-}" ] || return 0
+  h=$(regex_gate_hash) || return 0
+  case "$h" in "" | *[!0-9a-f]*) return 0 ;; esac
+  [ -f "$JEV_CLAUDE_DIR/gate-pending/$h" ] || return 0
+  printf ' The regex gate also stopped this action: put its checkpoint code %s in the same question; once D approves, run `~/.claude/hooks/gate.sh approve %s`, which releases both gates for one retry of the exact same command.' "${h:0:12}" "$h"
 }
 
 # check_approval DRY -> sets APPROVED (1 only when D explicitly approved exactly this action and the
@@ -160,6 +200,12 @@ resolve_hits() {
     check_approval 1 # shadow: log what the approval detector would say, consume nothing
     finish
   fi
+  if claim_regex_release; then
+    jev_log "$enforce_ids" "allow-regex-approval" "enforce" ""
+    jq -nc --arg m "Jev released ${enforce_ids} once: D approved exactly this action at regex checkpoint ${REGEX_CODE}" \
+      '{hookSpecificOutput:{hookEventName:"PreToolUse",additionalContext:$m}}'
+    finish
+  fi
   check_approval 0
   if [ "$APPROVED" = "1" ]; then
     jev_log "$enforce_ids" "allow-approved-once" "enforce" ""
@@ -168,9 +214,10 @@ resolve_hits() {
       '{hookSpecificOutput:{hookEventName:"PreToolUse",additionalContext:$m}}'
     finish
   fi
-  reason=$(jev_deny_reason "$enforce_ids" "$labels" "$ACTION")
+  reason="$(jev_deny_reason "$enforce_ids" "$labels" "$ACTION")$(regex_checkpoint_note)"
   jev_log "$enforce_ids" "deny" "enforce" ""
   jev_write_last_deny "$enforce_ids"
+  jev_write_action_deny
   jev_emit_deny "$reason"
   exit 0
 }
@@ -569,7 +616,9 @@ handle_generic() {
   esac
   # The approval identity is the FULL canonical tool input plus cwd and context, never the redacted, truncated
   # display digest in ACTION: a retry with other file contents or another command middle is another action.
-  ACTION_SHA=$(jev_sha "$TOOL|$(printf '%s' "$INPUT" | jq -S -c '.tool_input // {}')|${CWD}|${JEV_CTX}")
+  # A Bash call's description and timeout do not change what runs, so a retry that only rewords them is the same
+  # action (one approval, one release; papercut 33 retried with three descriptions).
+  ACTION_SHA=$(jev_sha "$TOOL|$(printf '%s' "$INPUT" | jq -S -c --arg t "$TOOL" '.tool_input // {} | if $t == "Bash" and type == "object" then del(.description, .timeout) else . end')|${CWD}|${JEV_CTX}")
   retry_prepare
 
   cand_ids=$(candidates_for "$subject")

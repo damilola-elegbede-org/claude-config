@@ -51,6 +51,8 @@
 #                name only, and anything that looks like a secret is never logged.
 # State        : ~/.claude/gate-pending/<hash>   written on deny (interactive)
 #                ~/.claude/gate-approved/<hash>  written by `gate.sh approve`
+#                ~/.claude/gate-approved/jev.<hash>  written by `gate.sh approve`: jev-gate.sh claims it once to
+#                                                release the same Bash action, so one approval clears both gates
 #                ~/.claude/gate-asks-used(.d/)   AskUserQuestion ids already spent (.d/ = atomic claims)
 #
 # Rules with "resolve": true (G1-rm) match against text where standalone literal
@@ -233,6 +235,8 @@ cmd_approve() {
     mkdir -p "$APPROVED_DIR" 2>/dev/null
     if mv "$pending" "$APPROVED_DIR/$h" 2>/dev/null; then
         touch "$APPROVED_DIR/$h"
+        # The Jev gate (jev-gate.sh) may stop the same Bash call; this verified answer releases it once too.
+        touch "$APPROVED_DIR/jev.$h" 2>/dev/null
         printf '%s\n' "$spent" >>"$ASKS_USED" 2>/dev/null
         log_decision "approve" "approved" "gate.sh" "$scope" "${PWD:-}" "$h"
         printf 'approved: retry the exact same action within %s minutes (single use)\n' "$APPROVAL_TTL_MIN"
@@ -577,7 +581,7 @@ if [[ "$CAN_ASK" == 1 ]]; then
         jq -nc --argjson rules "${IDS_JSON:-[]}" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --argjson te "$(date +%s)" \
             --arg sid "$SESSION_ID" --arg tp "$TRANSCRIPT" --arg cwd "$CWD" --arg scope "$SCOPE" \
             '{rules:$rules,ts:$ts,ts_epoch:$te,session_id:$sid,transcript_path:$tp,cwd:$cwd,scope:$scope}' >"$PENDING_DIR/$HASH" 2>/dev/null
-        REASON="CHECKPOINT ${BLOCK_IDS[0]}: $MESSAGE.$ALSO Put this action to D via AskUserQuestion: quote the exact action and put the checkpoint code $(ask_code "$HASH") in the question text (approve refuses any question without it). If D approves, run \`~/.claude/hooks/gate.sh approve $HASH\` and retry with the exact same command.$TAIL"
+        REASON="CHECKPOINT ${BLOCK_IDS[0]}: $MESSAGE.$ALSO Put this action to D via AskUserQuestion: quote the exact action and put the checkpoint code $(ask_code "$HASH") in the question text (approve refuses any question without it). If D approves, run \`~/.claude/hooks/gate.sh approve $HASH\` and retry with the exact same command from the same working directory $CWD (if your shell has moved since, cd back in a separate call first).$TAIL"
     else
         REASON="CHECKPOINT ${BLOCK_IDS[0]}: $MESSAGE.$ALSO Put this action to D via AskUserQuestion; if D approves, retry with the exact same command.$TAIL"
     fi
