@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # PostToolUse Write|Edit formatter: prettier may only rewrite files that were
-# already prettier-clean before the edit (or are new to the repo).
+# already prettier-clean in HEAD, the only baseline it can trust.
 #
 # Before this guard the hook ran `prettier --write` on every edited file, so a
 # one-line Edit in a repo that ships prettier but never ran it rewrote the
@@ -60,7 +60,13 @@ printf '# UNFORMATTED\n' >"$REPO/messy.md"
 printf '# nested clean\n' >"$REPO/docs/nested.md"
 git -C "$REPO" init -q
 git -C "$REPO" add .gitignore package.json clean.md messy.md docs/nested.md
-git -C "$REPO" -c user.name=t -c user.email=t@t commit -qm fixture
+# Isolate the fixture commit from the developer's signing and hook setup: a
+# failed commit leaves no HEAD and every case below would test the wrong thing.
+if ! git -C "$REPO" -c user.name=t -c user.email=t@t -c commit.gpgSign=false \
+  -c core.hooksPath=/dev/null commit -qm fixture; then
+  echo "FAIL: could not create the fixture commit" >&2
+  exit 1
+fi
 
 # Outside any git repo: no baseline to compare against.
 LOOSE="$T/loose"
@@ -95,8 +101,14 @@ expect_untouched "$REPO" "$REPO/messy.md" "never-formatted tracked file"
 printf 'edited line\n' >>"$REPO/docs/nested.md"
 expect_formatted "$REPO" "$REPO/docs/nested.md" "clean tracked file in a subdirectory"
 
+# No HEAD version means no baseline: a new file and a moved never-formatted
+# file look the same, so neither is rewritten.
 printf '# brand new\n' >"$REPO/docs/new.md"
-expect_formatted "$REPO" "$REPO/docs/new.md" "new untracked file in a repo"
+expect_untouched "$REPO" "$REPO/docs/new.md" "new untracked file in a repo"
+
+git -C "$REPO" mv messy.md docs/moved.md
+printf 'edited after move\n' >>"$REPO/docs/moved.md"
+expect_untouched "$REPO" "$REPO/docs/moved.md" "renamed never-formatted file"
 
 printf 'edited line\n' >>"$LOOSE/loose.md"
 expect_untouched "$LOOSE" "$LOOSE/loose.md" "file outside any git repo"
