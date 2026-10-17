@@ -51,6 +51,8 @@
 #                name only, and anything that looks like a secret is never logged.
 # State        : ~/.claude/gate-pending/<hash>   written on deny (interactive)
 #                ~/.claude/gate-approved/<hash>  written by `gate.sh approve`
+#                ~/.claude/gate-approved/jev.<hash>  written by `gate.sh approve`: jev-gate.sh claims it once to
+#                                                release the same Bash action, so one approval clears both gates
 #                ~/.claude/gate-asks-used(.d/)   AskUserQuestion ids already spent (.d/ = atomic claims)
 #
 # Rules with "resolve": true (G1-rm) match against text where standalone literal
@@ -233,6 +235,8 @@ cmd_approve() {
     mkdir -p "$APPROVED_DIR" 2>/dev/null
     if mv "$pending" "$APPROVED_DIR/$h" 2>/dev/null; then
         touch "$APPROVED_DIR/$h"
+        # The Jev gate (jev-gate.sh) may stop the same Bash call; this verified answer releases it once too.
+        touch "$APPROVED_DIR/jev.$h" 2>/dev/null
         printf '%s\n' "$spent" >>"$ASKS_USED" 2>/dev/null
         log_decision "approve" "approved" "gate.sh" "$scope" "${PWD:-}" "$h"
         printf 'approved: retry the exact same action within %s minutes (single use)\n' "$APPROVAL_TTL_MIN"
@@ -285,6 +289,16 @@ SCOPE="interactive"
 read -r -d '' JQ_PROG <<'JQEOF'
 def esc: gsub("(?<x>[.\\[\\]\\\\^$*+?(){}|/-])"; "\\\(.x)");
 def never: "@@NEVER@@";
+# A whole line that reads `# text` is a comment in the shell, in a python/perl/ruby/shell heredoc body, and in a
+# quoted string a shell, python or MySQL later runs. Dropping it before heredocs are found also stops a comment that
+# mentions `<<EOF` from opening a heredoc that would hide the real command lines after it. It stays when it may be
+# code elsewhere: PostgreSQL reads # as XOR, so a `;` on the line can start a new statement and a `\` a psql
+# meta-command; `#name` is a JS private field; `# define`/`# include` and the other directives are C preprocessor.
+def strip_comment_lines:
+  split("\n")
+  | map(select((test("^[[:space:]]*#(?:[[:space:]]|$)") and (test("[;\\\\]") | not)
+      and (test("^[[:space:]]*#[[:space:]]*(?:define|undef|include|import|if|ifdef|ifndef|elif|else|endif|pragma|line|error|warning)(?![A-Za-z0-9_])") | not)) | not))
+  | join("\n");
 # Heredoc bodies are data, unless the heredoc feeds a shell (bash/sh <<EOF, ssh host <<EOF, eval, source): that
 # body is code. A body fed to an interpreter (python/node/perl/ruby/deno/bun/php <<EOF) is code for rules that read
 # interpreter code ($interp_is_data false: unanchored rules such as G1-interp and the SQL rules) and data for
@@ -311,14 +325,15 @@ def sq: "'[^']*'";
 # so redirections stay visible to the rules.
 def tok: "(?:" + dq + "|" + sq + "|[^[:space:];&|<>\"'`()]+(?![^[:space:];&|\"'`()]))";
 # Quoted text that is DATA, not a command, is blanked: values of --body/--title/--message/-m/-f body=,
-# and every argument of echo/printf/grep/rg/ag (not `printf -v NAME`, which assigns a variable). Skipped entirely when the text could be executed
+# and every argument of echo/printf/grep/rg/ag/jq (not `printf -v NAME`, which assigns a variable; jq cannot run a
+# command, so its filter is data). Skipped entirely when the text could be executed
 # (piped into a shell, eval, xargs) and for strings containing $( or a backtick.
 def blank_data:
   if test("\\|[[:space:]]*(?:sudo[[:space:]]+)?(?:(?:ba|z|da|k)?sh|xargs)(?:[[:space:]]|$)|(?:^|[^A-Za-z0-9_])eval[[:space:]]") then .
   else
     gsub("(?<f>(?:--body|--title|--message|--notes|--subject|--description|--comment|-m|-b|-t)(?:[[:space:]]+|=))(?:" + dq + "|" + sq + ")"; "\(.f)\"\"")
     | gsub("(?<f>(?:-f|-F|--field|--raw-field)[[:space:]]+(?:body|title|message|comment|commit_message|description|text)=)(?:" + dq + "|" + sq + ")"; "\(.f)\"\"")
-    | gsub("(?<h>(?:^|[;&|(\\n`])[[:space:]]*(?:(?:/usr)?/bin/)?(?:echo|printf(?![[:space:]]+-v)|grep|egrep|fgrep|rg|ag)(?:[[:space:]]+-[A-Za-z-]+)*)(?:[[:space:]]+" + tok + ")+"; "\(.h) \"\"")
+    | gsub("(?<h>(?:^|[;&|(\\n`])[[:space:]]*(?:(?:/usr)?/bin/)?(?:echo|printf(?![[:space:]]+-v)|grep|egrep|fgrep|rg|ag|jq)(?:[[:space:]]+-[A-Za-z-]+)*)(?:[[:space:]]+" + tok + ")+"; "\(.h) \"\"")
   end;
 $rules[0] as $R
 | (($R.macros // {}) + {
@@ -327,7 +342,8 @@ $rules[0] as $R
     JOBDIR: (if $jobdir == "" then never else ($jobdir | rtrimstr("/") | esc) end)
   }) as $M
 | def expand: reduce range(0; 3) as $i (.; reduce ($M | to_entries[]) as $m (.; gsub("\\{\\{" + $m.key + "\\}\\}"; $m.value)));
-# Literal NAME=value assignments (no command substitution) that stand alone as a statement are substituted into
+# Literal NAME=value or NAME="value" assignments (no command substitution; a quoted value holds no ; & | < > ( ) # or
+# newline, which the shell keeps inside one word but would read as syntax once pasted in) that stand alone as a statement are substituted into
 # the later $NAME / ${NAME} uses, so a scratch path reached through a variable is seen as that path. The LAST
 # assignment is applied first, so each use gets the value in force at that point. A name that is also set another
 # way (for/select/read/unset/declare/local/getopts/printf -v/+=) or any eval/source in the command leaves the
@@ -342,8 +358,8 @@ def resolve_vars:
   . as $t
   | if ($t | unmodeled) then $t
     else
-      [$t | match("(?:^|[;&|\\n])[[:space:]]*(?:export[[:space:]]+)?(?<n>[A-Za-z_][A-Za-z0-9_]*)=(?<v>[^[:space:];&|<>\"'`()\\\\]*)(?=[[:space:]]*(?:;|&&|\\n|$))"; "g")
-       | {n: .captures[0].string, v: .captures[1].string, e: (.offset + .length)}] as $as
+      [$t | match("(?:^|[;&|\\n])[[:space:]]*(?:export[[:space:]]+)?(?<n>[A-Za-z_][A-Za-z0-9_]*)=(?:\"(?<q>(?:[^\"\\\\`$;&|<>()#\\n]|\\$(?!\\())*)\"|(?<v>[^[:space:];&|<>\"'`()\\\\]*))(?=[[:space:]]*(?:;|&&|\\n|$))"; "g")
+       | {n: .captures[0].string, v: (.captures[1].string // .captures[2].string), e: (.offset + .length)}] as $as
       | if ([$as[] as $x | $as[] as $y | select($x.v | test("\\$\\{?" + $y.n + "(?![A-Za-z0-9_])"))] | length) > 0 then $t
         else
         reduce ($as | reverse | .[]) as $a ($t;
@@ -379,8 +395,8 @@ def resolve_cd:
 (.tool_name // "") as $tn
 | (.tool_input | if type == "object" then . else {} end) as $ti
 | (.cwd // "") as $cwd
-| (if $tn == "Bash" then (($ti.command // "") | if type == "string" then (strip_heredocs(false) | blank_data) else "" end) else "" end) as $cc
-| (if $tn == "Bash" then (($ti.command // "") | if type == "string" then (strip_heredocs(true) | blank_data) else "" end) else "" end) as $cs
+| (if $tn == "Bash" then (($ti.command // "") | if type == "string" then (strip_comment_lines | strip_heredocs(false) | blank_data) else "" end) else "" end) as $cc
+| (if $tn == "Bash" then (($ti.command // "") | if type == "string" then (strip_comment_lines | strip_heredocs(true) | blank_data) else "" end) else "" end) as $cs
 | (if $tn == "Bash" then ($cs | resolve_vars | resolve_cd) else "" end) as $cr
 | def normpath:
     if type != "string" then ""
@@ -572,7 +588,7 @@ if [[ "$CAN_ASK" == 1 ]]; then
         jq -nc --argjson rules "${IDS_JSON:-[]}" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --argjson te "$(date +%s)" \
             --arg sid "$SESSION_ID" --arg tp "$TRANSCRIPT" --arg cwd "$CWD" --arg scope "$SCOPE" \
             '{rules:$rules,ts:$ts,ts_epoch:$te,session_id:$sid,transcript_path:$tp,cwd:$cwd,scope:$scope}' >"$PENDING_DIR/$HASH" 2>/dev/null
-        REASON="CHECKPOINT ${BLOCK_IDS[0]}: $MESSAGE.$ALSO Put this action to D via AskUserQuestion: quote the exact action and put the checkpoint code $(ask_code "$HASH") in the question text (approve refuses any question without it). If D approves, run \`~/.claude/hooks/gate.sh approve $HASH\` and retry with the exact same command.$TAIL"
+        REASON="CHECKPOINT ${BLOCK_IDS[0]}: $MESSAGE.$ALSO Put this action to D via AskUserQuestion: quote the exact action and put the checkpoint code $(ask_code "$HASH") in the question text (approve refuses any question without it). If D approves, run \`~/.claude/hooks/gate.sh approve $HASH\` and retry with the exact same command from the same working directory $CWD (if your shell has moved since, cd back in a separate call first).$TAIL"
     else
         REASON="CHECKPOINT ${BLOCK_IDS[0]}: $MESSAGE.$ALSO Put this action to D via AskUserQuestion; if D approves, retry with the exact same command.$TAIL"
     fi

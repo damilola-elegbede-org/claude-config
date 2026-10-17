@@ -168,6 +168,7 @@ check_contains "interactive: retry wording" "$(reason)" "retry with the exact sa
 # shellcheck disable=SC2088 # the literal tilde is the text Claude is told to run
 check_contains "interactive: approve command" "$(reason)" "~/.claude/hooks/gate.sh approve "
 check_absent "interactive: no needs-input wording" "$(reason)" "needs input:"
+check_contains "interactive: names the cwd the approval is bound to" "$(reason)" "working directory /work"
 
 run_gate "$H" "$(bash_payload 'rm -rf foo')" CLAUDE_JOB_DIR="$H/job"
 check "bg job: permissionDecision" "deny" "$(decision)"
@@ -311,11 +312,13 @@ check_contains "approval: approve says approved" "$AOUT" "approved"
 check_contains "approval: the spent question is recorded" "$(cat "$H_AP/.claude/gate-asks-used")" "ask-yes"
 if [[ -d "$H_AP/.claude/gate-asks-used.d/ask-yes" ]]; then pass; else fail "approval: the spent question is claimed atomically (mkdir marker)"; fi
 if [[ -f "$H_AP/.claude/gate-approved/$HASH" && ! -f "$H_AP/.claude/gate-pending/$HASH" ]]; then pass; else fail "approval: pending moved to approved"; fi
+if [[ -f "$H_AP/.claude/gate-approved/jev.$HASH" ]]; then pass; else fail "approval: approve also leaves the one-use release the Jev gate claims for the same action"; fi
 run_gate "$H_AP" "$(bash_payload 'rm -rf bar')"
 check "approval: a different command is not approved" "deny" "$(decision)"
 run_gate "$H_AP" "$P"
 check "approval: retry after approve is allowed" "" "$GOUT"
 if [[ ! -e "$H_AP/.claude/gate-approved/$HASH" ]]; then pass; else fail "approval: consumed after one use"; fi
+if [[ -f "$H_AP/.claude/gate-approved/jev.$HASH" ]]; then pass; else fail "approval: gate.sh's own claim leaves the Jev release alone"; fi
 check_contains "approval: logged" "$(cat "$H_AP/.claude/gate-log.jsonl")" '"decision":"allow-by-approval"'
 run_gate "$H_AP" "$P"
 check "approval: second retry denied again (single use)" "deny" "$(decision)"

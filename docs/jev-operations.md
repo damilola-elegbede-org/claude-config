@@ -118,8 +118,16 @@ What a block tells the session depends on where it runs:
 
 A job-session approval of a regex checkpoint follows the interactive path (`gate.sh approve <hash>`,
 bound to the checkpoint code in an answered AskUserQuestion). A job-session approval of a Jev gate needs
-three things: the last deny in that session was for this exact action, D's last turn is an AskUserQuestion
-answer stamped at or after that deny, and the approval detector says yes. Every approval is one-shot.
+three things: the Jev gate denied this exact action in that session (its own record,
+`~/.claude/jev-state/denied/<session_id>/<action_sha>`, so gate.sh denying the same call in parallel cannot
+move it), D's last turn is an AskUserQuestion answer stamped at or after that deny, and the approval detector
+says yes. A Bash action's identity ignores its `description` and `timeout`. Every approval is one-shot.
+
+When both gates stop the same Bash call, one approval clears both: `gate.sh approve <hash>` also leaves
+`~/.claude/gate-approved/jev.<hash>`, which `jev-gate.sh` claims once (30-minute expiry, never for a fleet
+agent or subagent) to release the identical command, cwd and scope. Only one deny reason reaches the
+session, so the Jev reason names gate.sh's checkpoint code and approve command whenever gate.sh has a pending
+checkpoint for the call.
 
 Every enforced deny from either gate writes `~/.claude/jev-state/last-deny/<session_id>.json`
 (`{ts, epoch, src, tool, rule, norm}`, mode 0600; `norm` is the whitespace-collapsed, redacted action,
