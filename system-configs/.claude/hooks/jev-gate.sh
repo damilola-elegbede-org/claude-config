@@ -114,12 +114,22 @@ claim_regex_release() {
 }
 
 # regex_checkpoint_note -> when gate.sh also denied this call (its pending checkpoint exists), the steps that
-# clear both gates; only one deny reason reaches Claude, so the Jev reason must carry gate.sh's code too.
+# clear both gates; only one deny reason reaches Claude, so the Jev reason must carry gate.sh's code too. The two
+# hooks run in parallel, so wait up to JEV_REGEX_PENDING_WAIT_S (default 2) seconds for gate.sh's record; gate.sh
+# is one jq call and writes it well inside that, and the wait is paid only on a Bash deny it did not share.
 regex_checkpoint_note() {
-  local h
+  local h n=0 max
   [ "$JEV_CTX" != "fleet" ] && [ -z "${JEV_SUBAGENT:-}" ] || return 0
   h=$(regex_gate_hash) || return 0
   case "$h" in "" | *[!0-9a-f]*) return 0 ;; esac
+  case "${JEV_REGEX_PENDING_WAIT_S:-2}" in
+    "" | *[!0-9]*) max=20 ;;
+    *) max=$((${JEV_REGEX_PENDING_WAIT_S:-2} * 10)) ;;
+  esac
+  while [ ! -f "$JEV_CLAUDE_DIR/gate-pending/$h" ] && [ "$n" -lt "$max" ]; do
+    sleep 0.1
+    n=$((n + 1))
+  done
   [ -f "$JEV_CLAUDE_DIR/gate-pending/$h" ] || return 0
   printf ' The regex gate also stopped this action: put its checkpoint code %s in the same question; once D approves, run `~/.claude/hooks/gate.sh approve %s`, which releases both gates for one retry of the exact same command.' "${h:0:12}" "$h"
 }
@@ -214,7 +224,7 @@ resolve_hits() {
       '{hookSpecificOutput:{hookEventName:"PreToolUse",additionalContext:$m}}'
     finish
   fi
-  reason="$(jev_deny_reason "$enforce_ids" "$labels" "$ACTION")$(regex_checkpoint_note)"
+  reason="$(jev_deny_reason "$enforce_ids" "$labels" "$ACTION" "$TOOL")$(regex_checkpoint_note)"
   jev_log "$enforce_ids" "deny" "enforce" ""
   jev_write_last_deny "$enforce_ids"
   jev_write_action_deny

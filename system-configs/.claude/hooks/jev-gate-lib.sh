@@ -319,19 +319,25 @@ jev_warn_once() {
   jq -nc --arg m "$2" '{systemMessage:$m}'
 }
 
-# jev_deny_reason ID_LIST LABEL ACTION -> wording per context. Interactive and job sessions (no subagent) can
-# put the action to D; fleet agents and subagents cannot, so they hand off with `needs input:`.
+# jev_deny_reason ID_LIST LABEL ACTION [TOOL] -> wording per context. Interactive and job sessions (no subagent)
+# can put the action to D; fleet agents and subagents cannot, so they hand off with `needs input:`. Only a Bash
+# action is a command to quote; any other tool's question names the tool, its target and what it changes.
 jev_deny_reason() {
-  local ids="$1" label="$2" action="${3:0:300}"
+  local ids="$1" label="$2" action="${3:0:300}" ask
+  if [ "${4:-Bash}" = "Bash" ]; then
+    ask='one question that quotes the exact command verbatim, env prefixes, redirections and pipes included'
+  else
+    ask="one question that names the exact ${4} action: its target and what it changes"
+  fi
   if [ -n "${JEV_SUBAGENT:-}" ] || [ "${JEV_CTX:-interactive}" = "fleet" ]; then
     printf 'Jev gate [%s]: %s needs D, and this session cannot ask. Do not retry or work around it. End your final message with `needs input:` followed by the action and the decision D must make. Action: %s' \
       "$ids" "$label" "$action"
   elif [ "${JEV_CTX:-interactive}" = "bgjob" ]; then
-    printf 'Jev gate [%s]: %s. Put this to D via AskUserQuestion after this deny (an answer given before it does not count): one question that quotes the exact command verbatim, env prefixes, redirections and pipes included. If D approves exactly this action, retry it once; the approval does not carry to any other action. If D does not answer, do not retry or work around it: end your final message with `needs input:` naming the action. Action: %s' \
-      "$ids" "$label" "$action"
+    printf 'Jev gate [%s]: %s. Put this to D via AskUserQuestion after this deny (an answer given before it does not count): %s. If D approves exactly this action, retry it once; the approval does not carry to any other action. If D does not answer, do not retry or work around it: end your final message with `needs input:` naming the action. Action: %s' \
+      "$ids" "$label" "$ask" "$action"
   else
-    printf 'Jev gate [%s]: %s. Put this to D via AskUserQuestion before doing it: one question that quotes the exact command verbatim, env prefixes, redirections and pipes included. If D approves exactly this action, retry it once; the approval does not carry to any other action. Action: %s' \
-      "$ids" "$label" "$action"
+    printf 'Jev gate [%s]: %s. Put this to D via AskUserQuestion before doing it: %s. If D approves exactly this action, retry it once; the approval does not carry to any other action. Action: %s' \
+      "$ids" "$label" "$ask" "$action"
   fi
 }
 

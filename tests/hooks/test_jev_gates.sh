@@ -128,7 +128,7 @@ gate_log() { cat "$T/home/.claude/jev-gates.jsonl" 2>/dev/null || true; }
 run_hook() {
   local script="$1" json="$2"
   shift 2
-  env -u BARECLAUDE_AGENT_SLUG -u CLAUDE_JOB_DIR HOME="$T/home" JEV_STUB_LOG="$T/stub.log" JEV_MOCK="${JEV_MOCK:-$T/mock.json}" "$@" \
+  env -u BARECLAUDE_AGENT_SLUG -u CLAUDE_JOB_DIR HOME="$T/home" JEV_STUB_LOG="$T/stub.log" JEV_MOCK="${JEV_MOCK:-$T/mock.json}" JEV_REGEX_PENDING_WAIT_S=0 "$@" \
     bash "$T/home/.claude/hooks/$script" <<<"$json" 2>/dev/null
 }
 
@@ -604,6 +604,8 @@ OUT=$(run_hook jev-gate.sh "$(mcp_in mcp__claude_ai_Slack__slack_send_message)" 
 assert_contains "unavailable: send_* heuristic denies" "$OUT" "outward-facing"
 OUT=$(run_hook jev-gate.sh "$(mcp_in mcp__claude_ai_Vercel__buy_domain)" JEV_MOCK=unavailable)
 assert_contains "unavailable: buy_* heuristic denies" "$OUT" "spends money"
+assert_not_contains "non-Bash deny: no command to quote" "$OUT" "exact command verbatim"
+assert_contains "non-Bash deny: names the tool action" "$OUT" "exact mcp__claude_ai_Vercel__buy_domain action"
 OUT=$(run_hook jev-gate.sh "$(mcp_in mcp__claude_ai_Google_Drive__trash_file)" JEV_MOCK=unavailable)
 assert_contains "unavailable: trash_* heuristic denies" "$OUT" "deletes data"
 OUT=$(run_hook jev-gate.sh "$(mcp_in mcp__claude_ai_Vercel__get_project)" JEV_MOCK=unavailable)
@@ -1259,6 +1261,12 @@ assert_contains "dual gate: the Jev reason carries the approve command" "$OUT" "
 rm -f "$T/home/.claude/gate-pending/$HG"
 OUT=$(run_hook jev-gate.sh "$(bash_in "$GH_CMD")")
 assert_not_contains "dual gate: no regex checkpoint, no approve command" "$OUT" "gate.sh approve"
+# the hooks run in parallel: a checkpoint gate.sh writes while the Jev hook is already deciding still lands in the reason
+(sleep 0.5 && echo '{}' >"$T/home/.claude/gate-pending/$HG") &
+OUT=$(run_hook jev-gate.sh "$(bash_in "$GH_CMD")" JEV_REGEX_PENDING_WAIT_S=3)
+wait
+assert_contains "dual gate: a checkpoint written in parallel is still named" "$OUT" "gate.sh approve $HG"
+rm -f "$T/home/.claude/gate-pending/$HG"
 
 # interactive sessions keep the plain D-turn approval
 new_home

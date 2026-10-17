@@ -289,10 +289,16 @@ SCOPE="interactive"
 read -r -d '' JQ_PROG <<'JQEOF'
 def esc: gsub("(?<x>[.\\[\\]\\\\^$*+?(){}|/-])"; "\\\(.x)");
 def never: "@@NEVER@@";
-# A whole line that starts with # is a comment wherever it lands: in the shell, in a python/perl/ruby/shell heredoc
-# body, or inside a quoted string a shell, python or MySQL later runs. Dropping it before heredocs are found also
-# stops a comment that mentions `<<EOF` from opening a heredoc that would hide the real command lines after it.
-def strip_comment_lines: split("\n") | map(select(test("^[[:space:]]*#") | not)) | join("\n");
+# A whole line that reads `# text` is a comment in the shell, in a python/perl/ruby/shell heredoc body, and in a
+# quoted string a shell, python or MySQL later runs. Dropping it before heredocs are found also stops a comment that
+# mentions `<<EOF` from opening a heredoc that would hide the real command lines after it. It stays when it may be
+# code elsewhere: PostgreSQL reads # as XOR, so a `;` on the line can start a new statement and a `\` a psql
+# meta-command; `#name` is a JS private field; `# define`/`# include` and the other directives are C preprocessor.
+def strip_comment_lines:
+  split("\n")
+  | map(select((test("^[[:space:]]*#(?:[[:space:]]|$)") and (test("[;\\\\]") | not)
+      and (test("^[[:space:]]*#[[:space:]]*(?:define|undef|include|import|if|ifdef|ifndef|elif|else|endif|pragma|line|error|warning)(?![A-Za-z0-9_])") | not)) | not))
+  | join("\n");
 # Heredoc bodies are data, unless the heredoc feeds a shell (bash/sh <<EOF, ssh host <<EOF, eval, source): that
 # body is code. A body fed to an interpreter (python/node/perl/ruby/deno/bun/php <<EOF) is code for rules that read
 # interpreter code ($interp_is_data false: unanchored rules such as G1-interp and the SQL rules) and data for
@@ -336,7 +342,8 @@ $rules[0] as $R
     JOBDIR: (if $jobdir == "" then never else ($jobdir | rtrimstr("/") | esc) end)
   }) as $M
 | def expand: reduce range(0; 3) as $i (.; reduce ($M | to_entries[]) as $m (.; gsub("\\{\\{" + $m.key + "\\}\\}"; $m.value)));
-# Literal NAME=value or NAME="value" assignments (no command substitution) that stand alone as a statement are substituted into
+# Literal NAME=value or NAME="value" assignments (no command substitution; a quoted value holds no ; & | < > ( ) # or
+# newline, which the shell keeps inside one word but would read as syntax once pasted in) that stand alone as a statement are substituted into
 # the later $NAME / ${NAME} uses, so a scratch path reached through a variable is seen as that path. The LAST
 # assignment is applied first, so each use gets the value in force at that point. A name that is also set another
 # way (for/select/read/unset/declare/local/getopts/printf -v/+=) or any eval/source in the command leaves the
@@ -351,7 +358,7 @@ def resolve_vars:
   . as $t
   | if ($t | unmodeled) then $t
     else
-      [$t | match("(?:^|[;&|\\n])[[:space:]]*(?:export[[:space:]]+)?(?<n>[A-Za-z_][A-Za-z0-9_]*)=(?:\"(?<q>(?:[^\"\\\\`$]|\\$(?!\\())*)\"|(?<v>[^[:space:];&|<>\"'`()\\\\]*))(?=[[:space:]]*(?:;|&&|\\n|$))"; "g")
+      [$t | match("(?:^|[;&|\\n])[[:space:]]*(?:export[[:space:]]+)?(?<n>[A-Za-z_][A-Za-z0-9_]*)=(?:\"(?<q>(?:[^\"\\\\`$;&|<>()#\\n]|\\$(?!\\())*)\"|(?<v>[^[:space:];&|<>\"'`()\\\\]*))(?=[[:space:]]*(?:;|&&|\\n|$))"; "g")
        | {n: .captures[0].string, v: (.captures[1].string // .captures[2].string), e: (.offset + .length)}] as $as
       | if ([$as[] as $x | $as[] as $y | select($x.v | test("\\$\\{?" + $y.n + "(?![A-Za-z0-9_])"))] | length) > 0 then $t
         else

@@ -468,3 +468,9 @@
 {"rule": "G1-interp", "expect": "deny", "tool": "Bash", "input": {"command": "# cleanup\npython3 -c \"import shutil; shutil.rmtree('/Users/x/data')\""}}
 {"rule": "G1-rm", "expect": "allow", "tool": "Bash", "input": {"command": "T=$CLAUDE_JOB_DIR/tmp/x; rm -rf $T"}, "env": {"CLAUDE_JOB_DIR": "@JOBDIR@"}}
 {"rule": "G1-rm", "expect": "allow", "tool": "Bash", "input": {"command": "T=\"$CLAUDE_JOB_DIR/tmp/x\"; rm -rf \"$T\""}, "env": {"CLAUDE_JOB_DIR": "@JOBDIR@"}}
+{"rule": "G1-rm", "expect": "deny", "tool": "Bash", "input": {"command": "D=\".tmp/foo; /Users/x/data\"; rm -rf $D"}}
+{"rule": "G1-rm", "expect": "deny", "tool": "Bash", "input": {"command": "D=\".tmp/foo && /Users/x/data\"; rm -rf $D"}}
+{"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "psql -c \"TRUNCATE ONLY users *\""}}
+{"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "psql app -c \"TRUNCATE users *, orders * CASCADE\""}}
+{"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "psql -c \"SELECT 1\n# 2; DROP TABLE users;\""}}
+{"rule": "G1-interp", "expect": "deny", "tool": "Bash", "input": {"command": "node -e \"class A {\n#x = require('child_process').execSync('rm -rf /Users/x/data')\n}\""}}
