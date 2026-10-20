@@ -184,6 +184,38 @@ ask_ids_after() {
         | .id' 2>/dev/null
 }
 
+# ask_claim_path <ask id>: the claim directory that marks one AskUserQuestion as spent.
+ask_claim_path() { printf '%s/%s' "$ASKS_CLAIM_DIR" "$(printf '%s' "$1" | tr -c 'A-Za-z0-9_-' '_')"; }
+
+# claim_ask <transcript> <since-epoch> <code>: claims the first unspent question ask_ids_after accepts and prints
+# its id. The claim is a mkdir: of two concurrent callers reading the same unspent question only one wins it.
+# Fails when there is none.
+claim_ask() {
+    local ask
+    mkdir -p "$ASKS_CLAIM_DIR" 2>/dev/null
+    while IFS= read -r ask; do
+        [[ -n "$ask" ]] || continue
+        if [[ -f "$ASKS_USED" ]] && grep -qxF -- "$ask" "$ASKS_USED"; then continue; fi
+        if mkdir "$(ask_claim_path "$ask")" 2>/dev/null; then
+            printf '%s' "$ask"
+            return 0
+        fi
+    done < <(ask_ids_after "$1" "$2" "$3")
+    return 1
+}
+
+# cmd_claim_ask <transcript> <since-epoch> <code>: for the Jev gate (jev-gate.sh). Spends the question D answered
+# that carries <code>, issued at or after <since>, in the same ledger `approve` uses, so one question approves
+# one action across both gates. Prints the spent question's id; exit 1 when there is none.
+cmd_claim_ask() {
+    local spent
+    [[ -z "${BARECLAUDE_AGENT_SLUG:-}" ]] || return 1
+    [[ -n "$1" && -r "$1" && "$2" =~ ^[0-9]+$ && "$3" =~ ^[0-9a-f]{12}$ ]] || return 1
+    spent=$(claim_ask "$1" "$2" "$3") || return 1
+    printf '%s\n' "$spent" >>"$ASKS_USED" 2>/dev/null
+    printf '%s\n' "$spent"
+}
+
 cmd_approve() {
     local h="${1:-}"
     if [[ ! "$h" =~ ^[0-9a-f]{64}$ ]]; then
@@ -208,7 +240,7 @@ cmd_approve() {
     fi
 
     # Verify D actually answered: an AskUserQuestion after the deny with a non-refusal answer, unspent.
-    local tp since ask spent="" claim code
+    local tp since spent code
     tp=$(jq -r '.transcript_path // empty' "$pending" 2>/dev/null)
     since=$(jq -r '.ts_epoch // empty' "$pending" 2>/dev/null)
     if [[ -z "$tp" || ! -r "$tp" || ! "$since" =~ ^[0-9]+$ ]]; then
@@ -216,17 +248,7 @@ cmd_approve() {
         return 1
     fi
     code=$(ask_code "$h")
-    mkdir -p "$ASKS_CLAIM_DIR" 2>/dev/null
-    while IFS= read -r ask; do
-        [[ -n "$ask" ]] || continue
-        if [[ -f "$ASKS_USED" ]] && grep -qxF -- "$ask" "$ASKS_USED"; then continue; fi
-        # The claim is a mkdir: of two concurrent approves reading the same unspent question only one wins it.
-        claim="$ASKS_CLAIM_DIR/$(printf '%s' "$ask" | tr -c 'A-Za-z0-9_-' '_')"
-        if mkdir "$claim" 2>/dev/null; then
-            spent="$ask"
-            break
-        fi
-    done < <(ask_ids_after "$tp" "$since" "$code")
+    spent=$(claim_ask "$tp" "$since" "$code")
     if [[ -z "$spent" ]]; then
         warn "refused: no unspent AskUserQuestion answered by D after this checkpoint names its code $code (or its answer was a no/deny/cancel, or it already approved another action). Put the exact action to D with AskUserQuestion, include the code $code in the question text, then approve."
         return 1
@@ -242,7 +264,7 @@ cmd_approve() {
         printf 'approved: retry the exact same action within %s minutes (single use)\n' "$APPROVAL_TTL_MIN"
         return 0
     fi
-    rmdir "$claim" 2>/dev/null # not approved after all: give the question back
+    rmdir "$(ask_claim_path "$spent")" 2>/dev/null # not approved after all: give the question back
     warn "could not record the approval"
     return 1
 }
@@ -263,6 +285,10 @@ claim_approval() {
 
 if [[ "${1:-}" == "approve" ]]; then
     cmd_approve "${2:-}"
+    exit $?
+fi
+if [[ "${1:-}" == "claim-ask" ]]; then
+    cmd_claim_ask "${2:-}" "${3:-}" "${4:-}"
     exit $?
 fi
 
