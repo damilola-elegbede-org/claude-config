@@ -486,3 +486,6 @@
 {"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "psql -c 'TRUNCATE \"audit-log\"'"}}
 {"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "mysql -e 'TRUNCATE `audit-log`'"}}
 {"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "psql -c 'TRUNCATE audit$log'"}}
+{"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "psql -c 'TRUNCATE TABLE 用户'"}}
+{"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "psql -c 'TRUNCATE 用户'"}}
+{"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "psql -c 'TRUNCATE public.données, 用户 CASCADE'"}}
