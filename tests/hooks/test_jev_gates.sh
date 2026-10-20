@@ -55,7 +55,7 @@ assert_released() {
 new_home() { # fresh HOME with hooks + data + stub; echoes nothing
   rm -rf "${T:?}/home" "${T:?}/stub.log" "${T:?}/mock.json"
   mkdir -p "$T/home/.claude/hooks/jev/rules.d"
-  cp "$SRC/jev-gate.sh" "$SRC/jev-gate-lib.sh" "$SRC/jev-ask-channel.sh" "$T/home/.claude/hooks/"
+  cp "$SRC/jev-gate.sh" "$SRC/jev-gate-lib.sh" "$SRC/jev-ask-channel.sh" "$SRC/gate.sh" "$T/home/.claude/hooks/"
   cp "$SRC/jev/gate-questions.json" "$SRC/jev/registry.sh" "$T/home/.claude/hooks/jev/"
   cp "$SRC/jev/rules.d/gates.json" "$T/home/.claude/hooks/jev/rules.d/"
   cp "$STUB" "$T/home/.claude/hooks/jev/jev-ask"
@@ -128,7 +128,7 @@ gate_log() { cat "$T/home/.claude/jev-gates.jsonl" 2>/dev/null || true; }
 run_hook() {
   local script="$1" json="$2"
   shift 2
-  env -u BARECLAUDE_AGENT_SLUG -u CLAUDE_JOB_DIR HOME="$T/home" JEV_STUB_LOG="$T/stub.log" JEV_MOCK="${JEV_MOCK:-$T/mock.json}" "$@" \
+  env -u BARECLAUDE_AGENT_SLUG -u CLAUDE_JOB_DIR HOME="$T/home" JEV_STUB_LOG="$T/stub.log" JEV_MOCK="${JEV_MOCK:-$T/mock.json}" JEV_REGEX_PENDING_WAIT_S=0 "$@" \
     bash "$T/home/.claude/hooks/$script" <<<"$json" 2>/dev/null
 }
 
@@ -604,6 +604,8 @@ OUT=$(run_hook jev-gate.sh "$(mcp_in mcp__claude_ai_Slack__slack_send_message)" 
 assert_contains "unavailable: send_* heuristic denies" "$OUT" "outward-facing"
 OUT=$(run_hook jev-gate.sh "$(mcp_in mcp__claude_ai_Vercel__buy_domain)" JEV_MOCK=unavailable)
 assert_contains "unavailable: buy_* heuristic denies" "$OUT" "spends money"
+assert_not_contains "non-Bash deny: no command to quote" "$OUT" "exact command verbatim"
+assert_contains "non-Bash deny: names the tool action" "$OUT" "exact mcp__claude_ai_Vercel__buy_domain action"
 OUT=$(run_hook jev-gate.sh "$(mcp_in mcp__claude_ai_Google_Drive__trash_file)" JEV_MOCK=unavailable)
 assert_contains "unavailable: trash_* heuristic denies" "$OUT" "deletes data"
 OUT=$(run_hook jev-gate.sh "$(mcp_in mcp__claude_ai_Vercel__get_project)" JEV_MOCK=unavailable)
@@ -1165,9 +1167,7 @@ assert_contains "job: an answer stamped before the deny does not count" "$OUT" '
 } >>"$T/t-bj.jsonl"
 OUT=$(run_hook jev-gate.sh "$(BJIN 'rm -rf other/ dirs/')" CLAUDE_JOB_DIR=/tmp/job)
 assert_contains "job: the answer covers the denied action only, not another one" "$OUT" '"permissionDecision":"deny"'
-# that deny replaced the trail, so the original action is denied once more before its own retry can pass
-OUT=$(run_hook jev-gate.sh "$(BJIN 'rm -rf build/ data/')" CLAUDE_JOB_DIR=/tmp/job)
-assert_contains "job: the trail holds the other action, so this one is denied again" "$OUT" '"permissionDecision":"deny"'
+# each action keeps its own deny record, so another action's deny in between does not hide this one's
 OUT=$(run_hook jev-gate.sh "$(BJIN 'rm -rf build/ data/')" CLAUDE_JOB_DIR=/tmp/job)
 assert_released "job: D's yes after the deny passes the exact action once" "$OUT"
 assert_contains "job: the approval is logged" "$(gate_log)" '"verdict":"allow-approved-once"'
@@ -1182,6 +1182,183 @@ assert_contains "fleet: needs input wording" "$OUT" 'needs input:'
 assert_contains "fleet: the refusal is logged" "$(cat "$DLOG")" "no-approval-in-context"
 OUT=$(run_hook jev-gate.sh "$(BJIN 'rm -rf build/ data/' | jq -c '. + {agent_id:"sub1"}')" CLAUDE_JOB_DIR=/tmp/job)
 assert_contains "job subagent: no approval path" "$OUT" 'needs input:'
+
+# Papercut 33 (2026-10-12, gh repo delete): D answered the dialog AFTER the Jev deny, yet every retry was refused.
+# gate.sh denied the same call in parallel and re-stamped the shared deny trail later than D's answer, and each
+# retry carried a new description. The approval now reads this action's own deny record, and the action identity
+# ignores the description.
+P33IN() { # description
+  jq -nc --arg d "$1" --arg tp "$T/t-33.jsonl" \
+    '{tool_name:"Bash", tool_input:{command:"gh repo delete o/price-pulse --yes 2>&1", description:$d}, session_id:"sess-33", transcript_path:$tp, cwd:"/Users/x/repos/demo"}'
+}
+new_home
+mock '{"G13-external-delete":0.95,"d_approved_exact_action":0.97}'
+{ line_user u1 "delete price pulse"; } >"$T/t-33.jsonl"
+OUT=$(run_hook jev-gate.sh "$(P33IN 'Attempt to delete the repo')" CLAUDE_JOB_DIR=/tmp/job)
+assert_contains "33: the first attempt is denied" "$OUT" '"permissionDecision":"deny"'
+assert_contains "33: the job reason says to ask after the deny" "$OUT" "after this deny"
+assert_contains "33: the reason asks for the command verbatim" "$OUT" "verbatim"
+{
+  line_tool_use a1 q33 AskUserQuestion ""
+  line_ask_answer_at u2 q33 "$(($(date +%s) + 5))" 'Your questions have been answered: "Run `gh repo delete o/price-pulse --yes 2>&1` now?"="Yes, run it (Recommended)"'
+} >>"$T/t-33.jsonl"
+jq -nc --argjson e "$(($(date +%s) + 10))" '{ts:"x", epoch:$e, src:"gate.sh", tool:"Bash", rule:"G13-bash", norm:"gh repo delete o/price-pulse --yes 2>&1"}' >"$LDENY/sess-33.json"
+OUT=$(run_hook jev-gate.sh "$(P33IN 'Delete the repo (D approved)')" CLAUDE_JOB_DIR=/tmp/job)
+assert_released "33: the answer after the Jev deny releases the retry despite gate.sh's later trail and a new description" "$OUT"
+OUT=$(run_hook jev-gate.sh "$(P33IN 'Delete the repo (D approved twice)')" CLAUDE_JOB_DIR=/tmp/job)
+assert_contains "33: a new description does not buy a second release" "$OUT" '"permissionDecision":"deny"'
+
+# interactive: one D yes is one release, whatever description the retries carry
+new_home
+mock '{"G13-external-delete":0.95,"d_approved_exact_action":0.97}'
+{ line_user u1 "delete o/price-pulse"; line_assistant a1 "Delete it?"; line_user u2 "yes"; } >"$T/t-33i.jsonl"
+P33I() { P33IN "$1" | jq -c --arg tp "$T/t-33i.jsonl" '.transcript_path = $tp | .session_id = "sess-33i"'; }
+OUT=$(run_hook jev-gate.sh "$(P33I 'first')")
+assert_released "interactive: D's yes releases the action" "$OUT"
+OUT=$(run_hook jev-gate.sh "$(P33I 'second, other words')")
+assert_contains "interactive: the same command with a new description is not released again" "$OUT" '"permissionDecision":"deny"'
+
+# One verified regex-gate approval releases both gates: `gate.sh approve` (D answered the checkpoint dialog that
+# carried the code) leaves gate-approved/jev.<hash>, which the Jev gate claims once for the identical Bash action.
+GH_CMD='gh repo delete o/r --yes'
+gate_hash() { # command scope -> gate.sh's action hash (tool, raw command, cwd, scope)
+  printf 'Bash\037%s\037/Users/x/repos/demo\037%s' "$1" "$2" | shasum -a 256 | cut -d' ' -f1
+}
+new_home
+mock '{"G13-external-delete":0.95}'
+GA="$T/home/.claude/gate-approved"
+mkdir -p "$GA"
+HG=$(gate_hash "$GH_CMD" interactive)
+touch "$GA/jev.$HG"
+OUT=$(run_hook jev-gate.sh "$(bash_in "$GH_CMD")")
+assert_released "regex approval: releases the identical action" "$OUT"
+assert_contains "regex approval: the release names the checkpoint" "$OUT" "${HG:0:12}"
+assert_eq "regex approval: the token is consumed" "false" "$([[ -e "$GA/jev.$HG" ]] && echo true || echo false)"
+assert_contains "regex approval: logged" "$(gate_log)" '"verdict":"allow-regex-approval"'
+OUT=$(run_hook jev-gate.sh "$(bash_in "$GH_CMD")")
+assert_contains "regex approval: single use" "$OUT" '"permissionDecision":"deny"'
+touch "$GA/jev.$(gate_hash 'gh repo delete o/other --yes' interactive)"
+OUT=$(run_hook jev-gate.sh "$(bash_in "$GH_CMD")")
+assert_contains "regex approval: another command's token does not release" "$OUT" '"permissionDecision":"deny"'
+touch "$GA/jev.$(gate_hash "$GH_CMD" bgjob)"
+OUT=$(run_hook jev-gate.sh "$(bash_in "$GH_CMD")")
+assert_contains "regex approval: another scope's token does not release" "$OUT" '"permissionDecision":"deny"'
+touch -t 202001010000 "$GA/jev.$HG"
+OUT=$(run_hook jev-gate.sh "$(bash_in "$GH_CMD")")
+assert_contains "regex approval: an expired token does not release" "$OUT" '"permissionDecision":"deny"'
+touch "$GA/jev.$HG"
+OUT=$(run_hook jev-gate.sh "$(bash_in "$GH_CMD")" BARECLAUDE_AGENT_SLUG=fleet-test)
+assert_contains "regex approval: never for a fleet agent" "$OUT" '"permissionDecision":"deny"'
+OUT=$(run_hook jev-gate.sh "$(bash_in "$GH_CMD" | jq -c '. + {agent_id:"sub1"}')")
+assert_contains "regex approval: never for a subagent" "$OUT" '"permissionDecision":"deny"'
+# when gate.sh also stopped this call, the Jev reason carries its code and approve command (only one reason reaches Claude)
+rm -f "$GA/jev.$HG"
+mkdir -p "$T/home/.claude/gate-pending"
+echo '{}' >"$T/home/.claude/gate-pending/$HG"
+OUT=$(run_hook jev-gate.sh "$(bash_in "$GH_CMD")")
+assert_contains "dual gate: the Jev reason carries gate.sh's checkpoint code" "$OUT" "${HG:0:12}"
+assert_contains "dual gate: the Jev reason carries the approve command" "$OUT" "gate.sh approve $HG"
+rm -f "$T/home/.claude/gate-pending/$HG"
+OUT=$(run_hook jev-gate.sh "$(bash_in "$GH_CMD")")
+assert_not_contains "dual gate: no regex checkpoint, no approve command" "$OUT" "gate.sh approve"
+# the hooks run in parallel: a checkpoint gate.sh writes while the Jev hook is already deciding still lands in the reason
+(sleep 0.5 && echo '{}' >"$T/home/.claude/gate-pending/$HG") &
+OUT=$(run_hook jev-gate.sh "$(bash_in "$GH_CMD")" JEV_REGEX_PENDING_WAIT_S=3)
+wait
+assert_contains "dual gate: a checkpoint written in parallel is still named" "$OUT" "gate.sh approve $HG"
+rm -f "$T/home/.claude/gate-pending/$HG"
+
+# Approval codes (papercut 32, 2026-10-12, vercel redeploy): D approved, but the approval detector scored the
+# answer 0.55-0.60 against 0.8 and the gate kept denying. The Jev deny now carries a code bound to the exact
+# action; D's answer to an AskUserQuestion whose text carries the code releases that action once, no model scoring.
+line_ask_q_at() { # uuid tool_use_id epoch question
+  jq -nc --arg u "$1" --arg id "$2" --argjson e "$3" --arg q "$4" \
+    '{type:"assistant", uuid:$u, timestamp:($e | todate), isSidechain:false, message:{role:"assistant", content:[{type:"tool_use", id:$id, name:"AskUserQuestion", input:{questions:[{question:$q, header:"Approve", options:[{label:"Yes, run it"}, {label:"No"}]}]}}]}}'
+}
+code_of() { # deny output -> the approval code its reason names
+  printf '%s' "$1" | jq -r '.hookSpecificOutput.permissionDecisionReason // ""' | sed -n 's/.*approval code \([0-9a-f]\{12\}\).*/\1/p'
+}
+ask_code_into() { # transcript id question-code answer
+  local now
+  now=$(date +%s)
+  {
+    line_ask_q_at "a-$2" "$2" "$((now + 1))" "Redeploy production? (approval code $3)"
+    line_ask_answer_at "u-$2" "$2" "$((now + 2))" "Your questions have been answered: \"Redeploy production? (approval code $3)\"=\"$4\""
+  } >>"$1"
+}
+P32_CMD='vercel redeploy https://alocubano-abc123.vercel.app --target production --scope team_abc123 2>&1 | tail -6'
+P32IN() { bash_in "${1:-$P32_CMD}" "$T/t-32.jsonl" sess-32; }
+
+new_home
+mock '{"G4-prod-infra":0.95,"d_approved_exact_action":0.58}'
+{ line_user u1 "redeploy prod"; } >"$T/t-32.jsonl"
+OUT=$(run_hook jev-gate.sh "$(P32IN)")
+assert_contains "32: the first attempt is denied" "$OUT" '"permissionDecision":"deny"'
+C32=$(code_of "$OUT")
+assert_eq "32: the deny names a 12-hex approval code" "12" "${#C32}"
+OUT=$(run_hook jev-gate.sh "$(P32IN)")
+assert_contains "32: without the code a 0.58 approval score still denies" "$OUT" '"permissionDecision":"deny"'
+ask_code_into "$T/t-32.jsonl" q32bad "000000000000" "Yes, run it"
+OUT=$(run_hook jev-gate.sh "$(P32IN)")
+assert_contains "32: a wrong code does not release" "$OUT" '"permissionDecision":"deny"'
+ask_code_into "$T/t-32.jsonl" q32no "$C32" "No"
+OUT=$(run_hook jev-gate.sh "$(P32IN)")
+assert_contains "32: a no answer to the coded question does not release" "$OUT" '"permissionDecision":"deny"'
+C32=$(code_of "$OUT")
+ask_code_into "$T/t-32.jsonl" q32 "$C32" "Yes, run it"
+OUT=$(run_hook jev-gate.sh "$(P32IN 'vercel redeploy https://other-xyz.vercel.app --target production --scope team_abc123 2>&1 | tail -6')")
+assert_contains "32: the code does not release another command" "$OUT" '"permissionDecision":"deny"'
+OUT=$(run_hook jev-gate.sh "$(P32IN)")
+assert_released "32: D's yes to the coded question releases the exact command, pipe and all" "$OUT"
+assert_contains "32: the release names the code" "$OUT" "$C32"
+assert_contains "32: logged as a code approval" "$(gate_log)" '"verdict":"allow-code-approval"'
+OUT=$(run_hook jev-gate.sh "$(P32IN)")
+assert_contains "32: the code releases once" "$OUT" '"permissionDecision":"deny"'
+C32b=$(code_of "$OUT")
+OUT=$(run_hook jev-gate.sh "$(P32IN)")
+assert_contains "32: a spent question does not release the next deny" "$OUT" '"permissionDecision":"deny"'
+assert_eq "32: the code is stable for the same action" "$C32" "$C32b"
+
+# a question issued before the deny it names does not count
+new_home
+mock '{"G4-prod-infra":0.95,"d_approved_exact_action":0.1}'
+{ line_user u1 "redeploy prod"; } >"$T/t-32.jsonl"
+OUT=$(run_hook jev-gate.sh "$(P32IN)")
+C32=$(code_of "$OUT")
+{
+  line_ask_q_at a-early qe "$(($(date +%s) - 600))" "Redeploy production? (approval code $C32)"
+  line_ask_answer_at u-early qe "$(($(date +%s) - 590))" "Your questions have been answered: \"Redeploy production? (approval code $C32)\"=\"Yes, run it\""
+} >>"$T/t-32.jsonl"
+OUT=$(run_hook jev-gate.sh "$(P32IN)")
+assert_contains "32: a coded question asked before the deny does not release" "$OUT" '"permissionDecision":"deny"'
+
+# job sessions take the same code path; fleet agents and subagents never do
+new_home
+mock '{"G4-prod-infra":0.95,"d_approved_exact_action":0.1}'
+{ line_user u1 "redeploy prod"; } >"$T/t-32.jsonl"
+OUT=$(run_hook jev-gate.sh "$(P32IN)" CLAUDE_JOB_DIR=/tmp/job)
+C32=$(code_of "$OUT")
+assert_eq "32 job: the job deny names a code" "12" "${#C32}"
+ask_code_into "$T/t-32.jsonl" q32j "$C32" "Yes, run it"
+OUT=$(run_hook jev-gate.sh "$(P32IN | jq -c '. + {agent_id:"sub1"}')" CLAUDE_JOB_DIR=/tmp/job)
+assert_contains "32 subagent: no code release" "$OUT" '"permissionDecision":"deny"'
+OUT=$(run_hook jev-gate.sh "$(P32IN)" BARECLAUDE_AGENT_SLUG=fleet-test)
+assert_contains "32 fleet: no code release" "$OUT" '"permissionDecision":"deny"'
+assert_not_contains "32 fleet: the fleet reason names no code" "$OUT" "approval code"
+OUT=$(run_hook jev-gate.sh "$(P32IN)" CLAUDE_JOB_DIR=/tmp/job)
+assert_released "32 job: the coded answer releases the exact command" "$OUT"
+
+# MCP actions carry a code too
+new_home
+set_mode mcp-classifier enforce
+mock_class outward 0.95
+{ line_user u1 "email alice"; } >"$T/t-32m.jsonl"
+OUT=$(run_hook jev-gate.sh "$(mcp_in mcp__claude_ai_Gmail__send_message "$T/t-32m.jsonl" sess-32m)")
+C32=$(code_of "$OUT")
+assert_eq "32 mcp: the MCP deny names a code" "12" "${#C32}"
+ask_code_into "$T/t-32m.jsonl" q32m "$C32" "Yes, send it"
+OUT=$(run_hook jev-gate.sh "$(mcp_in mcp__claude_ai_Gmail__send_message "$T/t-32m.jsonl" sess-32m)")
+assert_released "32 mcp: the coded answer releases the exact send" "$OUT"
 
 # interactive sessions keep the plain D-turn approval
 new_home
