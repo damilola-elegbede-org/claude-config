@@ -55,7 +55,7 @@ assert_released() {
 new_home() { # fresh HOME with hooks + data + stub; echoes nothing
   rm -rf "${T:?}/home" "${T:?}/stub.log" "${T:?}/mock.json"
   mkdir -p "$T/home/.claude/hooks/jev/rules.d"
-  cp "$SRC/jev-gate.sh" "$SRC/jev-gate-lib.sh" "$SRC/jev-ask-channel.sh" "$T/home/.claude/hooks/"
+  cp "$SRC/jev-gate.sh" "$SRC/jev-gate-lib.sh" "$SRC/jev-ask-channel.sh" "$SRC/gate.sh" "$T/home/.claude/hooks/"
   cp "$SRC/jev/gate-questions.json" "$SRC/jev/registry.sh" "$T/home/.claude/hooks/jev/"
   cp "$SRC/jev/rules.d/gates.json" "$T/home/.claude/hooks/jev/rules.d/"
   cp "$STUB" "$T/home/.claude/hooks/jev/jev-ask"
@@ -1267,6 +1267,98 @@ OUT=$(run_hook jev-gate.sh "$(bash_in "$GH_CMD")" JEV_REGEX_PENDING_WAIT_S=3)
 wait
 assert_contains "dual gate: a checkpoint written in parallel is still named" "$OUT" "gate.sh approve $HG"
 rm -f "$T/home/.claude/gate-pending/$HG"
+
+# Approval codes (papercut 32, 2026-10-12, vercel redeploy): D approved, but the approval detector scored the
+# answer 0.55-0.60 against 0.8 and the gate kept denying. The Jev deny now carries a code bound to the exact
+# action; D's answer to an AskUserQuestion whose text carries the code releases that action once, no model scoring.
+line_ask_q_at() { # uuid tool_use_id epoch question
+  jq -nc --arg u "$1" --arg id "$2" --argjson e "$3" --arg q "$4" \
+    '{type:"assistant", uuid:$u, timestamp:($e | todate), isSidechain:false, message:{role:"assistant", content:[{type:"tool_use", id:$id, name:"AskUserQuestion", input:{questions:[{question:$q, header:"Approve", options:[{label:"Yes, run it"}, {label:"No"}]}]}}]}}'
+}
+code_of() { # deny output -> the approval code its reason names
+  printf '%s' "$1" | jq -r '.hookSpecificOutput.permissionDecisionReason // ""' | sed -n 's/.*approval code \([0-9a-f]\{12\}\).*/\1/p'
+}
+ask_code_into() { # transcript id question-code answer
+  local now
+  now=$(date +%s)
+  {
+    line_ask_q_at "a-$2" "$2" "$((now + 1))" "Redeploy production? (approval code $3)"
+    line_ask_answer_at "u-$2" "$2" "$((now + 2))" "Your questions have been answered: \"Redeploy production? (approval code $3)\"=\"$4\""
+  } >>"$1"
+}
+P32_CMD='vercel redeploy https://alocubano-abc123.vercel.app --target production --scope team_abc123 2>&1 | tail -6'
+P32IN() { bash_in "${1:-$P32_CMD}" "$T/t-32.jsonl" sess-32; }
+
+new_home
+mock '{"G4-prod-infra":0.95,"d_approved_exact_action":0.58}'
+{ line_user u1 "redeploy prod"; } >"$T/t-32.jsonl"
+OUT=$(run_hook jev-gate.sh "$(P32IN)")
+assert_contains "32: the first attempt is denied" "$OUT" '"permissionDecision":"deny"'
+C32=$(code_of "$OUT")
+assert_eq "32: the deny names a 12-hex approval code" "12" "${#C32}"
+OUT=$(run_hook jev-gate.sh "$(P32IN)")
+assert_contains "32: without the code a 0.58 approval score still denies" "$OUT" '"permissionDecision":"deny"'
+ask_code_into "$T/t-32.jsonl" q32bad "000000000000" "Yes, run it"
+OUT=$(run_hook jev-gate.sh "$(P32IN)")
+assert_contains "32: a wrong code does not release" "$OUT" '"permissionDecision":"deny"'
+ask_code_into "$T/t-32.jsonl" q32no "$C32" "No"
+OUT=$(run_hook jev-gate.sh "$(P32IN)")
+assert_contains "32: a no answer to the coded question does not release" "$OUT" '"permissionDecision":"deny"'
+C32=$(code_of "$OUT")
+ask_code_into "$T/t-32.jsonl" q32 "$C32" "Yes, run it"
+OUT=$(run_hook jev-gate.sh "$(P32IN 'vercel redeploy https://other-xyz.vercel.app --target production --scope team_abc123 2>&1 | tail -6')")
+assert_contains "32: the code does not release another command" "$OUT" '"permissionDecision":"deny"'
+OUT=$(run_hook jev-gate.sh "$(P32IN)")
+assert_released "32: D's yes to the coded question releases the exact command, pipe and all" "$OUT"
+assert_contains "32: the release names the code" "$OUT" "$C32"
+assert_contains "32: logged as a code approval" "$(gate_log)" '"verdict":"allow-code-approval"'
+OUT=$(run_hook jev-gate.sh "$(P32IN)")
+assert_contains "32: the code releases once" "$OUT" '"permissionDecision":"deny"'
+C32b=$(code_of "$OUT")
+OUT=$(run_hook jev-gate.sh "$(P32IN)")
+assert_contains "32: a spent question does not release the next deny" "$OUT" '"permissionDecision":"deny"'
+assert_eq "32: the code is stable for the same action" "$C32" "$C32b"
+
+# a question issued before the deny it names does not count
+new_home
+mock '{"G4-prod-infra":0.95,"d_approved_exact_action":0.1}'
+{ line_user u1 "redeploy prod"; } >"$T/t-32.jsonl"
+OUT=$(run_hook jev-gate.sh "$(P32IN)")
+C32=$(code_of "$OUT")
+{
+  line_ask_q_at a-early qe "$(($(date +%s) - 600))" "Redeploy production? (approval code $C32)"
+  line_ask_answer_at u-early qe "$(($(date +%s) - 590))" "Your questions have been answered: \"Redeploy production? (approval code $C32)\"=\"Yes, run it\""
+} >>"$T/t-32.jsonl"
+OUT=$(run_hook jev-gate.sh "$(P32IN)")
+assert_contains "32: a coded question asked before the deny does not release" "$OUT" '"permissionDecision":"deny"'
+
+# job sessions take the same code path; fleet agents and subagents never do
+new_home
+mock '{"G4-prod-infra":0.95,"d_approved_exact_action":0.1}'
+{ line_user u1 "redeploy prod"; } >"$T/t-32.jsonl"
+OUT=$(run_hook jev-gate.sh "$(P32IN)" CLAUDE_JOB_DIR=/tmp/job)
+C32=$(code_of "$OUT")
+assert_eq "32 job: the job deny names a code" "12" "${#C32}"
+ask_code_into "$T/t-32.jsonl" q32j "$C32" "Yes, run it"
+OUT=$(run_hook jev-gate.sh "$(P32IN | jq -c '. + {agent_id:"sub1"}')" CLAUDE_JOB_DIR=/tmp/job)
+assert_contains "32 subagent: no code release" "$OUT" '"permissionDecision":"deny"'
+OUT=$(run_hook jev-gate.sh "$(P32IN)" BARECLAUDE_AGENT_SLUG=fleet-test)
+assert_contains "32 fleet: no code release" "$OUT" '"permissionDecision":"deny"'
+assert_not_contains "32 fleet: the fleet reason names no code" "$OUT" "approval code"
+OUT=$(run_hook jev-gate.sh "$(P32IN)" CLAUDE_JOB_DIR=/tmp/job)
+assert_released "32 job: the coded answer releases the exact command" "$OUT"
+
+# MCP actions carry a code too
+new_home
+set_mode mcp-classifier enforce
+mock_class outward 0.95
+{ line_user u1 "email alice"; } >"$T/t-32m.jsonl"
+OUT=$(run_hook jev-gate.sh "$(mcp_in mcp__claude_ai_Gmail__send_message "$T/t-32m.jsonl" sess-32m)")
+C32=$(code_of "$OUT")
+assert_eq "32 mcp: the MCP deny names a code" "12" "${#C32}"
+ask_code_into "$T/t-32m.jsonl" q32m "$C32" "Yes, send it"
+OUT=$(run_hook jev-gate.sh "$(mcp_in mcp__claude_ai_Gmail__send_message "$T/t-32m.jsonl" sess-32m)")
+assert_released "32 mcp: the coded answer releases the exact send" "$OUT"
 
 # interactive sessions keep the plain D-turn approval
 new_home
