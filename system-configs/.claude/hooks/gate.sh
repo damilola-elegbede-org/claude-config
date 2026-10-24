@@ -339,11 +339,26 @@ def never: "@@NEVER@@";
 # mentions `<<EOF` from opening a heredoc that would hide the real command lines after it. It stays when it may be
 # code elsewhere: PostgreSQL reads # as XOR, so a `;` on the line can start a new statement and a `\` a psql
 # meta-command; `#name` is a JS private field; `# define`/`# include` and the other directives are C preprocessor.
+# A line that starts inside a quoted string is part of that string's argument, not a comment, and the text after
+# the closing quote can be a real command (`echo "<newline># " && rm -rf x`), so only lines that start outside
+# quotes are dropped. qstep carries the open-quote state across lines; a dropped line does not change it.
+def qstep($s):
+  reduce explode[] as $c ({s: $s, e: false};
+    if .e then .e = false
+    elif $c == 92 and (.s.sq | not) then .e = true
+    elif $c == 39 and (.s.dq | not) then .s.sq = (.s.sq | not)
+    elif $c == 34 and (.s.sq | not) then .s.dq = (.s.dq | not)
+    else . end)
+  | .s;
+def is_comment_line:
+  test("^[[:space:]]*#(?:[[:space:]]|$)") and (test("[;\\\\]") | not)
+  and (test("^[[:space:]]*#[[:space:]]*(?:define|undef|include|import|if|ifdef|ifndef|elif|else|endif|pragma|line|error|warning)(?![A-Za-z0-9_])") | not);
 def strip_comment_lines:
   split("\n")
-  | map(select((test("^[[:space:]]*#(?:[[:space:]]|$)") and (test("[;\\\\]") | not)
-      and (test("^[[:space:]]*#[[:space:]]*(?:define|undef|include|import|if|ifdef|ifndef|elif|else|endif|pragma|line|error|warning)(?![A-Za-z0-9_])") | not)) | not))
-  | join("\n");
+  | reduce .[] as $l ({out: [], s: {sq: false, dq: false}};
+      if (.s.sq | not) and (.s.dq | not) and ($l | is_comment_line) then .
+      else .s as $st | .out += [$l] | .s = ($l | qstep($st)) end)
+  | .out | join("\n");
 # Heredoc bodies are data, unless the heredoc feeds a shell (bash/sh <<EOF, ssh host <<EOF, eval, source): that
 # body is code. A body fed to an interpreter (python/node/perl/ruby/deno/bun/php <<EOF) is code for rules that read
 # interpreter code ($interp_is_data false: unanchored rules such as G1-interp and the SQL rules) and data for
@@ -384,7 +399,10 @@ def blank_data:
   else
     gsub("(?<f>(?:--body|--title|--message|--notes|--subject|--description|--comment|-m|-b|-t)(?:[[:space:]]+|=))(?:" + dq + "|" + sq + ")"; "\(.f)\"\"")
     | gsub("(?<f>(?:-f|-F|--field|--raw-field)[[:space:]]+(?:body|title|message|comment|commit_message|description|text)=)(?:" + dq + "|" + sq + ")"; "\(.f)\"\"")
-    | gsub("(?<h>(?:^|[;&|(\\n`])[[:space:]]*(?:(?:/usr)?/bin/)?(?:echo|printf(?![[:space:]]+-v)|grep|egrep|fgrep|rg|ag|jq)(?:[[:space:]]+-[A-Za-z-]+)*)(?:[[:space:]]+" + tok + ")+"; "\(.h) \"\"")
+    # Arguments are separated by horizontal whitespace only: a newline ends the command, and the next line is a
+    # new command that must stay visible (`jq -r . f<newline>rm -rf x`). A newline inside a quoted argument is
+    # still part of that argument, since dq/sq match it.
+    | gsub("(?<h>(?:^|[;&|(\\n`])[ \\t]*(?:(?:/usr)?/bin/)?(?:echo|printf(?![ \\t]+-v)|grep|egrep|fgrep|rg|ag|jq)(?:[ \\t]+-[A-Za-z-]+)*)(?:[ \\t]+" + tok + ")+"; "\(.h) \"\"")
   end;
 $rules[0] as $R
 | (($R.macros // {}) + {

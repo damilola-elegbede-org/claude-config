@@ -510,3 +510,12 @@
 {"rule": "G5-sql", "expect": "allow", "tool": "Bash", "input": {"command": "cat > notes.md <<'EOF'\nTo reset: psql app -c 'DROP TABLE users'\nEOF"}}
 {"rule": "G5-sql", "expect": "allow", "tool": "Bash", "input": {"command": "echo 'SELECT count(*) FROM users;' | psql app"}}
 {"rule": "G5-sql", "expect": "allow", "tool": "Bash", "input": {"command": "which psql; cat > reset.sql <<'EOF'\nDROP TABLE users;\nEOF"}}
+{"rule": "G1-rm", "expect": "deny", "tool": "Bash", "input": {"command": "echo \"\n# \" && rm -rf /Users/x/data"}}
+{"rule": "G1-rm", "expect": "deny", "tool": "Bash", "input": {"command": "printf '%s\n# done\n' x; rm -rf /Users/x/data"}}
+{"rule": "G1-rm", "expect": "deny", "tool": "Bash", "input": {"command": "jq -r . package.json\nrm -rf /Users/x/data"}}
+{"rule": "G1-rm", "expect": "deny", "tool": "Bash", "input": {"command": "echo done\nrm -rf /Users/x/data"}}
+{"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "grep -c x f.txt\npsql -c 'DELETE FROM users'"}}
+{"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "jq -r . package.json\npsql -c 'DELETE FROM users'"}}
+{"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "psql app -c 'TRUNCATE users, ONLY orders;'"}}
+{"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "psql app -c 'TRUNCATE ONLY users, ONLY orders *;'"}}
+{"rule": "G1-rm", "expect": "allow", "tool": "Bash", "input": {"command": "echo \"line one\n# rm -rf is only text here\""}}
