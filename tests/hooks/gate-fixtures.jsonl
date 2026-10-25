@@ -517,5 +517,7 @@
 {"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "grep -c x f.txt\npsql -c 'DELETE FROM users'"}}
 {"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "jq -r . package.json\npsql -c 'DELETE FROM users'"}}
 {"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "psql app -c 'TRUNCATE users, ONLY orders;'"}}
+{"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "echo 'DROP TABLE users' |\npsql app"}}
+{"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "printf 'TRUNCATE users;' |\n  sqlite3 app.db"}}
 {"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "psql app -c 'TRUNCATE ONLY users, ONLY orders *;'"}}
 {"rule": "G1-rm", "expect": "allow", "tool": "Bash", "input": {"command": "echo \"line one\n# rm -rf is only text here\""}}

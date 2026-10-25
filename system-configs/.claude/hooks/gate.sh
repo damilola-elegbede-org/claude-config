@@ -395,7 +395,7 @@ def tok: "(?:" + dq + "|" + sq + "|[^[:space:];&|<>\"'`()]+(?![^[:space:];&|\"'`
 # (piped into a shell, eval, xargs, or a database client that runs it as SQL) and for strings containing $( or a backtick.
 def blank_data:
   if test("\\|[[:space:]]*(?:sudo[[:space:]]+)?(?:(?:ba|z|da|k)?sh|xargs)(?:[[:space:]]|$)|(?:^|[^A-Za-z0-9_])eval[[:space:]]")
-     or test("\\|[^;&\\n]*" + dbclient) then .
+     or test("\\|[[:space:]]*[^;&\\n]*" + dbclient) then .
   else
     gsub("(?<f>(?:--body|--title|--message|--notes|--subject|--description|--comment|-m|-b|-t)(?:[[:space:]]+|=))(?:" + dq + "|" + sq + ")"; "\(.f)\"\"")
     | gsub("(?<f>(?:-f|-F|--field|--raw-field)[[:space:]]+(?:body|title|message|comment|commit_message|description|text)=)(?:" + dq + "|" + sq + ")"; "\(.f)\"\"")
