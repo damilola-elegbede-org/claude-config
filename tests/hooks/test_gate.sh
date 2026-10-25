@@ -822,7 +822,7 @@ check "early: a job session (D answers dialogs there) does get the early release
 
 # Only a yes counts: the model writes the option labels, so a deferring pick must not read as approval.
 EN=0
-for EA in "Skip" "Later" "Not yet" "Let me check first" "Yes, but later" "Hold off"; do
+for EA in "Skip" "Later" "Not yet" "Let me check first" "Yes, but later" "Hold off" "Run tests instead" "Go with a dry run" "Run the dry run" "Yes, the other one" "Do a dry run rather"; do
     EN=$((EN + 1))
     early_case "defer$EN"
     mk_early "$TX_E" "d$EN" -60 "$EA" 'Run `rm -rf foo`?' /work/e

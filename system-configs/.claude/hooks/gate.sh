@@ -285,8 +285,8 @@ early_ids() {
         def arr: if type == "array" then .[] else empty end;
         def secs: (. // "" | sub("\\.[0-9]+Z$"; "Z") | (try fromdateiso8601 catch 0));
         def norm: gsub("[[:space:]]+"; " ") | sub("^ "; "") | sub(" $"; "");
-        def refusal: test("\\b(deny|denied|no|nope|reject|rejected|cancel|cancelled|canceled|stop|abort|decline|declined|do not|don.?t|not now|not yet|skip|skipped|later|wait|hold|postpone|defer|first)\\b"; "i");
-        def affirm: test("^[[:space:]]*(yes|y|yep|yeah|sure|ok|okay|approve|approved|allow|confirm|confirmed|proceed|go|go ahead|run|run it|do it)\\b"; "i");
+        def refusal: test("\\b(deny|denied|no|nope|reject|rejected|cancel|cancelled|canceled|stop|abort|decline|declined|do not|don.?t|not now|not yet|skip|skipped|later|wait|hold|postpone|defer|first|instead|rather|other|alternative|different|dry.?run)\\b"; "i");
+        def affirm: test("^[[:space:]]*(yes|y|yep|yeah|sure|ok|okay|approve|approved|allow|confirm|confirmed|proceed|go ahead|run it|do it)\\b"; "i");
         def quoted: . as $s
           | ([$s | scan("```[A-Za-z0-9_+-]*[ \\t]*\\n?((?:(?!```)[\\s\\S])*)```") | .[0]]
              + [$s | gsub("```(?:(?!```)[\\s\\S])*```"; "") | scan("`([^`]+)`") | .[0]]

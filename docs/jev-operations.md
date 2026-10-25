@@ -144,7 +144,8 @@ Bash command, the first matching call of that command is released once by both g
 - The quote binds to one answer. Quoted in the question text, that question's answer must be a yes: it
   opens with an approval word (`Yes`, `Approve`, `OK`, `Run it`, `Go ahead`, `Proceed`…). Quoted in an
   option's label or description, D must have picked that very option; picking another approves nothing.
-  Either way the answer holds no refusal or deferral (`No`, `Cancel`, `Skip`, `Later`, `Not yet`, `Hold off`…).
+  Either way the answer holds no refusal, deferral or alternative (`No`, `Cancel`, `Skip`, `Later`, `Not yet`,
+  `Hold off`, `Run tests instead`, `Dry run`, `The other one`…). A bare verb (`Run`, `Go`) is not a yes.
 - The answer came within the window (`early-approval.window_min` in `rules.d/rules-events.json`, default 10;
   mode `off` disables it), and the session type is in the rule's `scope` (default interactive and bgjob).
 - The question was recorded from the same cwd as the call (Claude Code writes `cwd` on every transcript line).
