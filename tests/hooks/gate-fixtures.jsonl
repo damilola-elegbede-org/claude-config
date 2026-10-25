@@ -534,6 +534,11 @@
 {"rule": "G1-rm", "expect": "deny", "tool": "Bash", "input": {"command": "ruby -e '`rm -rf data`'"}}
 {"rule": "G1-interp", "expect": "deny", "tool": "Bash", "input": {"command": "ruby -e 'system(\"rm\", \"-rf\", \"data\")'"}}
 {"rule": "G1-rm", "expect": "deny", "tool": "Bash", "input": {"command": "bash -c 'rm -rf $HOME/x'"}}
+{"rule": "G1-interp", "expect": "deny", "tool": "Bash", "input": {"command": "php -r 'shell_exec(\"rm -rf /srv/data\");'"}}
+{"rule": "G1-interp", "expect": "deny", "tool": "Bash", "input": {"command": "php -r 'passthru(\"rm -rf /srv/data\");'"}}
+{"rule": "G1-interp", "expect": "deny", "tool": "Bash", "input": {"command": "php -r '$p = proc_open(\"rm -rf /srv/data\", [], $pipes);'"}}
+{"rule": "G1-interp", "expect": "deny", "tool": "Bash", "input": {"command": "python3 - <<'EOF'\nimport asyncio\nasyncio.run(asyncio.create_subprocess_shell('rm -rf /srv/data'))\nEOF"}}
+{"rule": "G1-interp", "expect": "deny", "tool": "Bash", "input": {"command": "bun -e 'Bun.spawnSync([\"rm\", \"-rf\", \"/srv/data\"])'"}}
 {"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "psql -v label='a;b' app <<SQL\nTRUNCATE users;\nSQL"}}
 {"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "psql -v \"label=a&&b\" app <<'SQL'\nDROP TABLE users;\nSQL"}}
 {"rule": "G5-sql", "expect": "allow", "tool": "Bash", "input": {"command": "echo 'psql;' && cat > notes.md <<EOF\nDROP TABLE users is how you lose data\nEOF"}}
