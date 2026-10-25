@@ -137,7 +137,7 @@ regex_checkpoint_note() {
 # claim_code_release -> 0 once when D answered an AskUserQuestion whose text carries this action's approval code
 # (jev_approval_code: the first 12 hex of ACTION_SHA, named in the deny reason), issued after the Jev gate denied
 # exactly this action and within 30 minutes of that deny. No model judges the answer (papercut 32: a clear yes
-# scored 0.55-0.60 against 0.8). `gate.sh claim-ask` checks the answer is not a no/cancel and spends the question in
+# scored 0.55-0.60 against 0.8). `gate.sh claim-ask` checks the answer is an explicit yes (ANSWER_JQ) and spends the question in
 # the regex gate's ledger, so one question approves one action. Never for a fleet agent or a subagent.
 claim_code_release() {
   local code e

@@ -338,7 +338,7 @@ jev_deny_reason() {
     ask="one question that names the exact ${4} action: its target and what it changes"
   fi
   if code=$(jev_approval_code); then
-    ask="${ask}, with the text \"approval code ${code}\" in the question (D's yes to that question releases exactly this action once)"
+    ask="${ask}, with the text \"approval code ${code}\" in the question (D's yes to that question releases exactly this action once; label the approving option so it starts with \"Yes\" or \"Approve\", since any other answer counts as no)"
   fi
   if [ -n "${JEV_SUBAGENT:-}" ] || [ "${JEV_CTX:-interactive}" = "fleet" ]; then
     printf 'Jev gate [%s]: %s needs D, and this session cannot ask. Do not retry or work around it. End your final message with `needs input:` followed by the action and the decision D must make. Action: %s' \

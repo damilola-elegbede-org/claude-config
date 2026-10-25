@@ -127,7 +127,9 @@ Every interactive or job-session Jev deny also names an approval code: the first
 identity (full tool input, cwd and context). When D answers an AskUserQuestion whose text carries
 `approval code <code>`, issued after that deny and within 30 minutes of it, the retry of the identical action
 is released once with no model scoring (verdict `allow-code-approval`). `gate.sh claim-ask` does the check:
-the answer must not be a no/cancel, and the question is spent in the regex gate's ledger
+the answer must be an explicit yes (it opens with an approval word such as "Yes" or "Approve" and carries
+no refusal or deferral, so "Skip", "Later" or "Explain first" never approve; the same classifier guards
+`gate.sh approve`), the code must sit in the question or in the option D selected, and the question is spent in the regex gate's ledger
 (`~/.claude/gate-asks-used`), so one question approves one action. Without the code the approval detector
 still decides as above. Fleet agents and subagents get no code.
 

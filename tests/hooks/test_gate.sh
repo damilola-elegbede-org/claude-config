@@ -449,6 +449,22 @@ check "job: a refusal answer does not approve" "1" "$?"
 mk_ask_q "$TX_JB" jask-other 4 "Yes" "May I run the unit tests?"
 approve_job "$H_JB" "$HJ"
 check "job: an unrelated answered question does not approve" "1" "$?"
+# The model writes the option labels, so only an answer that opens with an approval word and carries no
+# refusal or deferral is a yes (#309): "Skip", "Later" or "Explain first" must never release the action.
+for JNA in "Skip" "Later" "Explain first" "Run tests instead" "Not yet" "Merge it" "Yes, but do a dry run"; do
+    mk_ask "$TX_JB" "jask-na-${JNA// /_}" 4 "$JNA" "$HJ"
+    approve_job "$H_JB" "$HJ"
+    check "job: the answer \"$JNA\" does not approve" "1" "$?"
+done
+# The code must sit in the question itself or in the option D selected: a code quoted only in an option D
+# did not pick approves nothing.
+JTS=$(($(date +%s) + 4))
+jq -nc --argjson e "$JTS" --arg c "${HJ:0:12}" \
+    '{type:"assistant",timestamp:($e|todate),message:{content:[{type:"tool_use",id:"jask-unsel",name:"AskUserQuestion",input:{questions:[{question:"Which deploy?",options:[{label:"Yes, production",description:("checkpoint " + $c)},{label:"Yes, staging only"}]}]}}]}}' >>"$TX_JB"
+jq -nc --argjson e "$((JTS + 1))" \
+    '{type:"user",timestamp:($e|todate),toolUseResult:{answers:{"Which deploy?":"Yes, staging only"}},message:{content:[{type:"tool_result",tool_use_id:"jask-unsel",content:"User has answered your questions: \"Which deploy?\"=\"Yes, staging only\"."}]}}' >>"$TX_JB"
+approve_job "$H_JB" "$HJ"
+check "job: a code quoted only in an option D did not pick does not approve" "1" "$?"
 run_gate "$H_JB" "$PJ" "$JOBENV"
 check "job: still denied after the refusals" "deny" "$(decision)"
 mk_ask "$TX_JB" jask-yes 5 "Approve" "$HJ"

@@ -1304,6 +1304,15 @@ assert_contains "32: a wrong code does not release" "$OUT" '"permissionDecision"
 ask_code_into "$T/t-32.jsonl" q32no "$C32" "No"
 OUT=$(run_hook jev-gate.sh "$(P32IN)")
 assert_contains "32: a no answer to the coded question does not release" "$OUT" '"permissionDecision":"deny"'
+# Only an explicit yes releases (#309): a deferral or an "explain first" to the coded question is not approval.
+C32=$(code_of "$OUT")
+ask_code_into "$T/t-32.jsonl" q32later "$C32" "Later"
+OUT=$(run_hook jev-gate.sh "$(P32IN)")
+assert_contains "32: a Later answer to the coded question does not release" "$OUT" '"permissionDecision":"deny"'
+C32=$(code_of "$OUT")
+ask_code_into "$T/t-32.jsonl" q32explain "$C32" "Explain first"
+OUT=$(run_hook jev-gate.sh "$(P32IN)")
+assert_contains "32: an Explain-first answer to the coded question does not release" "$OUT" '"permissionDecision":"deny"'
 C32=$(code_of "$OUT")
 ask_code_into "$T/t-32.jsonl" q32 "$C32" "Yes, run it"
 OUT=$(run_hook jev-gate.sh "$(P32IN 'vercel redeploy https://other-xyz.vercel.app --target production --scope team_abc123 2>&1 | tail -6')")
