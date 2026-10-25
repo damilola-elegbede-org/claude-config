@@ -271,13 +271,16 @@ age_s() {
 }
 
 # early_ids <transcript> <since-epoch> <normalized command> <cwd>: the tool_use id of every AskUserQuestion recorded
-# from <cwd> that quotes the command exactly and whose answer (at or after <since>) is present and is no refusal.
+# from <cwd> that quotes the command exactly and whose answer (at or after <since>) is a yes: it opens with an approval
+# word and carries no refusal or deferral anywhere. The model writes the option labels, so "Skip" or "Later" must not
+# read as approval here, where no deny precedes the question and the quoted command is the only binding.
 early_ids() {
     tail -c 4000000 "$1" 2>/dev/null | jq -R -n -r --argjson since "$2" --arg cmd "$3" --arg cwd "$4" '
         def arr: if type == "array" then .[] else empty end;
         def secs: (. // "" | sub("\\.[0-9]+Z$"; "Z") | (try fromdateiso8601 catch 0));
         def norm: gsub("[[:space:]]+"; " ") | sub("^ "; "") | sub(" $"; "");
-        def refusal: test("\\b(deny|denied|no|nope|reject|rejected|cancel|cancelled|canceled|stop|abort|decline|declined|do not|don.?t|not now)\\b"; "i");
+        def refusal: test("\\b(deny|denied|no|nope|reject|rejected|cancel|cancelled|canceled|stop|abort|decline|declined|do not|don.?t|not now|not yet|skip|skipped|later|wait|hold|postpone|defer|first)\\b"; "i");
+        def affirm: test("^[[:space:]]*(yes|y|yep|yeah|sure|ok|okay|approve|approved|allow|confirm|confirmed|proceed|go|go ahead|run|run it|do it)\\b"; "i");
         def quoted: . as $s
           | ([$s | scan("```[A-Za-z0-9_+-]*[ \\t]*\\n?((?:(?!```)[\\s\\S])*)```") | .[0]]
              + [$s | gsub("```(?:(?!```)[\\s\\S])*```"; "") | scan("`([^`]+)`") | .[0]]
@@ -296,7 +299,7 @@ early_ids() {
                   else ($r.content | if type == "string" then . elif type == "array" then ([.[]? | select(type == "object") | (.text // "")] | join(" ")) else "" end
                         | [scan("\"=\"((?:[^\"\\\\]|\\\\.)*)\"") | .[0]]) end)}] as $res
         | $asks[] | . as $id
-        | select([$res[] | select(.id == $id and .ts >= $since) | .answers | select(length > 0 and all(.[]; (gsub("[[:space:]]"; "") | length > 0) and (refusal | not)))] | length > 0)
+        | select([$res[] | select(.id == $id and .ts >= $since) | .answers | select(length > 0 and all(.[]; affirm and (refusal | not)))] | length > 0)
         | $id' 2>/dev/null
 }
 
@@ -323,7 +326,7 @@ claim_early() {
 # good for EARLY_TOKEN_TTL_S seconds, so a stale one never releases a later call).
 take_early_token() {
     local f="$EARLY_DIR/$1.$2" mine="$EARLY_DIR/.claim.$1.$2.$$" a
-    [[ -f "$f" ]] || return 1
+    [[ -f "$f" && ! -L "$f" ]] || return 1
     mv "$f" "$mine" 2>/dev/null || return 1
     a=$(age_s "$mine")
     rm -f "$mine"

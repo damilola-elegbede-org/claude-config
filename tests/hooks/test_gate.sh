@@ -819,6 +819,38 @@ run_gate "$H_E" "$(bash_payload 'rm -rf foo' | jq -c '. + {agent_id:"sub1"}')"
 check "early: a subagent gets no early release" "deny" "$(decision)"
 run_gate "$H_E" "$(bash_payload 'rm -rf foo')" CLAUDE_JOB_DIR="$H_E/tmp"
 check "early: a job session (D answers dialogs there) does get the early release" "yes" "$(released)"
+
+# Only a yes counts: the model writes the option labels, so a deferring pick must not read as approval.
+EN=0
+for EA in "Skip" "Later" "Not yet" "Let me check first" "Yes, but later" "Hold off"; do
+    EN=$((EN + 1))
+    early_case "defer$EN"
+    mk_early "$TX_E" "d$EN" -60 "$EA" 'Run `rm -rf foo`?' /work/e
+    run_gate "$H_E" "$(bash_payload 'rm -rf foo')"
+    check "early: the answer \"$EA\" does not release" "deny" "$(decision)"
+done
+for EA in "Approve" "Run it" "Go ahead" "Proceed" "OK"; do
+    EN=$((EN + 1))
+    early_case "affirm$EN"
+    mk_early "$TX_E" "a$EN" -60 "$EA" 'Run `rm -rf foo`?' /work/e
+    run_gate "$H_E" "$(bash_payload 'rm -rf foo')"
+    check "early: the answer \"$EA\" releases" "yes" "$(released)"
+done
+
+# The other gate's one-use token cannot be planted: symlinks are ignored and the directory is gate state.
+early_case token
+EH=$(printf '%s' "early"$'\x1f'"/work/e"$'\x1f'"rm -rf foo" | shasum -a 256 | cut -d' ' -f1)
+mkdir -p "$H_E/.claude/gate-early"
+: >"$SANDBOX/early-target"
+ln -s "$SANDBOX/early-target" "$H_E/.claude/gate-early/regex.$EH"
+run_gate "$H_E" "$(bash_payload 'rm -rf foo')"
+check "early: a symlinked token does not release" "deny" "$(decision)"
+run_gate "$H_E" "$(bash_payload "touch ~/.claude/gate-early/regex.$EH")"
+check "early: forging a token with Bash is denied" "deny" "$(decision)"
+run_gate "$H_E" "$(write_payload "$H_E/.claude/gate-early/regex.$EH" "")"
+check "early: forging a token via Write is denied" "deny" "$(decision)"
+run_gate "$H_E" "$(bash_payload "python3 -c 'open(\"/x/.claude/gate-early/regex.$EH\",\"w\")'")"
+check "early: forging a token from an interpreter is denied" "deny" "$(decision)"
 GATE_CWD="/work"
 GATE_TP=""
 
