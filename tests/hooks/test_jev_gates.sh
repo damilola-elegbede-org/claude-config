@@ -1351,9 +1351,10 @@ mock '{"G4-prod-infra":0.95,"d_approved_exact_action":0.1}'
 OUT=$(run_hook jev-gate.sh "$(P32IN)" CLAUDE_JOB_DIR=/tmp/job)
 C32=$(code_of "$OUT")
 ask_code_into "$T/t-32.jsonl" q32ro "$C32" "Yes, run it"
-mkdir -p "$T/home/.claude/jev-state/approvals.d" && chmod 555 "$T/home/.claude/jev-state/approvals.d"
+# a regular file where the claims dir belongs blocks the claim even when the tests run as root
+rm -rf "$T/home/.claude/jev-state/approvals.d" && mkdir -p "$T/home/.claude/jev-state" && : >"$T/home/.claude/jev-state/approvals.d"
 OUT=$(run_hook jev-gate.sh "$(P32IN)" CLAUDE_JOB_DIR=/tmp/job)
-chmod 755 "$T/home/.claude/jev-state/approvals.d"
+rm -f "$T/home/.claude/jev-state/approvals.d"
 assert_contains "32 both paths: no release when the stamp cannot be claimed" "$OUT" '"permissionDecision":"deny"'
 
 # job sessions take the same code path; fleet agents and subagents never do
