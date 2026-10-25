@@ -1382,6 +1382,78 @@ assert_not_contains "32 fleet: the fleet reason names no code" "$OUT" "approval 
 OUT=$(run_hook jev-gate.sh "$(P32IN)" CLAUDE_JOB_DIR=/tmp/job)
 assert_released "32 job: the coded answer releases the exact command" "$OUT"
 
+# Early approval (D, 2026-10-25): D's yes to an AskUserQuestion that quoted the exact command, answered within the
+# window and before the gate fired, releases that command once. Deterministic: the quoted command must equal the
+# action's command after whitespace runs collapse; no model scores it.
+line_early_q() { # uuid tool_use_id epoch question cwd
+  jq -nc --arg u "$1" --arg id "$2" --argjson e "$3" --arg q "$4" --arg cwd "$5" \
+    '{type:"assistant", uuid:$u, timestamp:($e | todate), cwd:$cwd, isSidechain:false, message:{role:"assistant", content:[{type:"tool_use", id:$id, name:"AskUserQuestion", input:{questions:[{question:$q, header:"Approve", options:[{label:"Yes, run it"}, {label:"No"}]}]}}]}}'
+}
+early_into() { # transcript id command answer [cwd] [age-secs]
+  local now cwd="${5:-/Users/x/repos/demo}" age="${6:-60}"
+  now=$(date +%s)
+  {
+    line_early_q "ea-$2" "$2" "$((now - age))" "Run \`$3\`?" "$cwd"
+    line_ask_answer_at "eu-$2" "$2" "$((now - age + 1))" "Your questions have been answered: \"Run \`$3\`?\"=\"$4\""
+  } >>"$1"
+}
+assert_early_released() {
+  if printf '%s' "$2" | jq -e '(.hookSpecificOutput.permissionDecision // "") != "deny" and (.hookSpecificOutput.additionalContext | test("^Jev released .* once: D approved this exact command"))' >/dev/null 2>&1; then
+    pass
+  else
+    fail "$1 (expected an early-approval release note, got: $(printf '%s' "$2" | head -c 300))"
+  fi
+}
+
+new_home
+mock '{"G4-prod-infra":0.95,"d_approved_exact_action":0.1}'
+{ line_user u1 "redeploy prod"; } >"$T/t-32.jsonl"
+early_into "$T/t-32.jsonl" ex1 "$P32_CMD" "Yes, run it"
+OUT=$(run_hook jev-gate.sh "$(P32IN)")
+assert_early_released "early 32: a yes to the exact redeploy command (pipe and all) releases it before any deny" "$OUT"
+assert_contains "early 32: logged as an early approval" "$(gate_log)" '"verdict":"allow-early-approval"'
+OUT=$(run_hook jev-gate.sh "$(P32IN)")
+assert_contains "early 32: one yes releases once" "$OUT" '"permissionDecision":"deny"'
+
+new_home
+mock '{"G4-prod-infra":0.95,"d_approved_exact_action":0.1}'
+{ line_user u1 "redeploy prod"; } >"$T/t-32.jsonl"
+early_into "$T/t-32.jsonl" ex2 "vercel redeploy https://alocubano-abc123.vercel.app --target production --scope team_abc123" "Yes, run it"
+OUT=$(run_hook jev-gate.sh "$(P32IN)")
+assert_contains "early 32: quoting the command without its trailing pipe does not release" "$OUT" '"permissionDecision":"deny"'
+early_into "$T/t-32.jsonl" ex3 "$P32_CMD" "Yes, run it" /Users/x/repos/other
+OUT=$(run_hook jev-gate.sh "$(P32IN)")
+assert_contains "early 32: a yes from another cwd does not release" "$OUT" '"permissionDecision":"deny"'
+early_into "$T/t-32.jsonl" ex4 "$P32_CMD" "Yes, run it" /Users/x/repos/demo 700
+OUT=$(run_hook jev-gate.sh "$(P32IN)")
+assert_contains "early 32: a stale yes does not release" "$OUT" '"permissionDecision":"deny"'
+early_into "$T/t-32.jsonl" ex5 "$P32_CMD" "Yes, run it"
+OUT=$(run_hook jev-gate.sh "$(P32IN | jq -c '. + {agent_id:"sub1"}')")
+assert_contains "early 32 subagent: no early release" "$OUT" '"permissionDecision":"deny"'
+OUT=$(run_hook jev-gate.sh "$(P32IN)" BARECLAUDE_AGENT_SLUG=fleet-test)
+assert_contains "early 32 fleet: no early release" "$OUT" '"permissionDecision":"deny"'
+OUT=$(run_hook jev-gate.sh "$(P32IN)" CLAUDE_JOB_DIR=/tmp/job)
+assert_early_released "early 32 job: the unspent yes still releases in a job session" "$OUT"
+
+# one early yes clears BOTH gates for one call: the regex gate claims the question and leaves the Jev gate a
+# one-use release for the same command; the next identical call is denied by both
+new_home
+cp "$SRC/gate-rules.json" "$T/home/.claude/hooks/" # the regex gate fails open without its rules
+mock '{"G1-irreversible-local":0.95,"d_approved_exact_action":0.1}'
+DUAL_CMD='rm -rf ~/Documents/old'
+OUT=$(run_hook gate.sh "$(bash_in "$DUAL_CMD")")
+assert_contains "early dual: the regex gate denies this command with no approval" "$OUT" '"permissionDecision":"deny"'
+{ line_user u1 "clean up"; } >"$T/t-dual.jsonl"
+early_into "$T/t-dual.jsonl" dx1 "$DUAL_CMD" "Yes, run it"
+OUT=$(run_hook gate.sh "$(bash_in "$DUAL_CMD" "$T/t-dual.jsonl" sess-dual)")
+assert_not_contains "early dual: the regex gate releases on the early yes" "$OUT" '"permissionDecision":"deny"'
+OUT=$(run_hook jev-gate.sh "$(bash_in "$DUAL_CMD" "$T/t-dual.jsonl" sess-dual)")
+assert_early_released "early dual: the Jev gate releases the same call with the regex gate's one-use release" "$OUT"
+OUT=$(run_hook gate.sh "$(bash_in "$DUAL_CMD" "$T/t-dual.jsonl" sess-dual)")
+assert_contains "early dual: the regex gate denies the next identical call" "$OUT" '"permissionDecision":"deny"'
+OUT=$(run_hook jev-gate.sh "$(bash_in "$DUAL_CMD" "$T/t-dual.jsonl" sess-dual)")
+assert_contains "early dual: the Jev gate denies the next identical call" "$OUT" '"permissionDecision":"deny"'
+
 # MCP actions carry a code too
 new_home
 set_mode mcp-classifier enforce

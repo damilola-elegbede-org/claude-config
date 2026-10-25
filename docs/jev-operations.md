@@ -133,6 +133,25 @@ no refusal or deferral, so "Skip", "Later" or "Explain first" never approve; the
 (`~/.claude/gate-asks-used`), so one question approves one action. Without the code the approval detector
 still decides as above. Fleet agents and subagents get no code.
 
+Early approval: D's yes can come before the deny. When D answered an AskUserQuestion that quotes the exact
+Bash command, the first matching call of that command is released once by both gates, with no model scoring
+(verdict `allow-early-approval`). `gate.sh claim-early` checks all of these:
+
+- The command is quoted in a `backtick` span, a fenced code block, or as a whole question/option string. A
+  mention in prose does not count.
+- After one normalization, every whitespace run becoming one space and the ends trimmed, the quote is
+  byte-equal to the command. An extra flag, another target or a missing `2>&1 | tail -6` is a different command.
+- The answer is present, is not a no/cancel, and came within the window (`early-approval.window_min` in
+  `rules.d/rules-events.json`, default 10; mode `off` disables it).
+- The question was recorded from the same cwd as the call (Claude Code writes `cwd` on every transcript line).
+- The question is unspent in `~/.claude/gate-asks-used`. Claiming it spends it, so one yes releases one call
+  across every path.
+
+Whichever gate claims the question leaves the other a one-use release in `~/.claude/gate-early/`, good for
+120 seconds, so one yes clears both gates for the same call. Fleet agents and subagents get no early release.
+Tradeoff D accepted: if only one gate fires on that call, the other gate's release sits unused for up to
+120 seconds. An identical call in that window that only the other gate stops is released by it.
+
 When both gates stop the same Bash call, one approval clears both: `gate.sh approve <hash>` also leaves
 `~/.claude/gate-approved/jev.<hash>`, which `jev-gate.sh` claims once (30-minute expiry, never for a fleet
 agent or subagent) to release the identical command, cwd and scope. Only one deny reason reaches the

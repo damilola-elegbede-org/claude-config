@@ -730,6 +730,98 @@ HLEX=$(deny_hash "$H_SY" "$(write_payload "$SANDBOX/sy-live/settings.json" "x")"
 run_gate "$H_SY" "$(write_payload "$H_SY/.claude/settings.json" "x")"
 check "symlink: the approval identity keeps the lexical path (a different path is a different action)" "1" "$([[ "$(hash_from_reason)" == "$HLEX" ]] && echo 0 || echo 1)"
 
+echo "== early approval: D's yes before the deny releases the exact command once =="
+# mk_early <transcript> <id> <offset> <answer|NONE> <question text> <cwd>: an AskUserQuestion recorded from <cwd>
+# (Claude Code writes the shell's cwd on every transcript line) and its answer.
+mk_early() {
+    local ts=$(($(date +%s) + $3))
+    jq -nc --arg id "$2" --argjson e "$ts" --arg q "$5" --arg cwd "$6" \
+        '{type:"assistant",timestamp:($e|todate),cwd:$cwd,message:{content:[{type:"tool_use",id:$id,name:"AskUserQuestion",input:{questions:[{question:$q,options:[{label:"Yes, run it"},{label:"No"}]}]}}]}}' >>"$1"
+    if [[ "$4" != "NONE" ]]; then
+        jq -nc --arg id "$2" --arg a "$4" --arg q "$5" --argjson e "$((ts + 1))" --arg cwd "$6" \
+            '{type:"user",timestamp:($e|todate),cwd:$cwd,toolUseResult:{answers:{($q):$a}},message:{content:[{type:"tool_result",tool_use_id:$id,content:("User has answered your questions: \"" + $q + "\"=\"" + $a + "\".")}]}}' >>"$1"
+    fi
+}
+early_case() { # early_case <name>: a fresh home + transcript; sets H_E and TX_E, GATE_TP, GATE_CWD=/work/e
+    H_E=$(make_home "early-$1")
+    TX_E="$SANDBOX/tx-early-$1.jsonl"
+    : >"$TX_E"
+    GATE_TP="$TX_E"
+    GATE_CWD="/work/e"
+}
+released() { printf '%s' "$GOUT" | jq -e '(.hookSpecificOutput.permissionDecision // "") != "deny" and (.hookSpecificOutput.additionalContext // "" | test("D approved this exact command"))' >/dev/null 2>&1 && echo yes || echo no; }
+
+early_case exact
+mk_early "$TX_E" e1 -60 "Yes, run it" 'Run `rm -rf foo` in /work/e?' /work/e
+run_gate "$H_E" "$(bash_payload 'rm -rf foo')"
+check "early: a yes to a question quoting the exact command releases it" "yes" "$(released)"
+check_contains "early: logged as an early approval" "$(cat "$H_E/.claude/gate-log.jsonl" 2>/dev/null)" '"decision":"allow-early-approval"'
+run_gate "$H_E" "$(bash_payload 'rm -rf foo')"
+check "early: one yes releases one action (the second identical call is denied)" "deny" "$(decision)"
+HE=$(hash_from_reason)
+mk_ask "$TX_E" e1-post 2 "Approve" "$HE"
+approve_rc "$H_E" "$HE"
+check "early: the post-deny checkpoint path still works after an early release" "0" "$?"
+
+early_case near
+mk_early "$TX_E" n1 -60 "Yes, run it" 'Run `rm -rf foo bar`?' /work/e
+run_gate "$H_E" "$(bash_payload 'rm -rf foo')"
+check "early: a question quoting a longer command does not release a shorter one" "deny" "$(decision)"
+mk_early "$TX_E" n2 -50 "Yes, run it" 'Run `rm -rf foo`?' /work/e
+run_gate "$H_E" "$(bash_payload 'rm -rf foo --verbose')"
+check "early: an extra flag on the action is a different command" "deny" "$(decision)"
+run_gate "$H_E" "$(bash_payload 'rm -rf foo 2>&1 | tail -6')"
+check "early: a trailing pipe on the action is a different command" "deny" "$(decision)"
+run_gate "$H_E" "$(bash_payload 'rm -rf food')"
+check "early: a different target is a different command" "deny" "$(decision)"
+
+early_case unquoted
+mk_early "$TX_E" u1 -60 "Yes, run it" 'Should I run rm -rf foo now?' /work/e
+run_gate "$H_E" "$(bash_payload 'rm -rf foo')"
+check "early: the command must be quoted (backticks or a code block), not just mentioned" "deny" "$(decision)"
+
+early_case spaces
+mk_early "$TX_E" s1 -60 "Yes, run it" 'Run `rm  -rf   foo` ?' /work/e
+run_gate "$H_E" "$(bash_payload 'rm -rf foo')"
+check "early: runs of spaces collapse (the documented normalization)" "yes" "$(released)"
+
+early_case fence
+mk_early "$TX_E" f1 -60 "Yes, run it" $'Run this?\n```bash\nrm -rf foo\n```' /work/e
+run_gate "$H_E" "$(bash_payload 'rm -rf foo')"
+check "early: a fenced code block counts as quoting" "yes" "$(released)"
+
+early_case stale
+mk_early "$TX_E" st1 -660 "Yes, run it" 'Run `rm -rf foo`?' /work/e
+run_gate "$H_E" "$(bash_payload 'rm -rf foo')"
+check "early: a yes older than the 10-minute window does not release" "deny" "$(decision)"
+
+early_case no
+mk_early "$TX_E" no1 -60 "No" 'Run `rm -rf foo`?' /work/e
+run_gate "$H_E" "$(bash_payload 'rm -rf foo')"
+check "early: a No answer does not release" "deny" "$(decision)"
+mk_early "$TX_E" no2 -50 "Cancel, do not run it" 'Run `rm -rf foo`?' /work/e
+run_gate "$H_E" "$(bash_payload 'rm -rf foo')"
+check "early: a cancel/negated Other answer does not release" "deny" "$(decision)"
+mk_early "$TX_E" no3 -40 NONE 'Run `rm -rf foo`?' /work/e
+run_gate "$H_E" "$(bash_payload 'rm -rf foo')"
+check "early: an unanswered question does not release" "deny" "$(decision)"
+
+early_case cwd
+mk_early "$TX_E" c1 -60 "Yes, run it" 'Run `rm -rf foo`?' /work/other
+run_gate "$H_E" "$(bash_payload 'rm -rf foo')"
+check "early: a yes given from another working directory does not release" "deny" "$(decision)"
+
+early_case scope
+mk_early "$TX_E" sc1 -60 "Yes, run it" 'Run `rm -rf foo`?' /work/e
+run_gate "$H_E" "$(bash_payload 'rm -rf foo')" BARECLAUDE_AGENT_SLUG=fleet-test
+check "early: a fleet agent gets no early release" "deny" "$(decision)"
+run_gate "$H_E" "$(bash_payload 'rm -rf foo' | jq -c '. + {agent_id:"sub1"}')"
+check "early: a subagent gets no early release" "deny" "$(decision)"
+run_gate "$H_E" "$(bash_payload 'rm -rf foo')" CLAUDE_JOB_DIR="$H_E/tmp"
+check "early: a job session (D answers dialogs there) does get the early release" "yes" "$(released)"
+GATE_CWD="/work"
+GATE_TP=""
+
 echo ""
 echo "gate tests: $PASS passed, $FAIL failed"
 if [[ $FAIL -gt 0 ]]; then

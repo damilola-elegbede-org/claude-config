@@ -50,6 +50,11 @@
     "review_grace_min": 15,
     "review_bots": ["coderabbitai", "chatgpt-codex-connector"]
   },
+  "early-approval": {
+    "mode": "enforce",
+    "scope": ["interactive", "bgjob"],
+    "window_min": 10
+  },
 
   "executive-tag-correctness": {
     "mode": { "interactive": "enforce", "bgjob": "shadow" },

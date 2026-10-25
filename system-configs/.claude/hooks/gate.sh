@@ -54,6 +54,8 @@
 #                ~/.claude/gate-approved/jev.<hash>  written by `gate.sh approve`: jev-gate.sh claims it once to
 #                                                release the same Bash action, so one approval clears both gates
 #                ~/.claude/gate-asks-used(.d/)   AskUserQuestion ids already spent (.d/ = atomic claims)
+#                ~/.claude/gate-early/<gate>.<hash>  one-use early-approval release left for the other gate
+#                                                (see "Early approval" below; 120 s)
 #
 # Rules with "resolve": true (G1-rm) match against text where standalone literal
 # NAME=value assignments are substituted into later $NAME uses and a scratch
@@ -77,6 +79,8 @@ PENDING_DIR="$CLAUDE_DIR/gate-pending"
 APPROVED_DIR="$CLAUDE_DIR/gate-approved"
 ASKS_USED="$CLAUDE_DIR/gate-asks-used"
 ASKS_CLAIM_DIR="$ASKS_USED.d"
+EARLY_DIR="$CLAUDE_DIR/gate-early"
+EARLY_TOKEN_TTL_S=120
 LOG_FILE="$CLAUDE_DIR/gate-log.jsonl"
 KILL_SWITCH="$CLAUDE_DIR/gate.off"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
@@ -235,6 +239,135 @@ cmd_claim_ask() {
     printf '%s\n' "$spent"
 }
 
+# --- Early approval ---------------------------------------------------------------------------------------------
+# D's yes to an AskUserQuestion that quoted the exact command, answered within the window (registry rule
+# early-approval, window_min, default 10) and from the same cwd, releases that command once even though the
+# question came BEFORE the deny. Deterministic: a quoted span (a `backtick` span, a ``` fenced block, or a whole
+# question/option string) must equal the command after the one normalization below; no model scores anything.
+# Bash only. The question is spent in the same ledger `approve` and claim-ask use, so one question releases one
+# action across every path.
+
+# early_norm <text>: the early-approval normalization: every whitespace run (spaces, tabs, newlines) becomes one
+# space and the ends are trimmed. Nothing else changes: quotes, case and every other byte must match.
+early_norm() { jq -nr --arg c "$1" '$c | gsub("[[:space:]]+"; " ") | sub("^ "; "") | sub(" $"; "")' 2>/dev/null; }
+
+# early_window_min: the window from the registry (0 = early approval off).
+early_window_min() {
+    local w=10
+    if [[ "$HAVE_REGISTRY" == 1 ]]; then
+        [[ "$(jev_reg_value early-approval mode enforce)" == "off" ]] && { printf '0'; return 0; }
+        w=$(jev_reg_value early-approval window_min 10)
+    fi
+    [[ "$w" =~ ^[0-9]+$ ]] || w=10
+    printf '%s' "$w"
+}
+
+# age_s <file>: seconds since the file was last modified (GNU stat first: BSD stat has no -c).
+age_s() {
+    local m
+    m=$(stat -c %Y "$1" 2>/dev/null) || m=$(stat -f %m "$1" 2>/dev/null) || return 1
+    [[ "$m" =~ ^[0-9]+$ ]] || return 1
+    printf '%s' $(($(date +%s) - m))
+}
+
+# early_ids <transcript> <since-epoch> <normalized command> <cwd>: the tool_use id of every AskUserQuestion recorded
+# from <cwd> that quotes the command exactly and whose answer (at or after <since>) is present and is no refusal.
+early_ids() {
+    tail -c 4000000 "$1" 2>/dev/null | jq -R -n -r --argjson since "$2" --arg cmd "$3" --arg cwd "$4" '
+        def arr: if type == "array" then .[] else empty end;
+        def secs: (. // "" | sub("\\.[0-9]+Z$"; "Z") | (try fromdateiso8601 catch 0));
+        def norm: gsub("[[:space:]]+"; " ") | sub("^ "; "") | sub(" $"; "");
+        def refusal: test("\\b(deny|denied|no|nope|reject|rejected|cancel|cancelled|canceled|stop|abort|decline|declined|do not|don.?t|not now)\\b"; "i");
+        def quoted: . as $s
+          | ([$s | scan("```[A-Za-z0-9_+-]*[ \\t]*\\n?((?:(?!```)[\\s\\S])*)```") | .[0]]
+             + [$s | gsub("```(?:(?!```)[\\s\\S])*```"; "") | scan("`([^`]+)`") | .[0]]
+             + [$s])[];
+        [inputs | fromjson? | select(type == "object")] as $all
+        | [$all[] | select(.type == "assistant" and .cwd == $cwd) | (.message.content | arr)
+           | select(type == "object" and .type == "tool_use" and .name == "AskUserQuestion")
+           | select([.input | .. | strings | quoted | norm] | any(. == $cmd))
+           | .id] as $asks
+        | [$all[] | select(.type == "user") | . as $m | (.message.content | arr)
+           | select(type == "object" and .type == "tool_result")
+           | . as $r
+           | {id: .tool_use_id, ts: ($m.timestamp | secs),
+              answers: (($m.toolUseResult.answers? // null) as $a
+                | if ($a | type) == "object" then [$a[] | tostring]
+                  else ($r.content | if type == "string" then . elif type == "array" then ([.[]? | select(type == "object") | (.text // "")] | join(" ")) else "" end
+                        | [scan("\"=\"((?:[^\"\\\\]|\\\\.)*)\"") | .[0]]) end)}] as $res
+        | $asks[] | . as $id
+        | select([$res[] | select(.id == $id and .ts >= $since) | .answers | select(length > 0 and all(.[]; (gsub("[[:space:]]"; "") | length > 0) and (refusal | not)))] | length > 0)
+        | $id' 2>/dev/null
+}
+
+# claim_early <transcript> <since> <normalized command> <cwd>: claims the first unspent matching question (mkdir, as
+# claim_ask) and prints its id. Exit 2 when every match was already claimed and one claim is under 10 s old: the other
+# gate may be releasing this same call right now. Exit 1 when nothing matches.
+claim_early() {
+    local ask p a recent=0
+    mkdir -p "$ASKS_CLAIM_DIR" 2>/dev/null
+    while IFS= read -r ask; do
+        [[ -n "$ask" ]] || continue
+        p=$(ask_claim_path "$ask")
+        if ! { [[ -f "$ASKS_USED" ]] && grep -qxF -- "$ask" "$ASKS_USED"; } && mkdir "$p" 2>/dev/null; then
+            printf '%s' "$ask"
+            return 0
+        fi
+        a=$(age_s "$p") && [[ "$a" -le 10 ]] && recent=1
+    done < <(early_ids "$1" "$2" "$3" "$4")
+    [[ "$recent" == 1 ]] && return 2
+    return 1
+}
+
+# take_early_token <gate> <hash>: claims the one-use release the other gate left for this call (atomic rename;
+# good for EARLY_TOKEN_TTL_S seconds, so a stale one never releases a later call).
+take_early_token() {
+    local f="$EARLY_DIR/$1.$2" mine="$EARLY_DIR/.claim.$1.$2.$$" a
+    [[ -f "$f" ]] || return 1
+    mv "$f" "$mine" 2>/dev/null || return 1
+    a=$(age_s "$mine")
+    rm -f "$mine"
+    [[ -n "$a" && "$a" -le "$EARLY_TOKEN_TTL_S" ]]
+}
+
+# cmd_claim_early <transcript> <cwd> <regex|jev> (the Bash command on stdin): 0 when D's early yes releases this call
+# for that gate. The first gate to claim the question leaves the other gate a one-use release for the same call,
+# so one yes clears both gates once. Never for a fleet agent (callers also exclude subagents).
+cmd_claim_early() {
+    local tp="$1" cwd="$2" gate="$3" cmd norm win h since spent rc other n=0
+    [[ -z "${BARECLAUDE_AGENT_SLUG:-}" ]] || return 1
+    [[ "$gate" == "regex" || "$gate" == "jev" ]] || return 1
+    [[ -n "$tp" && -r "$tp" && -n "$cwd" ]] || return 1
+    cmd=$(cat)
+    norm=$(early_norm "$cmd")
+    [[ -n "$norm" ]] || return 1
+    win=$(early_window_min)
+    [[ "$win" -gt 0 ]] || return 1
+    h=$(hash_str "early"$'\x1f'"$cwd"$'\x1f'"$norm")
+    [[ -n "$h" ]] || return 1
+    mkdir -p "$EARLY_DIR" 2>/dev/null
+    take_early_token "$gate" "$h" && return 0
+    since=$(($(date +%s) - win * 60))
+    spent=$(claim_early "$tp" "$since" "$norm" "$cwd")
+    rc=$?
+    if [[ $rc -eq 0 ]]; then
+        printf '%s\n' "$spent" >>"$ASKS_USED" 2>/dev/null
+        other="jev"
+        [[ "$gate" == "jev" ]] && other="regex"
+        : >"$EARLY_DIR/$other.$h" 2>/dev/null
+        printf '%s\n' "$spent"
+        return 0
+    fi
+    if [[ $rc -eq 2 ]]; then
+        while [[ $n -lt 20 ]]; do
+            take_early_token "$gate" "$h" && return 0
+            sleep 0.1
+            n=$((n + 1))
+        done
+    fi
+    return 1
+}
+
 cmd_approve() {
     local h="${1:-}"
     if [[ ! "$h" =~ ^[0-9a-f]{64}$ ]]; then
@@ -308,6 +441,10 @@ if [[ "${1:-}" == "approve" ]]; then
 fi
 if [[ "${1:-}" == "claim-ask" ]]; then
     cmd_claim_ask "${2:-}" "${3:-}" "${4:-}"
+    exit $?
+fi
+if [[ "${1:-}" == "claim-early" ]]; then
+    cmd_claim_early "${2:-}" "${3:-}" "${4:-}"
     exit $?
 fi
 
@@ -631,6 +768,20 @@ if [[ -n "$HASH" ]] && claim_approval "$HASH"; then
         log_decision "$ID" "allow-by-approval" "$TOOL" "$SCOPE" "$CWD" "$BLOCK_TARGET"
     done
     exit 0
+fi
+
+# Early approval: D already said yes to a question that quoted exactly this command, from this cwd, within the
+# window. Interactive and job sessions only: fleet agents and subagents have no approval path.
+if [[ "$TOOL" == "Bash" && ("$SCOPE" == "interactive" || "$SCOPE" == "bgjob") && -n "$TRANSCRIPT" && -r "$TRANSCRIPT" ]] &&
+    [[ -z "$(printf '%s' "$INPUT" | jq -r '.agent_id // empty' 2>/dev/null)" ]]; then
+    if EARLY_ID=$(printf '%s' "$INPUT" | jq -j '.tool_input.command // ""' 2>/dev/null | cmd_claim_early "$TRANSCRIPT" "$CWD" regex); then
+        for ID in "${BLOCK_IDS[@]}"; do
+            log_decision "$ID" "allow-early-approval" "$TOOL" "$SCOPE" "$CWD" "$BLOCK_TARGET"
+        done
+        jq -nc --arg m "gate.sh released ${BLOCK_IDS[*]} once: D approved this exact command in an earlier question${EARLY_ID:+ ($EARLY_ID)}" \
+            '{hookSpecificOutput:{hookEventName:"PreToolUse",additionalContext:$m}}'
+        exit 0
+    fi
 fi
 
 # Name every matched rule in one reason: the first keeps the "CHECKPOINT <id>:" prefix.
