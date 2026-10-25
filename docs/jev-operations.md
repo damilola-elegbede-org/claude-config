@@ -139,8 +139,9 @@ Bash command, the first matching call of that command is released once by both g
 
 - The command is quoted in a `backtick` span, a fenced code block, or as a whole question/option string. A
   mention in prose does not count.
-- After one normalization, every whitespace run becoming one space and the ends trimmed, the quote is
-  byte-equal to the command. An extra flag, another target or a missing `2>&1 | tail -6` is a different command.
+- After one normalization (runs of spaces and tabs become one space, a line break and the blanks around it
+  become one newline, the ends are trimmed), the quote is byte-equal to the command. A newline never
+  becomes a space, so a two-line command does not match a one-line quote. An extra flag, another target or a missing `2>&1 | tail -6` is a different command.
 - The quote binds to one answer, and that answer must be a yes: it opens with an approval word (`Yes`,
   `Approve`, `OK`, `Run it`, `Go ahead`, `Proceed`…). Quoted in the question text, that question's answer
   counts. Quoted in an option's label or description, D must have picked that very option, and its label

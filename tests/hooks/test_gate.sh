@@ -790,6 +790,15 @@ mk_early "$TX_E" f1 -60 "Yes, run it" $'Run this?\n```bash\nrm -rf foo\n```' /wo
 run_gate "$H_E" "$(bash_payload 'rm -rf foo')"
 check "early: a fenced code block counts as quoting" "yes" "$(released)"
 
+early_case newline
+mk_early "$TX_E" nl1 -60 "Yes, run it" 'Run `rm -rf foo echo done`?' /work/e
+run_gate "$H_E" "$(bash_payload $'rm -rf foo\necho done')"
+check "early: a newline is not a space: a two-line command does not match a one-line quote" "deny" "$(decision)"
+early_case newline2
+mk_early "$TX_E" nl2 -60 "Yes, run it" $'Run this?\n```bash\nrm -rf foo\n  echo done\n```' /work/e
+run_gate "$H_E" "$(bash_payload $'rm -rf foo\necho done')"
+check "early: a fenced two-line block matches the same two-line command" "yes" "$(released)"
+
 early_case stale
 mk_early "$TX_E" st1 -660 "Yes, run it" 'Run `rm -rf foo`?' /work/e
 run_gate "$H_E" "$(bash_payload 'rm -rf foo')"
@@ -841,7 +850,7 @@ done
 mk_early_opts() { # mk_early_opts <transcript> <id> <answer>: "Clean up?" with the command only in option 1's description
     local ts=$(($(date +%s) - 60))
     jq -nc --arg id "$2" --argjson e "$ts" \
-        '{type:"assistant",timestamp:($e|todate),cwd:"/work/e",message:{content:[{type:"tool_use",id:$id,name:"AskUserQuestion",input:{questions:[{question:"Clean up?",options:[{label:"Yes, delete files",description:"Run `rm -rf foo`"},{label:"Yes, show me the files"},{label:"Delete files",description:"Run `rm -rf foo`"}]}]}}]}}' >>"$1"
+        '{type:"assistant",timestamp:($e|todate),cwd:"/work/e",message:{content:[{type:"tool_use",id:$id,name:"AskUserQuestion",input:{questions:[{question:"Clean up?",options:[{label:"Yes, delete files",description:"Run `rm -rf foo`"},{label:"Yes, show me the files"},{label:"Delete files",description:"Run `rm -rf foo`"},{label:"Yes, keep files",description:"Do not run `rm -rf foo`"}]}]}}]}}' >>"$1"
     jq -nc --arg id "$2" --arg a "$3" --argjson e "$((ts + 1))" \
         '{type:"user",timestamp:($e|todate),cwd:"/work/e",toolUseResult:{answers:{"Clean up?":$a}},message:{content:[{type:"tool_result",tool_use_id:$id,content:("User has answered your questions: \"Clean up?\"=\"" + $a + "\".")}]}}' >>"$1"
 }
@@ -857,6 +866,10 @@ early_case optnoyes
 mk_early_opts "$TX_E" o3 "Delete files"
 run_gate "$H_E" "$(bash_payload 'rm -rf foo')"
 check "early: a picked option that quotes the command but is not labelled yes does not release" "deny" "$(decision)"
+early_case optrefdesc
+mk_early_opts "$TX_E" o4 "Yes, keep files"
+run_gate "$H_E" "$(bash_payload 'rm -rf foo')"
+check "early: a picked yes option whose description refuses the command does not release" "deny" "$(decision)"
 
 # The rule's scope is honoured: narrowed to interactive, a job session gets no early release.
 # (A last rules.d layer, as a local override would be: the rest of the registry stays in force.)

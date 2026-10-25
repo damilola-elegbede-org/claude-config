@@ -247,9 +247,11 @@ cmd_claim_ask() {
 # Bash only. The question is spent in the same ledger `approve` and claim-ask use, so one question releases one
 # action across every path.
 
-# early_norm <text>: the early-approval normalization: every whitespace run (spaces, tabs, newlines) becomes one
-# space and the ends are trimmed. Nothing else changes: quotes, case and every other byte must match.
-early_norm() { jq -nr --arg c "$1" '$c | gsub("[[:space:]]+"; " ") | sub("^ "; "") | sub(" $"; "")' 2>/dev/null; }
+# early_norm <text>: the early-approval normalization: every run of spaces and tabs becomes one space, a line break
+# with the blanks and blank lines around it becomes one newline, and the ends are trimmed. A newline separates shell
+# commands, so it never turns into a space: a two-line command cannot match a one-line quote. Nothing else
+# changes: quotes, case and every other byte must match.
+early_norm() { jq -nr --arg c "$1" '$c | gsub("[ \\t]+"; " ") | gsub(" ?\\n[ \\n]*"; "\n") | sub("^[[:space:]]+"; "") | sub("[[:space:]]+$"; "")' 2>/dev/null; }
 
 # early_window_min: the window from the registry (0 = early approval off, or this session type is outside the
 # rule's scope).
@@ -278,13 +280,14 @@ age_s() {
 # from <cwd> with one question, answered at or after <since>, that binds the command in one of two ways:
 #   - the question text quotes it exactly and the answer is a yes: it opens with an approval word and carries no
 #     refusal or deferral (the model writes the labels, so "Skip" or "Later" must not read as approval), or
-#   - an option's label or description quotes it exactly and D selected that very option, whose label is a yes too.
+#   - an option's label or description quotes it exactly and D selected that very option, whose label is a yes too and
+#     whose description holds no refusal ("Do not run `cmd`").
 # A command quoted only in an option D did not pick is never approved.
 early_ids() {
     tail -c 4000000 "$1" 2>/dev/null | jq -R -n -r --argjson since "$2" --arg cmd "$3" --arg cwd "$4" "$ANSWER_JQ"'
         def arr: if type == "array" then .[] else empty end;
         def secs: (. // "" | sub("\\.[0-9]+Z$"; "Z") | (try fromdateiso8601 catch 0));
-        def norm: gsub("[[:space:]]+"; " ") | sub("^ "; "") | sub(" $"; "");
+        def norm: gsub("[ \\t]+"; " ") | gsub(" ?\\n[ \\n]*"; "\n") | sub("^[[:space:]]+"; "") | sub("[[:space:]]+$"; "");
         def quoted: . as $s
           | ([$s | scan("```[A-Za-z0-9_+-]*[ \\t]*\\n?((?:(?!```)[\\s\\S])*)```") | .[0]]
              + [$s | gsub("```(?:(?!```)[\\s\\S])*```"; "") | scan("`([^`]+)`") | .[0]]
@@ -308,7 +311,8 @@ early_ids() {
                   | select(approves)
                   | . as $a
                   | select(([$q.question] | quotes)
-                           or ([$q.options | arr | select(type == "object" and .label == $a) | .label, .description] | quotes))]
+                           or ([$q.options | arr | select(type == "object" and .label == $a
+                                 and ((.description // "") | tostring | refusal | not)) | .label, .description] | quotes))]
                  | length > 0)
         | $k.id' 2>/dev/null
 }
