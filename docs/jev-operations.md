@@ -141,10 +141,12 @@ Bash command, the first matching call of that command is released once by both g
   mention in prose does not count.
 - After one normalization, every whitespace run becoming one space and the ends trimmed, the quote is
   byte-equal to the command. An extra flag, another target or a missing `2>&1 | tail -6` is a different command.
-- The answer is a yes: it opens with an approval word (`Yes`, `Approve`, `OK`, `Run it`, `Go ahead`,
-  `Proceed`…) and holds no refusal or deferral (`No`, `Cancel`, `Skip`, `Later`, `Not yet`, `Hold off`…).
-  It came within the window (`early-approval.window_min` in
-  `rules.d/rules-events.json`, default 10; mode `off` disables it).
+- The quote binds to one answer. Quoted in the question text, that question's answer must be a yes: it
+  opens with an approval word (`Yes`, `Approve`, `OK`, `Run it`, `Go ahead`, `Proceed`…). Quoted in an
+  option's label or description, D must have picked that very option; picking another approves nothing.
+  Either way the answer holds no refusal or deferral (`No`, `Cancel`, `Skip`, `Later`, `Not yet`, `Hold off`…).
+- The answer came within the window (`early-approval.window_min` in `rules.d/rules-events.json`, default 10;
+  mode `off` disables it), and the session type is in the rule's `scope` (default interactive and bgjob).
 - The question was recorded from the same cwd as the call (Claude Code writes `cwd` on every transcript line).
 - The question is unspent in `~/.claude/gate-asks-used`. Claiming it spends it, so one yes releases one call
   across every path.

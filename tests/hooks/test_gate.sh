@@ -837,6 +837,41 @@ for EA in "Approve" "Run it" "Go ahead" "Proceed" "OK"; do
     check "early: the answer \"$EA\" releases" "yes" "$(released)"
 done
 
+# A command quoted in an option binds only to that option: picking another option approves nothing.
+mk_early_opts() { # mk_early_opts <transcript> <id> <answer>: "Clean up?" with the command only in option 1's description
+    local ts=$(($(date +%s) - 60))
+    jq -nc --arg id "$2" --argjson e "$ts" \
+        '{type:"assistant",timestamp:($e|todate),cwd:"/work/e",message:{content:[{type:"tool_use",id:$id,name:"AskUserQuestion",input:{questions:[{question:"Clean up?",options:[{label:"Delete files",description:"Run `rm -rf foo`"},{label:"Yes, show me the files"}]}]}}]}}' >>"$1"
+    jq -nc --arg id "$2" --arg a "$3" --argjson e "$((ts + 1))" \
+        '{type:"user",timestamp:($e|todate),cwd:"/work/e",toolUseResult:{answers:{"Clean up?":$a}},message:{content:[{type:"tool_result",tool_use_id:$id,content:("User has answered your questions: \"Clean up?\"=\"" + $a + "\".")}]}}' >>"$1"
+}
+early_case optother
+mk_early_opts "$TX_E" o1 "Yes, show me the files"
+run_gate "$H_E" "$(bash_payload 'rm -rf foo')"
+check "early: picking another option does not approve a command quoted in an unselected option" "deny" "$(decision)"
+early_case optpicked
+mk_early_opts "$TX_E" o2 "Delete files"
+run_gate "$H_E" "$(bash_payload 'rm -rf foo')"
+check "early: picking the option that quotes the command releases it" "yes" "$(released)"
+
+# The rule's scope is honoured: narrowed to interactive, a job session gets no early release.
+# (A last rules.d layer, as a local override would be: the rest of the registry stays in force.)
+early_scope_layer() {
+    cp -R "$HOOKS_SRC/jev" "$H_E/.claude/hooks/jev"
+    printf '%s' '{"early-approval":{"mode":"enforce","scope":["interactive"],"window_min":10}}' \
+        >"$H_E/.claude/hooks/jev/rules.d/zz-early-scope.json"
+}
+early_case scopecfg
+early_scope_layer
+mk_early "$TX_E" sg1 -60 "Yes, run it" 'Run `rm -rf foo`?' /work/e
+run_gate "$H_E" "$(bash_payload 'rm -rf foo')" CLAUDE_JOB_DIR="$H_E/tmp"
+check "early: a job session outside the configured scope gets no early release" "deny" "$(decision)"
+early_case scopecfg2
+early_scope_layer
+mk_early "$TX_E" sg2 -60 "Yes, run it" 'Run `rm -rf foo`?' /work/e
+run_gate "$H_E" "$(bash_payload 'rm -rf foo')"
+check "early: an interactive session inside the configured scope still does" "yes" "$(released)"
+
 # The other gate's one-use token cannot be planted: symlinks are ignored and the directory is gate state.
 early_case token
 EH=$(printf '%s' "early"$'\x1f'"/work/e"$'\x1f'"rm -rf foo" | shasum -a 256 | cut -d' ' -f1)

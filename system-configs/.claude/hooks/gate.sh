@@ -251,11 +251,15 @@ cmd_claim_ask() {
 # space and the ends are trimmed. Nothing else changes: quotes, case and every other byte must match.
 early_norm() { jq -nr --arg c "$1" '$c | gsub("[[:space:]]+"; " ") | sub("^ "; "") | sub(" $"; "")' 2>/dev/null; }
 
-# early_window_min: the window from the registry (0 = early approval off).
+# early_window_min: the window from the registry (0 = early approval off, or this session type is outside the
+# rule's scope).
 early_window_min() {
-    local w=10
+    local w=10 sc
     if [[ "$HAVE_REGISTRY" == 1 ]]; then
         [[ "$(jev_reg_value early-approval mode enforce)" == "off" ]] && { printf '0'; return 0; }
+        sc=$(jev_reg_value early-approval scope '["interactive","bgjob"]')
+        jq -e --arg c "$(jev_reg_ctx)" 'type == "array" and index($c) != null' <<<"$sc" >/dev/null 2>&1 ||
+            { printf '0'; return 0; }
         w=$(jev_reg_value early-approval window_min 10)
     fi
     [[ "$w" =~ ^[0-9]+$ ]] || w=10
@@ -271,9 +275,11 @@ age_s() {
 }
 
 # early_ids <transcript> <since-epoch> <normalized command> <cwd>: the tool_use id of every AskUserQuestion recorded
-# from <cwd> that quotes the command exactly and whose answer (at or after <since>) is a yes: it opens with an approval
-# word and carries no refusal or deferral anywhere. The model writes the option labels, so "Skip" or "Later" must not
-# read as approval here, where no deny precedes the question and the quoted command is the only binding.
+# from <cwd> with one question, answered at or after <since>, that binds the command in one of two ways:
+#   - the question text quotes it exactly and the answer is a yes: it opens with an approval word and carries no
+#     refusal or deferral (the model writes the labels, so "Skip" or "Later" must not read as approval), or
+#   - an option's label or description quotes it exactly and D selected that very option (no refusal in its label).
+# A command quoted only in an option D did not pick is never approved.
 early_ids() {
     tail -c 4000000 "$1" 2>/dev/null | jq -R -n -r --argjson since "$2" --arg cmd "$3" --arg cwd "$4" '
         def arr: if type == "array" then .[] else empty end;
@@ -285,22 +291,28 @@ early_ids() {
           | ([$s | scan("```[A-Za-z0-9_+-]*[ \\t]*\\n?((?:(?!```)[\\s\\S])*)```") | .[0]]
              + [$s | gsub("```(?:(?!```)[\\s\\S])*```"; "") | scan("`([^`]+)`") | .[0]]
              + [$s])[];
+        def quotes: [.[] | strings | quoted | norm] | any(. == $cmd);
         [inputs | fromjson? | select(type == "object")] as $all
         | [$all[] | select(.type == "assistant" and .cwd == $cwd) | (.message.content | arr)
            | select(type == "object" and .type == "tool_use" and .name == "AskUserQuestion")
-           | select([.input | .. | strings | quoted | norm] | any(. == $cmd))
-           | .id] as $asks
+           | {id, qs: [.input.questions | arr | select(type == "object")]}] as $asks
         | [$all[] | select(.type == "user") | . as $m | (.message.content | arr)
            | select(type == "object" and .type == "tool_result")
            | . as $r
            | {id: .tool_use_id, ts: ($m.timestamp | secs),
-              answers: (($m.toolUseResult.answers? // null) as $a
-                | if ($a | type) == "object" then [$a[] | tostring]
+              ans: (($m.toolUseResult.answers? // null) as $a
+                | if ($a | type) == "object" then ($a | map_values(tostring))
                   else ($r.content | if type == "string" then . elif type == "array" then ([.[]? | select(type == "object") | (.text // "")] | join(" ")) else "" end
-                        | [scan("\"=\"((?:[^\"\\\\]|\\\\.)*)\"") | .[0]]) end)}] as $res
-        | $asks[] | . as $id
-        | select([$res[] | select(.id == $id and .ts >= $since) | .answers | select(length > 0 and all(.[]; affirm and (refusal | not)))] | length > 0)
-        | $id' 2>/dev/null
+                        | [scan("\"((?:[^\"\\\\]|\\\\.)*)\"=\"((?:[^\"\\\\]|\\\\.)*)\"") | {key: .[0], value: .[1]}] | from_entries) end)}] as $res
+        | $asks[] | . as $k
+        | select([$res[] | select(.id == $k.id and .ts >= $since) | .ans as $ans
+                  | $k.qs[] | . as $q | ($ans[($q.question // "") | tostring] // null)
+                  | select(type == "string" and (refusal | not))
+                  | . as $a
+                  | select(([$q.question] | quotes) and ($a | affirm)
+                           or ([$q.options | arr | select(type == "object" and .label == $a) | .label, .description] | quotes))]
+                 | length > 0)
+        | $k.id' 2>/dev/null
 }
 
 # claim_early <transcript> <since> <normalized command> <cwd>: claims the first unspent matching question (mkdir, as
