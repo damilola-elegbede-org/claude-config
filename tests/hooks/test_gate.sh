@@ -841,7 +841,7 @@ done
 mk_early_opts() { # mk_early_opts <transcript> <id> <answer>: "Clean up?" with the command only in option 1's description
     local ts=$(($(date +%s) - 60))
     jq -nc --arg id "$2" --argjson e "$ts" \
-        '{type:"assistant",timestamp:($e|todate),cwd:"/work/e",message:{content:[{type:"tool_use",id:$id,name:"AskUserQuestion",input:{questions:[{question:"Clean up?",options:[{label:"Delete files",description:"Run `rm -rf foo`"},{label:"Yes, show me the files"}]}]}}]}}' >>"$1"
+        '{type:"assistant",timestamp:($e|todate),cwd:"/work/e",message:{content:[{type:"tool_use",id:$id,name:"AskUserQuestion",input:{questions:[{question:"Clean up?",options:[{label:"Yes, delete files",description:"Run `rm -rf foo`"},{label:"Yes, show me the files"},{label:"Delete files",description:"Run `rm -rf foo`"}]}]}}]}}' >>"$1"
     jq -nc --arg id "$2" --arg a "$3" --argjson e "$((ts + 1))" \
         '{type:"user",timestamp:($e|todate),cwd:"/work/e",toolUseResult:{answers:{"Clean up?":$a}},message:{content:[{type:"tool_result",tool_use_id:$id,content:("User has answered your questions: \"Clean up?\"=\"" + $a + "\".")}]}}' >>"$1"
 }
@@ -850,9 +850,13 @@ mk_early_opts "$TX_E" o1 "Yes, show me the files"
 run_gate "$H_E" "$(bash_payload 'rm -rf foo')"
 check "early: picking another option does not approve a command quoted in an unselected option" "deny" "$(decision)"
 early_case optpicked
-mk_early_opts "$TX_E" o2 "Delete files"
+mk_early_opts "$TX_E" o2 "Yes, delete files"
 run_gate "$H_E" "$(bash_payload 'rm -rf foo')"
 check "early: picking the option that quotes the command releases it" "yes" "$(released)"
+early_case optnoyes
+mk_early_opts "$TX_E" o3 "Delete files"
+run_gate "$H_E" "$(bash_payload 'rm -rf foo')"
+check "early: a picked option that quotes the command but is not labelled yes does not release" "deny" "$(decision)"
 
 # The rule's scope is honoured: narrowed to interactive, a job session gets no early release.
 # (A last rules.d layer, as a local override would be: the rest of the registry stays in force.)

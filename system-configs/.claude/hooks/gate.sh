@@ -278,7 +278,7 @@ age_s() {
 # from <cwd> with one question, answered at or after <since>, that binds the command in one of two ways:
 #   - the question text quotes it exactly and the answer is a yes: it opens with an approval word and carries no
 #     refusal or deferral (the model writes the labels, so "Skip" or "Later" must not read as approval), or
-#   - an option's label or description quotes it exactly and D selected that very option (no refusal in its label).
+#   - an option's label or description quotes it exactly and D selected that very option, whose label is a yes too.
 # A command quoted only in an option D did not pick is never approved.
 early_ids() {
     tail -c 4000000 "$1" 2>/dev/null | jq -R -n -r --argjson since "$2" --arg cmd "$3" --arg cwd "$4" "$ANSWER_JQ"'
@@ -305,9 +305,9 @@ early_ids() {
         | $asks[] | . as $k
         | select([$res[] | select(.id == $k.id and .ts >= $since) | .ans as $ans
                   | $k.qs[] | . as $q | ($ans[($q.question // "") | tostring] // null)
-                  | select(type == "string" and (refusal | not))
+                  | select(approves)
                   | . as $a
-                  | select(([$q.question] | quotes) and ($a | affirm)
+                  | select(([$q.question] | quotes)
                            or ([$q.options | arr | select(type == "object" and .label == $a) | .label, .description] | quotes))]
                  | length > 0)
         | $k.id' 2>/dev/null
