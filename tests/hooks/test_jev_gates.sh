@@ -1332,6 +1332,30 @@ C32=$(code_of "$OUT")
 OUT=$(run_hook jev-gate.sh "$(P32IN)")
 assert_contains "32: a coded question asked before the deny does not release" "$OUT" '"permissionDecision":"deny"'
 
+# one coded answer releases once across BOTH paths: when the approval detector also reads it as an exact approval,
+# the retry after the code release must not be released again by the detector (Codex P1 on #304)
+new_home
+mock '{"G4-prod-infra":0.95,"d_approved_exact_action":0.95}'
+{ line_user u1 "redeploy prod"; } >"$T/t-32.jsonl"
+OUT=$(run_hook jev-gate.sh "$(P32IN)" CLAUDE_JOB_DIR=/tmp/job)
+C32=$(code_of "$OUT")
+ask_code_into "$T/t-32.jsonl" q32both "$C32" "Yes, run it"
+OUT=$(run_hook jev-gate.sh "$(P32IN)" CLAUDE_JOB_DIR=/tmp/job)
+assert_released "32 both paths: the coded answer releases once" "$OUT"
+OUT=$(run_hook jev-gate.sh "$(P32IN)" CLAUDE_JOB_DIR=/tmp/job)
+assert_contains "32 both paths: the detector does not release the same answer again" "$OUT" '"permissionDecision":"deny"'
+# the code release fails closed when the detector's stamp cannot be claimed (CodeRabbit on #304)
+new_home
+mock '{"G4-prod-infra":0.95,"d_approved_exact_action":0.1}'
+{ line_user u1 "redeploy prod"; } >"$T/t-32.jsonl"
+OUT=$(run_hook jev-gate.sh "$(P32IN)" CLAUDE_JOB_DIR=/tmp/job)
+C32=$(code_of "$OUT")
+ask_code_into "$T/t-32.jsonl" q32ro "$C32" "Yes, run it"
+mkdir -p "$T/home/.claude/jev-state/approvals.d" && chmod 555 "$T/home/.claude/jev-state/approvals.d"
+OUT=$(run_hook jev-gate.sh "$(P32IN)" CLAUDE_JOB_DIR=/tmp/job)
+chmod 755 "$T/home/.claude/jev-state/approvals.d"
+assert_contains "32 both paths: no release when the stamp cannot be claimed" "$OUT" '"permissionDecision":"deny"'
+
 # job sessions take the same code path; fleet agents and subagents never do
 new_home
 mock '{"G4-prod-infra":0.95,"d_approved_exact_action":0.1}'

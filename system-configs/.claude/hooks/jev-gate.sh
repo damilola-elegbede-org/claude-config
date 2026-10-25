@@ -146,7 +146,12 @@ claim_code_release() {
   code=$(jev_approval_code) || return 1
   e=$(jev_action_deny_epoch) || return 1
   [ $(($(date +%s) - e)) -le 1800 ] || return 1
-  bash "$HOOK_DIR/gate.sh" claim-ask "$TRANSCRIPT" "$e" "$code" >/dev/null 2>&1
+  bash "$HOOK_DIR/gate.sh" claim-ask "$TRANSCRIPT" "$e" "$code" >/dev/null 2>&1 || return 1
+  # The same answer must not release this action again through the approval detector: spend its stamp too.
+  # Fail closed: when the stamp is already spent (the detector used this answer) or cannot be written, no release.
+  local duuid=""
+  [ -n "$TAILJSON" ] && duuid=$(printf '%s' "$TAILJSON" | jq -r '.d_uuid // ""')
+  jev_stamp_claim "${SESSION}|${ACTION_SHA}|${duuid}"
 }
 
 # check_approval DRY -> sets APPROVED (1 only when D explicitly approved exactly this action and the
