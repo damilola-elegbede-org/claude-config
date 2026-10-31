@@ -478,3 +478,14 @@
 {"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "psql -c \"TRUNCATE users /* nightly */\""}}
 {"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "mysql app -e \"TRUNCATE users # nightly\""}}
 {"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "psql app -c 'TRUNCATE users \\g'"}}
+{"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "psql -c 'TRUNCATE \"order items\"'"}}
+{"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "psql app -c \"TRUNCATE \\\"order items\\\", orders CASCADE\""}}
+{"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "psql -c 'TRUNCATE public.\"order items\" *'"}}
+{"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "mysql app -e 'TRUNCATE `order items`'"}}
+{"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "sqlcmd -Q 'TRUNCATE [order items]'"}}
+{"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "psql -c 'TRUNCATE \"audit-log\"'"}}
+{"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "mysql -e 'TRUNCATE `audit-log`'"}}
+{"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "psql -c 'TRUNCATE audit$log'"}}
+{"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "psql -c 'TRUNCATE TABLE 用户'"}}
+{"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "psql -c 'TRUNCATE 用户'"}}
+{"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "psql -c 'TRUNCATE public.données, 用户 CASCADE'"}}

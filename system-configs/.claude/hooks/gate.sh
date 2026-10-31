@@ -156,32 +156,82 @@ log_decision() {
 # ask_code <hash>: the short checkpoint code D's question must carry (first 12 hex of the action hash).
 ask_code() { printf '%s' "${1:0:12}"; }
 
+# ANSWER_JQ: the one answer classifier every approval path shares (approve, claim-ask, early approval). The model
+# writes the option labels, so anything but an explicit yes fails closed: an answer approves only when it opens
+# with an approval word and carries no refusal or deferral ("Skip", "Later", "Explain first", "Run tests instead"
+# and a dry run are all no). An answer outside the word list just means D is asked again.
+# shellcheck disable=SC2016
+ANSWER_JQ='
+    def refusal: test("\\b(deny|denied|no|nope|reject|rejected|cancel|cancelled|canceled|stop|abort|decline|declined|do not|don.?t|not now|not yet|skip|skipped|later|wait|hold|postpone|defer|first|instead|rather|other|alternative|different|dry.?run|explain|why)\\b"; "i");
+    def affirm: test("^[[:space:]]*(yes|y|yep|yeah|sure|ok|okay|approve|approved|allow|confirm|confirmed|proceed|go ahead|run it|do it)\\b"; "i");
+    def approves: type == "string" and affirm and (refusal | not);
+'
+
 # ask_ids_after <transcript> <since-epoch> <code>: prints the tool_use id of every AskUserQuestion issued at or
-# after <since> whose question (every string of its input: question, header, option labels) contains <code>
-# and whose tool_result carries at least one answer and no answer is a refusal. The answers
-# come from toolUseResult.answers (the structured form Claude Code writes) or, failing that, from the
-# "question"="answer" pairs in the result text. A dismissed question has no answers and never counts.
+# after <since> that D answered with a yes (ANSWER_JQ) bound to <code>: the code sits in that question's own text
+# (question or header) or in the option D selected (label or description). A code quoted only in an option D did
+# not pick approves nothing, and no answer in the dialog may be a refusal. The answers come from
+# toolUseResult.answers (the structured form Claude Code writes) or, failing that, from the "question"="answer"
+# pairs in the result text. A dismissed question has no answers and never counts.
 ask_ids_after() {
-    tail -c 4000000 "$1" 2>/dev/null | jq -R -n -r --argjson since "$2" --arg code "$3" '
+    tail -c 4000000 "$1" 2>/dev/null | jq -R -n -r --argjson since "$2" --arg code "$3" "$ANSWER_JQ"'
         def arr: if type == "array" then .[] else empty end;
         def secs: (. // "" | sub("\\.[0-9]+Z$"; "Z") | (try fromdateiso8601 catch 0));
-        def refusal: test("\\b(deny|denied|no|nope|reject|rejected|cancel|cancelled|canceled|stop|abort|decline|declined|do not|don.?t|not now)\\b"; "i");
+        def has_code: [.[]? | strings] | join("\n") | ascii_downcase | contains($code | ascii_downcase);
         [inputs | fromjson? | select(type == "object")] as $all
         | [$all[] | select(.type == "assistant") | . as $m | (.message.content | arr)
            | select(type == "object" and .type == "tool_use" and .name == "AskUserQuestion")
-           | {id: .id, ts: ($m.timestamp | secs), text: ([.input | .. | strings] | join("\n") | ascii_downcase)}
-           | select(.ts >= $since and ($code | length) > 0 and (.text | contains($code | ascii_downcase)))] as $asks
+           | {id: .id, ts: ($m.timestamp | secs), qs: [.input.questions | arr | select(type == "object")]}
+           | select(.ts >= $since and ($code | length) > 0)] as $asks
         | [$all[] | select(.type == "user") | . as $m | (.message.content | arr)
            | select(type == "object" and .type == "tool_result")
            | . as $r
            | {id: .tool_use_id,
-              answers: (($m.toolUseResult.answers? // null) as $a
-                | if ($a | type) == "object" then [$a[] | tostring]
+              ans: (($m.toolUseResult.answers? // null) as $a
+                | if ($a | type) == "object" then ($a | map_values(tostring))
                   else ($r.content | if type == "string" then . elif type == "array" then ([.[]? | select(type == "object") | (.text // "")] | join(" ")) else "" end
-                        | [scan("\"=\"((?:[^\"\\\\]|\\\\.)*)\"") | .[0]]) end)}] as $res
-        | $asks[] | . as $a
-        | select([$res[] | select(.id == $a.id) | .answers | select(length > 0 and all(.[]; (gsub("[[:space:]]"; "") | length > 0) and (refusal | not)))] | length > 0)
+                        | [scan("\"((?:[^\"\\\\]|\\\\.)*)\"=\"((?:[^\"\\\\]|\\\\.)*)\"") | {key: .[0], value: .[1]}] | from_entries) end)}] as $res
+        | $asks[] | . as $k
+        | select([$res[] | select(.id == $k.id) | .ans
+                  | select(length > 0 and all(.[]; refusal | not)) | . as $ans
+                  | $k.qs[] | . as $q | ($ans[($q.question // "") | tostring] // null)
+                  | select(approves) | . as $a
+                  | select(([$q.question, $q.header] | has_code)
+                           or ([$q.options | arr | select(type == "object" and .label == $a) | .label, .description] | has_code))]
+                 | length > 0)
         | .id' 2>/dev/null
+}
+
+# ask_claim_path <ask id>: the claim directory that marks one AskUserQuestion as spent.
+ask_claim_path() { printf '%s/%s' "$ASKS_CLAIM_DIR" "$(printf '%s' "$1" | tr -c 'A-Za-z0-9_-' '_')"; }
+
+# claim_ask <transcript> <since-epoch> <code>: claims the first unspent question ask_ids_after accepts and prints
+# its id. The claim is a mkdir: of two concurrent callers reading the same unspent question only one wins it.
+# Fails when there is none.
+claim_ask() {
+    local ask
+    mkdir -p "$ASKS_CLAIM_DIR" 2>/dev/null
+    while IFS= read -r ask; do
+        [[ -n "$ask" ]] || continue
+        if [[ -f "$ASKS_USED" ]] && grep -qxF -- "$ask" "$ASKS_USED"; then continue; fi
+        if mkdir "$(ask_claim_path "$ask")" 2>/dev/null; then
+            printf '%s' "$ask"
+            return 0
+        fi
+    done < <(ask_ids_after "$1" "$2" "$3")
+    return 1
+}
+
+# cmd_claim_ask <transcript> <since-epoch> <code>: for the Jev gate (jev-gate.sh). Spends the question D answered
+# that carries <code>, issued at or after <since>, in the same ledger `approve` uses, so one question approves
+# one action across both gates. Prints the spent question's id; exit 1 when there is none.
+cmd_claim_ask() {
+    local spent
+    [[ -z "${BARECLAUDE_AGENT_SLUG:-}" ]] || return 1
+    [[ -n "$1" && -r "$1" && "$2" =~ ^[0-9]+$ && "$3" =~ ^[0-9a-f]{12}$ ]] || return 1
+    spent=$(claim_ask "$1" "$2" "$3") || return 1
+    printf '%s\n' "$spent" >>"$ASKS_USED" 2>/dev/null
+    printf '%s\n' "$spent"
 }
 
 cmd_approve() {
@@ -208,7 +258,7 @@ cmd_approve() {
     fi
 
     # Verify D actually answered: an AskUserQuestion after the deny with a non-refusal answer, unspent.
-    local tp since ask spent="" claim code
+    local tp since spent code
     tp=$(jq -r '.transcript_path // empty' "$pending" 2>/dev/null)
     since=$(jq -r '.ts_epoch // empty' "$pending" 2>/dev/null)
     if [[ -z "$tp" || ! -r "$tp" || ! "$since" =~ ^[0-9]+$ ]]; then
@@ -216,17 +266,7 @@ cmd_approve() {
         return 1
     fi
     code=$(ask_code "$h")
-    mkdir -p "$ASKS_CLAIM_DIR" 2>/dev/null
-    while IFS= read -r ask; do
-        [[ -n "$ask" ]] || continue
-        if [[ -f "$ASKS_USED" ]] && grep -qxF -- "$ask" "$ASKS_USED"; then continue; fi
-        # The claim is a mkdir: of two concurrent approves reading the same unspent question only one wins it.
-        claim="$ASKS_CLAIM_DIR/$(printf '%s' "$ask" | tr -c 'A-Za-z0-9_-' '_')"
-        if mkdir "$claim" 2>/dev/null; then
-            spent="$ask"
-            break
-        fi
-    done < <(ask_ids_after "$tp" "$since" "$code")
+    spent=$(claim_ask "$tp" "$since" "$code")
     if [[ -z "$spent" ]]; then
         warn "refused: no unspent AskUserQuestion answered by D after this checkpoint names its code $code (or its answer was a no/deny/cancel, or it already approved another action). Put the exact action to D with AskUserQuestion, include the code $code in the question text, then approve."
         return 1
@@ -242,7 +282,7 @@ cmd_approve() {
         printf 'approved: retry the exact same action within %s minutes (single use)\n' "$APPROVAL_TTL_MIN"
         return 0
     fi
-    rmdir "$claim" 2>/dev/null # not approved after all: give the question back
+    rmdir "$(ask_claim_path "$spent")" 2>/dev/null # not approved after all: give the question back
     warn "could not record the approval"
     return 1
 }
@@ -263,6 +303,10 @@ claim_approval() {
 
 if [[ "${1:-}" == "approve" ]]; then
     cmd_approve "${2:-}"
+    exit $?
+fi
+if [[ "${1:-}" == "claim-ask" ]]; then
+    cmd_claim_ask "${2:-}" "${3:-}" "${4:-}"
     exit $?
 fi
 
@@ -588,7 +632,7 @@ if [[ "$CAN_ASK" == 1 ]]; then
         jq -nc --argjson rules "${IDS_JSON:-[]}" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --argjson te "$(date +%s)" \
             --arg sid "$SESSION_ID" --arg tp "$TRANSCRIPT" --arg cwd "$CWD" --arg scope "$SCOPE" \
             '{rules:$rules,ts:$ts,ts_epoch:$te,session_id:$sid,transcript_path:$tp,cwd:$cwd,scope:$scope}' >"$PENDING_DIR/$HASH" 2>/dev/null
-        REASON="CHECKPOINT ${BLOCK_IDS[0]}: $MESSAGE.$ALSO Put this action to D via AskUserQuestion: quote the exact action and put the checkpoint code $(ask_code "$HASH") in the question text (approve refuses any question without it). If D approves, run \`~/.claude/hooks/gate.sh approve $HASH\` and retry with the exact same command from the same working directory $CWD (if your shell has moved since, cd back in a separate call first).$TAIL"
+        REASON="CHECKPOINT ${BLOCK_IDS[0]}: $MESSAGE.$ALSO Put this action to D via AskUserQuestion: quote the exact action and put the checkpoint code $(ask_code "$HASH") in the question text (approve refuses any question without it), and label the approving option so it starts with \"Yes\" or \"Approve\" (any other answer counts as no). If D approves, run \`~/.claude/hooks/gate.sh approve $HASH\` and retry with the exact same command from the same working directory $CWD (if your shell has moved since, cd back in a separate call first).$TAIL"
     else
         REASON="CHECKPOINT ${BLOCK_IDS[0]}: $MESSAGE.$ALSO Put this action to D via AskUserQuestion; if D approves, retry with the exact same command.$TAIL"
     fi

@@ -134,6 +134,26 @@ regex_checkpoint_note() {
   printf ' The regex gate also stopped this action: put its checkpoint code %s in the same question; once D approves, run `~/.claude/hooks/gate.sh approve %s`, which releases both gates for one retry of the exact same command.' "${h:0:12}" "$h"
 }
 
+# claim_code_release -> 0 once when D answered an AskUserQuestion whose text carries this action's approval code
+# (jev_approval_code: the first 12 hex of ACTION_SHA, named in the deny reason), issued after the Jev gate denied
+# exactly this action and within 30 minutes of that deny. No model judges the answer (papercut 32: a clear yes
+# scored 0.55-0.60 against 0.8). `gate.sh claim-ask` checks the answer is an explicit yes (ANSWER_JQ) and spends the question in
+# the regex gate's ledger, so one question approves one action. Never for a fleet agent or a subagent.
+claim_code_release() {
+  local code e
+  [ "$JEV_CTX" != "fleet" ] && [ -z "${JEV_SUBAGENT:-}" ] || return 1
+  [ -r "${TRANSCRIPT:-}" ] && [ -f "$HOOK_DIR/gate.sh" ] || return 1
+  code=$(jev_approval_code) || return 1
+  e=$(jev_action_deny_epoch) || return 1
+  [ $(($(date +%s) - e)) -le 1800 ] || return 1
+  bash "$HOOK_DIR/gate.sh" claim-ask "$TRANSCRIPT" "$e" "$code" >/dev/null 2>&1 || return 1
+  # The same answer must not release this action again through the approval detector: spend its stamp too.
+  # Fail closed: when the stamp is already spent (the detector used this answer) or cannot be written, no release.
+  local duuid=""
+  [ -n "$TAILJSON" ] && duuid=$(printf '%s' "$TAILJSON" | jq -r '.d_uuid // ""')
+  jev_stamp_claim "${SESSION}|${ACTION_SHA}|${duuid}"
+}
+
 # check_approval DRY -> sets APPROVED (1 only when D explicitly approved exactly this action and the
 # approval has not been consumed). Untrusted text is never part of this call.
 check_approval() {
@@ -213,6 +233,12 @@ resolve_hits() {
   if claim_regex_release; then
     jev_log "$enforce_ids" "allow-regex-approval" "enforce" ""
     jq -nc --arg m "Jev released ${enforce_ids} once: D approved exactly this action at regex checkpoint ${REGEX_CODE}" \
+      '{hookSpecificOutput:{hookEventName:"PreToolUse",additionalContext:$m}}'
+    finish
+  fi
+  if claim_code_release; then
+    jev_log "$enforce_ids" "allow-code-approval" "enforce" ""
+    jq -nc --arg m "Jev released ${enforce_ids} once: D approved exactly this action with approval code $(jev_approval_code)" \
       '{hookSpecificOutput:{hookEventName:"PreToolUse",additionalContext:$m}}'
     finish
   fi

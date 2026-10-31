@@ -319,15 +319,26 @@ jev_warn_once() {
   jq -nc --arg m "$2" '{systemMessage:$m}'
 }
 
+# jev_approval_code -> the code D's question must carry to approve this action: the first 12 hex of ACTION_SHA,
+# which covers the full tool input, cwd and context. Fails when ACTION_SHA is not set.
+jev_approval_code() {
+  case "${ACTION_SHA:-}" in "" | *[!0-9a-f]*) return 1 ;; esac
+  [ "${#ACTION_SHA}" -ge 12 ] || return 1
+  printf '%s' "${ACTION_SHA:0:12}"
+}
+
 # jev_deny_reason ID_LIST LABEL ACTION [TOOL] -> wording per context. Interactive and job sessions (no subagent)
 # can put the action to D; fleet agents and subagents cannot, so they hand off with `needs input:`. Only a Bash
 # action is a command to quote; any other tool's question names the tool, its target and what it changes.
 jev_deny_reason() {
-  local ids="$1" label="$2" action="${3:0:300}" ask
+  local ids="$1" label="$2" action="${3:0:300}" ask code
   if [ "${4:-Bash}" = "Bash" ]; then
     ask='one question that quotes the exact command verbatim, env prefixes, redirections and pipes included'
   else
     ask="one question that names the exact ${4} action: its target and what it changes"
+  fi
+  if code=$(jev_approval_code); then
+    ask="${ask}, with the text \"approval code ${code}\" in the question (D's yes to that question releases exactly this action once; label the approving option so it starts with \"Yes\" or \"Approve\", since any other answer counts as no)"
   fi
   if [ -n "${JEV_SUBAGENT:-}" ] || [ "${JEV_CTX:-interactive}" = "fleet" ]; then
     printf 'Jev gate [%s]: %s needs D, and this session cannot ask. Do not retry or work around it. End your final message with `needs input:` followed by the action and the decision D must make. Action: %s' \
