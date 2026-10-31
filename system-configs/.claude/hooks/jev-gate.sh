@@ -154,6 +154,26 @@ claim_code_release() {
   jev_stamp_claim "${SESSION}|${ACTION_SHA}|${duuid}"
 }
 
+# claim_early_release -> 0 once when D said yes to an AskUserQuestion that quoted exactly this Bash command, from this
+# cwd, within the early-approval window, even though the question came before this deny (`gate.sh claim-early`:
+# deterministic match, the question spent in the shared ledger; when the regex gate claimed it for this same call it
+# left this gate a one-use release). Never for a fleet agent or a subagent.
+claim_early_release() {
+  local cmd cwd
+  [ "$TOOL" = "Bash" ] || return 1
+  [ "$JEV_CTX" != "fleet" ] && [ -z "${JEV_SUBAGENT:-}" ] || return 1
+  [ -r "${TRANSCRIPT:-}" ] && [ -f "$HOOK_DIR/gate.sh" ] || return 1
+  cmd=$(printf '%s' "$INPUT" | jq -j '.tool_input.command // ""')
+  [ -n "$cmd" ] || return 1
+  cwd="$CWD"
+  [ "$cwd" = "-" ] && cwd="$PWD"
+  printf '%s' "$cmd" | bash "$HOOK_DIR/gate.sh" claim-early "$TRANSCRIPT" "$cwd" jev >/dev/null 2>&1 || return 1
+  # As for a code release: the same answer must not release this action again through the approval detector.
+  local duuid=""
+  [ -n "$TAILJSON" ] && duuid=$(printf '%s' "$TAILJSON" | jq -r '.d_uuid // ""')
+  jev_stamp_claim "${SESSION}|${ACTION_SHA}|${duuid}"
+}
+
 # check_approval DRY -> sets APPROVED (1 only when D explicitly approved exactly this action and the
 # approval has not been consumed). Untrusted text is never part of this call.
 check_approval() {
@@ -239,6 +259,12 @@ resolve_hits() {
   if claim_code_release; then
     jev_log "$enforce_ids" "allow-code-approval" "enforce" ""
     jq -nc --arg m "Jev released ${enforce_ids} once: D approved exactly this action with approval code $(jev_approval_code)" \
+      '{hookSpecificOutput:{hookEventName:"PreToolUse",additionalContext:$m}}'
+    finish
+  fi
+  if claim_early_release; then
+    jev_log "$enforce_ids" "allow-early-approval" "enforce" ""
+    jq -nc --arg m "Jev released ${enforce_ids} once: D approved this exact command in an earlier question" \
       '{hookSpecificOutput:{hookEventName:"PreToolUse",additionalContext:$m}}'
     finish
   fi
