@@ -127,16 +127,24 @@ function detectChecks(dir) {
     checks.push({ id: "cargo-test", cmd: "cargo", args: ["test"], why: "Cargo.toml present" });
   }
 
-  // Markdown — config-driven, so only when the project opted in.
-  for (const cfg of [".markdownlint-cli2.jsonc", ".markdownlint-cli2.yaml", ".markdownlint.json"]) {
-    if (has(cfg)) {
-      checks.push({
-        id: "markdownlint",
-        cmd: "npx",
-        args: ["-y", "markdownlint-cli2", "**/*.md"],
-        why: cfg,
-      });
-      break;
+  // Markdown — the project's own script is the real gate; it knows which files
+  // count. Only fall back to a repo-wide glob when the project opted in by config.
+  const mdScript = ["lint:markdown", "lint:md"].find((s) => scripts[s]);
+  if (mdScript) {
+    checks.push({ id: "markdownlint", cmd: npmRunner, args: ["run", mdScript], why: `package.json scripts.${mdScript}` });
+  } else {
+    for (const cfg of [".markdownlint-cli2.jsonc", ".markdownlint-cli2.yaml", ".markdownlint.json"]) {
+      if (has(cfg)) {
+        // markdownlint-cli2 does not skip node_modules, and "**" walks into nested
+        // worktree checkouts, so a bare "**/*.md" fails on files nobody here owns.
+        checks.push({
+          id: "markdownlint",
+          cmd: "npx",
+          args: ["-y", "markdownlint-cli2", "**/*.md", "#**/node_modules", "#.claude/worktrees", "#.tmp"],
+          why: cfg,
+        });
+        break;
+      }
     }
   }
 
