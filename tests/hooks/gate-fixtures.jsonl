@@ -489,3 +489,35 @@
 {"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "psql -c 'TRUNCATE TABLE 用户'"}}
 {"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "psql -c 'TRUNCATE 用户'"}}
 {"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "psql -c 'TRUNCATE public.données, 用户 CASCADE'"}}
+{"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "psql app <<'EOF'\nDROP TABLE users;\nEOF"}}
+{"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "psql app <<EOF\nTRUNCATE users;\nEOF"}}
+{"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "psql app <<-EOF\n\tDELETE FROM users;\n\tEOF"}}
+{"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "sqlite3 app.db <<EOF\nDROP TABLE users;\nEOF"}}
+{"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "mysql -u root app <<'SQL'\nALTER TABLE t DROP COLUMN c;\nSQL"}}
+{"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "cat <<'EOF' | psql app\nTRUNCATE ONLY \"order items\" *;\nEOF"}}
+{"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "PGPASSWORD=x /usr/local/bin/psql -h db app <<'EOF'\nselect 1;\ndrop table users;\nEOF"}}
+{"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "docker exec -i pg psql -U app <<'EOF'\nTRUNCATE TABLE 用户;\nEOF"}}
+{"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "psql app <<<\"DROP TABLE users\""}}
+{"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "echo \"DROP TABLE users\" | psql app"}}
+{"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "printf 'TRUNCATE users;\\n' | sqlite3 app.db"}}
+{"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "echo 'DELETE FROM users;' | docker exec -i pg psql -U app"}}
+{"rule": "G5-sql", "expect": "allow", "tool": "Bash", "input": {"command": "cat > migrations/001.sql <<'EOF'\nDROP TABLE users;\nEOF"}}
+{"rule": "G5-sql", "expect": "allow", "tool": "Bash", "input": {"command": "python3 <<'EOF'\nsql = 'select 1'\nprint(sql)\nEOF"}}
+{"rule": "G5-sql", "expect": "allow", "tool": "Bash", "input": {"command": "psql app <<'EOF'\nSELECT * FROM users WHERE id = 1;\nEOF"}}
+{"rule": "G5-sql", "expect": "allow", "tool": "Bash", "input": {"command": "psql app <<'EOF'\nDELETE FROM users\nWHERE id = 1;\nEOF"}}
+{"rule": "G5-sql", "expect": "allow", "tool": "Bash", "input": {"command": "cat > src/lib/client-ip.js <<'EOF'\nexport function clientIp(req) { return req.headers['x-forwarded-for']; }\nEOF"}}
+{"rule": "G5-sql", "expect": "allow", "tool": "Bash", "input": {"command": "echo \"DROP TABLE users\" > notes.txt"}}
+{"rule": "G5-sql", "expect": "allow", "tool": "Bash", "input": {"command": "cat > notes.md <<'EOF'\nTo reset: psql app -c 'DROP TABLE users'\nEOF"}}
+{"rule": "G5-sql", "expect": "allow", "tool": "Bash", "input": {"command": "echo 'SELECT count(*) FROM users;' | psql app"}}
+{"rule": "G5-sql", "expect": "allow", "tool": "Bash", "input": {"command": "which psql; cat > reset.sql <<'EOF'\nDROP TABLE users;\nEOF"}}
+{"rule": "G1-rm", "expect": "deny", "tool": "Bash", "input": {"command": "echo \"\n# \" && rm -rf /Users/x/data"}}
+{"rule": "G1-rm", "expect": "deny", "tool": "Bash", "input": {"command": "printf '%s\n# done\n' x; rm -rf /Users/x/data"}}
+{"rule": "G1-rm", "expect": "deny", "tool": "Bash", "input": {"command": "jq -r . package.json\nrm -rf /Users/x/data"}}
+{"rule": "G1-rm", "expect": "deny", "tool": "Bash", "input": {"command": "echo done\nrm -rf /Users/x/data"}}
+{"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "grep -c x f.txt\npsql -c 'DELETE FROM users'"}}
+{"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "jq -r . package.json\npsql -c 'DELETE FROM users'"}}
+{"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "psql app -c 'TRUNCATE users, ONLY orders;'"}}
+{"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "echo 'DROP TABLE users' |\npsql app"}}
+{"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "printf 'TRUNCATE users;' |\n  sqlite3 app.db"}}
+{"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "psql app -c 'TRUNCATE ONLY users, ONLY orders *;'"}}
+{"rule": "G1-rm", "expect": "allow", "tool": "Bash", "input": {"command": "echo \"line one\n# rm -rf is only text here\""}}

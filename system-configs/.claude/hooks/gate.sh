@@ -62,7 +62,8 @@
 # --body/--title/-m/-f body= values) are blanked before rules run, so prose
 # about `rm -rf` never trips a rule; the approval identity still uses the exact
 # raw command. Command-position rules (anchor "cmd") also treat the body of a
-# heredoc fed to an interpreter (python <<EOF) as data; unanchored rules still read it.
+# heredoc fed to an interpreter (python <<EOF) as data; unanchored rules still read it. A heredoc or piped echo/printf
+# fed to a database client (psql/sqlite3/mysql <<EOF, echo ... | psql) is SQL the client runs, so the SQL rules read it.
 #
 # Failure policy: every error path exits 0 (fail open, with a loud stderr
 # warning), like the inline guards in settings.json. No `set -e`: a non-matching
@@ -338,15 +339,35 @@ def never: "@@NEVER@@";
 # mentions `<<EOF` from opening a heredoc that would hide the real command lines after it. It stays when it may be
 # code elsewhere: PostgreSQL reads # as XOR, so a `;` on the line can start a new statement and a `\` a psql
 # meta-command; `#name` is a JS private field; `# define`/`# include` and the other directives are C preprocessor.
+# A line that starts inside a quoted string is part of that string's argument, not a comment, and the text after
+# the closing quote can be a real command (`echo "<newline># " && rm -rf x`), so only lines that start outside
+# quotes are dropped. qstep carries the open-quote state across lines; a dropped line does not change it.
+def qstep($s):
+  reduce explode[] as $c ({s: $s, e: false};
+    if .e then .e = false
+    elif $c == 92 and (.s.sq | not) then .e = true
+    elif $c == 39 and (.s.dq | not) then .s.sq = (.s.sq | not)
+    elif $c == 34 and (.s.sq | not) then .s.dq = (.s.dq | not)
+    else . end)
+  | .s;
+def is_comment_line:
+  test("^[[:space:]]*#(?:[[:space:]]|$)") and (test("[;\\\\]") | not)
+  and (test("^[[:space:]]*#[[:space:]]*(?:define|undef|include|import|if|ifdef|ifndef|elif|else|endif|pragma|line|error|warning)(?![A-Za-z0-9_])") | not);
 def strip_comment_lines:
   split("\n")
-  | map(select((test("^[[:space:]]*#(?:[[:space:]]|$)") and (test("[;\\\\]") | not)
-      and (test("^[[:space:]]*#[[:space:]]*(?:define|undef|include|import|if|ifdef|ifndef|elif|else|endif|pragma|line|error|warning)(?![A-Za-z0-9_])") | not)) | not))
-  | join("\n");
+  | reduce .[] as $l ({out: [], s: {sq: false, dq: false}};
+      if (.s.sq | not) and (.s.dq | not) and ($l | is_comment_line) then .
+      else .s as $st | .out += [$l] | .s = ($l | qstep($st)) end)
+  | .out | join("\n");
 # Heredoc bodies are data, unless the heredoc feeds a shell (bash/sh <<EOF, ssh host <<EOF, eval, source): that
 # body is code. A body fed to an interpreter (python/node/perl/ruby/deno/bun/php <<EOF) is code for rules that read
 # interpreter code ($interp_is_data false: unanchored rules such as G1-interp and the SQL rules) and data for
 # command-position rules ($interp_is_data true), where a line starting with a command name is prose or a string.
+# A body fed to a database client is SQL the client runs, so it counts as interpreter code the same way; only the
+# `;`/`&&`/`||` segment that opens the heredoc is checked, so `cat > notes.md <<EOF` stays data even when a body
+# line or an earlier statement names psql.
+def dbclient: "(?:^|[[:space:]&|(`])(?:[^[:space:];&|<>()`'\"]*/)?(?:psql|pgcli|sqlite3?|mysql|mariadb|duckdb|sqlcmd|clickhouse-client|cockroach[[:space:]]+sql|turso[[:space:]]+db[[:space:]]+shell)(?![A-Za-z0-9_.-])";
+def feeds_db: [splits(";|&&|\\|\\|") | select(test("(?<!<)<<(?!<)"))] | any(test(dbclient));
 def strip_heredocs($interp_is_data):
   split("\n")
   | reduce .[] as $l ({out: [], hd: null};
@@ -357,7 +378,7 @@ def strip_heredocs($interp_is_data):
         | (if ($l | test("(?<!<)<<(?!<)-?[[:space:]]*[\"']?[A-Za-z_][A-Za-z0-9_]*"))
               and (($l | test("(?:^|[^A-Za-z0-9_./-])(?:(?:ba|z|da|k)?sh|ssh|eval|source)(?:[[:space:]]|$)")) | not)
               and ($interp_is_data
-                   or (($l | test("(?:^|[^A-Za-z0-9_./-])(?:python[0-9.]*|node(?:js)?|perl|ruby|deno|bun|php)(?:[[:space:]]|$)")) | not))
+                   or ((($l | test("(?:^|[^A-Za-z0-9_./-])(?:python[0-9.]*|node(?:js)?|perl|ruby|deno|bun|php)(?:[[:space:]]|$)")) or ($l | feeds_db)) | not))
            then .hd = ($l | capture("(?<!<)<<(?!<)-?[[:space:]]*[\"']?(?<w>[A-Za-z_][A-Za-z0-9_]*)").w)
            else . end)
       end)
@@ -371,13 +392,17 @@ def tok: "(?:" + dq + "|" + sq + "|[^[:space:];&|<>\"'`()]+(?![^[:space:];&|\"'`
 # Quoted text that is DATA, not a command, is blanked: values of --body/--title/--message/-m/-f body=,
 # and every argument of echo/printf/grep/rg/ag/jq (not `printf -v NAME`, which assigns a variable; jq cannot run a
 # command, so its filter is data). Skipped entirely when the text could be executed
-# (piped into a shell, eval, xargs) and for strings containing $( or a backtick.
+# (piped into a shell, eval, xargs, or a database client that runs it as SQL) and for strings containing $( or a backtick.
 def blank_data:
-  if test("\\|[[:space:]]*(?:sudo[[:space:]]+)?(?:(?:ba|z|da|k)?sh|xargs)(?:[[:space:]]|$)|(?:^|[^A-Za-z0-9_])eval[[:space:]]") then .
+  if test("\\|[[:space:]]*(?:sudo[[:space:]]+)?(?:(?:ba|z|da|k)?sh|xargs)(?:[[:space:]]|$)|(?:^|[^A-Za-z0-9_])eval[[:space:]]")
+     or test("\\|[[:space:]]*[^;&\\n]*" + dbclient) then .
   else
     gsub("(?<f>(?:--body|--title|--message|--notes|--subject|--description|--comment|-m|-b|-t)(?:[[:space:]]+|=))(?:" + dq + "|" + sq + ")"; "\(.f)\"\"")
     | gsub("(?<f>(?:-f|-F|--field|--raw-field)[[:space:]]+(?:body|title|message|comment|commit_message|description|text)=)(?:" + dq + "|" + sq + ")"; "\(.f)\"\"")
-    | gsub("(?<h>(?:^|[;&|(\\n`])[[:space:]]*(?:(?:/usr)?/bin/)?(?:echo|printf(?![[:space:]]+-v)|grep|egrep|fgrep|rg|ag|jq)(?:[[:space:]]+-[A-Za-z-]+)*)(?:[[:space:]]+" + tok + ")+"; "\(.h) \"\"")
+    # Arguments are separated by horizontal whitespace only: a newline ends the command, and the next line is a
+    # new command that must stay visible (`jq -r . f<newline>rm -rf x`). A newline inside a quoted argument is
+    # still part of that argument, since dq/sq match it.
+    | gsub("(?<h>(?:^|[;&|(\\n`])[ \\t]*(?:(?:/usr)?/bin/)?(?:echo|printf(?![ \\t]+-v)|grep|egrep|fgrep|rg|ag|jq)(?:[ \\t]+-[A-Za-z-]+)*)(?:[ \\t]+" + tok + ")+"; "\(.h) \"\"")
   end;
 $rules[0] as $R
 | (($R.macros // {}) + {
