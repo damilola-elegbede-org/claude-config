@@ -54,8 +54,8 @@ case "$GRACE" in '' | *[!0-9]*) GRACE=15 ;; esac
 # shellcheck disable=SC2016 # GraphQL variables, not shell
 QUERY='query($o:String!,$n:String!,$num:Int!){repository(owner:$o,name:$n){
   pullRequest(number:$num){state isDraft mergeable mergeStateStatus reviewDecision headRefOid createdAt
-    commits(last:1){nodes{commit{oid committedDate statusCheckRollup{state contexts(first:100){nodes{
-      __typename ... on CheckRun{name status conclusion} ... on StatusContext{context state}}}}}}}
+    commits(last:1){nodes{commit{oid committedDate statusCheckRollup{state contexts(first:100){totalCount nodes{
+      __typename ... on CheckRun{name status conclusion databaseId} ... on StatusContext{context state}}}}}}}
     reviewThreads(first:100){pageInfo{hasNextPage endCursor} nodes{isResolved}}
     reviews(last:50){nodes{author{login} commit{oid} submittedAt}}
     comments(last:50){nodes{author{login} createdAt body}}}
@@ -113,12 +113,20 @@ status_once() {
     def names: map(.name) | (.[0:10] | join(", ")) + (if length > 10 then " (+\(length - 10) more)" else "" end);
     .data.repository as $r | $r.pullRequest as $p
     | ($p.commits.nodes[0].commit) as $head
-    | ([$head.statusCheckRollup.contexts.nodes[]?
+    # GitHub keeps every check run ever attached to the head, so a re-run leaves the superseded
+    # FAILURE beside the new SUCCESS under the same name. The merge box shows only the latest run
+    # per name (highest databaseId); judge that one, or a fixed PR stays "blocked" forever.
+    | ($head.statusCheckRollup.contexts.nodes // []) as $nodes
+    | (([$nodes[] | select(.__typename == "CheckRun")] | group_by(.name) | map(max_by(.databaseId // 0)))
+       + [$nodes[] | select(.__typename != "CheckRun")]) as $latest
+    | ([$latest[]
         | if .__typename == "CheckRun" then {name: (.name | safe_name), run: (.status != "COMPLETED"),
               bad: ((.conclusion // "") | IN("FAILURE","TIMED_OUT","CANCELLED","ACTION_REQUIRED","STARTUP_FAILURE","STALE"))}
           else {name: (.context | safe_name), run: (.state | IN("PENDING","EXPECTED")), bad: (.state | IN("FAILURE","ERROR"))} end]) as $checks
-    # The rollup state aggregates every context, including any past the first 100 listed above.
+    # The rollup state aggregates every check run ever attached, superseded re-runs included, so
+    # it is only evidence about contexts this query could not list (more than the first 100).
     | ($head.statusCheckRollup.state // "") as $rollup
+    | ($head.statusCheckRollup.contexts.totalCount // 0) as $total
     | ([$p.reviewThreads.nodes[] | select(.isResolved | not)] | length) as $threads
     | ([$r.pullRequests.nodes[] | (.reviews.nodes[], .comments.nodes[]) | .author.login // empty]
        + [$p.reviews.nodes[], $p.comments.nodes[] | .author.login // empty] | unique) as $seen
@@ -138,13 +146,13 @@ status_once() {
          if $p.mergeStateStatus == "DIRTY" or $p.mergeable == "CONFLICTING" then {kind:"conflicts", fix:"/rebase, then /push"} else empty end,
          if $p.mergeStateStatus == "BEHIND" then {kind:"behind-base", fix:"/rebase, then /push"} else empty end,
          ($checks | map(select(.bad)) | if length > 0 then {kind:"failing-checks", detail:names, fix:"/fix-ci"}
-            elif ($rollup | IN("FAILURE","ERROR")) then {kind:"failing-checks", detail:"rollup \($rollup) (a check past the first 100)", fix:"/fix-ci"}
+            elif $total > 100 and ($rollup | IN("FAILURE","ERROR")) then {kind:"failing-checks", detail:"rollup \($rollup) (a check past the first 100)", fix:"/fix-ci"}
             else empty end),
          if $threads > 0 then {kind:"unresolved-threads", detail:"\($threads) unresolved", fix:"/resolve-comments"} else empty end,
          if $p.reviewDecision == "CHANGES_REQUESTED" then {kind:"changes-requested", fix:"/resolve-comments"} else empty end
        ]) as $blockers
     | ([ ($checks | map(select(.run)) | if length > 0 then {kind:"checks-running", detail:names}
-            elif ($rollup | IN("PENDING","EXPECTED")) then {kind:"checks-running", detail:"rollup \($rollup)"}
+            elif $total > 100 and ($rollup | IN("PENDING","EXPECTED")) then {kind:"checks-running", detail:"rollup \($rollup)"}
             else empty end),
          # Right after a push CI may not have registered yet: no checks is not the same as green.
          if ($checks | length) == 0 and $in_grace then {kind:"checks-not-started"} else empty end,
