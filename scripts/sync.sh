@@ -293,11 +293,11 @@ create_backup() {
     fi
 }
 
-# Function to rotate backups - keep only latest 5
+# Function to rotate backups - keep only the latest one
 cleanup_old_backups() {
     backup_count=$(find "$HOME" -maxdepth 1 -name '.claude.backup.*' -type d 2>/dev/null | wc -l | tr -d ' ')
-    if [ "$backup_count" -gt 5 ]; then
-        echo "Rotating backups (keeping latest 5)..."
+    if [ "$backup_count" -gt 1 ]; then
+        echo "Rotating backups (keeping the latest one)..."
         # Detect stat format (GNU first: `stat -f` on Linux is file-system mode and succeeds) for portable mtime listing
         if stat -c '%Y %n' "$HOME" >/dev/null 2>&1; then
             STAT_OPT='-c'
@@ -306,11 +306,11 @@ cleanup_old_backups() {
             STAT_OPT='-f'
             STAT_FMT='%m %N'
         fi
-        # List backups by time, delete all but newest 5
+        # List backups by time, delete all but the newest
         # Use find with strict pattern matching for security
         find "$HOME" -maxdepth 1 -name '.claude.backup.[0-9]*_[0-9]*' -type d \
             -exec stat "$STAT_OPT" "$STAT_FMT" {} + 2>/dev/null | \
-            sort -rn | cut -d' ' -f2- | tail -n +6 | while read -r old_backup; do
+            sort -rn | cut -d' ' -f2- | tail -n +2 | while read -r old_backup; do
             # Strict validation: must match exact backup format YYYYMMDD_HHMMSS
             if [ -d "$old_backup" ] && echo "$old_backup" | grep -qE "^$HOME/\.claude\.backup\.[0-9]{8}_[0-9]{6}$"; then
                 rm -rf "$old_backup"
@@ -1204,7 +1204,7 @@ main() {
     # Post-sync validation
     post_sync_validation
 
-    # Rotate old backups (keep only latest 5)
+    # Rotate old backups (keep only the latest one)
     cleanup_old_backups
 
     end_time=$(date +%s)
