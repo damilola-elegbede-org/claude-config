@@ -20,6 +20,9 @@ metadata:
 /process-linear --team OPS       # Restrict to Operations
 ```
 
+For a read-only view of D's own queue (his assigned issues plus the sign-offs, ranked take-first), ask Clara for
+"my Linear tasks": her `my-linear` skill (`clara/.claude/skills/my-linear/` in bareclaude) never writes to Linear.
+
 ## Description
 
 Interactive triage of D's Linear workspace (`bareclaude`), driven by **Clara's saved workspace views**. Surfaces
