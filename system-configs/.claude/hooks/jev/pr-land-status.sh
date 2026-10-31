@@ -55,7 +55,7 @@ case "$GRACE" in '' | *[!0-9]*) GRACE=15 ;; esac
 QUERY='query($o:String!,$n:String!,$num:Int!){repository(owner:$o,name:$n){
   pullRequest(number:$num){state isDraft mergeable mergeStateStatus reviewDecision headRefOid createdAt
     commits(last:1){nodes{commit{oid committedDate statusCheckRollup{state contexts(first:100){totalCount nodes{
-      __typename ... on CheckRun{name status conclusion databaseId} ... on StatusContext{context state}}}}}}}
+      __typename ... on CheckRun{name status conclusion databaseId checkSuite{app{slug} workflowRun{workflow{name}}}} ... on StatusContext{context state}}}}}}}
     reviewThreads(first:100){pageInfo{hasNextPage endCursor} nodes{isResolved}}
     reviews(last:50){nodes{author{login} commit{oid} submittedAt}}
     comments(last:50){nodes{author{login} createdAt body}}}
@@ -115,9 +115,13 @@ status_once() {
     | ($p.commits.nodes[0].commit) as $head
     # GitHub keeps every check run ever attached to the head, so a re-run leaves the superseded
     # FAILURE beside the new SUCCESS under the same name. The merge box shows only the latest run
-    # per name (highest databaseId); judge that one, or a fixed PR stays "blocked" forever.
+    # per producer and name (highest databaseId); judge that one, or a fixed PR stays "blocked"
+    # forever. The producer (app + workflow) is part of the key: two workflows that both publish
+    # a job called "test" are separate checks: a newer run from one must not hide a failure from the other.
     | ($head.statusCheckRollup.contexts.nodes // []) as $nodes
-    | (([$nodes[] | select(.__typename == "CheckRun")] | group_by(.name) | map(max_by(.databaseId // 0)))
+    | (([$nodes[] | select(.__typename == "CheckRun")]
+        | group_by([.checkSuite.app.slug // "", .checkSuite.workflowRun.workflow.name // "", .name])
+        | map(max_by(.databaseId // 0)))
        + [$nodes[] | select(.__typename != "CheckRun")]) as $latest
     | ([$latest[]
         | if .__typename == "CheckRun" then {name: (.name | safe_name), run: (.status != "COMPLETED"),

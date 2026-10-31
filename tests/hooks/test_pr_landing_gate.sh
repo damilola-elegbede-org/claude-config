@@ -123,6 +123,12 @@ pr mss=UNSTABLE checks='[{"__typename":"CheckRun","name":"lint","status":"COMPLE
 eq "the latest run is judged by id, not by list order" "$(kinds)" failing-checks
 pr rollup=FAILURE
 eq "rollup FAILURE with every context listed and green is a superseded run, not a hidden check" "$(v)" ready
+# Two producers (workflows or apps) may both publish a check called "test": they are separate
+# checks, so a newer run from one must not supersede the other's failure.
+pr mss=UNSTABLE rollup=FAILURE checks='[{"__typename":"CheckRun","name":"test","status":"COMPLETED","conclusion":"FAILURE","databaseId":10,"checkSuite":{"app":{"slug":"github-actions"},"workflowRun":{"workflow":{"name":"ci"}}}},{"__typename":"CheckRun","name":"test","status":"COMPLETED","conclusion":"SUCCESS","databaseId":12,"checkSuite":{"app":{"slug":"github-actions"},"workflowRun":{"workflow":{"name":"nightly"}}}}]'
+eq "same check name from another workflow is a different check: its failure still blocks" "$(kinds)" failing-checks
+pr mss=UNSTABLE rollup=FAILURE checks='[{"__typename":"CheckRun","name":"test","status":"COMPLETED","conclusion":"FAILURE","databaseId":10,"checkSuite":{"app":{"slug":"some-app"},"workflowRun":null}},{"__typename":"CheckRun","name":"test","status":"COMPLETED","conclusion":"SUCCESS","databaseId":12,"checkSuite":{"app":{"slug":"github-actions"},"workflowRun":{"workflow":{"name":"ci"}}}}]'
+eq "same check name from another app is a different check: its failure still blocks" "$(kinds)" failing-checks
 pr checks='[]'
 eq "no checks registered yet, inside grace: pending" "$(PR_LAND_NOW=$((HEAD_EPOCH + 60)) st | jq -r '.pending[0].kind')" checks-not-started
 eq "no checks at all, past grace: ready" "$(v)" ready
