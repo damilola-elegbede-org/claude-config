@@ -521,3 +521,24 @@
 {"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "printf 'TRUNCATE users;' |\n  sqlite3 app.db"}}
 {"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "psql app -c 'TRUNCATE ONLY users, ONLY orders *;'"}}
 {"rule": "G1-rm", "expect": "allow", "tool": "Bash", "input": {"command": "echo \"line one\n# rm -rf is only text here\""}}
+{"rule": "G1-interp", "expect": "allow", "tool": "Bash", "input": {"command": "python3 - <<'EOF'\np = 'tests/hooks/test_cleanup.sh'\ns = open(p).read()\ns += '\\ncheck \"rm -rf build is denied\" deny \"rm -rf build\"\\n'\nopen(p, 'w').write(s)\nEOF"}}
+{"rule": "G1-interp", "expect": "allow", "tool": "Bash", "input": {"command": "python3 - <<'EOF'\nfrom pathlib import Path\nPath('docs/notes.md').write_text('Never run `rm -rf /` on a laptop.\\n')\nEOF"}}
+{"rule": "G1-interp", "expect": "allow", "tool": "Bash", "input": {"command": "node -e \"require('fs').writeFileSync('README.md', 'Avoid rm -rf in scripts')\""}}
+{"rule": "G1-interp", "expect": "allow", "tool": "Bash", "input": {"command": "ruby -e 'puts \"rm -rf is dangerous\"'"}}
+{"rule": "G1-interp", "expect": "deny", "tool": "Bash", "input": {"command": "python3 - <<'EOF'\nimport os\nos.system('rm -rf /x')\nEOF"}}
+{"rule": "G1-interp", "expect": "deny", "tool": "Bash", "input": {"command": "python3 - <<'EOF'\nimport subprocess\np = '/Users/x/data'\nsubprocess.run(['rm', '-rf', p])\nEOF"}}
+{"rule": "G1-interp", "expect": "deny", "tool": "Bash", "input": {"command": "python3 - <<'EOF'\nimport shutil\nshutil.rmtree('/Users/x')\nEOF"}}
+{"rule": "G1-interp", "expect": "deny", "tool": "Bash", "input": {"command": "node -e \"require('child_process').execSync('rm -rf x')\""}}
+{"rule": "G1-interp", "expect": "deny", "tool": "Bash", "input": {"command": "python3 - <<'EOF'\nimport os\ncmd = 'rm -rf /Users/x/data'\nos.system(cmd)\nEOF"}}
+{"rule": "G1-interp", "expect": "deny", "tool": "Bash", "input": {"command": "perl -e 'system(\"rm -rf data\")'"}}
+{"rule": "G1-rm", "expect": "deny", "tool": "Bash", "input": {"command": "ruby -e '`rm -rf data`'"}}
+{"rule": "G1-interp", "expect": "deny", "tool": "Bash", "input": {"command": "ruby -e 'system(\"rm\", \"-rf\", \"data\")'"}}
+{"rule": "G1-rm", "expect": "deny", "tool": "Bash", "input": {"command": "bash -c 'rm -rf $HOME/x'"}}
+{"rule": "G1-interp", "expect": "deny", "tool": "Bash", "input": {"command": "php -r 'shell_exec(\"rm -rf /srv/data\");'"}}
+{"rule": "G1-interp", "expect": "deny", "tool": "Bash", "input": {"command": "php -r 'passthru(\"rm -rf /srv/data\");'"}}
+{"rule": "G1-interp", "expect": "deny", "tool": "Bash", "input": {"command": "php -r '$p = proc_open(\"rm -rf /srv/data\", [], $pipes);'"}}
+{"rule": "G1-interp", "expect": "deny", "tool": "Bash", "input": {"command": "python3 - <<'EOF'\nimport asyncio\nasyncio.run(asyncio.create_subprocess_shell('rm -rf /srv/data'))\nEOF"}}
+{"rule": "G1-interp", "expect": "deny", "tool": "Bash", "input": {"command": "bun -e 'Bun.spawnSync([\"rm\", \"-rf\", \"/srv/data\"])'"}}
+{"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "psql -v label='a;b' app <<SQL\nTRUNCATE users;\nSQL"}}
+{"rule": "G5-sql", "expect": "deny", "tool": "Bash", "input": {"command": "psql -v \"label=a&&b\" app <<'SQL'\nDROP TABLE users;\nSQL"}}
+{"rule": "G5-sql", "expect": "allow", "tool": "Bash", "input": {"command": "echo 'psql;' && cat > notes.md <<EOF\nDROP TABLE users is how you lose data\nEOF"}}

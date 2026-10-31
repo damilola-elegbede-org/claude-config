@@ -521,7 +521,11 @@ def strip_comment_lines:
 # `;`/`&&`/`||` segment that opens the heredoc is checked, so `cat > notes.md <<EOF` stays data even when a body
 # line or an earlier statement names psql.
 def dbclient: "(?:^|[[:space:]&|(`])(?:[^[:space:];&|<>()`'\"]*/)?(?:psql|pgcli|sqlite3?|mysql|mariadb|duckdb|sqlcmd|clickhouse-client|cockroach[[:space:]]+sql|turso[[:space:]]+db[[:space:]]+shell)(?![A-Za-z0-9_.-])";
-def feeds_db: [splits(";|&&|\\|\\|") | select(test("(?<!<)<<(?!<)"))] | any(test(dbclient));
+# A `;`, `&` or `|` inside a quoted argument (`psql -v label='a;b' <<SQL`) is not a separator: neutralise it first
+# so the segment that opens the heredoc still names the client.
+def feeds_db:
+  gsub("(?<q>'[^']*'|\"(?:[^\"\\\\]|\\\\.)*\")"; .q | gsub("[;&|]"; "_"))
+  | [splits(";|&&|\\|\\|") | select(test("(?<!<)<<(?!<)"))] | any(test(dbclient));
 def strip_heredocs($interp_is_data):
   split("\n")
   | reduce .[] as $l ({out: [], hd: null};
