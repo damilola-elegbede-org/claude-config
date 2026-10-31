@@ -67,21 +67,21 @@ export PR_LAND_GH="$FAKE" FAKE_GH_DIR="$T"
 # pr <field=value...>: write a GraphQL response. Defaults describe a ready PR.
 pr() {
   local state=OPEN draft=false mergeable=MERGEABLE mss=CLEAN decision=null checks='[{"__typename":"CheckRun","name":"test","status":"COMPLETED","conclusion":"SUCCESS"}]'
-  local threads='[]' reviews='[]' comments='[]' repo_logins='[]' rollup=SUCCESS kv
+  local threads='[]' reviews='[]' comments='[]' repo_logins='[]' rollup=SUCCESS total='' kv
   for kv in "$@"; do
     case "$kv" in
       state=*) state="${kv#*=}" ;; draft=*) draft="${kv#*=}" ;; mergeable=*) mergeable="${kv#*=}" ;;
       mss=*) mss="${kv#*=}" ;; decision=*) decision="\"${kv#*=}\"" ;; checks=*) checks="${kv#*=}" ;;
       threads=*) threads="${kv#*=}" ;; reviews=*) reviews="${kv#*=}" ;; comments=*) comments="${kv#*=}" ;;
-      repo=*) repo_logins="${kv#*=}" ;; rollup=*) rollup="${kv#*=}" ;;
+      repo=*) repo_logins="${kv#*=}" ;; rollup=*) rollup="${kv#*=}" ;; total=*) total="${kv#*=}" ;;
     esac
   done
   jq -n --arg state "$state" --argjson draft "$draft" --arg m "$mergeable" --arg mss "$mss" --argjson dec "$decision" \
     --argjson checks "$checks" --argjson threads "$threads" --argjson reviews "$reviews" --argjson comments "$comments" \
-    --argjson repo "$repo_logins" --arg rollup "$rollup" --arg oid "$HEAD_OID" --arg ht "$HEAD_TIME" '
+    --argjson repo "$repo_logins" --arg rollup "$rollup" --arg oid "$HEAD_OID" --arg ht "$HEAD_TIME" --arg total "$total" '
     {data:{repository:{
       pullRequest:{state:$state, isDraft:$draft, createdAt:$ht, mergeable:$m, mergeStateStatus:$mss, reviewDecision:$dec, headRefOid:$oid,
-        commits:{nodes:[{commit:{oid:$oid, committedDate:$ht, statusCheckRollup:{state:$rollup, contexts:{nodes:$checks}}}}]},
+        commits:{nodes:[{commit:{oid:$oid, committedDate:$ht, statusCheckRollup:{state:$rollup, contexts:{totalCount:(if $total == "" then ($checks | length) else ($total | tonumber) end), nodes:$checks}}}}]},
         reviewThreads:{nodes:$threads}, reviews:{nodes:$reviews}, comments:{nodes:$comments}},
       pullRequests:{nodes:[{reviews:{nodes:[$repo[] | {author:{login:.}}]}, comments:{nodes:[]}}]}}}}' >"$T/graphql.json"
 }
@@ -111,10 +111,24 @@ pr checks='[{"__typename":"CheckRun","name":"test","status":"COMPLETED","conclus
 eq "skipped/neutral checks do not block" "$(v)" ready
 pr mss=UNSTABLE checks='[{"__typename":"CheckRun","name":"test","status":"COMPLETED","conclusion":"STALE"}]'
 eq "a STALE check is not green" "$(kinds)" failing-checks
-pr mss=UNSTABLE rollup=FAILURE
+pr mss=UNSTABLE rollup=FAILURE total=101
 eq "rollup FAILURE blocks even when the listed checks are green (checks past the first 100)" "$(kinds)" failing-checks
-pr mss=BLOCKED rollup=PENDING
+pr mss=BLOCKED rollup=PENDING total=101
 eq "rollup PENDING: pending" "$(kinds)" checks-running
+# GitHub keeps superseded check runs on the head: a re-run after a fix leaves FAILURE and SUCCESS
+# under one name, and the rollup state stays FAILURE. Only the latest run per name counts.
+pr rollup=FAILURE checks='[{"__typename":"CheckRun","name":"lint","status":"COMPLETED","conclusion":"FAILURE","databaseId":10},{"__typename":"CheckRun","name":"lint","status":"COMPLETED","conclusion":"CANCELLED","databaseId":11},{"__typename":"CheckRun","name":"lint","status":"COMPLETED","conclusion":"SUCCESS","databaseId":12}]'
+eq "a superseded failed run under a name whose latest run passed does not block" "$(v)" ready
+pr mss=UNSTABLE checks='[{"__typename":"CheckRun","name":"lint","status":"COMPLETED","conclusion":"SUCCESS","databaseId":10},{"__typename":"CheckRun","name":"lint","status":"COMPLETED","conclusion":"FAILURE","databaseId":12}]'
+eq "the latest run is judged by id, not by list order" "$(kinds)" failing-checks
+pr rollup=FAILURE
+eq "rollup FAILURE with every context listed and green is a superseded run, not a hidden check" "$(v)" ready
+# Two producers (workflows or apps) may both publish a check called "test": they are separate
+# checks, so a newer run from one must not supersede the other's failure.
+pr mss=UNSTABLE rollup=FAILURE checks='[{"__typename":"CheckRun","name":"test","status":"COMPLETED","conclusion":"FAILURE","databaseId":10,"checkSuite":{"app":{"slug":"github-actions"},"workflowRun":{"workflow":{"name":"ci"}}}},{"__typename":"CheckRun","name":"test","status":"COMPLETED","conclusion":"SUCCESS","databaseId":12,"checkSuite":{"app":{"slug":"github-actions"},"workflowRun":{"workflow":{"name":"nightly"}}}}]'
+eq "same check name from another workflow is a different check: its failure still blocks" "$(kinds)" failing-checks
+pr mss=UNSTABLE rollup=FAILURE checks='[{"__typename":"CheckRun","name":"test","status":"COMPLETED","conclusion":"FAILURE","databaseId":10,"checkSuite":{"app":{"slug":"some-app"},"workflowRun":null}},{"__typename":"CheckRun","name":"test","status":"COMPLETED","conclusion":"SUCCESS","databaseId":12,"checkSuite":{"app":{"slug":"github-actions"},"workflowRun":{"workflow":{"name":"ci"}}}}]'
+eq "same check name from another app is a different check: its failure still blocks" "$(kinds)" failing-checks
 pr checks='[]'
 eq "no checks registered yet, inside grace: pending" "$(PR_LAND_NOW=$((HEAD_EPOCH + 60)) st | jq -r '.pending[0].kind')" checks-not-started
 eq "no checks at all, past grace: ready" "$(v)" ready
