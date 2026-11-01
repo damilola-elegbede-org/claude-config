@@ -1504,6 +1504,68 @@ if command -v python3 >/dev/null 2>&1; then
 fi
 
 # ============================================================================
+# Interview grants: a confirmed playback releases its granted categories
+# ============================================================================
+playback() { # transcript-path grants answer
+  local q
+  q=$(printf 'UNDERSTANDING PLAYBACK\nGrants: %s\nDone when: shipped\n\nAsk: Did I get all of it?' "$2")
+  {
+    jq -nc --arg q "$q" --arg ts "$(date -u +%FT%TZ)" \
+      '{type:"assistant", timestamp:$ts, message:{content:[{type:"tool_use", id:"pb1", name:"AskUserQuestion", input:{questions:[{question:$q}]}}]}}'
+    jq -nc --arg q "$q" --arg a "$3" \
+      '{type:"user", toolUseResult:{answers:{($q):$a}}, message:{content:[{type:"tool_result", tool_use_id:"pb1", content:"ok"}]}}'
+    line_user u9 "next"
+  } >"$1"
+}
+denied() { # name output
+  assert_eq "$1" "deny" "$(printf '%s' "$2" | jq -r '.hookSpecificOutput.permissionDecision // "none"' 2>/dev/null)"
+}
+
+new_home
+GT="$T/grant.jsonl"
+mock '{"G4-prod-infra":0.99,"interview-irreversible":0.05}'
+
+playback "$GT" "G4-prod-infra" "Confirmed"
+OUT=$(run_hook jev-gate.sh "$(bash_in 'vercel --prod' "$GT")")
+assert_contains "grant releases its category" "$OUT" "D granted this category on the confirmed /interview playback"
+OUT=$(run_hook jev-gate.sh "$(bash_in 'vercel --prod' "$GT")")
+assert_contains "a grant covers the whole run, not one call" "$OUT" "D granted this category"
+
+mock '{"G4-prod-infra":0.99,"interview-irreversible":0.9}'
+denied "a granted action judged irreversible still stops" "$(run_hook jev-gate.sh "$(bash_in 'vercel --prod' "$GT")")"
+mock '{"G4-prod-infra":0.99,"interview-irreversible":0.05}'
+
+denied "the fleet gets no grant" "$(run_hook jev-gate.sh "$(bash_in 'vercel --prod' "$GT")" BARECLAUDE_AGENT_SLUG=dara)"
+
+playback "$GT" "G8-sharing" "Confirmed"
+denied "a category not granted stops" "$(run_hook jev-gate.sh "$(bash_in 'vercel --prod' "$GT")")"
+
+playback "$GT" "G4-prod-infra" "Fix something"
+denied "a correction grants nothing" "$(run_hook jev-gate.sh "$(bash_in 'vercel --prod' "$GT")")"
+
+# The irreversibility judge must see the whole operation, or the per-action approval stays.
+playback "$GT" "G4-prod-infra" "Confirmed"
+mcp_args() { # tool arguments-json transcript
+  jq -nc --arg t "$1" --argjson a "$2" --arg tp "$3" '{tool_name:$t, tool_input:$a, transcript_path:$tp, session_id:"s1", cwd:"/tmp"}'
+}
+jq -nc '{answers:{class:{type:"choice", choice:"write", probabilities:{write:0.95}}, prod_infra:{type:"boolean", probability:0.99}, "interview-irreversible":{type:"boolean", probability:0.05}}}' >"$T/mock.json"
+V=mcp__claude_ai_Vercel__update_project
+OUT=$(run_hook jev-gate.sh "$(mcp_args "$V" '{"projectId":"p1","name":"x"}' "$GT")")
+assert_contains "a short MCP call is judged and released" "$OUT" "D granted this category"
+LONG=$(printf 'x%.0s' {1..70})
+denied "a truncated MCP argument keeps its approval" "$(run_hook jev-gate.sh "$(mcp_args "$V" "{\"query\":\"$LONG DROP TABLE t\"}" "$GT")")"
+denied "a nested MCP argument keeps its approval" "$(run_hook jev-gate.sh "$(mcp_args "$V" '{"patch":{"drop":true}}' "$GT")")"
+denied "an omitted MCP body keeps its approval" "$(run_hook jev-gate.sh "$(mcp_args "$V" '{"body":"DROP TABLE t"}' "$GT")")"
+mock '{"G4-prod-infra":0.99,"interview-irreversible":0.05}'
+LONGCMD="vercel --prod $(printf 'a%.0s' {1..720}) && rm -rf x"
+denied "a truncated command keeps its approval" "$(run_hook jev-gate.sh "$(bash_in "$LONGCMD" "$GT")")"
+denied "a heredoc body keeps its approval" "$(run_hook jev-gate.sh "$(bash_in "$(printf 'vercel --prod <<EOF\nDROP TABLE t\nEOF')" "$GT")")"
+
+playback "$GT" "G4-prod-infra, G6-spend" "Confirmed"
+mock '{"G6-spend":0.99,"interview-irreversible":0.05}'
+denied "spend can never be granted" "$(run_hook jev-gate.sh "$(bash_in 'vercel domains buy example.com' "$GT")")"
+
+# ============================================================================
 # Settings registration
 # ============================================================================
 SETTINGS="$REPO_ROOT/system-configs/.claude/settings.json"

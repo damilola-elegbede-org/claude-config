@@ -576,7 +576,7 @@
     },
     {
       "id": "INT-01",
-      "source": "system-configs/.claude/skills/interview/SKILL.md:48",
+      "source": "system-configs/.claude/skills/interview/SKILL.md:54",
       "anchor": "Each becomes a question ONLY if",
       "text": "Ask only questions whose answer would change what you do; list every guess and silent assumption first.",
       "enforcement": "none",
@@ -586,7 +586,7 @@
     },
     {
       "id": "INT-02",
-      "source": "system-configs/.claude/skills/interview/SKILL.md:49",
+      "source": "system-configs/.claude/skills/interview/SKILL.md:55",
       "anchor": "Never ask",
       "text": "Never ask what you can verify yourself.",
       "enforcement": "none",
@@ -596,7 +596,7 @@
     },
     {
       "id": "INT-03",
-      "source": "system-configs/.claude/skills/interview/SKILL.md:54",
+      "source": "system-configs/.claude/skills/interview/SKILL.md:63",
       "anchor": "Round 1** batches",
       "text": "Round 1 batches up to 4 tightly-related scoping questions in one dialog.",
       "enforcement": "none",
@@ -606,7 +606,7 @@
     },
     {
       "id": "INT-04",
-      "source": "system-configs/.claude/skills/interview/SKILL.md:55",
+      "source": "system-configs/.claude/skills/interview/SKILL.md:64",
       "anchor": "Later rounds** go one-at-a-time",
       "text": "Later rounds go one question at a time; unrelated decisions never share a dialog.",
       "enforcement": "none",
@@ -616,7 +616,7 @@
     },
     {
       "id": "INT-05",
-      "source": "system-configs/.claude/skills/interview/SKILL.md:60",
+      "source": "system-configs/.claude/skills/interview/SKILL.md:69",
       "anchor": "Each question follows the `/ask` format",
       "text": "Every question follows the /ask format; optionality must be real.",
       "enforcement": "none",
@@ -626,7 +626,7 @@
     },
     {
       "id": "INT-06",
-      "source": "system-configs/.claude/skills/interview/SKILL.md:65",
+      "source": "system-configs/.claude/skills/interview/SKILL.md:74",
       "anchor": "Continue while any unanswered question",
       "text": "Continue while any unanswered question would change what you'd do; stop when the next one wouldn't.",
       "enforcement": "none",
@@ -636,7 +636,7 @@
     },
     {
       "id": "INT-07",
-      "source": "system-configs/.claude/skills/interview/SKILL.md:70",
+      "source": "system-configs/.claude/skills/interview/SKILL.md:79",
       "anchor": "present the playback as the final dialog",
       "text": "Close with an Understanding Playback dialog; only D's confirmation closes the interview.",
       "enforcement": "none",
@@ -646,7 +646,7 @@
     },
     {
       "id": "INT-08",
-      "source": "system-configs/.claude/skills/interview/SKILL.md:89",
+      "source": "system-configs/.claude/skills/interview/SKILL.md:110",
       "anchor": "If D says \"enough\"",
       "text": "If D says \"enough\" or \"just proceed\": stop asking, state remaining assumptions in prose, proceed.",
       "enforcement": "none",
@@ -656,9 +656,9 @@
     },
     {
       "id": "INT-09",
-      "source": "system-configs/.claude/skills/interview/SKILL.md:94",
+      "source": "system-configs/.claude/skills/interview/SKILL.md:115",
       "anchor": "Proceed with the underlying task without re-asking",
-      "text": "After confirmation, proceed without re-asking or relitigating anything the interview settled.",
+      "text": "After confirmation, work to the done criteria without re-asking anything settled; stop only for money or irreversible actions.",
       "enforcement": "none",
       "hook": null,
       "mode": "none",
@@ -666,7 +666,7 @@
     },
     {
       "id": "INT-10",
-      "source": "system-configs/.claude/skills/interview/SKILL.md:99",
+      "source": "system-configs/.claude/skills/interview/SKILL.md:133",
       "anchor": "No manufactured questions",
       "text": "No manufactured questions: every question traces to a real fork in the work.",
       "enforcement": "none",
@@ -676,7 +676,7 @@
     },
     {
       "id": "INT-11",
-      "source": "system-configs/.claude/skills/interview/SKILL.md:100",
+      "source": "system-configs/.claude/skills/interview/SKILL.md:134",
       "anchor": "No bundling unrelated decisions",
       "text": "No bundling unrelated decisions into one dialog, ever.",
       "enforcement": "none",
