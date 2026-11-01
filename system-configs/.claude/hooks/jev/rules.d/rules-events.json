@@ -50,6 +50,12 @@
     "review_grace_min": 15,
     "review_bots": ["coderabbitai", "chatgpt-codex-connector"]
   },
+  "interview-stop": {
+    "mode": "enforce",
+    "scope": ["interactive", "bgjob"],
+    "max_blocks": 8,
+    "threshold": 0.5
+  },
   "early-approval": {
     "mode": "enforce",
     "scope": ["interactive", "bgjob"],

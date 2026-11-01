@@ -462,6 +462,15 @@
             "timeout": 60
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${HOME}/.claude/hooks/jev/interview-stop.sh",
+            "timeout": 20
+          }
+        ]
       }
     ],
     "PostToolUseFailure": [

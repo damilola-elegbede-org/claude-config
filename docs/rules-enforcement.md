@@ -96,19 +96,19 @@ CLAUDE.md rules whose prose can be deleted now: none (no CLAUDE.md rule has an e
 
 ## interview skill (11)
 
-| Id       | Source                                                 | Rule                                                                                                    | Enforcement | Hook | Mode | Coverage |
-| -------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------- | ----------- | ---- | ---- | -------- |
-| `INT-01` | `system-configs/.claude/skills/interview/SKILL.md:48`  | Ask only questions whose answer would change what you do; list every guess and silent assumption first. | none        | -    | -    | -        |
-| `INT-02` | `system-configs/.claude/skills/interview/SKILL.md:49`  | Never ask what you can verify yourself.                                                                 | none        | -    | -    | -        |
-| `INT-03` | `system-configs/.claude/skills/interview/SKILL.md:54`  | Round 1 batches up to 4 tightly-related scoping questions in one dialog.                                | none        | -    | -    | -        |
-| `INT-04` | `system-configs/.claude/skills/interview/SKILL.md:55`  | Later rounds go one question at a time; unrelated decisions never share a dialog.                       | none        | -    | -    | -        |
-| `INT-05` | `system-configs/.claude/skills/interview/SKILL.md:60`  | Every question follows the /ask format; optionality must be real.                                       | none        | -    | -    | -        |
-| `INT-06` | `system-configs/.claude/skills/interview/SKILL.md:65`  | Continue while any unanswered question would change what you'd do; stop when the next one wouldn't.     | none        | -    | -    | -        |
-| `INT-07` | `system-configs/.claude/skills/interview/SKILL.md:70`  | Close with an Understanding Playback dialog; only D's confirmation closes the interview.                | none        | -    | -    | -        |
-| `INT-08` | `system-configs/.claude/skills/interview/SKILL.md:89`  | If D says "enough" or "just proceed": stop asking, state remaining assumptions in prose, proceed.       | none        | -    | -    | -        |
-| `INT-09` | `system-configs/.claude/skills/interview/SKILL.md:94`  | After confirmation, proceed without re-asking or relitigating anything the interview settled.           | none        | -    | -    | -        |
-| `INT-10` | `system-configs/.claude/skills/interview/SKILL.md:99`  | No manufactured questions: every question traces to a real fork in the work.                            | none        | -    | -    | -        |
-| `INT-11` | `system-configs/.claude/skills/interview/SKILL.md:100` | No bundling unrelated decisions into one dialog, ever.                                                  | none        | -    | -    | -        |
+| Id       | Source                                                 | Rule                                                                                                                           | Enforcement | Hook | Mode | Coverage |
+| -------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ | ----------- | ---- | ---- | -------- |
+| `INT-01` | `system-configs/.claude/skills/interview/SKILL.md:54`  | Ask only questions whose answer would change what you do; list every guess and silent assumption first.                        | none        | -    | -    | -        |
+| `INT-02` | `system-configs/.claude/skills/interview/SKILL.md:55`  | Never ask what you can verify yourself.                                                                                        | none        | -    | -    | -        |
+| `INT-03` | `system-configs/.claude/skills/interview/SKILL.md:63`  | Round 1 batches up to 4 tightly-related scoping questions in one dialog.                                                       | none        | -    | -    | -        |
+| `INT-04` | `system-configs/.claude/skills/interview/SKILL.md:64`  | Later rounds go one question at a time; unrelated decisions never share a dialog.                                              | none        | -    | -    | -        |
+| `INT-05` | `system-configs/.claude/skills/interview/SKILL.md:69`  | Every question follows the /ask format; optionality must be real.                                                              | none        | -    | -    | -        |
+| `INT-06` | `system-configs/.claude/skills/interview/SKILL.md:74`  | Continue while any unanswered question would change what you'd do; stop when the next one wouldn't.                            | none        | -    | -    | -        |
+| `INT-07` | `system-configs/.claude/skills/interview/SKILL.md:79`  | Close with an Understanding Playback dialog; only D's confirmation closes the interview.                                       | none        | -    | -    | -        |
+| `INT-08` | `system-configs/.claude/skills/interview/SKILL.md:110` | If D says "enough" or "just proceed": stop asking, state remaining assumptions in prose, proceed.                              | none        | -    | -    | -        |
+| `INT-09` | `system-configs/.claude/skills/interview/SKILL.md:115` | After confirmation, work to the done criteria without re-asking anything settled; stop only for money or irreversible actions. | none        | -    | -    | -        |
+| `INT-10` | `system-configs/.claude/skills/interview/SKILL.md:131` | No manufactured questions: every question traces to a real fork in the work.                                                   | none        | -    | -    | -        |
+| `INT-11` | `system-configs/.claude/skills/interview/SKILL.md:132` | No bundling unrelated decisions into one dialog, ever.                                                                         | none        | -    | -    | -        |
 
 ## Memory (feedback entries) (41)
 

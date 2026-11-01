@@ -1,6 +1,6 @@
 ---
 name: interview
-description: Interview D through rounds of structured AskUserQuestion dialogs until the ask is fully understood — zero guesses, zero silent assumptions — then close with an Understanding Playback that only D's confirmation ends. Use when D says "interview me", "make sure you understand", "no guesses", or hands over a task ambiguous enough that starting would mean guessing.
+description: Interview D through rounds of structured AskUserQuestion dialogs until the ask is fully understood — zero guesses, zero silent assumptions — then close with an Understanding Playback that only D's confirmation ends, and work to done without stopping except for money or anything irreversible. Use when D says "interview me", "make sure you understand", "no guesses", or hands over a task ambiguous enough that starting would mean guessing.
 argument-hint: "[the topic or task to reach full understanding on]"
 metadata:
   category: workflow
@@ -23,6 +23,9 @@ The looped form of `/ask`. Instead of one question, run rounds of `/ask`-format 
 the ask is a guess, then play the full understanding back for D's confirmation. The point is to surface every
 silent assumption while it is still cheap to correct — not to generate ceremony.
 
+All questions come before any work. Once D confirms the playback, the run goes to completion: D has already
+answered everything needed, so the only stops left are for spending money or actions that cannot be undone.
+
 ## Expected Output
 
 ```text
@@ -34,10 +37,12 @@ User: (answers)
 Claude: (Round 2 — one targeted follow-up opened by the answers)
 User: (answers)
 Claude: (UNDERSTANDING PLAYBACK dialog — goal, constraints,
-         decisions D made, out of scope, remaining assumptions)
+         decisions D made, out of scope, remaining assumptions,
+         grants, done criteria)
         Ask: Did I get all of it?  [Confirmed] [Fix something]
 User: Confirmed
-Claude: (proceeds with the work — nothing settled gets re-asked)
+Claude: (works to done — nothing settled gets re-asked — and
+         ends with a result: line)
 ```
 
 ## Behavior
@@ -45,11 +50,15 @@ Claude: (proceeds with the work — nothing settled gets re-asked)
 ### 1. Map the doubt space first
 
 Before asking anything, list (internally) every guess and silent assumption currently standing between you and
-the work. Each becomes a question ONLY if D's answer would change what you'd do — a question whose answer
+the work. Include what the whole run will need: credentials, access, naming, the bar for done, and any action
+a Jev gate would stop. Each becomes a question ONLY if D's answer would change what you'd do — a question whose answer
 changes nothing is padding, and convention, the codebase, or the conversation may already answer it. Never ask
 what you can verify yourself.
 
 ### 2. Cadence: broad, then deep
+
+Every round happens before any work starts, because a question asked mid-run is the stop this skill exists to
+prevent. Reading code to find out what to ask is fine; building is not.
 
 - **Round 1** batches up to 4 tightly-related scoping questions in one dialog to map the space.
 - **Later rounds** go one-at-a-time: each targeted question shaped by the answers before it.
@@ -77,6 +86,8 @@ Constraints: <hard lines D set>
 Decisions D made: <each ruling from the interview, compressed>
 Out of scope: <what D explicitly excluded>
 Assumptions I'm still making: <anything unratified — ideally empty>
+Grants: <comma-separated gate ids the run needs, or none>
+Done when: <one line of checkable criteria>
 
 Ask: Did I get all of it?
 ```
@@ -84,15 +95,36 @@ Ask: Did I get all of it?
 Options: **"Confirmed" (Recommended)** and **"Fix something"**. Only D's confirmation closes the interview;
 a correction spawns another round and a fresh playback.
 
+`Grants:` and `Done when:` must each sit at the start of their own line, because the Jev hooks parse them from
+D's confirmed playback. D's yes is the contract: it lasts 8 hours or until the run ends, and a later playback
+replaces it.
+
+- **Grantable:** `G4-prod-infra`, `G5-data-store`, `G8-sharing`. Name only categories the work needs, because a
+  grant covers the whole category. Jev still holds any granted action it judges cannot be undone.
+- **Never grantable:** spending money, irreversible deletion, outward messages, untrusted-origin actions and
+  regex gate checkpoints. These stop for D's approval as usual, so name them in the playback if you can
+  foresee them.
+
 ### 6. Escape hatch
 
 If D says "enough", "just proceed", or similar mid-interview: stop asking, state the remaining assumptions
-explicitly in prose, and proceed on them.
+explicitly in prose, and proceed on them. Without a confirmed playback there are no grants and no enforced run.
 
-### 7. After confirmation
+### 7. After confirmation: the run
 
 Proceed with the underlying task without re-asking anything the interview settled. The playback is the
 contract — decisions ratified there don't get relitigated later in the session.
+
+Work until the `Done when:` criteria are met. When a choice comes up that the interview did not cover and it is
+neither spending nor irreversible, make the call, note it, and keep going. Stop only when a gate requires D's
+approval for money or an irreversible action, or when only D can do the next step.
+
+End the run with exactly one of these lines, because the `interview-stop` hook keeps the session working until
+it sees one:
+
+- `result:` every criterion is met, with the evidence
+- `needs input:` the one action only D can take
+- `failed:` why the work cannot be finished as framed
 
 ## Guardrails
 

@@ -174,6 +174,33 @@ claim_early_release() {
   jev_stamp_claim "${SESSION}|${ACTION_SHA}|${duuid}"
 }
 
+# claim_interview_grant IDS -> 0 when every hit in IDS (comma list) is a category D granted on a confirmed
+# /interview playback and Jev does not judge this action impossible to undo. The grant comes only from gate.sh
+# reading D's answer in the transcript. Fails closed: no contract, no judge answer, or a fleet agent or subagent
+# means the normal per-action approval applies. The regex gate runs in parallel and keeps its own checkpoints.
+claim_interview_grant() {
+  local c rule thr state q req resp p
+  [ "$JEV_CTX" != "fleet" ] && [ -z "${JEV_SUBAGENT:-}" ] || return 1
+  [ -r "${TRANSCRIPT:-}" ] && [ -f "$HOOK_DIR/gate.sh" ] || return 1
+  rule=$(jev_resolve_rules "$RULES" interview-irreversible)
+  [ -n "$rule" ] && [ "$(printf '%s' "$rule" | cut -f2)" = "enforce" ] || return 1
+  thr=$(printf '%s' "$rule" | cut -f3)
+  c=$(bash "$HOOK_DIR/gate.sh" interview-contract "$TRANSCRIPT") || return 1
+  printf '%s' "$c" | jq -e --arg ids "$1" '.grants as $g | ($ids | split(",")) | all(. as $i | $g | index($i) != null)' >/dev/null 2>&1 || return 1
+  state=$(jq -nc --arg tool "$TOOL" --arg a "$(jev_trim "$ACTION" 300)" --arg ctx "$JEV_CTX" '{tool:$tool, action:$a, context:$ctx}')
+  q='{"interview-irreversible":{"type":"boolean","instructions":"D pre-approved this category of action for an /interview run, but anything that cannot be undone must still stop for D. Could the effect of this action be impossible to reverse?","criteria":{"true":"Destroys or permanently overwrites data, drops a table or database, deletes a production resource with no restore path, or exposes something that cannot be taken back.","false":"Can be rolled back or corrected: a redeploy, a config change with a known prior value, an additive migration, a permission that can be revoked."}}}'
+  req=$(jev_build_request "interview-irreversible" "$state" '{}' "$q")
+  resp=$(jev_call "$req") || return 1
+  jev_note "$resp"
+  p=$(jev_prob "$resp" interview-irreversible)
+  [ -n "$p" ] || return 1
+  if jev_ge "$p" "$thr"; then
+    jev_log interview-irreversible "held-irreversible" "enforce" "$p"
+    return 1
+  fi
+  return 0
+}
+
 # check_approval DRY -> sets APPROVED (1 only when D explicitly approved exactly this action and the
 # approval has not been consumed). Untrusted text is never part of this call.
 check_approval() {
@@ -265,6 +292,12 @@ resolve_hits() {
   if claim_early_release; then
     jev_log "$enforce_ids" "allow-early-approval" "enforce" ""
     jq -nc --arg m "Jev released ${enforce_ids} once: D approved this exact command in an earlier question" \
+      '{hookSpecificOutput:{hookEventName:"PreToolUse",additionalContext:$m}}'
+    finish
+  fi
+  if claim_interview_grant "$enforce_ids"; then
+    jev_log "$enforce_ids" "allow-interview-grant" "enforce" ""
+    jq -nc --arg m "Jev released ${enforce_ids}: D granted this category on the confirmed /interview playback" \
       '{hookSpecificOutput:{hookEventName:"PreToolUse",additionalContext:$m}}'
     finish
   fi

@@ -1504,6 +1504,50 @@ if command -v python3 >/dev/null 2>&1; then
 fi
 
 # ============================================================================
+# Interview grants: a confirmed playback releases its granted categories
+# ============================================================================
+playback() { # transcript-path grants answer
+  local q
+  q=$(printf 'UNDERSTANDING PLAYBACK\nGrants: %s\nDone when: shipped\n\nAsk: Did I get all of it?' "$2")
+  {
+    jq -nc --arg q "$q" --arg ts "$(date -u +%FT%TZ)" \
+      '{type:"assistant", timestamp:$ts, message:{content:[{type:"tool_use", id:"pb1", name:"AskUserQuestion", input:{questions:[{question:$q}]}}]}}'
+    jq -nc --arg q "$q" --arg a "$3" \
+      '{type:"user", toolUseResult:{answers:{($q):$a}}, message:{content:[{type:"tool_result", tool_use_id:"pb1", content:"ok"}]}}'
+    line_user u9 "next"
+  } >"$1"
+}
+denied() { # name output
+  assert_eq "$1" "deny" "$(printf '%s' "$2" | jq -r '.hookSpecificOutput.permissionDecision // "none"' 2>/dev/null)"
+}
+
+new_home
+GT="$T/grant.jsonl"
+mock '{"G4-prod-infra":0.99,"interview-irreversible":0.05}'
+
+playback "$GT" "G4-prod-infra" "Confirmed"
+OUT=$(run_hook jev-gate.sh "$(bash_in 'vercel --prod' "$GT")")
+assert_contains "grant releases its category" "$OUT" "D granted this category on the confirmed /interview playback"
+OUT=$(run_hook jev-gate.sh "$(bash_in 'vercel --prod' "$GT")")
+assert_contains "a grant covers the whole run, not one call" "$OUT" "D granted this category"
+
+mock '{"G4-prod-infra":0.99,"interview-irreversible":0.9}'
+denied "a granted action judged irreversible still stops" "$(run_hook jev-gate.sh "$(bash_in 'vercel --prod' "$GT")")"
+mock '{"G4-prod-infra":0.99,"interview-irreversible":0.05}'
+
+denied "the fleet gets no grant" "$(run_hook jev-gate.sh "$(bash_in 'vercel --prod' "$GT")" BARECLAUDE_AGENT_SLUG=dara)"
+
+playback "$GT" "G8-sharing" "Confirmed"
+denied "a category not granted stops" "$(run_hook jev-gate.sh "$(bash_in 'vercel --prod' "$GT")")"
+
+playback "$GT" "G4-prod-infra" "Fix something"
+denied "a correction grants nothing" "$(run_hook jev-gate.sh "$(bash_in 'vercel --prod' "$GT")")"
+
+playback "$GT" "G4-prod-infra, G6-spend" "Confirmed"
+mock '{"G6-spend":0.99,"interview-irreversible":0.05}'
+denied "spend can never be granted" "$(run_hook jev-gate.sh "$(bash_in 'vercel domains buy example.com' "$GT")")"
+
+# ============================================================================
 # Settings registration
 # ============================================================================
 SETTINGS="$REPO_ROOT/system-configs/.claude/settings.json"
