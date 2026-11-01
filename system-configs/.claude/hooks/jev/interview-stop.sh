@@ -44,6 +44,7 @@ close() {
 
 if printf '%s' "$MSG" | grep -qiE '^[[:space:]]*(\*\*)?(needs input|failed):'; then
   re_log "$RULE" released-hand-back ""
+  [ "$MODE" = shadow ] || close
   exit 0
 fi
 

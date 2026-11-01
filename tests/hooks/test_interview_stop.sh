@@ -85,7 +85,11 @@ eq "stop: no contract, no block" "$(stop "$T/no.jsonl" "all done")" ""
 has "stop: blocks without an end line" "$(stop "$T/yes.jsonl" "still going")" '"decision":"block"'
 eq "stop: subagent is ignored" "$(stop "$T/yes.jsonl" "x" s1 agent1)" ""
 eq "stop: needs input hands back" "$(stop "$T/yes.jsonl" $'text\nneeds input: merge')" ""
+eq "stop: a hand-back closes the contract" "$(ls "$HOME/.claude/interview-closed" | wc -l | tr -d ' ')" "1"
+fresh
 eq "stop: failed hands back" "$(stop "$T/yes.jsonl" 'failed: premise false')" ""
+eq "stop: failed closes the contract" "$(ls "$HOME/.claude/interview-closed" | wc -l | tr -d ' ')" "1"
+fresh
 contract "$T/yes.jsonl" >/dev/null || bad "stop: a hand-back keeps the contract"
 
 eq "stop: result meeting criteria releases" "$(stop "$T/yes.jsonl" 'result: PR is mergeable')" ""

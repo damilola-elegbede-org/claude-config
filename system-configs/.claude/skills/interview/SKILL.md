@@ -126,6 +126,8 @@ it sees one:
 - `needs input:` the one action only D can take
 - `failed:` why the work cannot be finished as framed
 
+Any of them ends the run: its grants stop, so anything after D's reply goes back to per-action approval.
+
 ## Guardrails
 
 - No manufactured questions: every question must trace to a real fork in the work.

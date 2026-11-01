@@ -107,8 +107,8 @@ CLAUDE.md rules whose prose can be deleted now: none (no CLAUDE.md rule has an e
 | `INT-07` | `system-configs/.claude/skills/interview/SKILL.md:79`  | Close with an Understanding Playback dialog; only D's confirmation closes the interview.                                       | none        | -    | -    | -        |
 | `INT-08` | `system-configs/.claude/skills/interview/SKILL.md:110` | If D says "enough" or "just proceed": stop asking, state remaining assumptions in prose, proceed.                              | none        | -    | -    | -        |
 | `INT-09` | `system-configs/.claude/skills/interview/SKILL.md:115` | After confirmation, work to the done criteria without re-asking anything settled; stop only for money or irreversible actions. | none        | -    | -    | -        |
-| `INT-10` | `system-configs/.claude/skills/interview/SKILL.md:131` | No manufactured questions: every question traces to a real fork in the work.                                                   | none        | -    | -    | -        |
-| `INT-11` | `system-configs/.claude/skills/interview/SKILL.md:132` | No bundling unrelated decisions into one dialog, ever.                                                                         | none        | -    | -    | -        |
+| `INT-10` | `system-configs/.claude/skills/interview/SKILL.md:133` | No manufactured questions: every question traces to a real fork in the work.                                                   | none        | -    | -    | -        |
+| `INT-11` | `system-configs/.claude/skills/interview/SKILL.md:134` | No bundling unrelated decisions into one dialog, ever.                                                                         | none        | -    | -    | -        |
 
 ## Memory (feedback entries) (41)
 

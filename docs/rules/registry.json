@@ -666,7 +666,7 @@
     },
     {
       "id": "INT-10",
-      "source": "system-configs/.claude/skills/interview/SKILL.md:131",
+      "source": "system-configs/.claude/skills/interview/SKILL.md:133",
       "anchor": "No manufactured questions",
       "text": "No manufactured questions: every question traces to a real fork in the work.",
       "enforcement": "none",
@@ -676,7 +676,7 @@
     },
     {
       "id": "INT-11",
-      "source": "system-configs/.claude/skills/interview/SKILL.md:132",
+      "source": "system-configs/.claude/skills/interview/SKILL.md:134",
       "anchor": "No bundling unrelated decisions",
       "text": "No bundling unrelated decisions into one dialog, ever.",
       "enforcement": "none",

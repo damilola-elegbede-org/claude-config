@@ -39,6 +39,8 @@ REPO=$(jev_cwd_repo "$CWD")
 RULES=$(jev_rules_json)
 
 ACTION=""
+# 1 only when ACTION shows the whole operation: nothing trimmed, omitted or stripped from it.
+ACTION_WHOLE=0
 ACTION_SHA=""
 TAILJSON=""
 HIT_LINES=""
@@ -176,18 +178,20 @@ claim_early_release() {
 
 # claim_interview_grant IDS -> 0 when every hit in IDS (comma list) is a category D granted on a confirmed
 # /interview playback and Jev does not judge this action impossible to undo. The grant comes only from gate.sh
-# reading D's answer in the transcript. Fails closed: no contract, no judge answer, or a fleet agent or subagent
-# means the normal per-action approval applies. The regex gate runs in parallel and keeps its own checkpoints.
+# reading D's answer in the transcript. Fails closed: no contract, no judge answer, a fleet agent or subagent, or
+# an action the judge cannot see whole (a truncated command, a heredoc, a long or nested MCP argument, a file
+# body) means the normal per-action approval applies. The regex gate runs in parallel and keeps its own checkpoints.
 claim_interview_grant() {
   local c rule thr state q req resp p
   [ "$JEV_CTX" != "fleet" ] && [ -z "${JEV_SUBAGENT:-}" ] || return 1
+  [ "$ACTION_WHOLE" = 1 ] || return 1
   [ -r "${TRANSCRIPT:-}" ] && [ -f "$HOOK_DIR/gate.sh" ] || return 1
   rule=$(jev_resolve_rules "$RULES" interview-irreversible)
   [ -n "$rule" ] && [ "$(printf '%s' "$rule" | cut -f2)" = "enforce" ] || return 1
   thr=$(printf '%s' "$rule" | cut -f3)
   c=$(bash "$HOOK_DIR/gate.sh" interview-contract "$TRANSCRIPT") || return 1
   printf '%s' "$c" | jq -e --arg ids "$1" '.grants as $g | ($ids | split(",")) | all(. as $i | $g | index($i) != null)' >/dev/null 2>&1 || return 1
-  state=$(jq -nc --arg tool "$TOOL" --arg a "$(jev_trim "$ACTION" 300)" --arg ctx "$JEV_CTX" '{tool:$tool, action:$a, context:$ctx}')
+  state=$(jq -nc --arg tool "$TOOL" --arg a "$ACTION" --arg ctx "$JEV_CTX" '{tool:$tool, action:$a, context:$ctx}')
   q='{"interview-irreversible":{"type":"boolean","instructions":"D pre-approved this category of action for an /interview run, but anything that cannot be undone must still stop for D. Could the effect of this action be impossible to reverse?","criteria":{"true":"Destroys or permanently overwrites data, drops a table or database, deletes a production resource with no restore path, or exposes something that cannot be taken back.","false":"Can be rolled back or corrected: a redeploy, a config change with a known prior value, an additive migration, a permission that can be revoked."}}}'
   req=$(jev_build_request "interview-irreversible" "$state" '{}' "$q")
   resp=$(jev_call "$req") || return 1
@@ -502,16 +506,26 @@ mcp_heuristic() { # OP -> read|write|spend|delete|outward|unknown
     | [ $tk[] as $w | $order[] as $c | select(($h[$c] | split("|") | index($w)) != null) | $c ] | (.[0] // "unknown")'
 }
 
-# mcp_args_digest -> compact JSON of the call's arguments: body-like fields omitted, strings cut to 60
-# chars, nested values reduced to their type, then redacted.
-mcp_args_digest() {
+# mcp_args_raw -> compact JSON of the call's arguments: body-like fields omitted, strings cut to 60 chars,
+# nested values reduced to their type. Not redacted, so it never leaves this script.
+mcp_args_raw() {
   printf '%s' "$INPUT" | jq -c '
     (.tool_input // {}) | if type=="object" then
       to_entries | map({key, value: (if (.key | test("^(body|text|content|message|html|description|prompt|note|notes|comment|raw|markdown|blocks|properties)$"; "i")) then "<omitted>"
         elif (.value | type) == "string" then (.value[0:60])
         elif ((.value | type) == "number" or (.value | type) == "boolean") then .value
         else "<" + (.value | type) + ">" end)}) | from_entries
-    else {} end' | jev_redact
+    else {} end'
+}
+
+# mcp_args_digest -> mcp_args_raw, redacted: what Jev and D see.
+mcp_args_digest() {
+  mcp_args_raw | jev_redact
+}
+
+# mcp_args_whole -> 0 when the digest dropped nothing from the call's arguments.
+mcp_args_whole() {
+  [ "$(mcp_args_raw | jq -S -c .)" = "$(printf '%s' "$INPUT" | jq -S -c '.tool_input // {}')" ]
 }
 
 # mcp_prod_check -> sets prod=true when THIS call targets production (G4). One prod-only Jev call per
@@ -555,6 +569,7 @@ handle_mcp() {
   args=$(mcp_args_digest)
   MCP_KEY=$(mcp_cache_key)
   ACTION="mcp tool ${TOOL} args=$(jev_trim "$args" 240)"
+  if [ "${#args}" -le 240 ] && mcp_args_whole; then ACTION_WHOLE=1; fi
   NORM_RAW="$ACTION"
   prod=false
   cached=$(mcp_cache_lookup)
@@ -652,6 +667,7 @@ handle_generic() {
       subject="$cmd_clean"
       NORM_RAW="$cmd"
       ACTION=$(printf '%s' "$cmd_clean" | jev_redact)
+      if [ "${#cmd_clean}" -le 700 ] && [ "$cmd_clean" = "$cmd" ]; then ACTION_WHOLE=1; fi
       ACTION=$(jev_trim "$ACTION" 700)
       state=$(jq -nc --arg tool "$TOOL" --arg cmd "$ACTION" --arg repo "$REPO" --arg ctx "$JEV_CTX" '{tool:$tool, command:$cmd, repo:$repo, context:$ctx}')
       # A command that deletes: tell Jev which paths it deletes and which it created itself, so cleaning up its own
