@@ -231,6 +231,8 @@ out=$(run executive-lint.sh "$(sl $'**FYI · done.**\nno opener lines')")
 has "FYI without You and Unsure blocked" "$out" "three-line opener"
 out=$(run executive-lint.sh "$(sl $'**ACTION · run it.**\n**You:** run it\n**Unsure:** nothing')")
 has "ACTION without reversible, deadline and confidence blocked" "$out" "Reversible and Deadline"
+out=$(run executive-lint.sh "$(sl $'**ACTION · run it.**\n**You:** run it · Reversible · Deadline\n**Unsure:** Confidence')")
+has "ACTION with field names but no values blocked" "$out" "Reversible and Deadline"
 for tag in DECISION APPROVAL BLOCKED INPUT; do
   m=$'**'"$tag"$' · conclusion.**\n**You:** x · Reversible **yes** · Deadline **none**\n**Unsure:** nothing · Confidence **high** (x)\nbody'
   eq "valid $tag passes" "$(run executive-lint.sh "$(sl "$m")")" ""

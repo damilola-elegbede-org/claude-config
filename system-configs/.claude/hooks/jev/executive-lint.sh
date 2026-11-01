@@ -66,7 +66,7 @@ acts = tag in ("DECISION", "APPROVAL", "ACTION", "BLOCKED")
 if tag and not (you.startswith("**You:**") and unsure.startswith("**Unsure:**")):
     if acts or len(msg) > int(os.environ.get("RE_TAG_MIN", "0")):
         problems.append("meta\t" + tag + " needs the three-line opener: line 2 **You:** (or nothing), line 3 **Unsure:** (or nothing)")
-elif acts and not (re.search(r"Reversible\b", you) and re.search(r"Deadline\b", you) and re.search(r"Confidence\b", unsure)):
+elif acts and not (re.search(r"Reversible \*\*[^*\s]", you) and re.search(r"Deadline \*\*[^*\s]", you) and re.search(r"Confidence \*\*[^*\s]", unsure)):
     problems.append("meta\t" + tag + " needs Reversible and Deadline on the You line and Confidence on the Unsure line")
 limit = int(os.environ.get("RE_MAX_LINES", "60"))
 if len(lines) > limit:
