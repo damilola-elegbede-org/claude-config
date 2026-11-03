@@ -18,7 +18,7 @@ for t in jq rsync python3; do
     exit 0
   }
 done
-for m in glassbox replay-theater; do
+for m in glassbox jevlight; do
   [[ -d "$REPO_ROOT/system-configs/.claude/mods/$m" ]] || {
     echo "SKIP: mod $m not in the source tree" >&2
     exit 0
@@ -37,9 +37,9 @@ ln -s "$REPO_ROOT/system-configs" "$T/repo/system-configs"
 run_sync() { # label manifest-json ('' for none)
   local home="$T/home-$1"
   rm -rf "$home"
-  mkdir -p "$home/.claude/mods/replay-theater/hooks" "$home/.claude/mods/local-mine"
+  mkdir -p "$home/.claude/mods/jevlight/hooks" "$home/.claude/mods/local-mine"
   # What an earlier sync left, and a mod of the person's own.
-  echo stale >"$home/.claude/mods/replay-theater/hooks/old.mjs"
+  echo stale >"$home/.claude/mods/jevlight/hooks/old.mjs"
   echo mine >"$home/.claude/mods/local-mine/keep"
   if [[ -n "$2" ]]; then
     printf '%s\n' "$2" >"$T/repo/sync-manifests/$STATION.json"
@@ -50,19 +50,19 @@ run_sync() { # label manifest-json ('' for none)
   SYNC_RC=$?
 }
 
-run_sync excluded '{"mode":"scoped","sync":{"settings":false,"mods_exclude":["replay-theater"]}}'
+run_sync excluded '{"mode":"scoped","sync":{"settings":false,"mods_exclude":["jevlight"]}}'
 M="$T/home-excluded/.claude/mods"
 if [[ "$SYNC_RC" -eq 0 ]]; then ok; else bad "excluded: sync succeeds (rc=$SYNC_RC): $(grep -i 'mods\|❌' <<<"$SYNC_OUT" | head -3)"; fi
 if [[ -f "$M/glassbox/hooks/register.tsx" ]]; then ok; else bad "excluded: other mods still sync"; fi
-if [[ ! -e "$M/replay-theater" ]]; then ok; else bad "excluded: an excluded mod an earlier sync left is removed"; fi
+if [[ ! -e "$M/jevlight" ]]; then ok; else bad "excluded: an excluded mod an earlier sync left is removed"; fi
 if [[ -f "$M/local-mine/keep" ]]; then ok; else bad "excluded: a local-* mod is kept"; fi
-if grep -q "excluded on $STATION: replay-theater" <<<"$SYNC_OUT"; then ok; else bad "excluded: the summary names the excluded mod"; fi
+if grep -q "excluded on $STATION: jevlight" <<<"$SYNC_OUT"; then ok; else bad "excluded: the summary names the excluded mod"; fi
 
 run_sync none ''
 M="$T/home-none/.claude/mods"
 if [[ "$SYNC_RC" -eq 0 ]]; then ok; else bad "no manifest: sync succeeds (rc=$SYNC_RC)"; fi
-if [[ -f "$M/replay-theater/hooks/replay-theater.mjs" ]]; then ok; else bad "no manifest: every mod syncs"; fi
-if [[ ! -e "$M/replay-theater/hooks/old.mjs" ]]; then ok; else bad "no manifest: --delete still clears stale files"; fi
+if [[ -f "$M/jevlight/hooks/register.tsx" ]]; then ok; else bad "no manifest: every mod syncs"; fi
+if [[ ! -e "$M/jevlight/hooks/old.mjs" ]]; then ok; else bad "no manifest: --delete still clears stale files"; fi
 
 run_sync invalid '{"mode":"scoped","sync":{"settings":false,"mods_exclude":["../skills"]}}'
 if [[ "$SYNC_RC" -ne 0 ]]; then ok; else bad "invalid entry: the sync fails"; fi
@@ -73,7 +73,7 @@ run_sync localname '{"mode":"scoped","sync":{"settings":false,"mods_exclude":["l
 if [[ "$SYNC_RC" -ne 0 ]]; then ok; else bad "local-* entry: the sync fails"; fi
 if [[ -f "$T/home-localname/.claude/mods/local-mine/keep" ]]; then ok; else bad "local-* entry: the local mod is never removed"; fi
 
-run_sync string '{"mode":"scoped","sync":{"settings":false,"mods_exclude":"replay-theater"}}'
+run_sync string '{"mode":"scoped","sync":{"settings":false,"mods_exclude":"jevlight"}}'
 if [[ "$SYNC_RC" -ne 0 ]]; then ok; else bad "string, not array: the sync fails rather than syncing every mod"; fi
 if grep -q "must be an array" <<<"$SYNC_OUT"; then ok; else bad "string, not array: the error says so"; fi
 
@@ -81,15 +81,15 @@ if grep -q "must be an array" <<<"$SYNC_OUT"; then ok; else bad "string, not arr
 # Root removes a read-only folder anyway, so the case cannot be built there.
 if [[ "$(id -u)" -ne 0 ]]; then
   home="$T/home-stuck"
-  mkdir -p "$home/.claude/mods/replay-theater/locked"
-  echo x >"$home/.claude/mods/replay-theater/locked/file"
-  chmod 555 "$home/.claude/mods/replay-theater/locked"
-  printf '%s\n' '{"mode":"scoped","sync":{"settings":false,"mods_exclude":["replay-theater"]}}' >"$T/repo/sync-manifests/$STATION.json"
+  mkdir -p "$home/.claude/mods/jevlight/locked"
+  echo x >"$home/.claude/mods/jevlight/locked/file"
+  chmod 555 "$home/.claude/mods/jevlight/locked"
+  printf '%s\n' '{"mode":"scoped","sync":{"settings":false,"mods_exclude":["jevlight"]}}' >"$T/repo/sync-manifests/$STATION.json"
   SYNC_OUT=$(env HOME="$home" JEV_SYNC_SKIP_NPM=1 HIGGSFIELD_SYNC_SKIP_CHECK=1 bash "$T/repo/scripts/sync.sh" --force 2>&1)
   SYNC_RC=$?
   chmod -R u+w "$home"
   if [[ "$SYNC_RC" -ne 0 ]]; then ok; else bad "unremovable: the sync fails"; fi
-  if grep -q "could not remove replay-theater" <<<"$SYNC_OUT" && ! grep -q "removed replay-theater" <<<"$SYNC_OUT"; then ok; else bad "unremovable: says it could not remove it, never that it did"; fi
+  if grep -q "could not remove jevlight" <<<"$SYNC_OUT" && ! grep -q "removed jevlight" <<<"$SYNC_OUT"; then ok; else bad "unremovable: says it could not remove it, never that it did"; fi
 else
   echo "SKIP: unremovable-mod case (running as root)" >&2
 fi
@@ -100,9 +100,9 @@ preview() { # manifest-json
   SYNC_OUT=$(env HOME="$T/home-none" JEV_SYNC_SKIP_NPM=1 HIGGSFIELD_SYNC_SKIP_CHECK=1 bash "$T/repo/scripts/sync.sh" --dry-run 2>&1)
 }
 ALL_MODS=$(find "$REPO_ROOT/system-configs/.claude/mods" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')
-preview '{"mode":"scoped","sync":{"settings":false,"mods_exclude":["replay-theater"]}}'
-if grep -q "$((ALL_MODS - 1)) mods → ~/.claude/mods/ (--delete; local-\* kept; excluded on $STATION: replay-theater)" <<<"$SYNC_OUT"; then ok; else bad "dry run: counts and names the exclusion (got: $(grep 'mods' <<<"$SYNC_OUT" | head -2))"; fi
-preview '{"mode":"scoped","sync":{"settings":false,"mods_exclude":"replay-theater"}}'
+preview '{"mode":"scoped","sync":{"settings":false,"mods_exclude":["jevlight"]}}'
+if grep -q "$((ALL_MODS - 1)) mods → ~/.claude/mods/ (--delete; local-\* kept; excluded on $STATION: jevlight)" <<<"$SYNC_OUT"; then ok; else bad "dry run: counts and names the exclusion (got: $(grep 'mods' <<<"$SYNC_OUT" | head -2))"; fi
+preview '{"mode":"scoped","sync":{"settings":false,"mods_exclude":"jevlight"}}'
 if grep -q "must be an array of mod names (real sync would fail)" <<<"$SYNC_OUT"; then ok; else bad "dry run: flags a malformed mods_exclude"; fi
 
 printf 'mods_exclude sync tests: %d passed, %d failed\n' "$PASS" "$FAIL"
