@@ -391,12 +391,31 @@ function excludedPrefixes() {
   return out;
 }
 
+// ENG-2843 (D-approved): Gmail/Slack-derived text may leave the machine ONLY for a Clara rule. All three must hold:
+// the process runs as the clara fleet agent, the rule id starts with "clara-", and the rule's registry entry lists
+// EVERY flagged source in allow_untrusted_sources (e.g. ["gmail","slack"]). Default (key absent/empty) = refuse.
+// Redaction and the cwd exclusions (Visa/work) are unchanged and still run after this check.
+// Env read lives here and nowhere else: the single accessor for the fleet agent slug.
+function currentAgentSlug() {
+  return String(process.env.BARECLAUDE_AGENT_SLUG || "");
+}
+// Pure: no env, no disk. `registry` is the merged registry ({rules: {...}}); `sources` are the flagged gmail/slack tags.
+export function untrustedAllowed({ slug, ruleId, sources, registry }) {
+  if (String(slug || "").toLowerCase() !== "clara") return false;
+  if (typeof ruleId !== "string" || !ruleId.startsWith("clara-")) return false;
+  const allow = registry?.rules?.[ruleId]?.allow_untrusted_sources;
+  if (!Array.isArray(allow)) return false;
+  const have = allow.map((a) => String(a).toLowerCase()).filter(Boolean);
+  return sources.every((s) => have.some((a) => String(s).toLowerCase().includes(a)));
+}
+
 function egressReason(input) {
   // The caller may flag the source at top level or inside state; honor both.
   const srcs = [input.untrusted_source, input.state?.untrusted_source].flatMap((v) =>
     Array.isArray(v) ? v : typeof v === "string" ? [v] : [],
   );
-  if (srcs.some((s) => /gmail|slack/i.test(String(s)))) return "egress_untrusted_source";
+  const blocked = srcs.filter((s) => /gmail|slack/i.test(String(s)));
+  if (blocked.length && !untrustedAllowed({ slug: currentAgentSlug(), ruleId: input.rule, sources: blocked, registry: rulesRegistry() })) return "egress_untrusted_source";
   if (configInvalid()) return "egress_config_unreadable"; // fail closed: the exclusion list is unknown
   const cwds = new Set();
   for (const c of [input.cwd, process.cwd()]) {
@@ -947,7 +966,17 @@ async function main() {
   return ask();
 }
 
-main().catch((e) => {
-  process.stderr.write(`jev-ask: unavailable: internal:${e?.name || "Error"}\n`);
-  process.exit(EXIT_UNAVAILABLE);
-});
+// Run only as the entry point, so tests can import the pure helpers without starting the CLI.
+const isEntry = (() => {
+  try {
+    return !!process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+})();
+if (isEntry) {
+  main().catch((e) => {
+    process.stderr.write(`jev-ask: unavailable: internal:${e?.name || "Error"}\n`);
+    process.exit(EXIT_UNAVAILABLE);
+  });
+}

@@ -78,7 +78,7 @@ has "exclude_paths has ~/Visa" "$(node -e "console.log(require('$SRC/jev-config.
 has "exclude_paths has ~/work" "$(node -e "console.log(require('$SRC/jev-config.json').exclude_paths.join(' '))")" "~/work"
 lacks "exclude_paths has no bare /work/ substring entry" "$(node -e "console.log(require('$SRC/jev-config.json').exclude_paths.join(' '))")" " /work/"
 eq "exempt_agents" "$(node -e "console.log(require('$SRC/jev-rules.json').exempt_agents.join(','))")" "clara"
-eq "rules map starts empty" "$(node -e "console.log(String(Object.keys(require('$SRC/jev-rules.json').rules).length))")" "0"
+eq "rules map lists exactly the 4 untrusted-source Clara rules" "$(node -e "console.log(Object.keys(require('$SRC/jev-rules.json').rules).sort().join(','))")" "clara-flight-change,clara-inbox-bucket,clara-reply-resolves,clara-urgent-mail"
 
 echo "== mock mode"
 run_ask "$(mkin t-mock '{"command":"ls"}')" JEV_MOCK="$FIX"
@@ -136,6 +136,26 @@ run_ask "$(mkin r-both '{"a":1}')" JEV_MOCK="$FIX"
 eq "jev-rules.json overrides rules.d for the same rule" "$RC" "0"
 rm -rf "$J/rules.d"
 cp "$SRC/jev-rules.json" "$J/jev-rules.json"
+
+echo "== untrustedAllowed (pure; slug passed explicitly, no env)"
+# Calls the exported pure function with an explicit slug. Prints true/false.
+ua() { # slug rule sources-json
+  node --input-type=module -e "
+import { untrustedAllowed } from '$J/client.mjs';
+const registry = { rules: { 'clara-urgent-mail': { allow_untrusted_sources: ['gmail'] }, 'clara-reply-resolves': { allow_untrusted_sources: ['gmail','slack'] }, 'clara-empty': { allow_untrusted_sources: [] }, 'other-rule': { allow_untrusted_sources: ['gmail'] } } };
+console.log(String(untrustedAllowed({ slug: process.argv[1], ruleId: process.argv[2], sources: JSON.parse(process.argv[3]), registry })));
+" "$1" "$2" "$3" 2>&1
+}
+eq "clara + clara rule + listed source allowed" "$(ua clara clara-urgent-mail '["gmail"]')" "true"
+eq "slug case-insensitive" "$(ua Clara clara-urgent-mail '["gmail"]')" "true"
+eq "other slug refused" "$(ua dara clara-urgent-mail '["gmail"]')" "false"
+eq "empty slug refused" "$(ua '' clara-urgent-mail '["gmail"]')" "false"
+eq "non-clara rule id refused" "$(ua clara other-rule '["gmail"]')" "false"
+eq "unlisted source (slack) refused" "$(ua clara clara-urgent-mail '["slack"]')" "false"
+eq "one unlisted source among two refused" "$(ua clara clara-urgent-mail '["gmail","slack"]')" "false"
+eq "both sources listed allowed" "$(ua clara clara-reply-resolves '["gmail","slack"]')" "true"
+eq "empty allow list refused" "$(ua clara clara-empty '["gmail"]')" "false"
+eq "rule absent from registry refused" "$(ua clara clara-unknown '["gmail"]')" "false"
 
 echo "== egress exclusion"
 mkdir -p "$T/personal/proj" "$T/work/proj" "$T/Visa/repo"
