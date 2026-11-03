@@ -49,6 +49,7 @@
     "data@knowledge-work-plugins": true,
     "design@knowledge-work-plugins": false,
     "discernment-nudge@anthropic-agent-skills": false,
+    "egm@egm": true,
     "document-skills@anthropic-agent-skills": false,
     "engineering@knowledge-work-plugins": true,
     "enterprise-search@knowledge-work-plugins": true,
@@ -85,6 +86,13 @@
       "source": {
         "source": "github",
         "repo": "anthropics/claude-plugins-community"
+      },
+      "autoUpdate": true
+    },
+    "egm": {
+      "source": {
+        "source": "github",
+        "repo": "google/elephant-goldfish-model"
       },
       "autoUpdate": true
     },
