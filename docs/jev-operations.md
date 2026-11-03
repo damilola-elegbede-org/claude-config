@@ -45,7 +45,7 @@ By default `jev-ask` refuses (exit 3, `egress_untrusted_source`) any request fla
 Absent or empty key = refusal (unchanged). The text must travel in the top-level `untrusted` field,
 never in `state`. Redaction and the `exclude_paths` cwd exclusions (Visa, work) still apply after the
 check, so Visa-related work stays excluded. Shipped in `jev-rules.json` for `clara-urgent-mail`,
-`clara-inbox-bucket`, `clara-flight-change` and `clara-reply-resolves`. Run `/sync` after merge.
+`clara-inbox-bucket`, `clara-flight-change`, `clara-reply-resolves` and `clara-on-behalf`. Run `/sync` after merge.
 
 ## Kill switches
 

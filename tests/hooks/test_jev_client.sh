@@ -78,7 +78,7 @@ has "exclude_paths has ~/Visa" "$(node -e "console.log(require('$SRC/jev-config.
 has "exclude_paths has ~/work" "$(node -e "console.log(require('$SRC/jev-config.json').exclude_paths.join(' '))")" "~/work"
 lacks "exclude_paths has no bare /work/ substring entry" "$(node -e "console.log(require('$SRC/jev-config.json').exclude_paths.join(' '))")" " /work/"
 eq "exempt_agents" "$(node -e "console.log(require('$SRC/jev-rules.json').exempt_agents.join(','))")" "clara"
-eq "rules map lists exactly the 4 untrusted-source Clara rules" "$(node -e "console.log(Object.keys(require('$SRC/jev-rules.json').rules).sort().join(','))")" "clara-flight-change,clara-inbox-bucket,clara-reply-resolves,clara-urgent-mail"
+eq "rules map lists exactly the 5 untrusted-source Clara rules" "$(node -e "console.log(Object.keys(require('$SRC/jev-rules.json').rules).sort().join(','))")" "clara-flight-change,clara-inbox-bucket,clara-on-behalf,clara-reply-resolves,clara-urgent-mail"
 
 echo "== mock mode"
 run_ask "$(mkin t-mock '{"command":"ls"}')" JEV_MOCK="$FIX"
