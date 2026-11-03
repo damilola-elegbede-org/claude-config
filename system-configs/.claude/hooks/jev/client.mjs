@@ -396,8 +396,8 @@ function excludedPrefixes() {
 // EVERY flagged source in allow_untrusted_sources (e.g. ["gmail","slack"]). Default (key absent/empty) = refuse.
 // Redaction and the cwd exclusions (Visa/work) are unchanged and still run after this check.
 // Env read lives here and nowhere else: the single accessor for the fleet agent slug.
-function currentAgentSlug() {
-  return String(process.env.BARECLAUDE_AGENT_SLUG || "");
+export function currentAgentSlug(env = process.env) {
+  return String(env.BARECLAUDE_AGENT_SLUG || "");
 }
 // Pure: no env, no disk. `registry` is the merged registry ({rules: {...}}); `sources` are the flagged gmail/slack tags.
 export function untrustedAllowed({ slug, ruleId, sources, registry }) {
@@ -409,13 +409,14 @@ export function untrustedAllowed({ slug, ruleId, sources, registry }) {
   return sources.every((s) => have.some((a) => String(s).toLowerCase().includes(a)));
 }
 
-function egressReason(input) {
+// `slug` and `registry` are injectable so tests can drive the wiring without touching the environment or disk.
+export function egressReason(input, { slug = currentAgentSlug(), registry = rulesRegistry() } = {}) {
   // The caller may flag the source at top level or inside state; honor both.
   const srcs = [input.untrusted_source, input.state?.untrusted_source].flatMap((v) =>
     Array.isArray(v) ? v : typeof v === "string" ? [v] : [],
   );
   const blocked = srcs.filter((s) => /gmail|slack/i.test(String(s)));
-  if (blocked.length && !untrustedAllowed({ slug: currentAgentSlug(), ruleId: input.rule, sources: blocked, registry: rulesRegistry() })) return "egress_untrusted_source";
+  if (blocked.length && !untrustedAllowed({ slug, ruleId: input.rule, sources: blocked, registry })) return "egress_untrusted_source";
   if (configInvalid()) return "egress_config_unreadable"; // fail closed: the exclusion list is unknown
   const cwds = new Set();
   for (const c of [input.cwd, process.cwd()]) {
