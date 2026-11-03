@@ -406,7 +406,7 @@ export function untrustedAllowed({ slug, ruleId, sources, registry }) {
   const allow = registry?.rules?.[ruleId]?.allow_untrusted_sources;
   if (!Array.isArray(allow)) return false;
   const have = allow.map((a) => String(a).toLowerCase()).filter(Boolean);
-  return sources.every((s) => have.some((a) => String(s).toLowerCase().includes(a)));
+  return sources.every((s) => have.includes(String(s).toLowerCase()));
 }
 
 // `slug` and `registry` are injectable so tests can drive the wiring without touching the environment or disk.
@@ -415,7 +415,8 @@ export function egressReason(input, { slug = currentAgentSlug(), registry = rule
   const srcs = [input.untrusted_source, input.state?.untrusted_source].flatMap((v) =>
     Array.isArray(v) ? v : typeof v === "string" ? [v] : [],
   );
-  const blocked = srcs.filter((s) => /gmail|slack/i.test(String(s)));
+  // Normalize to individual tags ("gmail,slack" -> gmail + slack) so each one needs its own authorization.
+  const blocked = [...new Set(srcs.flatMap((s) => String(s).toLowerCase().match(/gmail|slack/g) || []))];
   if (blocked.length && !untrustedAllowed({ slug, ruleId: input.rule, sources: blocked, registry })) return "egress_untrusted_source";
   if (configInvalid()) return "egress_config_unreadable"; // fail closed: the exclusion list is unknown
   const cwds = new Set();

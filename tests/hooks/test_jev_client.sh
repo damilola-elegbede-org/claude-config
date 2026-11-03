@@ -171,6 +171,8 @@ console.log(r === null ? 'ok' : r);
 eq "wiring: clara + clara rule + listed source passes egress" "$(er clara clara-urgent-mail '"gmail"')" "ok"
 eq "wiring: non-clara slug refused" "$(er dara clara-urgent-mail '"gmail"')" "egress_untrusted_source"
 eq "wiring: non-clara rule refused (rule id is read from input.rule)" "$(er clara other-rule '"gmail"')" "egress_untrusted_source"
+eq "wiring: compound string naming an unlisted source refused" "$(er clara clara-urgent-mail '"gmail,slack"')" "egress_untrusted_source"
+eq "wiring: decorated single tag still authorized" "$(er clara clara-urgent-mail '"Gmail:inbox"')" "ok"
 eq "wiring: unlisted source refused" "$(er clara clara-urgent-mail '"slack"')" "egress_untrusted_source"
 eq "wiring: no untrusted source is unaffected" "$(er dara other-rule 'null')" "ok"
 cs() { node --input-type=module -e "
