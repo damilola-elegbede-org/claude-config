@@ -452,8 +452,53 @@ claim_approval() {
     return 0
 }
 
+# --- Interview contract ---------------------------------------------------------------------------------------
+# /interview closes with an AskUserQuestion carrying "UNDERSTANDING PLAYBACK", a "Grants:" line and a "Done when:"
+# line. The contract is read from that question and D's recorded answer in the transcript, never from a file the
+# model could write, and only the shared yes classifier (ANSWER_JQ) activates it. The latest playback wins, so
+# "Fix something" or an unanswered playback leaves no contract. Prints {id,ts,grants,criteria}; exit 1 when none.
+INTERVIEW_GRANTABLE='["G4-prod-infra","G5-data-store","G8-sharing"]' # spend, irreversible and send gates never grant
+INTERVIEW_TTL_S=28800
+cmd_interview_contract() {
+    local out id
+    [[ -z "${BARECLAUDE_AGENT_SLUG:-}" ]] || return 1
+    [[ -n "${1:-}" && -r "$1" ]] || return 1
+    out=$(tail -c 4000000 "$1" 2>/dev/null | jq -R -n -c --argjson now "$(date +%s)" --argjson ttl "$INTERVIEW_TTL_S" \
+        --argjson grantable "$INTERVIEW_GRANTABLE" "$ANSWER_JQ"'
+        def arr: if type == "array" then .[] else empty end;
+        def secs: (. // "" | sub("\\.[0-9]+Z$"; "Z") | (try fromdateiso8601 catch 0));
+        def field($k): split("\n") | map(select(startswith($k)) | ltrimstr($k) | gsub("^[[:space:]]+|[[:space:]]+$"; "")) | last // "";
+        [inputs | fromjson? | select(type == "object")] as $all
+        | ([$all[] | select(.type == "assistant") | . as $m | (.message.content | arr)
+            | select(type == "object" and .type == "tool_use" and .name == "AskUserQuestion")
+            | {id: .id, ts: ($m.timestamp | secs), q: ([.input.questions | arr | select(type == "object")
+                | select((.question // "") | tostring | contains("UNDERSTANDING PLAYBACK"))] | last)}
+            | select(.q != null)] | last) as $k
+        | select($k != null and ($now - $k.ts) <= $ttl)
+        | ([$all[] | select(.type == "user") | . as $m | (.message.content | arr)
+            | select(type == "object" and .type == "tool_result" and .tool_use_id == $k.id)
+            | . as $r
+            | (($m.toolUseResult.answers? // null) as $a
+               | if ($a | type) == "object" then ($a | map_values(tostring))
+                 else ($r.content | if type == "string" then . elif type == "array" then ([.[]? | select(type == "object") | (.text // "")] | join(" ")) else "" end
+                       | [scan("\"((?:[^\"\\\\]|\\\\.)*)\"=\"((?:[^\"\\\\]|\\\\.)*)\"") | {key: .[0], value: .[1]}] | from_entries) end)] | last) as $ans
+        | select($ans != null and ($ans[$k.q.question] // null | approves))
+        | ($k.q.question | field("Done when:")) as $done
+        | select(($done | length) > 0)
+        | {id: $k.id, ts: $k.ts, criteria: $done,
+           grants: ($k.q.question | field("Grants:") | split(",") | map(gsub("[[:space:]]"; "")) | map(select(. as $g | $grantable | index($g) != null)))}' 2>/dev/null | tail -1)
+    [[ -n "$out" ]] || return 1
+    id=$(printf '%s' "$out" | jq -r '.id' | tr -c 'A-Za-z0-9_-' '_')
+    [[ -e "$CLAUDE_DIR/interview-closed/$id" ]] && return 1
+    printf '%s\n' "$out"
+}
+
 if [[ "${1:-}" == "approve" ]]; then
     cmd_approve "${2:-}"
+    exit $?
+fi
+if [[ "${1:-}" == "interview-contract" ]]; then
+    cmd_interview_contract "${2:-}"
     exit $?
 fi
 if [[ "${1:-}" == "claim-ask" ]]; then

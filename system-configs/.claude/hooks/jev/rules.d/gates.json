@@ -103,6 +103,14 @@
       "interactive"
     ]
   },
+  "interview-irreversible": {
+    "mode": "enforce",
+    "threshold": 0.3,
+    "scope": [
+      "interactive",
+      "bgjob"
+    ]
+  },
   "mcp-classifier": {
     "mode": "enforce",
     "threshold": 0.7,
