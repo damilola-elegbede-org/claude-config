@@ -223,12 +223,18 @@ eq "missing log tolerated silently" "$(run papercut-grep.sh "$(pf 'ECONNRESET so
 echo "== executive-lint =="
 reset
 sl() { jq -nc --arg m "$1" --arg a "${2:-false}" '{session_id:"s",hook_event_name:"Stop",stop_hook_active:($a=="true"),last_assistant_message:$m,cwd:"/nonexistent"}'; }
-GOOD=$'**FYI · All 18 tests pass.**\nDetails here.'
+GOOD=$'**FYI · All 18 tests pass.**\n**You:** nothing\n**Unsure:** nothing\nDetails here.'
 eq "valid FYI reply passes" "$(run executive-lint.sh "$(sl "$GOOD")")" ""
-ACT=$'**ACTION · Run `/sync` once.**\nConfidence **high** (tests) · Reversible **yes** · Deadline **today**\n\n**Next:** you.'
+ACT=$'**ACTION · Run `/sync` once.**\n**You:** run it · Reversible **yes** · Deadline **today**\n**Unsure:** nothing · Confidence **high** (tests)\n\n**Next:** you.'
 eq "valid ACTION with meta line passes" "$(run executive-lint.sh "$(sl "$ACT")")" ""
+out=$(run executive-lint.sh "$(sl $'**FYI · done.**\nno opener lines')")
+has "FYI without You and Unsure blocked" "$out" "three-line opener"
+out=$(run executive-lint.sh "$(sl $'**ACTION · run it.**\n**You:** run it\n**Unsure:** nothing')")
+has "ACTION without reversible, deadline and confidence blocked" "$out" "Reversible and Deadline"
+out=$(run executive-lint.sh "$(sl $'**ACTION · run it.**\n**You:** run it · Reversible · Deadline\n**Unsure:** Confidence')")
+has "ACTION with field names but no values blocked" "$out" "Reversible and Deadline"
 for tag in DECISION APPROVAL BLOCKED INPUT; do
-  m=$'**'"$tag"$' · conclusion.**\nConfidence **high** (x) · Reversible **yes** · Deadline **none**\nbody'
+  m=$'**'"$tag"$' · conclusion.**\n**You:** x · Reversible **yes** · Deadline **none**\n**Unsure:** nothing · Confidence **high** (x)\nbody'
   eq "valid $tag passes" "$(run executive-lint.sh "$(sl "$m")")" ""
 done
 out=$(run executive-lint.sh "$(sl $'Here is the answer.\nmore')")
@@ -239,19 +245,19 @@ has "unknown tag blocked" "$out" '"decision":"block"'
 out=$(run executive-lint.sh "$(sl $'FYI · not bold.\nx')")
 has "non-bold line 1 blocked" "$out" '"decision":"block"'
 out=$(run executive-lint.sh "$(sl $'**ACTION · do it.**\nbody without meta')")
-has "ACTION without meta line blocked" "$out" "meta line"
+has "ACTION without the opener blocked" "$out" "three-line opener"
 out=$(run executive-lint.sh "$(sl $'**DECISION · pick.**\nbody')")
-has "DECISION without meta line blocked" "$out" "meta line"
+has "DECISION without the opener blocked" "$out" "three-line opener"
 LONG="**FYI · long.**"
 for i in $(seq 1 70); do LONG+=$'\n'"line $i"; done
 out=$(run executive-lint.sh "$(sl "$LONG")")
 has "reply over 60 lines blocked" "$out" "max 60"
-out=$(run executive-lint.sh "$(sl $'**FYI · see ENG-1234 for details.**\nx')")
+out=$(run executive-lint.sh "$(sl $'**FYI · see ENG-1234 for details.**\n**You:** nothing\n**Unsure:** nothing\nx')")
 has "bare Linear ID blocked" "$out" "ENG-1234"
-eq "linked Linear ID passes" "$(run executive-lint.sh "$(sl $'**FYI · see [ENG-1234](https://linear.app/b/issue/ENG-1234/x).**\nx')")" ""
-eq "Linear ID in code span passes" "$(run executive-lint.sh "$(sl $'**FYI · branch `feat/ENG-1234`.**\nx')")" ""
-eq "Linear ID in code fence passes" "$(run executive-lint.sh "$(sl $'**FYI · log.**\n```\nENG-1234 done\n```')")" ""
-eq "UTF-8/SHA-256 are not Linear IDs" "$(run executive-lint.sh "$(sl $'**FYI · UTF-8 and SHA-256 are fine.**\nx')")" ""
+eq "linked Linear ID passes" "$(run executive-lint.sh "$(sl $'**FYI · see [ENG-1234](https://linear.app/b/issue/ENG-1234/x).**\n**You:** nothing\n**Unsure:** nothing\nx')")" ""
+eq "Linear ID in code span passes" "$(run executive-lint.sh "$(sl $'**FYI · branch `feat/ENG-1234`.**\n**You:** nothing\n**Unsure:** nothing\nx')")" ""
+eq "Linear ID in code fence passes" "$(run executive-lint.sh "$(sl $'**FYI · log.**\n**You:** nothing\n**Unsure:** nothing\n```\nENG-1234 done\n```')")" ""
+eq "UTF-8/SHA-256 are not Linear IDs" "$(run executive-lint.sh "$(sl $'**FYI · UTF-8 and SHA-256 are fine.**\n**You:** nothing\n**Unsure:** nothing\nx')")" ""
 out=$(run executive-lint.sh "$(sl 'plain reply' true)")
 eq "stop_hook_active never blocks twice" "$(jq -r '.decision // "none"' <<<"$out")" "none"
 has "stop_hook_active lets D see the reply stayed off-style" "$out" "systemMessage"
@@ -277,11 +283,11 @@ LONGBG=$(awk 'BEGIN{print "**FYI · long.**"; for(i=0;i<80;i++) print "line " i}
 eq "bg job: over-length reply is blocked" "$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl "$LONGBG")" | jq -r .decision)" "block"
 out=$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl $'**ACTION · do it.**\nbody without meta')")
 eq "bg job: missing meta line is blocked" "$(jq -r .decision <<<"$out")" "block"
-has "bg job: the block names the meta line" "$out" "meta line"
-out=$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl $'**FYI · see ENG-1234.**\nx')")
+has "bg job: the block names the opener" "$out" "three-line opener"
+out=$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl $'**FYI · see ENG-1234.**\n**You:** nothing\n**Unsure:** nothing\nx')")
 eq "bg job: bare Linear ID is blocked" "$(jq -r .decision <<<"$out")" "block"
 has "bg job: the block quotes the workspace link form" "$out" "https://linear.app/bareclaude/issue/ID"
-eq "bg job: stop_hook_active never blocks twice" "$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl $'**FYI · see ENG-1234.**\nx' true)" | jq -r '.decision // "none"')" "none"
+eq "bg job: stop_hook_active never blocks twice" "$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl $'**FYI · see ENG-1234.**\n**You:** nothing\n**Unsure:** nothing\nx' true)" | jq -r '.decision // "none"')" "none"
 # The tag check alone, switched to shadow for bgjob, only logs.
 rm -rf "$HOME/.claude/jev"
 rules '{"executive-lint":{"mode":{"interactive":"enforce","bgjob":"shadow"}},"executive-lint-meta":{"mode":{"bgjob":"shadow"}},"executive-lint-bare-id":{"mode":{"bgjob":"shadow"}}}'
@@ -308,31 +314,31 @@ loghas shadow-would-block && ok || bad "shadow-would-block logged"
 
 echo "== link-lint =="
 reset
-eq "linked PR, code span, colour code and option number pass" "$(run link-lint.sh "$(sl $'**FYI · see [PR #3](https://github.com/o/r/pull/3), `#4`, colour #141414, Option #2.**\nx')")" ""
-out=$(run link-lint.sh "$(sl $'**FYI · see PR #3 for details.**\nx')")
+eq "linked PR, code span, colour code and option number pass" "$(run link-lint.sh "$(sl $'**FYI · see [PR #3](https://github.com/o/r/pull/3), `#4`, colour #141414, Option #2.**\n**You:** nothing\n**Unsure:** nothing\nx')")" ""
+out=$(run link-lint.sh "$(sl $'**FYI · see PR #3 for details.**\n**You:** nothing\n**Unsure:** nothing\nx')")
 has "bare PR number blocked" "$out" "#3"
-out=$(run link-lint.sh "$(sl $'**FYI · merged (#128).**\nx')")
+out=$(run link-lint.sh "$(sl $'**FYI · merged (#128).**\n**You:** nothing\n**Unsure:** nothing\nx')")
 has "squash-merge style (#N) blocked" "$out" "#128"
-out=$(run link-lint.sh "$(sl $'**FYI · see PR #123456 for details.**\nx')")
+out=$(run link-lint.sh "$(sl $'**FYI · see PR #123456 for details.**\n**You:** nothing\n**Unsure:** nothing\nx')")
 has "PR number above five digits blocked" "$out" "#123456"
-out=$(run link-lint.sh "$(sl $'**FYI · see o/r#12.**\nx')")
+out=$(run link-lint.sh "$(sl $'**FYI · see o/r#12.**\n**You:** nothing\n**Unsure:** nothing\nx')")
 has "owner/repo#N blocked" "$out" "#12"
-out=$(run link-lint.sh "$(sl $'**FYI · docs at https://example.org/x.**\nx')")
+out=$(run link-lint.sh "$(sl $'**FYI · docs at https://example.org/x.**\n**You:** nothing\n**Unsure:** nothing\nx')")
 has "bare URL blocked" "$out" "https://example.org/x"
 hasnt "bold markers are not part of the URL" "$out" "x**"
-out=$(run link-lint.sh "$(sl $'**FYI · fixed in commit 940f2ae.**\nx')")
+out=$(run link-lint.sh "$(sl $'**FYI · fixed in commit 940f2ae.**\n**You:** nothing\n**Unsure:** nothing\nx')")
 has "bare commit SHA blocked" "$out" "940f2ae"
-eq "a word that looks like hex is not a SHA" "$(run link-lint.sh "$(sl $'**FYI · the deadbeef value and a facade.**\nx')")" ""
-eq "autolink <url> passes" "$(run link-lint.sh "$(sl $'**FYI · see <https://example.org/x>.**\nx')")" ""
-eq "refs inside a code fence pass" "$(run link-lint.sh "$(sl $'**FYI · log.**\n```\nPR #3 https://example.org\n```')")" ""
-eq "stop_hook_active never blocks twice" "$(run link-lint.sh "$(sl $'**FYI · PR #3.**\nx' true)")" ""
-eq "subagent skipped" "$(printf '%s' "$(jq -c '. + {agent_id:"a1"}' <<<"$(sl $'**FYI · PR #3.**\nx')")" | bash "$HOOKS/link-lint.sh" 2>/dev/null)" ""
-eq "fleet skipped" "$(BARECLAUDE_AGENT_SLUG=fleet-test run link-lint.sh "$(sl $'**FYI · PR #3.**\nx')")" ""
+eq "a word that looks like hex is not a SHA" "$(run link-lint.sh "$(sl $'**FYI · the deadbeef value and a facade.**\n**You:** nothing\n**Unsure:** nothing\nx')")" ""
+eq "autolink <url> passes" "$(run link-lint.sh "$(sl $'**FYI · see <https://example.org/x>.**\n**You:** nothing\n**Unsure:** nothing\nx')")" ""
+eq "refs inside a code fence pass" "$(run link-lint.sh "$(sl $'**FYI · log.**\n**You:** nothing\n**Unsure:** nothing\n```\nPR #3 https://example.org\n```')")" ""
+eq "stop_hook_active never blocks twice" "$(run link-lint.sh "$(sl $'**FYI · PR #3.**\n**You:** nothing\n**Unsure:** nothing\nx' true)")" ""
+eq "subagent skipped" "$(printf '%s' "$(jq -c '. + {agent_id:"a1"}' <<<"$(sl $'**FYI · PR #3.**\n**You:** nothing\n**Unsure:** nothing\nx')")" | bash "$HOOKS/link-lint.sh" 2>/dev/null)" ""
+eq "fleet skipped" "$(BARECLAUDE_AGENT_SLUG=fleet-test run link-lint.sh "$(sl $'**FYI · PR #3.**\n**You:** nothing\n**Unsure:** nothing\nx')")" ""
 rm -rf "$HOME/.claude/jev"
-eq "bg job: bare ref is not blocked" "$(CLAUDE_JOB_DIR=/x run link-lint.sh "$(sl $'**FYI · PR #3.**\nx')")" ""
+eq "bg job: bare ref is not blocked" "$(CLAUDE_JOB_DIR=/x run link-lint.sh "$(sl $'**FYI · PR #3.**\n**You:** nothing\n**Unsure:** nothing\nx')")" ""
 loghas '"rule":"link-lint","verdict":"shadow-would-block"' && ok || bad "bg job: bare ref logged as shadow-would-block" "$(cat "$LOG" 2>/dev/null)"
 rules '{"link-lint":{"mode":"off"}}'
-eq "mode off passes" "$(run link-lint.sh "$(sl $'**FYI · PR #3.**\nx')")" ""
+eq "mode off passes" "$(run link-lint.sh "$(sl $'**FYI · PR #3.**\n**You:** nothing\n**Unsure:** nothing\nx')")" ""
 reset
 
 echo "== link-validate =="
@@ -366,56 +372,56 @@ CEOF
 chmod +x "$T/bin/gh" "$T/bin/curl"
 export LV_GH="$T/bin/gh" LV_CURL="$T/bin/curl" TMPDIR="$T/tmp" CURL_ARGS_FILE="$T/curl.args"
 vl() { rm -rf "$T/tmp/claude-link-validate"; run link-validate.sh "$(sl "$1")"; }
-eq "existing PR with matching label passes" "$(vl $'**FYI · [PR #9](https://github.com/o/r/pull/9).**\nx')" ""
-eq "good Linear link, good web link pass" "$(vl $'**FYI · [ENG-13](https://linear.app/b/issue/ENG-13/x) and [docs](https://example.org/ok).**\nx')" ""
-out=$(vl $'**FYI · [PR #404](https://github.com/o/r/pull/404).**\nx')
+eq "existing PR with matching label passes" "$(vl $'**FYI · [PR #9](https://github.com/o/r/pull/9).**\n**You:** nothing\n**Unsure:** nothing\nx')" ""
+eq "good Linear link, good web link pass" "$(vl $'**FYI · [ENG-13](https://linear.app/b/issue/ENG-13/x) and [docs](https://example.org/ok).**\n**You:** nothing\n**Unsure:** nothing\nx')" ""
+out=$(vl $'**FYI · [PR #404](https://github.com/o/r/pull/404).**\n**You:** nothing\n**Unsure:** nothing\nx')
 has "nonexistent PR blocked" "$out" "does not exist"
-out=$(vl $'**FYI · [PR #3](https://github.com/o/r/pull/9).**\nx')
+out=$(vl $'**FYI · [PR #3](https://github.com/o/r/pull/9).**\n**You:** nothing\n**Unsure:** nothing\nx')
 has "label number != URL number blocked" "$out" "label says #3 but the URL is #9"
-out=$(vl $'**FYI · [PR #7](https://github.com/o/r/pull/7).**\nx')
+out=$(vl $'**FYI · [PR #7](https://github.com/o/r/pull/7).**\n**You:** nothing\n**Unsure:** nothing\nx')
 has "/pull/N that is an issue blocked" "$out" "is an issue"
-out=$(vl $'**FYI · [ENG-12](https://linear.app/b/issue/ENG-13/x).**\nx')
+out=$(vl $'**FYI · [ENG-12](https://linear.app/b/issue/ENG-13/x).**\n**You:** nothing\n**Unsure:** nothing\nx')
 has "Linear label != URL id blocked" "$out" "label says ENG-12 but the URL is ENG-13"
-out=$(vl $'**FYI · [c](https://github.com/o/r/commit/bad0000).**\nx')
+out=$(vl $'**FYI · [c](https://github.com/o/r/commit/bad0000).**\n**You:** nothing\n**Unsure:** nothing\nx')
 has "missing commit blocked" "$out" "not found"
-eq "existing commit passes" "$(vl $'**FYI · [c](https://github.com/o/r/commit/abc1234).**\nx')" ""
-out=$(vl $'**FYI · [r](https://github.com/o/gone).**\nx')
+eq "existing commit passes" "$(vl $'**FYI · [c](https://github.com/o/r/commit/abc1234).**\n**You:** nothing\n**Unsure:** nothing\nx')" ""
+out=$(vl $'**FYI · [r](https://github.com/o/gone).**\n**You:** nothing\n**Unsure:** nothing\nx')
 has "missing repository blocked" "$out" "repository o/gone not found"
-out=$(vl $'**FYI · [page](https://example.org/gone).**\nx')
+out=$(vl $'**FYI · [page](https://example.org/gone).**\n**You:** nothing\n**Unsure:** nothing\nx')
 has "web 404 blocked" "$out" "answers 404"
-eq "a link whose URL contains parentheses passes" "$(vl $'**FYI · [article](https://example.org/wiki/Foo_(bar)).**\nx')" ""
-out=$(vl $'**FYI · [article](https://example.org/gone_(x)).**\nx')
+eq "a link whose URL contains parentheses passes" "$(vl $'**FYI · [article](https://example.org/wiki/Foo_(bar)).**\n**You:** nothing\n**Unsure:** nothing\nx')" ""
+out=$(vl $'**FYI · [article](https://example.org/gone_(x)).**\n**You:** nothing\n**Unsure:** nothing\nx')
 has "a 404 on a URL with parentheses is reported with the whole URL" "$out" "gone_(x))"
 : >"$T/curl.args"
-vl $'**FYI · [page](https://example.org/ok).**\nx' >/dev/null
+vl $'**FYI · [page](https://example.org/ok).**\n**You:** nothing\n**Unsure:** nothing\nx' >/dev/null
 has "web check does not follow redirects" "$(cat "$T/curl.args")" "--max-redirs 0"
 hasnt "web check never passes -L" "$(cat "$T/curl.args")" " -L"
 : >"$T/curl.args"
-out=$(vl $'**FYI · [x](http://public.example@127.0.0.1:8080/action).**\nx')
+out=$(vl $'**FYI · [x](http://public.example@127.0.0.1:8080/action).**\n**You:** nothing\n**Unsure:** nothing\nx')
 has "userinfo URL is rejected before any fetch" "$out" "userinfo"
-out=$(vl $'**FYI · [docs](https://example.org/gone "manual").**\nx')
+out=$(vl $'**FYI · [docs](https://example.org/gone "manual").**\n**You:** nothing\n**Unsure:** nothing\nx')
 has "a titled link is validated" "$out" "answers 404"
-eq "a titled link that exists passes" "$(vl $'**FYI · [docs](https://example.org/ok "manual").**\nx')" ""
+eq "a titled link that exists passes" "$(vl $'**FYI · [docs](https://example.org/ok "manual").**\n**You:** nothing\n**Unsure:** nothing\nx')" ""
 : >"$T/curl.args"
-eq "link to .internal host is skipped, not fetched" "$(vl $'**FYI · [x](https://svc.internal/gone).**\nx')" ""
+eq "link to .internal host is skipped, not fetched" "$(vl $'**FYI · [x](https://svc.internal/gone).**\n**You:** nothing\n**Unsure:** nothing\nx')" ""
 eq ".internal host never reaches curl" "$(cat "$T/curl.args")" ""
-eq "web no-response is skipped, not blocked" "$(vl $'**FYI · [page](https://example.org/down).**\nx')" ""
+eq "web no-response is skipped, not blocked" "$(vl $'**FYI · [page](https://example.org/down).**\n**You:** nothing\n**Unsure:** nothing\nx')" ""
 loghas '"rule":"link-validate","verdict":"unverified"' && ok || bad "unverified link logged" "$(cat "$LOG" 2>/dev/null)"
-eq "gh outage is skipped, not blocked" "$(vl $'**FYI · [PR #500](https://github.com/o/r/pull/500).**\nx')" ""
-out=$(vl $'**FYI · [x](TBD) and [](https://example.org/a).**\nx')
+eq "gh outage is skipped, not blocked" "$(vl $'**FYI · [PR #500](https://github.com/o/r/pull/500).**\n**You:** nothing\n**Unsure:** nothing\nx')" ""
+out=$(vl $'**FYI · [x](TBD) and [](https://example.org/a).**\n**You:** nothing\n**Unsure:** nothing\nx')
 has "placeholder URL blocked" "$out" "placeholder"
 has "empty label blocked" "$out" "empty label"
-eq "bare URL needs no label (lint covers it)" "$(vl $'**FYI · https://example.org/ok.**\nx')" ""
-eq "links inside a code fence are ignored" "$(vl $'**FYI · log.**\n```\n[x](TBD)\n```')" ""
-eq "stop_hook_active never blocks twice" "$(run link-validate.sh "$(sl $'**FYI · [x](TBD).**\nx' true)")" ""
-eq "fleet skipped" "$(BARECLAUDE_AGENT_SLUG=fleet-test run link-validate.sh "$(sl $'**FYI · [x](TBD).**\nx')")" ""
+eq "bare URL needs no label (lint covers it)" "$(vl $'**FYI · https://example.org/ok.**\n**You:** nothing\n**Unsure:** nothing\nx')" ""
+eq "links inside a code fence are ignored" "$(vl $'**FYI · log.**\n**You:** nothing\n**Unsure:** nothing\n```\n[x](TBD)\n```')" ""
+eq "stop_hook_active never blocks twice" "$(run link-validate.sh "$(sl $'**FYI · [x](TBD).**\n**You:** nothing\n**Unsure:** nothing\nx' true)")" ""
+eq "fleet skipped" "$(BARECLAUDE_AGENT_SLUG=fleet-test run link-validate.sh "$(sl $'**FYI · [x](TBD).**\n**You:** nothing\n**Unsure:** nothing\nx')")" ""
 rm -rf "$HOME/.claude/jev"
-eq "bg job: broken link is not blocked" "$(CLAUDE_JOB_DIR=/x run link-validate.sh "$(sl $'**FYI · [x](TBD).**\nx')")" ""
+eq "bg job: broken link is not blocked" "$(CLAUDE_JOB_DIR=/x run link-validate.sh "$(sl $'**FYI · [x](TBD).**\n**You:** nothing\n**Unsure:** nothing\nx')")" ""
 loghas '"rule":"link-validate","verdict":"shadow-would-block"' && ok || bad "bg job: broken link logged as shadow-would-block" "$(cat "$LOG" 2>/dev/null)"
 rules '{"link-validate":{"mode":"off"}}'
-eq "mode off passes" "$(run link-validate.sh "$(sl $'**FYI · [x](TBD).**\nx')")" ""
+eq "mode off passes" "$(run link-validate.sh "$(sl $'**FYI · [x](TBD).**\n**You:** nothing\n**Unsure:** nothing\nx')")" ""
 rules '{"link-validate":{"mode":"enforce"}}'
-eq "LV_OFFLINE skips remote lookups" "$(LV_OFFLINE=1 vl $'**FYI · [PR #404](https://github.com/o/r/pull/404).**\nx')" ""
+eq "LV_OFFLINE skips remote lookups" "$(LV_OFFLINE=1 vl $'**FYI · [PR #404](https://github.com/o/r/pull/404).**\n**You:** nothing\n**Unsure:** nothing\nx')" ""
 unset LV_GH LV_CURL
 export TMPDIR="${TMPDIR_ORIG:-/tmp}"
 reset
@@ -715,7 +721,7 @@ speak() { # message → 0 when it would speak
 for tg in ACTION DECISION APPROVAL INPUT BLOCKED; do
   speak "**$tg · need you.**"$'\nbody' && ok || bad "voice speaks for $tg"
 done
-speak $'**FYI · all good.**\nbody' && bad "voice must stay silent for FYI" || ok
+speak $'**FYI · all good.**\n**You:** nothing\n**Unsure:** nothing\nbody' && bad "voice must stay silent for FYI" || ok
 speak 'Untagged plain reply.' && bad "voice must stay silent when untagged" || ok
 speak $'\n**ACTION · leading blank line.**' && ok || bad "voice speaks when line 1 follows blank lines"
 CLAUDE_JOB_DIR=/x speak '**ACTION · bg.**' && bad "bg job stays silent" || ok

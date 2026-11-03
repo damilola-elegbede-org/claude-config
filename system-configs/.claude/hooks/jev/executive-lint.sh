@@ -6,7 +6,8 @@
 # logged as would-block and nothing ever blocks. Fleet (BARECLAUDE_AGENT_SLUG) and
 # subagents (agent_id on stdin; SubagentStop is a different event) are skipped:
 #   1. line 1 is one bold sentence starting with a tag: FYI|DECISION|APPROVAL|INPUT|ACTION|BLOCKED
-#   2. DECISION|APPROVAL|ACTION|BLOCKED carry the meta line (Confidence/Reversible/Deadline)
+#   2. lines 2 and 3 are **You:** and **Unsure:**; DECISION|APPROVAL|ACTION|BLOCKED carry
+#      Reversible/Deadline on line 2 and Confidence on line 3
 #   3. at most max_lines lines (default 60)
 #   4. no bare Linear IDs (ENG-1234) outside a markdown link / code
 # A violation blocks with a reason. stop_hook_active is respected: never blocks twice
@@ -57,11 +58,16 @@ m = re.match(r"^\*\*(" + TAGS + r")(?=[\s*:·—-]|$)", first.strip())
 tag = m.group(1) if m else ""
 if not m or first.count("**") < 2:
     code = "tag" if (len(msg) > int(os.environ.get("RE_TAG_MIN", "0")) or "?" in msg) else "tagshort"
-    problems.append(code + "\tline 1 must be one bold sentence starting with a tag (" + TAGS.replace("|", "/") + "), e.g. **ACTION · conclusion.** (DECISION/APPROVAL/ACTION/BLOCKED also need line 2 to be exactly: Confidence **high/medium/low** (basis) · Reversible **yes/no** · Deadline **when**)")
-if tag in ("DECISION", "APPROVAL", "ACTION", "BLOCKED"):
-    head = "\n".join(lines[:6])
-    if not (re.search(r"Confidence\b", head) and re.search(r"Reversible\b", head) and re.search(r"Deadline\b", head)):
-        problems.append("meta\t" + tag + " needs the meta line right after line 1: Confidence **high/medium/low** (basis) · Reversible **yes/no** · Deadline **when**")
+    problems.append(code + "\tline 1 must be one bold sentence starting with a tag (" + TAGS.replace("|", "/") + "), e.g. **ACTION · conclusion.** (then line 2 **You:** and line 3 **Unsure:**)")
+solid = [l for l in lines if l.strip()]
+you = solid[1] if len(solid) > 1 else ""
+unsure = solid[2] if len(solid) > 2 else ""
+acts = tag in ("DECISION", "APPROVAL", "ACTION", "BLOCKED")
+if tag and not (you.startswith("**You:**") and unsure.startswith("**Unsure:**")):
+    if acts or len(msg) > int(os.environ.get("RE_TAG_MIN", "0")):
+        problems.append("meta\t" + tag + " needs the three-line opener: line 2 **You:** (or nothing), line 3 **Unsure:** (or nothing)")
+elif acts and not (re.search(r"Reversible \*\*[^*\s]", you) and re.search(r"Deadline \*\*[^*\s]", you) and re.search(r"Confidence \*\*[^*\s]", unsure)):
+    problems.append("meta\t" + tag + " needs Reversible and Deadline on the You line and Confidence on the Unsure line")
 limit = int(os.environ.get("RE_MAX_LINES", "60"))
 if len(lines) > limit:
     problems.append("len\treply is %d lines; a brief fits on one screen (max %d) — cut it, or move the bulk into an artifact/file" % (len(lines), limit))
@@ -139,7 +145,7 @@ PYEOF
         re_log executive-tag-correctness "$([ "$JTAG" = "$ACT_TAG" ] && echo agree || echo mismatch)" "actual=$ACT_TAG jev=$JTAG p=$JP"
         if [ "$TAG_MODE" = enforce ] && [ "$JTAG" != "$ACT_TAG" ] && \
           awk -v p="${JP:-0}" -v t="$(re_cfg executive-tag-correctness threshold 0.9)" 'BEGIN{exit !(p+0>=t+0)}'; then
-          EXTRA="${EXTRA}tag ${TAG} looks wrong: D's next move reads as ${JTAG}. Retag line 1; DECISION, APPROVAL and ACTION also need the meta line (Confidence · Reversible · Deadline), and a DECISION, APPROVAL or INPUT goes to D through AskUserQuestion"$'\n'
+          EXTRA="${EXTRA}tag ${TAG} looks wrong: D's next move reads as ${JTAG}. Retag line 1; DECISION, APPROVAL and ACTION also need Reversible and Deadline on the You line and Confidence on the Unsure line, and a DECISION, APPROVAL or INPUT goes to D through AskUserQuestion"$'\n'
         fi
       fi
       # Jev's score answer carries a probability per level, not a level: P(level>=2) = p["2"] + p["3"].
