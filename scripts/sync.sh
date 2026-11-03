@@ -472,7 +472,7 @@ merge_settings() {
 # failed install warns and never fails the sync. Updates after install are
 # Claude Code's background auto-update, not this function: on by default only
 # for claude-plugins-official, so settings.json's extraKnownMarketplaces sets
-# autoUpdate for the other three.
+# autoUpdate for the others.
 sync_plugins() {
     if ! command -v claude >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
         print_warning "claude or jq not found — plugin install skipped"
@@ -485,13 +485,16 @@ sync_plugins() {
     # Each inventory gates only its own loop: an unreadable list must not
     # read as "nothing installed" and trigger a re-add or re-install of everything.
     # "<marketplace name> <github repo>" — the name is what follows @ in enabledPlugins.
+    # The official marketplace plus every GitHub source in extraKnownMarketplaces, so a
+    # marketplace added to settings.json is registered without editing this list.
     if mkt_json=$(claude plugin marketplace list --json 2>/dev/null) \
-        && marketplaces=$(printf '%s\n' "$mkt_json" | jq -r '.[].name'); then
-        for entry in \
-            "claude-plugins-official anthropics/claude-plugins-official" \
-            "knowledge-work-plugins anthropics/knowledge-work-plugins" \
-            "anthropic-agent-skills anthropics/skills" \
-            "claude-community anthropics/claude-plugins-community"; do
+        && marketplaces=$(printf '%s\n' "$mkt_json" | jq -r '.[].name') \
+        && declared=$(jq -r '.extraKnownMarketplaces // {} | to_entries[]
+            | select(.value.source.source == "github" and (.value.source.repo // "") != "")
+            | .key + " " + .value.source.repo' "$SOURCE_DIR/settings.json"); then
+        printf '%s\n' "claude-plugins-official anthropics/claude-plugins-official" "$declared" |
+        while IFS= read -r entry; do
+            [ -n "$entry" ] || continue
             mkt_name=${entry% *}
             mkt_repo=${entry#* }
             if printf '%s\n' "$marketplaces" | grep -Fxq "$mkt_name"; then
