@@ -881,9 +881,12 @@ if [[ "$CAN_ASK" == 1 ]]; then
     if [[ -n "$HASH" ]]; then
         # A repeat deny of the same action keeps the first checkpoint while it is live: rewriting it would move the
         # time `approve` counts D's answer from past an answer D already gave (a retry before `approve`, or a
-        # duplicate call a second later, then made `approve` refuse D's yes).
+        # duplicate call a second later, then made `approve` refuse D's yes). Only the same session's checkpoint is
+        # kept: the hash has no session in it, and `approve` reads the checkpoint's transcript, so another session's
+        # deny of the same action replaces it.
         mkdir -p "$PENDING_DIR" 2>/dev/null
-        if [[ ! -f "$PENDING_DIR/$HASH" || -L "$PENDING_DIR/$HASH" ]] || expired "$PENDING_DIR/$HASH"; then
+        if [[ ! -f "$PENDING_DIR/$HASH" || -L "$PENDING_DIR/$HASH" ]] || expired "$PENDING_DIR/$HASH" ||
+            [[ "$(jq -r '.session_id // ""' "$PENDING_DIR/$HASH" 2>/dev/null)" != "$SESSION_ID" ]]; then
             IDS_JSON=$(printf '%s\n' "${BLOCK_IDS[@]}" | jq -R . | jq -sc . 2>/dev/null)
             jq -nc --argjson rules "${IDS_JSON:-[]}" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --argjson te "$(date +%s)" \
                 --arg sid "$SESSION_ID" --arg tp "$TRANSCRIPT" --arg cwd "$CWD" --arg scope "$SCOPE" \

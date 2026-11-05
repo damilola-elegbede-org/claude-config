@@ -1311,6 +1311,10 @@ assert_eq "mcp bridge: a repeat regex deny keeps the first checkpoint time" "100
 touch -t 202001010000 "$GP/$HM"
 regex_deny "$TIN" >/dev/null
 assert_eq "mcp bridge: an expired checkpoint is replaced" "false" "$([[ "$(jq -r '.ts_epoch' "$GP/$HM")" == 1000 ]] && echo true || echo false)"
+# another session's deny of the same action replaces the checkpoint, so its own answer can approve it
+jq -c '.ts_epoch = 1000 | .session_id = "other-session"' "$GP/$HM" >"$GP/$HM.x" && mv "$GP/$HM.x" "$GP/$HM"
+regex_deny "$TIN" >/dev/null
+assert_eq "mcp bridge: another session's checkpoint is replaced" "sess-mb" "$(jq -r '.session_id' "$GP/$HM")"
 # hold: D's yes carries Jev's code, but the regex gate still holds the action from an earlier call
 jq -c --argjson e "$(($(date +%s) - 60))" '.ts_epoch = $e' "$GP/$HM" >"$GP/$HM.x" && mv "$GP/$HM.x" "$GP/$HM"
 CJ=$(code_of "$OUT")
