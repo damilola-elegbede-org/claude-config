@@ -55,7 +55,7 @@ assert_released() {
 new_home() { # fresh HOME with hooks + data + stub; echoes nothing
   rm -rf "${T:?}/home" "${T:?}/stub.log" "${T:?}/mock.json"
   mkdir -p "$T/home/.claude/hooks/jev/rules.d"
-  cp "$SRC/jev-gate.sh" "$SRC/jev-gate-lib.sh" "$SRC/jev-ask-channel.sh" "$SRC/gate.sh" "$T/home/.claude/hooks/"
+  cp "$SRC/jev-gate.sh" "$SRC/jev-gate-lib.sh" "$SRC/jev-ask-channel.sh" "$SRC/gate.sh" "$SRC/gate-rules.json" "$T/home/.claude/hooks/"
   cp "$SRC/jev/gate-questions.json" "$SRC/jev/registry.sh" "$T/home/.claude/hooks/jev/"
   cp "$SRC/jev/rules.d/gates.json" "$T/home/.claude/hooks/jev/rules.d/"
   cp "$STUB" "$T/home/.claude/hooks/jev/jev-ask"
@@ -1268,9 +1268,7 @@ wait
 assert_contains "dual gate: a checkpoint written in parallel is still named" "$OUT" "gate.sh approve $HG"
 rm -f "$T/home/.claude/gate-pending/$HG"
 
-# Approval codes (papercut 32, 2026-10-12, vercel redeploy): D approved, but the approval detector scored the
-# answer 0.55-0.60 against 0.8 and the gate kept denying. The Jev deny now carries a code bound to the exact
-# action; D's answer to an AskUserQuestion whose text carries the code releases that action once, no model scoring.
+# approval-code helpers, shared by the bridge tests below and the approval-code tests (papercut 32)
 line_ask_q_at() { # uuid tool_use_id epoch question
   jq -nc --arg u "$1" --arg id "$2" --argjson e "$3" --arg q "$4" \
     '{type:"assistant", uuid:$u, timestamp:($e | todate), isSidechain:false, message:{role:"assistant", content:[{type:"tool_use", id:$id, name:"AskUserQuestion", input:{questions:[{question:$q, header:"Approve", options:[{label:"Yes, run it"}, {label:"No"}]}]}}]}}'
@@ -1286,6 +1284,76 @@ ask_code_into() { # transcript id question-code answer
     line_ask_answer_at "u-$2" "$2" "$((now + 2))" "Your questions have been answered: \"Redeploy production? (approval code $3)\"=\"$4\""
   } >>"$1"
 }
+
+# Every tool, not only Bash (2026-11-05, Drive trash_file): Jev released D's yes, the regex gate blocked again, and
+# the retry found Jev's one release spent. Both gates now share gate.sh's action hash for every tool.
+new_home
+set_mode mcp-classifier enforce
+mock_class delete 0.9
+TRASH=mcp__claude_ai_Google_Drive__trash_file
+regex_deny() { env -u CLAUDE_JOB_DIR -u BARECLAUDE_AGENT_SLUG HOME="$T/home" bash "$T/home/.claude/hooks/gate.sh" <<<"$1" 2>/dev/null; }
+action_hash() { env -u CLAUDE_JOB_DIR -u BARECLAUDE_AGENT_SLUG HOME="$T/home" bash "$T/home/.claude/hooks/gate.sh" action-hash <<<"$1" 2>/dev/null; }
+GP="$T/home/.claude/gate-pending"
+TT="$T/t-mcp-bridge.jsonl"
+{ line_user u1 "trash the old draft"; } >"$TT"
+TIN=$(mcp_in "$TRASH" "$TT" sess-mb)
+HM=$(action_hash "$TIN")
+assert_eq "mcp bridge: gate.sh action-hash is a 64-hex identity" "64" "${#HM}"
+assert_contains "mcp bridge: the regex gate denies the call" "$(regex_deny "$TIN")" '"permissionDecision":"deny"'
+assert_eq "mcp bridge: its checkpoint is filed under the shared hash" "true" "$([[ -f "$GP/$HM" ]] && echo true || echo false)"
+OUT=$(run_hook jev-gate.sh "$TIN")
+assert_contains "mcp bridge: the Jev reason carries the regex checkpoint code" "$OUT" "${HM:0:12}"
+assert_contains "mcp bridge: the Jev reason carries the approve command" "$OUT" "gate.sh approve $HM"
+# a repeat deny keeps the first checkpoint, so an answer D already gave still counts
+jq -c '.ts_epoch = 1000' "$GP/$HM" >"$GP/$HM.x" && mv "$GP/$HM.x" "$GP/$HM"
+regex_deny "$TIN" >/dev/null
+assert_eq "mcp bridge: a repeat regex deny keeps the first checkpoint time" "1000" "$(jq -r '.ts_epoch' "$GP/$HM")"
+touch -t 202001010000 "$GP/$HM"
+regex_deny "$TIN" >/dev/null
+assert_eq "mcp bridge: an expired checkpoint is replaced" "false" "$([[ "$(jq -r '.ts_epoch' "$GP/$HM")" == 1000 ]] && echo true || echo false)"
+# hold: D's yes carries Jev's code, but the regex gate still holds the action from an earlier call
+jq -c --argjson e "$(($(date +%s) - 60))" '.ts_epoch = $e' "$GP/$HM" >"$GP/$HM.x" && mv "$GP/$HM.x" "$GP/$HM"
+CJ=$(code_of "$OUT")
+assert_eq "mcp bridge: the deny names a Jev approval code" "12" "${#CJ}"
+ask_code_into "$TT" qmb "$CJ" "Yes, run it"
+OUT=$(run_hook jev-gate.sh "$TIN")
+assert_contains "hold: Jev still denies while the regex gate holds the action" "$OUT" '"permissionDecision":"deny"'
+assert_contains "hold: the reason says no approval was spent" "$OUT" "did not spend"
+assert_contains "hold: logged" "$(gate_log)" '"verdict":"hold-regex-pending"'
+# `gate.sh approve` moves the checkpoint out of gate-pending and leaves Jev its token: one approval, both gates
+mv "$GP/$HM" "$T/home/.claude/gate-approved-$HM.bak"
+mkdir -p "$T/home/.claude/gate-approved"
+touch "$T/home/.claude/gate-approved/jev.$HM"
+OUT=$(run_hook jev-gate.sh "$TIN")
+assert_released "mcp bridge: one gate.sh approve releases the Jev gate too" "$OUT"
+assert_contains "mcp bridge: logged as the regex approval" "$(gate_log)" '"verdict":"allow-regex-approval"'
+# with no regex checkpoint left, the coded yes the hold kept unspent still releases Jev once
+OUT=$(run_hook jev-gate.sh "$TIN")
+assert_released "hold: the yes the hold left unspent still releases Jev" "$OUT"
+# a checkpoint stamped this second is this call's own parallel deny, not a hold
+new_home
+mock_class delete 0.9
+mkdir -p "$GP"
+jq -nc --argjson e "$(date +%s)" '{ts_epoch:$e}' >"$GP/$(action_hash "$(mcp_in "$TRASH")")"
+OUT=$(run_hook jev-gate.sh "$(mcp_in "$TRASH")")
+assert_not_contains "hold: a checkpoint from this same call is not a hold" "$OUT" "did not spend"
+# the Jev deny clock: a repeat deny inside 30 minutes keeps the first deny's time
+new_home
+mock '{"G13-external-delete":0.95}'
+run_hook jev-gate.sh "$(bash_in "$GH_CMD" "" sess-clock)" >/dev/null
+DF=$(ls "$T/home/.claude/jev-state/denied/sess-clock/" 2>/dev/null | head -1)
+assert_eq "clock: the deny is recorded" "true" "$([[ -n "$DF" ]] && echo true || echo false)"
+echo "$(($(date +%s) - 100))" >"$T/home/.claude/jev-state/denied/sess-clock/$DF"
+KEEP=$(cat "$T/home/.claude/jev-state/denied/sess-clock/$DF")
+run_hook jev-gate.sh "$(bash_in "$GH_CMD" "" sess-clock)" >/dev/null
+assert_eq "clock: a repeat deny keeps the first time" "$KEEP" "$(cat "$T/home/.claude/jev-state/denied/sess-clock/$DF")"
+echo "$(($(date +%s) - 4000))" >"$T/home/.claude/jev-state/denied/sess-clock/$DF"
+run_hook jev-gate.sh "$(bash_in "$GH_CMD" "" sess-clock)" >/dev/null
+assert_eq "clock: a deny older than 30 minutes is replaced" "false" "$([[ $(($(date +%s) - $(cat "$T/home/.claude/jev-state/denied/sess-clock/$DF"))) -gt 1800 ]] && echo true || echo false)"
+
+# Approval codes (papercut 32, 2026-10-12, vercel redeploy): D approved, but the approval detector scored the
+# answer 0.55-0.60 against 0.8 and the gate kept denying. The Jev deny now carries a code bound to the exact
+# action; D's answer to an AskUserQuestion whose text carries the code releases that action once, no model scoring.
 P32_CMD='vercel redeploy https://alocubano-abc123.vercel.app --target production --scope team_abc123 2>&1 | tail -6'
 P32IN() { bash_in "${1:-$P32_CMD}" "$T/t-32.jsonl" sess-32; }
 
