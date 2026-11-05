@@ -42,6 +42,8 @@ ACTION=""
 # 1 only when ACTION shows the whole operation: nothing trimmed, omitted or stripped from it.
 ACTION_WHOLE=0
 ACTION_SHA=""
+# when this hook started: regex_pending_hold tells an earlier call's checkpoint from this call's own
+JEV_START=$(date +%s)
 TAILJSON=""
 HIT_LINES=""
 APPROVED=0
@@ -147,7 +149,8 @@ regex_checkpoint_note() {
 # approval has not cleared (`gate.sh approve` moves it out of gate-pending). gate.sh is about to deny this call
 # again, so Jev must not spend its one-use release on it: that is how one yes released Jev while the regex gate
 # blocked, and the immediate retry found Jev's release already used (2026-11-05, Drive trash_file). A checkpoint
-# stamped in the last 5 seconds is this call's own parallel deny, not an earlier one.
+# stamped within 2 seconds of this hook's start (or later) is this call's own parallel deny, not an earlier one;
+# measured from the start because the model call before this check can take seconds.
 regex_pending_hold() {
   local h f te
   [ "$JEV_CTX" != "fleet" ] && [ -z "${JEV_SUBAGENT:-}" ] || return 1
@@ -156,7 +159,7 @@ regex_pending_hold() {
   [ -f "$f" ] && [ ! -L "$f" ] || return 1
   te=$(jq -r '.ts_epoch // empty' "$f" 2>/dev/null)
   case "$te" in "" | *[!0-9]*) return 1 ;; esac
-  [ $(($(date +%s) - te)) -ge 5 ]
+  [ "$te" -le $((JEV_START - 2)) ]
 }
 
 # claim_code_release -> 0 once when D answered an AskUserQuestion whose text carries this action's approval code
