@@ -42,6 +42,8 @@ ACTION=""
 # 1 only when ACTION shows the whole operation: nothing trimmed, omitted or stripped from it.
 ACTION_WHOLE=0
 ACTION_SHA=""
+# when this hook started: regex_pending_hold tells an earlier call's checkpoint from this call's own
+JEV_START=$(date +%s)
 TAILJSON=""
 HIT_LINES=""
 APPROVED=0
@@ -84,15 +86,22 @@ bgjob_ask_answer_after_deny() {
     .d_ask == true and (.d_epoch | type) == "number" and .d_epoch >= $e' >/dev/null 2>&1
 }
 
-# regex_gate_hash -> gate.sh's approval identity for this Bash call (sha256 of tool, raw command, cwd, scope;
-# gate.sh's action_id), so the two gates can recognise the same action.
+# regex_gate_hash -> gate.sh's approval identity for this call, for any tool, so the two gates recognise the same
+# action. gate.sh computes it (`gate.sh action-hash`, its own action_id), so the two can never drift apart. Until
+# 2026-11 this was a Bash-only copy, and an MCP call (Drive, Gmail, Chrome) never got the regex gate's code or
+# its release: D's one yes released one gate and the other blocked again. Computed once per call.
+REGEX_HASH=""
 regex_gate_hash() {
-  [ "$TOOL" = "Bash" ] || return 1
-  printf '%s' "$INPUT" | jq -j --arg s "$JEV_CTX" '[.tool_name, (.tool_input.command // ""), (.cwd // ""), $s] | join("\u001f")' 2>/dev/null |
-    shasum -a 256 2>/dev/null | cut -d' ' -f1
+  if [ -z "$REGEX_HASH" ]; then
+    [ -f "$HOOK_DIR/gate.sh" ] || return 1
+    REGEX_HASH=$(printf '%s' "$INPUT" | bash "$HOOK_DIR/gate.sh" action-hash 2>/dev/null) || REGEX_HASH=""
+  fi
+  case "$REGEX_HASH" in "" | *[!0-9a-f]*) return 1 ;; esac
+  [ "${#REGEX_HASH}" -eq 64 ] || return 1
+  printf '%s' "$REGEX_HASH"
 }
 
-# claim_regex_release -> 0 once when `gate.sh approve` released exactly this Bash action in the last 30 minutes:
+# claim_regex_release -> 0 once when `gate.sh approve` released exactly this action in the last 30 minutes:
 # D answered the checkpoint dialog that carried its code, after the deny (gate.sh verifies that). The token is
 # single use (an atomic rename). Never for a fleet agent or a subagent, which cannot put an action to D.
 REGEX_CODE=""
@@ -118,7 +127,7 @@ claim_regex_release() {
 # regex_checkpoint_note -> when gate.sh also denied this call (its pending checkpoint exists), the steps that
 # clear both gates; only one deny reason reaches Claude, so the Jev reason must carry gate.sh's code too. The two
 # hooks run in parallel, so wait up to JEV_REGEX_PENDING_WAIT_S (default 2) seconds for gate.sh's record; gate.sh
-# is one jq call and writes it well inside that, and the wait is paid only on a Bash deny it did not share.
+# is one jq call and writes it well inside that, and the wait is paid only on a deny it did not share.
 regex_checkpoint_note() {
   local h n=0 max
   [ "$JEV_CTX" != "fleet" ] && [ -z "${JEV_SUBAGENT:-}" ] || return 0
@@ -134,6 +143,38 @@ regex_checkpoint_note() {
   done
   [ -f "$JEV_CLAUDE_DIR/gate-pending/$h" ] || return 0
   printf ' The regex gate also stopped this action: put its checkpoint code %s in the same question; once D approves, run `~/.claude/hooks/gate.sh approve %s`, which releases both gates for one retry of the exact same command.' "${h:0:12}" "$h"
+}
+
+# regex_pending_hold -> 0 when gate.sh still holds this same action at a checkpoint from an EARLIER call that D's
+# approval has not cleared (`gate.sh approve` moves it out of gate-pending). gate.sh is about to deny this call
+# again, so Jev must not spend its one-use release on it: that is how one yes released Jev while the regex gate
+# blocked, and the immediate retry found Jev's release already used (2026-11-05, Drive trash_file). A checkpoint
+# stamped within 2 seconds of this hook's start (or later) is this call's own parallel deny, not an earlier one;
+# measured from the start because the model call before this check can take seconds. The hold also needs gate.sh
+# to still enforce: the checkpoint is not expired (gate.sh's 30-minute TTL) and gate.sh's deny marker
+# (gate-denied/<hash>) shows it denied this same call, waiting up to JEV_REGEX_PENDING_WAIT_S for it as
+# regex_checkpoint_note does. A leftover checkpoint from a rule since set to off or shadow holds nothing.
+regex_pending_hold() {
+  local h f te d n=0 max
+  [ "$JEV_CTX" != "fleet" ] && [ -z "${JEV_SUBAGENT:-}" ] || return 1
+  h=$(regex_gate_hash) || return 1
+  f="$JEV_CLAUDE_DIR/gate-pending/$h"
+  [ -f "$f" ] && [ ! -L "$f" ] || return 1
+  te=$(jq -r '.ts_epoch // empty' "$f" 2>/dev/null)
+  case "$te" in "" | *[!0-9]*) return 1 ;; esac
+  [ "$te" -le $((JEV_START - 2)) ] || return 1
+  [ -z "$(find "$f" -mmin +30 2>/dev/null)" ] || return 1
+  case "${JEV_REGEX_PENDING_WAIT_S:-2}" in
+    "" | *[!0-9]*) max=20 ;;
+    *) max=$((${JEV_REGEX_PENDING_WAIT_S:-2} * 10)) ;;
+  esac
+  while :; do
+    d=$(cat "$JEV_CLAUDE_DIR/gate-denied/$h" 2>/dev/null)
+    case "$d" in "" | *[!0-9]*) ;; *) [ "$d" -ge $((JEV_START - 1)) ] && return 0 ;; esac
+    [ "$n" -lt "$max" ] || return 1
+    sleep 0.1
+    n=$((n + 1))
+  done
 }
 
 # claim_code_release -> 0 once when D answered an AskUserQuestion whose text carries this action's approval code
@@ -287,7 +328,10 @@ resolve_hits() {
       '{hookSpecificOutput:{hookEventName:"PreToolUse",additionalContext:$m}}'
     finish
   fi
-  if claim_code_release; then
+  # While gate.sh holds this action, Jev's own one-use releases wait: `gate.sh approve` then releases both gates.
+  local hold=0
+  regex_pending_hold && hold=1
+  if [ "$hold" = "0" ] && claim_code_release; then
     jev_log "$enforce_ids" "allow-code-approval" "enforce" ""
     jq -nc --arg m "Jev released ${enforce_ids} once: D approved exactly this action with approval code $(jev_approval_code)" \
       '{hookSpecificOutput:{hookEventName:"PreToolUse",additionalContext:$m}}'
@@ -305,7 +349,8 @@ resolve_hits() {
       '{hookSpecificOutput:{hookEventName:"PreToolUse",additionalContext:$m}}'
     finish
   fi
-  check_approval 0
+  APPROVED=0
+  [ "$hold" = "1" ] || check_approval 0
   if [ "$APPROVED" = "1" ]; then
     jev_log "$enforce_ids" "allow-approved-once" "enforce" ""
     # D sees every Jev action: a release is one, so it carries a visible note.
@@ -314,6 +359,10 @@ resolve_hits() {
     finish
   fi
   reason="$(jev_deny_reason "$enforce_ids" "$labels" "$ACTION" "$TOOL")$(regex_checkpoint_note)"
+  if [ "$hold" = "1" ]; then
+    reason="${reason} Jev did not spend any approval of D's on this call, because the regex gate still holds it: if D already said yes to a question carrying the regex checkpoint code, run the gate.sh approve command above and retry; that one approval releases both gates."
+    jev_log "$enforce_ids" "hold-regex-pending" "enforce" ""
+  fi
   jev_log "$enforce_ids" "deny" "enforce" ""
   jev_write_last_deny "$enforce_ids"
   jev_write_action_deny

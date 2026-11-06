@@ -462,6 +462,10 @@ jev_write_action_deny() {
   (
     umask 077
     mkdir -p "$d" 2>/dev/null || exit 0
+    # A repeat deny inside the 30-minute approval window keeps the first deny's time: moving it later would put
+    # an answer D already gave before the deny it approves, so D's yes stopped counting.
+    prev=$(cat "$d/$ACTION_SHA" 2>/dev/null)
+    case "$prev" in "" | *[!0-9]*) ;; *) [ $(($(date +%s) - prev)) -lt 1800 ] && exit 0 ;; esac
     date +%s >"$d/$ACTION_SHA.tmp.$$" 2>/dev/null && mv -f "$d/$ACTION_SHA.tmp.$$" "$d/$ACTION_SHA" 2>/dev/null
     rm -f "$d/$ACTION_SHA.tmp.$$" 2>/dev/null
   ) 2>/dev/null

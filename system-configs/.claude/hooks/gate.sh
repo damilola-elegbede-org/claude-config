@@ -749,6 +749,16 @@ eval_rules() { # <input json> -> the matches JSON on stdout
         --arg scope "$SCOPE" --arg slug "${BARECLAUDE_AGENT_SLUG:-}" "$JQ_PROG" 2>&1
 }
 
+# action-hash: reads a hook input on stdin and prints its approval identity, the same HASH a deny files under
+# gate-pending/ and `approve` takes. Read-only. The Jev gate (jev-gate.sh) uses it so both gates recognise one
+# action for every tool, not only Bash, and one approval of it releases both.
+if [[ "${1:-}" == "action-hash" ]]; then
+    ACTION_ID=$(eval_rules "$INPUT" | jq -r '.action // empty' 2>/dev/null)
+    [[ -n "$ACTION_ID" ]] || exit 1
+    printf '%s\n' "$(hash_str "$ACTION_ID")"
+    exit 0
+fi
+
 RESULT=$(eval_rules "$INPUT")
 if [[ $? -ne 0 ]]; then
     warn "rule evaluation failed — decision gates skipped for this call: ${RESULT:0:200}"
@@ -869,11 +879,23 @@ if [[ "$CAN_ASK" == 1 ]]; then
         TAIL=""
     fi
     if [[ -n "$HASH" ]]; then
+        # A repeat deny of the same action keeps the first checkpoint while it is live: rewriting it would move the
+        # time `approve` counts D's answer from past an answer D already gave (a retry before `approve`, or a
+        # duplicate call a second later, then made `approve` refuse D's yes). Only the same session's checkpoint is
+        # kept: the hash has no session in it, and `approve` reads the checkpoint's transcript, so another session's
+        # deny of the same action replaces it.
         mkdir -p "$PENDING_DIR" 2>/dev/null
-        IDS_JSON=$(printf '%s\n' "${BLOCK_IDS[@]}" | jq -R . | jq -sc . 2>/dev/null)
-        jq -nc --argjson rules "${IDS_JSON:-[]}" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --argjson te "$(date +%s)" \
-            --arg sid "$SESSION_ID" --arg tp "$TRANSCRIPT" --arg cwd "$CWD" --arg scope "$SCOPE" \
-            '{rules:$rules,ts:$ts,ts_epoch:$te,session_id:$sid,transcript_path:$tp,cwd:$cwd,scope:$scope}' >"$PENDING_DIR/$HASH" 2>/dev/null
+        if [[ ! -f "$PENDING_DIR/$HASH" || -L "$PENDING_DIR/$HASH" ]] || expired "$PENDING_DIR/$HASH" ||
+            [[ "$(jq -r '.session_id // ""' "$PENDING_DIR/$HASH" 2>/dev/null)" != "$SESSION_ID" ]]; then
+            IDS_JSON=$(printf '%s\n' "${BLOCK_IDS[@]}" | jq -R . | jq -sc . 2>/dev/null)
+            jq -nc --argjson rules "${IDS_JSON:-[]}" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --argjson te "$(date +%s)" \
+                --arg sid "$SESSION_ID" --arg tp "$TRANSCRIPT" --arg cwd "$CWD" --arg scope "$SCOPE" \
+                '{rules:$rules,ts:$ts,ts_epoch:$te,session_id:$sid,transcript_path:$tp,cwd:$cwd,scope:$scope}' >"$PENDING_DIR/$HASH" 2>/dev/null
+        fi
+        # When gate.sh last denied this action: jev-gate.sh holds its own releases only while this shows gate.sh
+        # denied the same call, so a checkpoint left behind by a rule since set to off or shadow holds nothing.
+        mkdir -p "$CLAUDE_DIR/gate-denied" 2>/dev/null
+        [[ -L "$CLAUDE_DIR/gate-denied/$HASH" ]] || date +%s >"$CLAUDE_DIR/gate-denied/$HASH" 2>/dev/null
         REASON="CHECKPOINT ${BLOCK_IDS[0]}: $MESSAGE.$ALSO Put this action to D via AskUserQuestion: quote the exact action and put the checkpoint code $(ask_code "$HASH") in the question text (approve refuses any question without it), and label the approving option so it starts with \"Yes\" or \"Approve\" (any other answer counts as no). If D approves, run \`~/.claude/hooks/gate.sh approve $HASH\` and retry with the exact same command from the same working directory $CWD (if your shell has moved since, cd back in a separate call first).$TAIL"
     else
         REASON="CHECKPOINT ${BLOCK_IDS[0]}: $MESSAGE.$ALSO Put this action to D via AskUserQuestion; if D approves, retry with the exact same command.$TAIL"
