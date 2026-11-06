@@ -167,13 +167,13 @@ gates take the hash from `gate.sh action-hash`, so they cannot disagree on what 
 reason reaches the session, so the Jev reason names gate.sh's checkpoint code and approve command whenever
 gate.sh has a pending checkpoint for the call.
 
-While gate.sh still holds an action at a checkpoint from an earlier call (stamped at least 2 seconds before this call's hook started, not expired, and gate.sh denied this same call, as
-its `~/.claude/gate-denied/<hash>` marker shows), Jev does not
-spend its own one-use releases (approval code, approval detector) on it, and says so in the deny reason (log
-verdict `hold-regex-pending`). Otherwise Jev would release D's yes while gate.sh denied the same call, and the
-retry after `gate.sh approve` would find Jev's release already used. A repeat deny of the same action keeps the
-first deny time in both gates (gate.sh's live checkpoint, Jev's 30-minute deny record), so an answer D already
-gave still counts after a retry.
+While gate.sh still holds an action at a checkpoint from an earlier call (stamped at least 2 seconds before this
+call's hook started, not expired, and gate.sh denied this same call, as its `~/.claude/gate-denied/<hash>` marker
+shows), Jev does not spend its own one-use releases (approval code, approval detector) on it, and says so in the
+deny reason (log verdict `hold-regex-pending`). Otherwise Jev would release D's yes while gate.sh denied the same
+call, and the retry after `gate.sh approve` would find Jev's release already used. A repeat deny of the same action
+keeps the first deny time in both gates (gate.sh's live checkpoint, Jev's 30-minute deny record), so an answer D
+already gave still counts after a retry.
 
 Every enforced deny from either gate writes `~/.claude/jev-state/last-deny/<session_id>.json`
 (`{ts, epoch, src, tool, rule, norm}`, mode 0600; `norm` is the whitespace-collapsed, redacted action,
