@@ -892,6 +892,10 @@ if [[ "$CAN_ASK" == 1 ]]; then
                 --arg sid "$SESSION_ID" --arg tp "$TRANSCRIPT" --arg cwd "$CWD" --arg scope "$SCOPE" \
                 '{rules:$rules,ts:$ts,ts_epoch:$te,session_id:$sid,transcript_path:$tp,cwd:$cwd,scope:$scope}' >"$PENDING_DIR/$HASH" 2>/dev/null
         fi
+        # When gate.sh last denied this action: jev-gate.sh holds its own releases only while this shows gate.sh
+        # denied the same call, so a checkpoint left behind by a rule since set to off or shadow holds nothing.
+        mkdir -p "$CLAUDE_DIR/gate-denied" 2>/dev/null
+        [[ -L "$CLAUDE_DIR/gate-denied/$HASH" ]] || date +%s >"$CLAUDE_DIR/gate-denied/$HASH" 2>/dev/null
         REASON="CHECKPOINT ${BLOCK_IDS[0]}: $MESSAGE.$ALSO Put this action to D via AskUserQuestion: quote the exact action and put the checkpoint code $(ask_code "$HASH") in the question text (approve refuses any question without it), and label the approving option so it starts with \"Yes\" or \"Approve\" (any other answer counts as no). If D approves, run \`~/.claude/hooks/gate.sh approve $HASH\` and retry with the exact same command from the same working directory $CWD (if your shell has moved since, cd back in a separate call first).$TAIL"
     else
         REASON="CHECKPOINT ${BLOCK_IDS[0]}: $MESSAGE.$ALSO Put this action to D via AskUserQuestion; if D approves, retry with the exact same command.$TAIL"

@@ -167,7 +167,8 @@ gates take the hash from `gate.sh action-hash`, so they cannot disagree on what 
 reason reaches the session, so the Jev reason names gate.sh's checkpoint code and approve command whenever
 gate.sh has a pending checkpoint for the call.
 
-While gate.sh still holds an action at a checkpoint from an earlier call (stamped at least 2 seconds before this call's hook started), Jev does not
+While gate.sh still holds an action at a checkpoint from an earlier call (stamped at least 2 seconds before this call's hook started, not expired, and gate.sh denied this same call, as
+its `~/.claude/gate-denied/<hash>` marker shows), Jev does not
 spend its own one-use releases (approval code, approval detector) on it, and says so in the deny reason (log
 verdict `hold-regex-pending`). Otherwise Jev would release D's yes while gate.sh denied the same call, and the
 retry after `gate.sh approve` would find Jev's release already used. A repeat deny of the same action keeps the

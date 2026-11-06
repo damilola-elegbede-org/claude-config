@@ -150,16 +150,31 @@ regex_checkpoint_note() {
 # again, so Jev must not spend its one-use release on it: that is how one yes released Jev while the regex gate
 # blocked, and the immediate retry found Jev's release already used (2026-11-05, Drive trash_file). A checkpoint
 # stamped within 2 seconds of this hook's start (or later) is this call's own parallel deny, not an earlier one;
-# measured from the start because the model call before this check can take seconds.
+# measured from the start because the model call before this check can take seconds. The hold also needs gate.sh
+# to still enforce: the checkpoint is not expired (gate.sh's 30-minute TTL) and gate.sh's deny marker
+# (gate-denied/<hash>) shows it denied this same call, waiting up to JEV_REGEX_PENDING_WAIT_S for it as
+# regex_checkpoint_note does. A leftover checkpoint from a rule since set to off or shadow holds nothing.
 regex_pending_hold() {
-  local h f te
+  local h f te d n=0 max
   [ "$JEV_CTX" != "fleet" ] && [ -z "${JEV_SUBAGENT:-}" ] || return 1
   h=$(regex_gate_hash) || return 1
   f="$JEV_CLAUDE_DIR/gate-pending/$h"
   [ -f "$f" ] && [ ! -L "$f" ] || return 1
   te=$(jq -r '.ts_epoch // empty' "$f" 2>/dev/null)
   case "$te" in "" | *[!0-9]*) return 1 ;; esac
-  [ "$te" -le $((JEV_START - 2)) ]
+  [ "$te" -le $((JEV_START - 2)) ] || return 1
+  [ -z "$(find "$f" -mmin +30 2>/dev/null)" ] || return 1
+  case "${JEV_REGEX_PENDING_WAIT_S:-2}" in
+    "" | *[!0-9]*) max=20 ;;
+    *) max=$((${JEV_REGEX_PENDING_WAIT_S:-2} * 10)) ;;
+  esac
+  while :; do
+    d=$(cat "$JEV_CLAUDE_DIR/gate-denied/$h" 2>/dev/null)
+    case "$d" in "" | *[!0-9]*) ;; *) [ "$d" -ge $((JEV_START - 1)) ] && return 0 ;; esac
+    [ "$n" -lt "$max" ] || return 1
+    sleep 0.1
+    n=$((n + 1))
+  done
 }
 
 # claim_code_release -> 0 once when D answered an AskUserQuestion whose text carries this action's approval code

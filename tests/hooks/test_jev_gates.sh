@@ -1320,6 +1320,7 @@ jq -c --argjson e "$(($(date +%s) - 60))" '.ts_epoch = $e' "$GP/$HM" >"$GP/$HM.x
 CJ=$(code_of "$OUT")
 assert_eq "mcp bridge: the deny names a Jev approval code" "12" "${#CJ}"
 ask_code_into "$TT" qmb "$CJ" "Yes, run it"
+regex_deny "$TIN" >/dev/null # gate.sh denies this same call in parallel
 OUT=$(run_hook jev-gate.sh "$TIN")
 assert_contains "hold: Jev still denies while the regex gate holds the action" "$OUT" '"permissionDecision":"deny"'
 assert_contains "hold: the reason says no approval was spent" "$OUT" "did not spend"
@@ -1334,6 +1335,20 @@ assert_contains "mcp bridge: logged as the regex approval" "$(gate_log)" '"verdi
 # with no regex checkpoint left, the coded yes the hold kept unspent still releases Jev once
 OUT=$(run_hook jev-gate.sh "$TIN")
 assert_released "hold: the yes the hold left unspent still releases Jev" "$OUT"
+# no hold once gate.sh stops enforcing (rule set to off or shadow): a leftover checkpoint it did not renew on
+# this call, or an expired one, holds nothing
+new_home
+set_mode mcp-classifier enforce
+mock_class delete 0.9
+mkdir -p "$GP"
+jq -nc --argjson e "$(($(date +%s) - 60))" '{ts_epoch:$e, session_id:"sess-mb"}' >"$GP/$HM"
+OUT=$(run_hook jev-gate.sh "$TIN")
+assert_not_contains "hold: a checkpoint gate.sh did not renew on this call holds nothing" "$OUT" "did not spend"
+mkdir -p "$T/home/.claude/gate-denied"
+date +%s >"$T/home/.claude/gate-denied/$HM"
+touch -t 202001010000 "$GP/$HM"
+OUT=$(run_hook jev-gate.sh "$TIN")
+assert_not_contains "hold: an expired checkpoint holds nothing" "$OUT" "did not spend"
 # a checkpoint stamped this second is this call's own parallel deny, not a hold
 new_home
 mock_class delete 0.9
