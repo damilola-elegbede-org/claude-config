@@ -147,7 +147,29 @@ def validate(d):
     if not controls:
         errs.append("protocol.controls is empty: add a negative control (a condition that must fail) so the "
                     "test can show it is able to fail")
+    elif not any(isinstance(c, dict) and c.get("expect") == "fail" for c in controls):
+        errs.append("protocol.controls has no negative control: add one with expect \"fail\", because positive "
+                    "controls alone cannot show that a broken test which always passes would be caught")
     return errs
+
+
+def planned(plan, rows):
+    """The rows the plan asked for: reps 1..plan.reps, the first row per (condition, rep).
+
+    run.sh never writes a pair twice and --record refuses reps outside the plan, but runs.jsonl is a plain file;
+    a row added by hand must not be able to change the verdict."""
+    reps = plan["reps"]
+    seen, out = set(), []
+    for r in rows:
+        rep = r.get("rep")
+        if not isinstance(rep, int) or isinstance(rep, bool) or not 1 <= rep <= reps:
+            continue
+        pair = (r.get("condition"), rep)
+        if pair in seen:
+            continue
+        seen.add(pair)
+        out.append(r)
+    return out
 
 
 def check_lock(d):
@@ -226,6 +248,7 @@ def read_rows(d):
 
 
 def stats(plan, rows):
+    rows = planned(plan, rows)
     out = {}
     for c in plan["conditions"]:
         name = c["name"]
@@ -306,7 +329,8 @@ def export_blind(d):
     judged = {c["name"] for c in plan["conditions"] if c.get("observe") == "judge"}
     if not judged:
         raise ExpError("no condition has observe \"judge\"; nothing to export")
-    rows = [r for r in read_rows(d) if r.get("condition") in judged and not r.get("error") and not r.get("timed_out")]
+    rows = [r for r in planned(plan, read_rows(d))
+            if r.get("condition") in judged and not r.get("error") and not r.get("timed_out")]
     rng = random.Random()
     rng.shuffle(rows)
     (d / "blind").mkdir(exist_ok=True)
@@ -317,7 +341,8 @@ def export_blind(d):
             bid = "%08x" % rng.getrandbits(32)
         key[bid] = [r["condition"], r["rep"]]
         out = d / "runs" / f"{r['condition']}-{r['rep']}.out"
-        text = out.read_text(encoding="utf-8", errors="replace")[:20000] if out.exists() else ""
+        # The whole output: a cut would hide whatever the grade depends on past the cut.
+        text = out.read_text(encoding="utf-8", errors="replace") if out.exists() else ""
         items.append({"id": bid, "output": text})
     (d / "blind" / "key.json").write_text(json.dumps(key, indent=1) + "\n", encoding="utf-8")
     with open(d / "blind" / "items.jsonl", "w", encoding="utf-8") as f:

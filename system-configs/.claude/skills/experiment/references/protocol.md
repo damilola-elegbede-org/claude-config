@@ -14,7 +14,7 @@ Runners never read this file. It says what would count as true before anything r
 | `prediction` | string | What the runs show if the hypothesis is true, in terms of the metric |
 | `if_false` | string | What the runs show if it is false |
 | `pass_rule` | object | The rule `score.py` applies (forms below) |
-| `controls` | list | At least one `{condition, expect: "pass" or "fail"}`; a control must behave on every run |
+| `controls` | list | `{condition, expect: "pass" or "fail"}` entries, at least one `expect: "fail"`; each must behave on every run |
 | `side_effects` | string | `sandbox`, `ask-d` or `refuse` (see `safety.md`) |
 | `notes` | string | Optional: anything a later reader needs, such as why this design |
 
@@ -39,7 +39,8 @@ or `>=`, `a` is compared against `b + margin`; with `<` or `<=`, against `b - ma
 In this order, and the first that applies wins:
 
 1. Any condition named by the pass rule or a control has fewer valid runs than `reps`: **INCONCLUSIVE**. A run
-   is invalid when it timed out, errored, or has no value yet (an unjudged output).
+   is invalid when it timed out, errored (including an `observe` command that failed), or has no value yet (an
+   unjudged output). Only reps 1 to `reps` count, and only the first row for each condition and rep.
 2. A control did not behave on every run (an `expect: "fail"` condition passed once, or an `expect: "pass"`
    condition failed once): **INCONCLUSIVE**, because the test cannot tell the hypothesis apart.
 3. The pass rule holds: **SUPPORTED**. It does not: **REFUTED**.
@@ -49,7 +50,7 @@ In this order, and the first that applies wins:
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `reps` | integer 1-1000 | Runs per condition |
-| `timeout_s` | number 1-3600 | Per-run time limit; a run past it is killed and counts as invalid |
+| `timeout_s` | number 1-3600 | Per-run time limit; a run past it is killed with every process it started, and counts as invalid |
 | `seed` | integer | Seeds the per-rep shuffle of condition order |
 | `conditions` | list | Each `{name, cmd, observe, home}` |
 
@@ -57,7 +58,8 @@ In this order, and the first that applies wins:
 - `cmd`: a bash command, run with cwd `work/`.
 - `observe`: `null` means the value is "exit code was 0". `"judge"` means a blind judge grades the output. Any
   other string is a command whose stdout is the value (parsed as JSON when it is JSON); it sees `RUN_OUT` and
-  `RUN_ERR` (file paths) and `RUN_EXIT`.
+  `RUN_ERR` (file paths) and `RUN_EXIT`. An observe command that exits non-zero or runs past 60 s records no
+  value and an `error`, so that run is invalid rather than graded on partial output.
 - `home`: `real` (default) keeps HOME; `sandbox` sets HOME to the experiment's `home/`.
 
 Every command also sees `EXPERIMENT_DIR`, `EXPERIMENT_WORK`, `EXPERIMENT_HOME`, `EXPERIMENT_CONDITION` and

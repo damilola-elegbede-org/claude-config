@@ -150,6 +150,39 @@ eq "6 blind items" "$(wc -l <"$D/blind/items.jsonl" | tr -d ' ')" "6"
 jq -c '{id, value: (.output | test("good"))}' "$D/blind/items.jsonl" >"$D/blind/judgments.jsonl"
 python3 "$S/score.py" "$D" >/dev/null; eq "judgments merge back and score SUPPORTED" "$?" "0"
 
+echo "== review regressions =="
+[ -x "$S/supervise.py" ] && ok || bad "supervise.py is executable"
+D=$(mk multiline '{}' "$(jq -c '.conditions[0].cmd = "true\ngit push origin --delete old-feature"' <<<"$PLAN3")")
+bash "$S/lock.sh" "$D" >/dev/null
+out=$(bash "$S/run.sh" "$D" 2>&1); code=$?
+eq "a gated command on a second line is refused" "$code" "65"
+eq "and nothing ran" "$(wc -c <"$D/runs.jsonl" | tr -d ' ')" "0"
+D=$(mk orphan '{}' "$(jq -c '.reps = 1 | .timeout_s = 1 | .conditions[0].cmd = "(sleep 2; touch \"$EXPERIMENT_WORK/late\") & sleep 5"' <<<"$PLAN3")")
+bash "$S/lock.sh" "$D" >/dev/null; bash "$S/run.sh" "$D" >/dev/null 2>&1
+eq "a timed-out run is marked timed_out" "$(jq -r 'select(.condition=="treatment") | .timed_out' "$D/runs.jsonl")" "true"
+sleep 3
+[ ! -e "$D/work/late" ] && ok || bad "a timeout kills the run's background children"
+D=$(mk obsfail '{}' "$(jq -c '.reps = 1 | .conditions[0].observe = "echo true; exit 7"' <<<"$PLAN3")")
+bash "$S/lock.sh" "$D" >/dev/null; bash "$S/run.sh" "$D" >/dev/null 2>&1
+eq "a failed observe records no value" "$(jq -c 'select(.condition=="treatment") | .value' "$D/runs.jsonl")" "null"
+has "and says why" "$(jq -r 'select(.condition=="treatment") | .error' "$D/runs.jsonl")" "observe exited 7"
+python3 "$S/score.py" "$D" >/dev/null; eq "so the result is INCONCLUSIVE" "$?" "2"
+D=$(mk recrange '{"side_effects":"ask-d"}' "$PLAN3")
+bash "$S/lock.sh" "$D" >/dev/null
+bash "$S/run.sh" "$D" --record treatment 0 true >/dev/null 2>&1; eq "--record refuses rep 0" "$?" "65"
+bash "$S/run.sh" "$D" --record treatment 4 true >/dev/null 2>&1; eq "--record refuses a rep past plan.reps" "$?" "65"
+D=$(mk extrarows '{}' "$PLAN3")
+bash "$S/lock.sh" "$D" >/dev/null; bash "$S/run.sh" "$D" >/dev/null 2>&1
+for r in 4 5 6; do printf '{"condition":"negative-control","rep":%s,"value":true}\n' "$r" >>"$D/runs.jsonl"; done
+printf '{"condition":"negative-control","rep":1,"value":true}\n' >>"$D/runs.jsonl"
+python3 "$S/score.py" "$D" >/dev/null; eq "rows outside the plan and duplicates do not change the verdict" "$?" "0"
+D=$(mk posonly '{"controls":[{"condition":"baseline","expect":"pass"}]}' "$PLAN3")
+has "positive-only controls are invalid" "$(python3 "$S/score.py" --validate "$D" 2>&1)" "no negative control"
+D=$(mk bigout '{}' "$(jq -c '.reps = 1 | .conditions[0].cmd = "head -c 30000 /dev/zero | tr \"\\\\0\" a" | .conditions[0].observe = "judge"' <<<"$PLAN3")")
+bash "$S/lock.sh" "$D" >/dev/null; bash "$S/run.sh" "$D" >/dev/null 2>&1
+python3 "$S/score.py" --export-blind "$D" >/dev/null
+eq "a 30k output is exported whole" "$(jq -r '.output | length' "$D/blind/items.jsonl")" "30000"
+
 echo
 echo "experiment: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]

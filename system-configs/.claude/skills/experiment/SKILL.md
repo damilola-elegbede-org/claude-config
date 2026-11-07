@@ -137,6 +137,8 @@ Order matters: each step depends on the one before it.
   run), `runs/<cond>-<rep>.out|.err`, `work/` (cwd of every run), `home/` (fake HOME a condition opts into with
   `"home": "sandbox"`), `verdict.json`.
 - `run.sh` resumes: re-running skips condition/rep pairs already recorded.
+- `scripts/supervise.py` runs each `cmd` and `observe` in its own process group and kills the whole group when
+  it exits or times out, so a background child cannot outlive its run and touch the next one.
 - Conditions run in an order shuffled per rep with `plan.seed`, so no condition always runs first.
 - `score.py` exit codes: 0 SUPPORTED, 1 REFUTED, 2 INCONCLUSIVE, 3 bad or unlocked experiment.
 - The Jev Stop check `experiment-candidate` surfaces this skill: when a reply rests on something not yet
