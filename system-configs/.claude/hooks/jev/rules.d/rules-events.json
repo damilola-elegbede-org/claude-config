@@ -78,6 +78,11 @@
     "flash_threshold": 0.95,
     "scope": ["interactive", "bgjob"]
   },
+  "experiment-candidate": {
+    "mode": { "interactive": "enforce", "bgjob": "enforce" },
+    "threshold": 0.9,
+    "scope": ["interactive", "bgjob"]
+  },
   "papercut-nudge": {
     "mode": "enforce",
     "threshold": 0.8,

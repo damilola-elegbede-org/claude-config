@@ -63,6 +63,8 @@ IM='(.mode | if type == "object" then .interactive else . end)'
 NONENFORCE=$(jq -r "to_entries[] | select(.value.threshold != null and (.value | $IM) != \"enforce\") | .key" "$RJ" | sort | paste -sd, -)
 # Interactive shadow: the rules whose measured precision did not clear enforce (Monte Carlo tuning, D approved).
 eq "every Jev rule (has threshold) ships enforce except the tuned shadow set" "$NONENFORCE" "executive-scope-creep,executive-unsourced-claims,workflow-branch-type,workflow-ci-class,workflow-verify-class"
+eq "experiment-candidate ships enforce in every scope" "$(jq -c '.["experiment-candidate"].mode' "$RJ")" '{"interactive":"enforce","bgjob":"enforce"}'
+eq "experiment-candidate threshold 0.9" "$(jq -r '.["experiment-candidate"].threshold' "$RJ")" "0.9"
 eq "executive-tag-correctness ships enforce" "$(jq -r ".\"executive-tag-correctness\" | $IM" "$RJ")" "enforce"
 eq "executive-unsourced-claims ships shadow" "$(jq -r ".\"executive-unsourced-claims\" | $IM" "$RJ")" "shadow"
 eq "executive-scope-creep flashes at 0.95" "$(jq -r '.["executive-scope-creep"].flash_threshold' "$RJ")" "0.95"
@@ -449,6 +451,34 @@ eq "enforce + P(level>=2) 0.8 below threshold 0.85 does not block" "$out" ""
 rules '{"executive-tag-correctness":{"mode":"enforce","threshold":0.9}}'
 out=$(JEV_MOCK=unavailable run executive-lint.sh "$(sl "$GOOD")")
 eq "Jev unavailable fails open (enforce mode)" "$out" ""
+# experiment-candidate: an unchecked claim one small experiment could settle -> nudge /experiment (shadow by default)
+reset
+mock exp '{"answers":{"tag":{"type":"choice","choice":"FYI","probabilities":{"FYI":0.97}},"experiment":{"type":"boolean","probability":0.93}}}'
+export JEV_MOCK_CAPTURE="$T/capture-exp"
+rm -f "$T/capture-exp"
+rules "$(cat "$RJ")"
+out=$(run executive-lint.sh "$(sl "$GOOD")")
+has "shipped config: p 0.93 >= 0.9 holds the reply and asks for /experiment" "$out" "run /experiment to get it before D acts"
+has "the reason is the experiment ask, not a style rewrite" "$out" "Jev: before D acts on your last reply"
+has "D sees that Jev asked for /experiment" "$out" "asked Claude to run /experiment"
+loghas '"rule":"experiment-candidate","verdict":"p=0.93"' && ok || bad "experiment-candidate p logged" "$(cat "$LOG" 2>/dev/null)"
+loghas '"rule":"experiment-candidate","verdict":"block"' && ok || bad "experiment-candidate block logged"
+has "the request asks the decision-relevant question" "$(cat "$T/capture-exp")" "would change the next step or the decision D makes"
+[[ "$(wc -l <"$T/capture-exp" | tr -d ' ')" == 1 ]] && ok || bad "still exactly one jev-ask call per Stop"
+eq "once per session: the same session is not held again" "$(run executive-lint.sh "$(sl "$GOOD")")" ""
+eq "never twice in a row (stop_hook_active)" "$(run executive-lint.sh "$(jq -c '.session_id = "s-active"' <<<"$(sl "$GOOD" true)")")" ""
+has "another session is held" "$(run executive-lint.sh "$(jq -c '.session_id = "s-other"' <<<"$(sl "$GOOD")")")" "run /experiment"
+has "bg job: the experiment nudge holds a job's reply too" "$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(jq -c '.session_id = "s-job"' <<<"$(sl "$GOOD")")")" "run /experiment"
+rules '{"experiment-candidate":{"mode":"enforce","threshold":0.95}}'
+eq "p 0.93 below threshold 0.95 does not block" "$(run executive-lint.sh "$(jq -c '.session_id = "s-low"' <<<"$(sl "$GOOD")")")" ""
+rules '{"experiment-candidate":{"mode":"shadow","threshold":0.5}}'
+eq "shadow mode only logs" "$(run executive-lint.sh "$(jq -c '.session_id = "s-shadow"' <<<"$(sl "$GOOD")")")" ""
+rules '{"experiment-candidate":{"mode":"off"}}'
+rm -f "$T/capture-exp"
+run executive-lint.sh "$(sl "$GOOD")" >/dev/null
+! grep -q 'one small, safe experiment' "$T/capture-exp" 2>/dev/null && ok || bad "mode off drops the question from the request"
+export JEV_MOCK_CAPTURE="$T/capture"
+rules '{}'
 rules '{}'
 touch "$HOME/.claude/jev.off"
 rm -f "$T/capture"
