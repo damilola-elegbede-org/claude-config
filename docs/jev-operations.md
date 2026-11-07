@@ -31,6 +31,22 @@ Regex rules stay where they were: `hooks/gate-rules.json` (patterns, lanes, mess
 `gate.sh` evaluates; a registry entry with the same rule id overrides its mode (`off`, `shadow`,
 `enforce`), and a registry `exempt_agents` list replaces the one shipped in `gate-rules.json`.
 
+## Gmail and Slack egress (allow_untrusted_sources)
+
+By default `jev-ask` refuses (exit 3, `egress_untrusted_source`) any request flagged
+`untrusted_source: gmail|slack`. ENG-2843: D approved sending REDACTED Gmail and Slack text to Jev
+(zero data retention) for Clara's judgment rules only. A rule's registry entry may list
+`"allow_untrusted_sources": ["gmail", "slack"]`; the source is let through only when all of these hold:
+
+- the process runs as the Clara fleet agent (the fleet launcher's agent-slug variable equals `clara`);
+- the rule id starts with `clara-`;
+- every flagged source is listed for that rule.
+
+Absent or empty key = refusal (unchanged). The text must travel in the top-level `untrusted` field,
+never in `state`. Redaction and the `exclude_paths` cwd exclusions (Visa, work) still apply after the
+check, so Visa-related work stays excluded. Shipped in `jev-rules.json` for `clara-urgent-mail`,
+`clara-inbox-bucket`, `clara-flight-change`, `clara-reply-resolves` and `clara-on-behalf`. Run `/sync` after merge.
+
 ## Kill switches
 
 Two files in `~/.claude`. Only a regular file counts: a directory or a symlink with that name does

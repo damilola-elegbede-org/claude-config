@@ -1,4 +1,10 @@
 {
   "exempt_agents": ["clara"],
-  "rules": {}
+  "rules": {
+    "clara-urgent-mail": { "allow_untrusted_sources": ["gmail"] },
+    "clara-inbox-bucket": { "allow_untrusted_sources": ["gmail"] },
+    "clara-flight-change": { "allow_untrusted_sources": ["gmail"] },
+    "clara-reply-resolves": { "allow_untrusted_sources": ["gmail", "slack"] },
+    "clara-on-behalf": { "allow_untrusted_sources": ["gmail", "slack"] }
+  }
 }
