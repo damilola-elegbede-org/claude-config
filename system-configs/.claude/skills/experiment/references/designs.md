@@ -35,8 +35,12 @@ claude -p "<the task, identical in every condition>" --model sonnet \
   --max-turns 6 --output-format stream-json --verbose --include-hook-events >"$EXPERIMENT_WORK/run.jsonl"
 ```
 
-- Give only the hook commands a fake HOME (`env HOME=$EXPERIMENT_HOME <hook>` inside the settings file), with
-  the version under test copied there. That keeps the live `~/.claude` untouched while the CLI still signs in.
+- Give only the hook commands a fake HOME (`env HOME=$EXPERIMENT_HOME JEV_ZSHRC=$HOME/.zshrc <hook>` inside the
+  settings file, with `$HOME` expanded to the real home when the file is written), with the version under test
+  copied there. That keeps the live `~/.claude` untouched while the CLI still signs in.
+- The Jev client reads its API key from `$HOME/.zshrc`, so under a fake HOME pass `JEV_ZSHRC` pointing at the
+  real file. Without it every Jev call fails open, the hook's model checks never fire, and the trial reads as
+  "the hook did nothing": a false negative. Never copy the key file into the experiment directory.
 - `--setting-sources project,local` drops the live user hooks and also the user skills: copy any skill the
   trial needs into the scratch repo's `.claude/skills/`.
 - Unset `CLAUDE_JOB_DIR` in the command so the session counts as interactive, unless the question is about
