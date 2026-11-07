@@ -13,7 +13,8 @@ substitutes prose for the dialog.
 False claims hurt D's decisions. Back every claim D may act on with its
 source: file:line, the command and its output, a URL, or a quote. Say
 "untested" when something wasn't tested, and label inference as inference.
-Never present a guess as fact.
+Never present a guess as fact. When a quick sandboxed experiment could settle a
+claim you would label untested or inference, run `/experiment` before D acts.
 
 ## Changes
 

@@ -41,7 +41,9 @@ SKILLS_DIR = PROJECT_ROOT / "system-configs" / ".claude" / "skills"
 #   generation with a render-and-verify loop), and colorwheel (InfoSec
 #   color-wheel vetting: red/blue/yellow/orange/green teams, purple re-attack
 #   loop, white verdict), and goal-status (progress report for the session's
-#   /goal: pinned criteria, bar, evidence table, check history)
+#   /goal: pinned criteria, bar, evidence table, check history), and experiment
+#   (pre-registered, sandboxed experiments run by the experiment-runner agent and
+#   graded by score.py)
 #   (advisor skill removed — migrated to the native advisor tool, see PR #221)
 #   (api-design-patterns, git-conventions, security-checklist and testing-patterns
 #    removed: 1043 lines of general knowledge preloaded into 5 agents' context on
@@ -51,8 +53,8 @@ SKILLS_DIR = PROJECT_ROOT / "system-configs" / ".claude" / "skills"
 #   youtube-thumbnail), verbatim from higgsfield-ai/skills; /sync verifies the
 #   `higgsfield` CLI they drive (docs/integrations/HIGGSFIELD_INTEGRATION.md)
 # Note: sync and skills-import are project-local (.claude/skills/), not in system-configs
-EXPECTED_AGENT_COUNT = 7
-EXPECTED_SKILL_COUNT = 51
+EXPECTED_AGENT_COUNT = 8
+EXPECTED_SKILL_COUNT = 52
 
 # Non-agent/command documentation files to skip
 NON_AGENT_FILES = [
