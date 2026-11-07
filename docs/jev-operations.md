@@ -209,6 +209,11 @@ is the same action, a safer variant or unrelated (`retry_kind`). These rows neve
   `bgjob_tag_min_chars` (500). Shorter untagged replies log `executive-lint-tagshort` / `shadow-would-block`
   (set `bgjob_tag_min_chars` to 0 to enforce the tag on every reply). Every block also prints a `Jev:` systemMessage
   to D. The Jev model checks (`executive-tag-correctness`, `-unsourced-claims`, `-scope-creep`) stay shadow in jobs.
+- `experiment-candidate` (Stop, in `executive-lint.sh`, enforce in every scope, jobs included): when the final
+  reply rests on something Claude is not sure of, new evidence would change the next step or D's decision, and a
+  quick sandboxed experiment could get it (P >= 0.9), Jev holds the reply once per session and asks Claude to run
+  `/experiment` first. It rides the same single Jev call as the other executive checks. Log verdicts: `p=<P>` on
+  every Stop it is asked, `block` when it holds a reply; the ratio of useful to needless blocks is its precision.
 - The `workflow-*` helpers (commit and branch type, mixed commit, review depth, CI and verify failure
   class, Linear presort, click target) run in job sessions in shadow; the skills always run their helper
   and act on the answer only when the mode is `enforce`.

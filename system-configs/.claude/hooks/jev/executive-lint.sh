@@ -13,10 +13,15 @@
 # A violation blocks with a reason. stop_hook_active is respected: never blocks twice
 # in a row (the harness also overrides after 8 consecutive blocks).
 #
-# Jev checks, all SHADOW (one jev-ask call, three questions; logged, never block):
+# Jev checks (one jev-ask call, four questions). The first three ship SHADOW (logged, never block):
 #   executive-tag-correctness  choice: which tag fits D's next move?
 #   executive-unsourced-claims score : actionable claims without sources
 #   executive-scope-creep      boolean: git diff --stat vs the first user prompt
+#   experiment-candidate       boolean, ENFORCE in every scope: the reply rests on something Claude is not sure
+#                              of, new evidence would change the next step or D's decision, and a small sandboxed
+#                              experiment could get it. Blocks once per session, asking for /experiment first;
+#                              unlike the other model checks it also blocks a background job, which is where
+#                              most unattended guessing happens.
 
 # shellcheck source-path=SCRIPTDIR source=rules-events-lib.sh
 . "$(dirname "$0")/rules-events-lib.sh"
@@ -88,18 +93,22 @@ PROBLEMS=$(printf '%s\n' "$LINT" | tail -n +2)
 # --- Jev shadow checks (never affect the verdict unless a rule is set to enforce) --
 EXTRA=""
 SCOPE_FLASH=""
+EXP_BLOCK=""
+EXP_MARK=""
+JEX=""
 TAG_MODE=$(re_mode executive-tag-correctness shadow)
 SRC_MODE=$(re_mode executive-unsourced-claims shadow)
 SCOPE_MODE=$(re_mode executive-scope-creep shadow)
+EXP_MODE=$(re_mode experiment-candidate shadow)
 # A background job's Jev model checks (tag-correctness, unsourced, scope) never block: forced to
 # shadow. The regex lint modes (executive-lint, -meta, -bare-id) are honored per scope from the registry.
 if [ "$SESSION_SCOPE" = bgjob ]; then
   for m in TAG_MODE SRC_MODE SCOPE_MODE; do
     [ "${!m}" = enforce ] && printf -v "$m" shadow
   done
-  [ "$LINT_MODE$META_MODE$BARE_MODE$TAG_MODE$SRC_MODE$SCOPE_MODE" = offoffoffoffoffoff ] && exit 0
+  [ "$LINT_MODE$META_MODE$BARE_MODE$TAG_MODE$SRC_MODE$SCOPE_MODE$EXP_MODE" = offoffoffoffoffoffoff ] && exit 0
 fi
-if [ "$ACTIVE" != true ] && [ -n "$TAG" ] && { [ "$TAG_MODE" != off ] || [ "$SRC_MODE" != off ] || [ "$SCOPE_MODE" != off ]; }; then
+if [ "$ACTIVE" != true ] && [ -n "$TAG" ] && { [ "$TAG_MODE" != off ] || [ "$SRC_MODE" != off ] || [ "$SCOPE_MODE" != off ] || [ "$EXP_MODE" != off ]; }; then
   FIRST_PROMPT=""
   if [ -f "$TRANSCRIPT" ]; then
     FIRST_PROMPT=$(python3 - "$TRANSCRIPT" <<'PYEOF' 2>/dev/null
@@ -127,6 +136,7 @@ PYEOF
   Q='{}'
   [ "$TAG_MODE" != off ] && Q=$(jq -c '. + {tag:{type:"choice",instructions:"Which tag names the single next move D must make after reading this reply?",criteria:{FYI:"D only reads; nothing is needed from D",DECISION:"D must choose between options",APPROVAL:"D must say yes or no to a plan",INPUT:"D must answer a question",ACTION:"D must do the one step only D can do: run a command, merge, upload, grant access, pay"}}}' <<<"$Q")
   [ "$SRC_MODE" != off ] && Q=$(jq -c '. + {unsourced:{type:"score",instructions:"How many factual claims D could act on in this reply lack a source (file:line, command output, URL, quote) and are not marked untested or inference?",criteria:["none: every actionable claim is sourced or marked untested/inference","one or two minor claims lack a source","several actionable claims lack a source","the key claims D would act on are bare assertions"]}}' <<<"$Q")
+  [ "$EXP_MODE" != off ] && Q=$(jq -c '. + {experiment:{type:"boolean",instructions:"Three things must all hold. (1) The reply rests on something its author is not sure of: an assumption, a guess, \"should\" or \"probably\", or a claim marked untested or inference. (2) New evidence on it would change the next step or the decision D makes. (3) One small, safe experiment could get that evidence now: a command run, a scratch-repo trial, a read-only live probe or a headless run. Do all three hold?",criteria:{"true":"an unsure, decision-relevant claim exists and a quick sandboxed experiment could settle it","false":"nothing load-bearing is unsure, or the answer would not change what happens next, or no quick sandboxed experiment could settle it"}}}' <<<"$Q")
   if [ "$SCOPE_MODE" != off ] && [ -n "$DIFFSTAT" ] && [ -n "$FIRST_PROMPT" ]; then
     Q=$(jq -c '. + {scope:{type:"boolean",instructions:"Does the diff stat show changes beyond what the first user prompt asked for (refactors, adjacent files, extra features)?",criteria:{"true":"files or areas changed that the prompt did not imply","false":"every changed file is implied by the prompt"}}}' <<<"$Q")
   fi
@@ -157,6 +167,16 @@ PYEOF
           EXTRA="${EXTRA}claims D may act on lack sources — add file:line / command output / URL, or mark untested or inference"$'\n'
         fi
       fi
+      JEX=$(jq -r '.answers.experiment.probability // empty' <<<"$RESP" 2>/dev/null)
+      if [ -n "$JEX" ]; then
+        re_log experiment-candidate "p=$JEX" ""
+        # Once per session: a nudge, not a loop. The mark is written when the block is issued.
+        EXP_MARK="$(re_session_dir "$(jq -r '.session_id // empty' <<<"$INPUT" 2>/dev/null)")/experiment-nudge"
+        if [ "$EXP_MODE" = enforce ] && [ ! -e "$EXP_MARK" ] && \
+          awk -v p="$JEX" -v t="$(re_cfg experiment-candidate threshold 0.9)" 'BEGIN{exit !(p+0>=t+0)}'; then
+          EXP_BLOCK="you are not sure of something this reply rests on, and new evidence would change the next step or D's decision: run /experiment to get it before D acts, or say in the reply why it cannot be tested"
+        fi
+      fi
       JSC=$(jq -r '.answers.scope.probability // empty' <<<"$RESP" 2>/dev/null)
       if [ -n "$JSC" ]; then
         re_log executive-scope-creep "p=$JSC" ""
@@ -180,6 +200,12 @@ fi
 # One would-block row per shadowed check (the old code logged only the first problem, hiding meta/bare).
 BLOCKING=""
 BLOCKCODES=""
+if [ -n "${EXP_BLOCK:-}" ]; then
+  BLOCKING="${EXP_BLOCK}"$'\n'
+  BLOCKCODES="experiment"
+  mkdir -p "$(dirname "$EXP_MARK")" 2>/dev/null && : >"$EXP_MARK" 2>/dev/null
+  re_log experiment-candidate block "p=$JEX"
+fi
 while IFS=$'\t' read -r code text; do
   [ -n "$code" ] || continue
   case "$code" in
@@ -198,7 +224,8 @@ while IFS=$'\t' read -r code text; do
   esac
 done <<<"$PROBLEMS"
 ALL=$(printf '%s%s' "$BLOCKING" "${EXTRA:+$'\n'$EXTRA}" | sed '/^$/d')
-# A bgjob blocks only on regex-lint problems; Jev model extras are shadow-only there (forced above).
+# A bgjob blocks only on regex-lint problems and the experiment nudge; the other Jev model extras are
+# shadow-only there (forced above).
 if [ -z "$ALL" ] || { [ "$SESSION_SCOPE" = bgjob ] && [ -z "$BLOCKING" ]; }; then
   [ -n "$SCOPE_FLASH" ] && jq -nc --arg m "$SCOPE_FLASH" '{systemMessage:$m}'
   exit 0
@@ -211,6 +238,12 @@ if [ "$ACTIVE" = true ]; then
   exit 0
 fi
 re_log executive-lint block "$(printf '%s' "$ALL" | head -1)"
-REASON="Executive style violations in your last reply (output style Executive; fix and send the corrected reply):"$'\n'"$(printf '%s' "$ALL" | sed 's/^/- /')"
+if [ "$BLOCKCODES" = experiment ] && [ -z "$EXTRA" ]; then
+  REASON="Jev: before D acts on your last reply: ${EXP_BLOCK}."
+  jq -nc --arg r "$REASON" --arg m "Jev: asked Claude to run /experiment before you act on that reply (unsure claim, p=${JEX})${SCOPE_FLASH:+ | $SCOPE_FLASH}" '{decision:"block",reason:$r,systemMessage:$m}'
+  exit 0
+else
+  REASON="Executive style violations in your last reply (output style Executive; fix and send the corrected reply):"$'\n'"$(printf '%s' "$ALL" | sed 's/^/- /')"
+fi
 jq -nc --arg r "$REASON" --arg m "Jev: executive-lint blocked a reply and asked for a rewrite ($WHAT)${SCOPE_FLASH:+ | $SCOPE_FLASH}" '{decision:"block",reason:$r,systemMessage:$m}'
 exit 0

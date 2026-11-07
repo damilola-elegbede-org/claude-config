@@ -120,6 +120,18 @@
       "skill": "excalidraw",
       "prompt": "Make a sequence diagram for the login flow."
     },
+    {
+      "skill": "experiment",
+      "prompt": "I'm not sure the cache key change actually raises the hit rate; run a quick experiment and prove it either way."
+    },
+    {
+      "skill": "experiment",
+      "prompt": "We're guessing that the hook fires on MCP calls. Test that hypothesis in a sandbox before we rely on it."
+    },
+    {
+      "skill": "experiment",
+      "prompt": "Are you sure a retry keeps the approval valid? Set up a trial with a control and show me the numbers."
+    },
 
     {
       "skill": "fix-ci",
