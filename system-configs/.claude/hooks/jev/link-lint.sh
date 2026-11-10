@@ -8,6 +8,7 @@
 #   1. bare URLs                 -> [descriptive text](url)
 #   2. bare PR/issue numbers     -> "PR #12", "(#12)", "#123", "owner/repo#12" -> link to the PR/issue
 #   3. bare commit SHAs          -> "commit 940f2ae", "(940f2ae)" -> link to the commit
+# A job's plain-text result: / needs input: / failed: line is exempt.
 # Linear IDs are checked by executive-lint.sh. link-validate.sh checks that the links are right.
 # stop_hook_active is respected: never blocks twice in a row.
 
@@ -36,6 +37,8 @@ body = re.sub(r"~~~.*?~~~", " ", body, flags=re.S)
 body = re.sub(r"`[^`\n]*`", " ", body)
 body = re.sub(r"\[[^\]]*\]\((?:[^()]|\([^()]*\))*\)", " ", body)
 body = re.sub(r"<https?://[^>]+>", " ", body)
+# A job status line (result: / needs input: / failed:) is plain text for the job list, never markdown.
+body = re.sub(r"(?m)^[ \t]*(?:result|needs input|failed):.*$", " ", body)
 problems = []
 urls = sorted(set(u.rstrip(".,;:") for u in re.findall(r"https?://[^\s)>\]*]+", body)))
 if urls:

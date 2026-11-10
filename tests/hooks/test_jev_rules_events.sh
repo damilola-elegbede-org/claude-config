@@ -331,6 +331,7 @@ loghas shadow-would-block && ok || bad "shadow-would-block logged"
 echo "== link-lint =="
 reset
 eq "linked PR, code span, colour code and option number pass" "$(run link-lint.sh "$(sl $'**FYI · see [PR #3](https://github.com/o/r/pull/3), `#4`, colour #141414, Option #2.**\n**You:** nothing\n**Unsure:** nothing\nx')")" ""
+eq "bare PR ref in a job result: line passes (plain text for the job list)" "$(run link-lint.sh "$(sl $'**FYI · done.**\n**You:** nothing\n**Unsure:** nothing\nx\nresult: PR #318 is green, see https://example.org/x')")" ""
 out=$(run link-lint.sh "$(sl $'**FYI · see PR #3 for details.**\n**You:** nothing\n**Unsure:** nothing\nx')")
 has "bare PR number blocked" "$out" "#3"
 out=$(run link-lint.sh "$(sl $'**FYI · merged (#128).**\n**You:** nothing\n**Unsure:** nothing\nx')")

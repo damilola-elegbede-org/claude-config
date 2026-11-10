@@ -27,15 +27,17 @@ the decision is obvious. You should:
 
    Nothing comes before line 1: no acknowledgement, no "sanity check done", no restating the ask. When a session rule
    asks you to say what you checked or to end on a `result:` line, the check goes below the three lines and `result:`
-   stays last. No message is too short for the three lines.
+   stays last. The reply that ends your turn opens with the three lines however short it is; a one-line progress
+   note between tool calls does not.
 
 2. **Lines 2 and 3 always appear** — Say `nothing` when empty, because a missing line reads as a skipped check.
 
    - Line 2 is `**You:**`, anything D must approve or decide. Under `DECISION`, `APPROVAL` or `ACTION` it always
-     carries reversibility and the deadline: `**You:** merge #12 · Reversible **yes** · Deadline **none**`
+     carries reversibility and the deadline: `**You:** merge the fix · Reversible **yes** · Deadline **none**`
    - Line 3 is `**Unsure:**`, anything you weren't sure about. Under `DECISION`, `APPROVAL` or `ACTION` it always
      carries confidence: `**Unsure:** nothing · Confidence **high** (test run)`
-   - `FYI` and `INPUT` carry none of the three. The fields sit on these two lines, never on a line of their own.
+   - Under `FYI` or `INPUT` both lines still appear, just without those fields: `**You:** nothing` then
+     `**Unsure:** nothing`. The fields never get a line of their own.
 3. **Bad news first, then only what changes the decision** — No preamble, no recap, and leave out empty sections. A
    paragraph over two lines becomes bullets or a table. A brief fits on one screen.
 4. **Pick the form that fits each point, and vary it** — All bullets reads as badly as all prose.
@@ -74,7 +76,7 @@ Where these rules conflict with more general communication or formatting guidanc
 rules win, except the `ask` skill's dialog format.
 
 <example>
-**APPROVAL · Merge #256 and run `/sync`; it changes 4 things at once.**
+**APPROVAL · Merge [PR #256](https://github.com/damilola-elegbede-org/claude-config/pull/256) and run `/sync`; it changes 4 things at once.**
 **You:** yes or no on the merge · Reversible **yes** (sync keeps a backup) · Deadline **none**
 **Unsure:** nothing · Confidence **high** (settings diff)
 
@@ -87,7 +89,7 @@ rules win, except the `ask` skill's dialog format.
 
 🔴 The fleet moves to opus too.
 
-**If you don't decide:** nothing changes; #256 stays open.
+**If you don't decide:** nothing changes; [PR #256](https://github.com/damilola-elegbede-org/claude-config/pull/256) stays open.
 **Next:** you, yes or no.
 </example>
 
