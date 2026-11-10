@@ -245,7 +245,7 @@
       "text": "Line 1 is one bold sentence that starts with a tag: FYI, DECISION, APPROVAL, INPUT, ACTION (BLOCKED accepted for fleet reports).",
       "enforcement": "regex",
       "hook": "executive-lint.sh",
-      "mode": "enforce",
+      "mode": "shadow",
       "coverage": "full",
       "note": "Interactive main-agent Stop only; blocks once (stop_hook_active respected)."
     },
@@ -256,7 +256,7 @@
       "text": "The tag names D's next move correctly (FYI read, DECISION choose, APPROVAL yes/no, INPUT answer, ACTION do the one step only D can).",
       "enforcement": "jev",
       "hook": "executive-lint.sh",
-      "mode": "enforce",
+      "mode": "shadow",
       "coverage": "partial",
       "note": "Jev choice executive-tag-correctness; enforce in interactive sessions (bg jobs shadow), holds once at P >= 0.9."
     },
@@ -272,18 +272,18 @@
     },
     {
       "id": "EXEC-04",
-      "source": "system-configs/.claude/output-styles/executive.md:28",
+      "source": "system-configs/.claude/output-styles/executive.md:33",
       "anchor": "**Lines 2 and 3 always appear**",
       "text": "Lines 2 and 3 are You and Unsure, always shown; Reversible, Deadline and Confidence sit on them when D must act.",
       "enforcement": "regex",
       "hook": "executive-lint.sh",
-      "mode": "enforce",
+      "mode": "shadow",
       "coverage": "full",
       "note": "Required for DECISION, APPROVAL, ACTION, BLOCKED within the first 6 lines."
     },
     {
       "id": "EXEC-05",
-      "source": "system-configs/.claude/output-styles/executive.md:34",
+      "source": "system-configs/.claude/output-styles/executive.md:41",
       "anchor": "**Bad news first",
       "text": "Bad news first, then only what changes the decision.",
       "enforcement": "none",
@@ -293,7 +293,7 @@
     },
     {
       "id": "EXEC-06",
-      "source": "system-configs/.claude/output-styles/executive.md:34",
+      "source": "system-configs/.claude/output-styles/executive.md:41",
       "anchor": "No preamble, no recap",
       "text": "No preamble, no recap, leave out empty sections.",
       "enforcement": "none",
@@ -303,7 +303,7 @@
     },
     {
       "id": "EXEC-07",
-      "source": "system-configs/.claude/output-styles/executive.md:35",
+      "source": "system-configs/.claude/output-styles/executive.md:42",
       "anchor": "paragraph over two lines becomes bullets",
       "text": "A paragraph over two lines becomes bullets or a table.",
       "enforcement": "none",
@@ -313,18 +313,18 @@
     },
     {
       "id": "EXEC-08",
-      "source": "system-configs/.claude/output-styles/executive.md:35",
+      "source": "system-configs/.claude/output-styles/executive.md:42",
       "anchor": "A brief fits on one screen",
       "text": "A brief fits on one screen.",
       "enforcement": "regex",
       "hook": "executive-lint.sh",
-      "mode": "enforce",
+      "mode": "shadow",
       "coverage": "partial",
       "note": "Line cap (60 lines) only; does not measure width or density."
     },
     {
       "id": "EXEC-09",
-      "source": "system-configs/.claude/output-styles/executive.md:36",
+      "source": "system-configs/.claude/output-styles/executive.md:43",
       "anchor": "**Pick the form that fits each point",
       "text": "Pick the form that fits each point, and vary it.",
       "enforcement": "none",
@@ -334,7 +334,7 @@
     },
     {
       "id": "EXEC-10",
-      "source": "system-configs/.claude/output-styles/executive.md:50",
+      "source": "system-configs/.claude/output-styles/executive.md:57",
       "anchor": "Tables wrap past",
       "text": "Keep table cells short (tables wrap past ~100 columns).",
       "enforcement": "none",
@@ -344,7 +344,7 @@
     },
     {
       "id": "EXEC-11",
-      "source": "system-configs/.claude/output-styles/executive.md:50",
+      "source": "system-configs/.claude/output-styles/executive.md:57",
       "anchor": "Diagrams stay fenced",
       "text": "Diagrams stay fenced and under 80 columns; mermaid renders only inside artifacts.",
       "enforcement": "none",
@@ -354,7 +354,7 @@
     },
     {
       "id": "EXEC-12",
-      "source": "system-configs/.claude/output-styles/executive.md:51",
+      "source": "system-configs/.claude/output-styles/executive.md:58",
       "anchor": "An artifact always comes with",
       "text": "An artifact always comes with a 1-3 line summary and the link.",
       "enforcement": "none",
@@ -364,7 +364,7 @@
     },
     {
       "id": "EXEC-13",
-      "source": "system-configs/.claude/output-styles/executive.md:53",
+      "source": "system-configs/.claude/output-styles/executive.md:60",
       "anchor": "**Emoji mark surprises",
       "text": "Emoji mark surprises, not status: usually 0-2 per message.",
       "enforcement": "none",
@@ -374,7 +374,7 @@
     },
     {
       "id": "EXEC-14",
-      "source": "system-configs/.claude/output-styles/executive.md:53",
+      "source": "system-configs/.claude/output-styles/executive.md:60",
       "anchor": "🔴 problem or risk",
       "text": "Emoji meanings: red problem/risk, warning caveat/untested, check only to close a flagged item, star the recommendation in tables.",
       "enforcement": "none",
@@ -384,7 +384,7 @@
     },
     {
       "id": "EXEC-15",
-      "source": "system-configs/.claude/output-styles/executive.md:54",
+      "source": "system-configs/.claude/output-styles/executive.md:61",
       "anchor": "Bold one phrase per bullet",
       "text": "Bold one phrase per bullet at most; white space between sections; a horizontal rule only between separate topics.",
       "enforcement": "none",
@@ -394,7 +394,7 @@
     },
     {
       "id": "EXEC-16",
-      "source": "system-configs/.claude/output-styles/executive.md:56",
+      "source": "system-configs/.claude/output-styles/executive.md:63",
       "anchor": "**Say it plainly**",
       "text": "Plain words, jargon defined or dropped, no hedging.",
       "enforcement": "none",
@@ -404,7 +404,7 @@
     },
     {
       "id": "EXEC-17",
-      "source": "system-configs/.claude/output-styles/executive.md:56",
+      "source": "system-configs/.claude/output-styles/executive.md:63",
       "anchor": "Numbers with a comparison point",
       "text": "Numbers with a comparison point, never \"most\" or \"significant\".",
       "enforcement": "none",
@@ -414,7 +414,7 @@
     },
     {
       "id": "EXEC-18",
-      "source": "system-configs/.claude/output-styles/executive.md:58",
+      "source": "system-configs/.claude/output-styles/executive.md:65",
       "anchor": "**Source every claim D may act on**",
       "text": "Source every claim D may act on: file:line, command and result, URL, or quote.",
       "enforcement": "jev",
@@ -425,7 +425,7 @@
     },
     {
       "id": "EXEC-19",
-      "source": "system-configs/.claude/output-styles/executive.md:58",
+      "source": "system-configs/.claude/output-styles/executive.md:65",
       "anchor": "Mark **untested** and",
       "text": "Mark untested and inference explicitly.",
       "enforcement": "jev",
@@ -436,7 +436,7 @@
     },
     {
       "id": "EXEC-20",
-      "source": "system-configs/.claude/output-styles/executive.md:60",
+      "source": "system-configs/.claude/output-styles/executive.md:72",
       "anchor": "**Close with Next**",
       "text": "Close with **Next:** naming who acts and when, carrying any ask.",
       "enforcement": "none",
@@ -446,7 +446,7 @@
     },
     {
       "id": "EXEC-21",
-      "source": "system-configs/.claude/output-styles/executive.md:60",
+      "source": "system-configs/.claude/output-styles/executive.md:72",
       "anchor": "DECISION and APPROVAL add",
       "text": "DECISION and APPROVAL add **If you don't decide:**.",
       "enforcement": "none",
@@ -456,7 +456,7 @@
     },
     {
       "id": "EXEC-22",
-      "source": "system-configs/.claude/output-styles/executive.md:63",
+      "source": "system-configs/.claude/output-styles/executive.md:75",
       "anchor": "Where these rules conflict",
       "text": "Where these rules conflict with more general formatting guidance, these rules win, except the ask skill's dialog format.",
       "enforcement": "none",
@@ -820,7 +820,7 @@
       "text": "No BLUF: label; line 1 is a tag plus the conclusion in one bold sentence.",
       "enforcement": "regex",
       "hook": "executive-lint.sh",
-      "mode": "enforce",
+      "mode": "shadow",
       "coverage": "partial",
       "note": "A reply starting with BLUF: fails the line-1 tag check; a BLUF: after the tag is not caught."
     },
@@ -831,7 +831,7 @@
       "text": "Visual cues and flow: no walls of text.",
       "enforcement": "regex",
       "hook": "executive-lint.sh",
-      "mode": "enforce",
+      "mode": "shadow",
       "coverage": "partial",
       "note": "Line cap only."
     },
@@ -852,7 +852,7 @@
       "text": "Tags are FYI, DECISION, APPROVAL, INPUT, ACTION; no WAITING or CONTINGENCY tag.",
       "enforcement": "regex",
       "hook": "executive-lint.sh",
-      "mode": "enforce",
+      "mode": "shadow",
       "coverage": "partial",
       "note": "Unknown tags fail the line-1 check; WAITING/CONTINGENCY are rejected as unknown."
     },
@@ -914,7 +914,7 @@
       "text": "Every Linear ticket or PR reference to D is a full clickable hyperlink, never a bare ID.",
       "enforcement": "regex",
       "hook": "executive-lint.sh",
-      "mode": "enforce",
+      "mode": "shadow",
       "coverage": "partial",
       "note": "Regex catches bare ENG-/OPS- IDs in the final reply only; PR numbers and other team prefixes are not covered."
     },

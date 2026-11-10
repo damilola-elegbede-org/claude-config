@@ -220,11 +220,13 @@ is the same action, a safer variant or unrelated (`retry_kind`). These rows neve
   (marker `~/.claude/jev-cache/state/<session_id>.first`).
 - `A6-agent-router` adds a hint pointing at the `/ask-jev` ranking script when a delegation is a file
   search (`Explore`, or a prompt about locating files).
-- In job sessions the `executive-lint` regex checks enforce: meta line (`executive-lint-meta`), bare Linear IDs
-  (`executive-lint-bare-id`) and the length cap block once per Stop; the tag check blocks only replies longer than
-  `bgjob_tag_min_chars` (500). Shorter untagged replies log `executive-lint-tagshort` / `shadow-would-block`
-  (set `bgjob_tag_min_chars` to 0 to enforce the tag on every reply). Every block also prints a `Jev:` systemMessage
-  to D. The Jev model checks (`executive-tag-correctness`, `-unsourced-claims`, `-scope-creep`) stay shadow in jobs.
+- The `executive-lint` regex checks (tag, `executive-lint-meta`, `executive-lint-bare-id`, length cap) and
+  `executive-tag-correctness` ship shadow in every session type: a block makes the model print the reply twice, so
+  the Executive style file states the rules up front and the lint only meters them. Each miss logs
+  `executive-lint-<code>` / `shadow-would-block`; a rising count means the style text needs work, not that the lint
+  should block again. Setting a rule back to `enforce` restores the block (once per Stop, with a `Jev:`
+  systemMessage); in a job the tag check then blocks only replies longer than `bgjob_tag_min_chars` (500). The other
+  Jev model checks (`-unsourced-claims`, `-scope-creep`) stay shadow.
 - `experiment-candidate` (Stop, in `executive-lint.sh`, enforce in every scope, jobs included): when the final
   reply rests on something Claude is not sure of, new evidence would change the next step or D's decision, and a
   quick sandboxed experiment could get it (P >= 0.9), Jev holds the reply once per session and asks Claude to run
