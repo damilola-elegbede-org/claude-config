@@ -50,10 +50,17 @@ on that branch.
      | `failing-checks`     | `/fix-ci`, then `/commit` and `/push`                                              |
      | `unresolved-threads` | `/resolve-comments <pr-number>`: reply with the fix commit and resolve each thread |
      | `changes-requested`  | `/resolve-comments <pr-number>`                                                    |
-     | `conflicts`          | `git fetch origin`, `git rebase origin/<base>`, then `/push --force` (lease)       |
-     | `behind-base`        | `git fetch origin`, `git rebase origin/<base>`, then `/push --force` (lease)       |
+     | `conflicts`          | rebase on the PR's base branch (below), then `/push --force` (force-with-lease)    |
+     | `behind-base`        | rebase on the PR's base branch (below), then `/push --force` (force-with-lease)    |
      | `draft`              | `gh pr ready <url>`                                                                |
      | `blocked-other`      | needs D (usually a required human approval): go to step 3                          |
+
+     To rebase, take the base from the PR, not from an assumption about `origin`, because a fork
+     PR's base branch lives in another repository:
+     `gh pr view <url> --json baseRefName,baseRepository,baseRepositoryOwner` names the branch and
+     repository. Fetch that branch from the remote that points at the base repository
+     (`git remote -v`; it is `origin` unless the PR comes from a fork), then
+     `git rebase FETCH_HEAD`.
 
      A push starts a new head: CI and the review bots run again, so the next verdict is usually
      `pending`. That is expected; wait it out.

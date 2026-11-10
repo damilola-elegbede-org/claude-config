@@ -40,11 +40,15 @@ FAKE_GH_APP_TOKEN = "ghs" + "_" + ("a" * 36)
 FAKE_STRIPE_LIVE_KEY = "sk" + "_live_" + ("a" * 30)
 FAKE_STRIPE_WEBHOOK_SECRET = "whsec" + "_" + ("a" * 32)
 FAKE_PEM_HEADER = "-----BEGIN " + "RSA PRIVATE" + " KEY-----"
-# Header followed by key material on the same line (the escaped-newline form
-# used in env values, JSON and source strings). The scanner reads line by
-# line, so a header on its own line is deliberately not flagged: code that
-# only names the header (cert parsing, redaction) must stay writable.
+# A private key is the header followed by key material. Two layouts are
+# flagged: the escaped-newline form used in env values, JSON and source
+# strings, and the conventional form with real line breaks (the scanner also
+# reads a copy of the content with line breaks flattened). A header with no
+# key material after it is deliberately not flagged: code that only names the
+# header (cert parsing, redaction) must stay writable.
 FAKE_PEM_KEY = FAKE_PEM_HEADER + "\\n" + ("M" * 44)
+FAKE_PEM_KEY_MULTILINE = FAKE_PEM_HEADER + "\n" + ("M" * 64) + "\n" + ("N" * 64) + "\n"
+FAKE_PEM_KEY_CRLF = FAKE_PEM_HEADER + "\r\n" + ("M" * 64) + "\r\n"
 
 DESTRUCTIVE = "Destructive or policy-violating git operation"
 BARE_GIT = "bare git for an identity/remote op"
@@ -135,6 +139,14 @@ CASES = [
      {"file_path": "pay.js", "content": f"const w = '{FAKE_STRIPE_WEBHOOK_SECRET}';"}, SECRET, None),
     ("PEM private key in source", "Write",
      {"file_path": "key.py", "content": f"PEM = '{FAKE_PEM_KEY}'"}, SECRET, None),
+    ("PEM private key with real line breaks", "Write",
+     {"file_path": "key.pem.py", "content": FAKE_PEM_KEY_MULTILINE}, SECRET, None),
+    ("PEM private key with CRLF line breaks", "Edit",
+     {"file_path": "key.py", "old_string": "x", "new_string": FAKE_PEM_KEY_CRLF}, SECRET, None),
+    ("PEM header line followed by ordinary code is not flagged", "Write",
+     {"file_path": "key.js",
+      "content": f"const HEADER = '{FAKE_PEM_HEADER}';\nfunction isPrivateKeyMaterialPresentInTheGivenInputString(s) {{ return s.includes(HEADER); }}\n"},
+     None, None),
     ("code that only names the PEM header is not flagged", "Write",
      {"file_path": "key.js", "content": f"if (k.includes('{FAKE_PEM_HEADER}')) return k;"}, None, None),
     ("Stripe test-mode key is not flagged", "Write",
