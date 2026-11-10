@@ -62,21 +62,21 @@ jq -e . "$RJ" >/dev/null 2>&1 && ok || bad "rules-events.json is valid JSON"
 IM='(.mode | if type == "object" then .interactive else . end)'
 NONENFORCE=$(jq -r "to_entries[] | select(.value.threshold != null and (.value | $IM) != \"enforce\") | .key" "$RJ" | sort | paste -sd, -)
 # Interactive shadow: the rules whose measured precision did not clear enforce (Monte Carlo tuning, D approved).
-eq "every Jev rule (has threshold) ships enforce except the tuned shadow set" "$NONENFORCE" "executive-scope-creep,executive-unsourced-claims,workflow-branch-type,workflow-ci-class,workflow-verify-class"
+eq "every Jev rule (has threshold) ships enforce except the tuned shadow set" "$NONENFORCE" "executive-scope-creep,executive-tag-correctness,executive-unsourced-claims,workflow-branch-type,workflow-ci-class,workflow-verify-class"
 eq "experiment-candidate ships enforce in every scope" "$(jq -c '.["experiment-candidate"].mode' "$RJ")" '{"interactive":"enforce","bgjob":"enforce"}'
 eq "experiment-candidate threshold 0.9" "$(jq -r '.["experiment-candidate"].threshold' "$RJ")" "0.9"
-eq "executive-tag-correctness ships enforce" "$(jq -r ".\"executive-tag-correctness\" | $IM" "$RJ")" "enforce"
+eq "executive-tag-correctness ships shadow (a retag is a reprint)" "$(jq -r ".\"executive-tag-correctness\" | $IM" "$RJ")" "shadow"
 eq "executive-unsourced-claims ships shadow" "$(jq -r ".\"executive-unsourced-claims\" | $IM" "$RJ")" "shadow"
 eq "executive-scope-creep flashes at 0.95" "$(jq -r '.["executive-scope-creep"].flash_threshold' "$RJ")" "0.95"
 eq "executive-scope-creep ships shadow" "$(jq -r ".\"executive-scope-creep\" | $IM" "$RJ")" "shadow"
-for r in file-org-guard pr-draft-guard executive-lint link-lint link-validate retry-counter papercut-grep; do
+for r in file-org-guard pr-draft-guard link-lint link-validate retry-counter papercut-grep; do
   eq "regex rule $r ships enforce" "$(jq -r --arg r "$r" ".[\$r] | $IM" "$RJ")" enforce
 done
-# A bg job enforces the deterministic executive-lint regex checks and the workflow helpers whose tuning cleared it;
-# every other executive-* / workflow-* rule (the Jev model checks included) ships bgjob shadow.
-BGENF=$(jq -r 'to_entries[] | select((.key | test("^(executive|workflow)-")) and (.key | test("^executive-lint(-meta|-bare-id)?$") | not) and (.value.mode | type) == "object" and .value.mode.bgjob != "shadow") | .key' "$RJ" | paste -sd, -)
-eq "executive-*/workflow-* rules ship bgjob shadow except the lint checks and the tuned workflow helpers" "$BGENF" "workflow-linear-presort,workflow-commit-type,workflow-commit-mixed,workflow-review-depth"
-eq "executive-lint regex checks ship bgjob enforce" "$(jq -r '[.["executive-lint"],.["executive-lint-meta"],.["executive-lint-bare-id"]] | map(.mode.bgjob) | unique | join(",")' "$RJ")" "enforce"
+# The executive-lint regex checks ship shadow in every scope: a block reprints the reply, so the style file carries
+# the rules and the lint only meters them. A bg job enforces only the workflow helpers whose tuning cleared it.
+BGENF=$(jq -r 'to_entries[] | select((.key | test("^(executive|workflow)-")) and (.value.mode | type) == "object" and .value.mode.bgjob != "shadow") | .key' "$RJ" | paste -sd, -)
+eq "executive-*/workflow-* rules ship bgjob shadow except the tuned workflow helpers" "$BGENF" "workflow-linear-presort,workflow-commit-type,workflow-commit-mixed,workflow-review-depth"
+eq "executive-lint regex checks ship shadow in every scope" "$(jq -r '[.["executive-lint"],.["executive-lint-meta"],.["executive-lint-bare-id"]] | map(.mode.interactive, .mode.bgjob) | unique | join(",")' "$RJ")" "shadow"
 NOBG=$(jq -r 'to_entries[] | select((.key | test("^(executive|workflow)-")) and ((.value.scope | index("bgjob")) == null)) | .key' "$RJ" | paste -sd, -)
 eq "executive-*/workflow-* rules have bgjob in scope" "$NOBG" ""
 
@@ -259,6 +259,8 @@ has "bare Linear ID blocked" "$out" "ENG-1234"
 eq "linked Linear ID passes" "$(run executive-lint.sh "$(sl $'**FYI · see [ENG-1234](https://linear.app/b/issue/ENG-1234/x).**\n**You:** nothing\n**Unsure:** nothing\nx')")" ""
 eq "Linear ID in code span passes" "$(run executive-lint.sh "$(sl $'**FYI · branch `feat/ENG-1234`.**\n**You:** nothing\n**Unsure:** nothing\nx')")" ""
 eq "Linear ID in code fence passes" "$(run executive-lint.sh "$(sl $'**FYI · log.**\n**You:** nothing\n**Unsure:** nothing\n```\nENG-1234 done\n```')")" ""
+eq "Linear ID in a job result: line passes (plain text for the job list)" "$(run executive-lint.sh "$(sl $'**FYI · log.**\n**You:** nothing\n**Unsure:** nothing\nx\nresult: ENG-1234 merged')")" ""
+has "Linear ID bare in the body still flagged beside a result: line" "$(run executive-lint.sh "$(sl $'**FYI · log.**\n**You:** nothing\n**Unsure:** nothing\nENG-77 again\nresult: ENG-1234 merged')")" "ENG-77"
 eq "UTF-8/SHA-256 are not Linear IDs" "$(run executive-lint.sh "$(sl $'**FYI · UTF-8 and SHA-256 are fine.**\n**You:** nothing\n**Unsure:** nothing\nx')")" ""
 out=$(run executive-lint.sh "$(sl 'plain reply' true)")
 eq "stop_hook_active never blocks twice" "$(jq -r '.decision // "none"' <<<"$out")" "none"
@@ -266,9 +268,21 @@ has "stop_hook_active lets D see the reply stayed off-style" "$out" "systemMessa
 loghas allow-stop-hook-active && ok || bad "stop_hook_active allow logged"
 eq "subagent (agent_id) skipped" "$(printf '%s' "$(jq -c '. + {agent_id:"a1"}' <<<"$(sl 'plain reply')")" | bash "$HOOKS/executive-lint.sh" 2>/dev/null)" ""
 eq "fleet skipped" "$(BARECLAUDE_AGENT_SLUG=fleet-test run executive-lint.sh "$(sl 'plain reply')")" ""
-# bg job: the regex checks enforce (meta, bare ID, tag on replies over bgjob_tag_min_chars); short untagged replies are only logged.
+# Shipped registry: the lint is a meter. Nothing blocks in either scope; every miss is logged per code.
 reset
 rules "$(cat "$RJ")"
+SHIPBAD=$'**ACTION · see ENG-1234.**\nbody without meta'
+eq "shipped: interactive off-style reply is not blocked" "$(run executive-lint.sh "$(sl "$SHIPBAD")")" ""
+eq "shipped: interactive untagged reply is not blocked" "$(run executive-lint.sh "$(sl 'plain reply')")" ""
+eq "shipped: bg job off-style reply is not blocked" "$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl "$SHIPBAD")")" ""
+loghas '"rule":"executive-lint-meta","verdict":"shadow-would-block"' && ok || bad "shipped: meta miss logged" "$(cat "$LOG" 2>/dev/null)"
+loghas '"rule":"executive-lint-bare","verdict":"shadow-would-block"' && ok || bad "shipped: bare-ID miss logged"
+loghas '"rule":"executive-lint-tag","verdict":"shadow-would-block"' && ok || bad "shipped: tag miss logged"
+loghas '"verdict":"block"' && bad "shipped: no block is ever logged" || ok
+# A registry set back to enforce still works in a bg job (meta, bare ID, tag on replies over bgjob_tag_min_chars);
+# short untagged replies are only logged.
+reset
+rules "$(jq '(.["executive-lint"], .["executive-lint-meta"], .["executive-lint-bare-id"]) |= (.mode = "enforce")' "$RJ")"
 eq "bg job: SHORT reply missing the tag is not blocked" "$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl 'plain reply')")" ""
 loghas '"rule":"executive-lint-tagshort","verdict":"shadow-would-block"' && ok || bad "bg job: short missing tag logged as tagshort shadow-would-block" "$(cat "$LOG" 2>/dev/null)"
 loghas '"scope":"bgjob"' && ok || bad "bg job: decision log carries scope bgjob"
@@ -277,7 +291,7 @@ out=$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl "$LONGUNTAG")")
 eq "bg job: LONG reply missing the tag is blocked" "$(jq -r .decision <<<"$out")" "block"
 has "bg job: block carries a user-visible systemMessage (the flash D sees)" "$out" "Jev: executive-lint blocked a reply"
 rm -rf "$HOME/.claude/jev"
-eq "interactive: same short reply still blocks (shipped registry)" "$(run executive-lint.sh "$(sl 'plain reply')" | jq -r .decision)" "block"
+eq "interactive: same short reply blocks under enforce" "$(run executive-lint.sh "$(sl 'plain reply')" | jq -r .decision)" "block"
 rm -rf "$HOME/.claude/jev"
 out=$(CLAUDE_JOB_DIR=/x run executive-lint.sh "$(sl 'Which branch should I merge?')")
 eq "bg job: SHORT untagged reply that asks D a question is blocked" "$(jq -r .decision <<<"$out")" "block"

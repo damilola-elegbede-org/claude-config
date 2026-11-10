@@ -16,18 +16,18 @@
     "scope": ["interactive", "bgjob", "fleet"]
   },
   "executive-lint": {
-    "mode": { "interactive": "enforce", "bgjob": "enforce" },
+    "mode": { "interactive": "shadow", "bgjob": "shadow" },
     "scope": ["interactive", "bgjob"],
     "max_lines": 60,
     "bgjob_tag_min_chars": 500,
     "linear_issue_url": "https://linear.app/bareclaude/issue"
   },
   "executive-lint-meta": {
-    "mode": { "interactive": "enforce", "bgjob": "enforce" },
+    "mode": { "interactive": "shadow", "bgjob": "shadow" },
     "scope": ["interactive", "bgjob"]
   },
   "executive-lint-bare-id": {
-    "mode": { "interactive": "enforce", "bgjob": "enforce" },
+    "mode": { "interactive": "shadow", "bgjob": "shadow" },
     "scope": ["interactive", "bgjob"]
   },
   "link-lint": {
@@ -63,7 +63,7 @@
   },
 
   "executive-tag-correctness": {
-    "mode": { "interactive": "enforce", "bgjob": "shadow" },
+    "mode": { "interactive": "shadow", "bgjob": "shadow" },
     "threshold": 0.9,
     "scope": ["interactive", "bgjob"]
   },

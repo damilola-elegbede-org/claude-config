@@ -1,17 +1,21 @@
 #!/bin/bash
 # Stop — lint the final reply against the Executive output style.
 #
-# Regex checks (mode "executive-lint", default ENFORCE) for INTERACTIVE main-agent
-# sessions. Background jobs (CLAUDE_JOB_DIR) are linted in SHADOW only: every rule is
-# logged as would-block and nothing ever blocks. Fleet (BARECLAUDE_AGENT_SLUG) and
-# subagents (agent_id on stdin; SubagentStop is a different event) are skipped:
+# Regex checks (mode "executive-lint") for main-agent sessions, interactive and background job.
+# They SHIP SHADOW in rules.d/rules-events.json: every miss is logged as shadow-would-block and
+# nothing blocks, because a block makes the model print the whole reply a second time (and 35 of
+# 90 such rewrites in Oct-Nov 2026 were still off-style). The style file states the rules up
+# front; this log is the meter that says whether that works. A rule set to enforce still blocks.
+# Fleet (BARECLAUDE_AGENT_SLUG) and subagents (agent_id on stdin; SubagentStop is a different
+# event) are skipped:
 #   1. line 1 is one bold sentence starting with a tag: FYI|DECISION|APPROVAL|INPUT|ACTION|BLOCKED
 #   2. lines 2 and 3 are **You:** and **Unsure:**; DECISION|APPROVAL|ACTION|BLOCKED carry
 #      Reversible/Deadline on line 2 and Confidence on line 3
 #   3. at most max_lines lines (default 60)
 #   4. no bare Linear IDs (ENG-1234) outside a markdown link / code
-# A violation blocks with a reason. stop_hook_active is respected: never blocks twice
-# in a row (the harness also overrides after 8 consecutive blocks).
+#      (a job's plain-text result: / needs input: / failed: line is exempt)
+# Under enforce a violation blocks with a reason. stop_hook_active is respected: never blocks
+# twice in a row (the harness also overrides after 8 consecutive blocks).
 #
 # Jev checks (one jev-ask call, four questions). The first three ship SHADOW (logged, never block):
 #   executive-tag-correctness  choice: which tag fits D's next move?
@@ -80,6 +84,8 @@ body = re.sub(r"```.*?```", " ", msg, flags=re.S)
 body = re.sub(r"`[^`\n]*`", " ", body)
 body = re.sub(r"\[[^\]]*\]\([^)]*\)", " ", body)
 body = re.sub(r"https?://\S+", " ", body)
+# A job status line (result: / needs input: / failed:) is plain text for the job list, never markdown.
+body = re.sub(r"(?m)^[ \t]*(?:result|needs input|failed):.*$", " ", body)
 bare = sorted(set(re.findall(r"(?<![\w/.-])(?:" + os.environ.get("RE_LINEAR", "ENG|OPS") + r")-\d+\b", body)))
 if bare:
     problems.append("bare\tbare Linear ID(s) " + ", ".join(bare) + " — every ticket reference is a full clickable link, including in line 1: [ID](" + os.environ.get("RE_LINEAR_URL", "") + "/ID)")
