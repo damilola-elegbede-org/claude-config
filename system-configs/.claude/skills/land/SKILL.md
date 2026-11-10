@@ -50,10 +50,18 @@ on that branch.
      | `failing-checks`     | `/fix-ci`, then `/commit` and `/push`                                              |
      | `unresolved-threads` | `/resolve-comments <pr-number>`: reply with the fix commit and resolve each thread |
      | `changes-requested`  | `/resolve-comments <pr-number>`                                                    |
-     | `conflicts`          | `/rebase`, then `/push --force` (force-with-lease)                                 |
-     | `behind-base`        | `/rebase`, then `/push --force` (force-with-lease)                                 |
+     | `conflicts`          | rebase on the PR's base branch (below), then `/push --force` (force-with-lease)    |
+     | `behind-base`        | rebase on the PR's base branch (below), then `/push --force` (force-with-lease)    |
      | `draft`              | `gh pr ready <url>`                                                                |
      | `blocked-other`      | needs D (usually a required human approval): go to step 3                          |
+
+     To rebase, read the PR first: `gh pr view <url> --json baseRefName,isCrossRepository`.
+     - `isCrossRepository` false (a PR opened from this worktree: head and base are both in
+       `origin`): `git fetch origin <baseRefName>`, then `git rebase FETCH_HEAD`, then
+       `/push --force`.
+     - `isCrossRepository` true (the head is in a fork): do not rebase or force-push from here,
+       because `origin` is not the PR's head repository and the push could overwrite an unrelated
+       branch. Treat it as a blocker only D can clear and go to step 3.
 
      A push starts a new head: CI and the review bots run again, so the next verdict is usually
      `pending`. That is expected; wait it out.

@@ -157,6 +157,14 @@
 {"rule":"G7-slack","expect":"allow","tool":"mcp__claude_ai_Slack__slack_send_message_draft","input":{}}
 {"rule":"G7-slack","expect":"allow","tool":"mcp__claude_ai_Slack__slack_read_channel","input":{}}
 {"rule":"G7-slack","expect":"allow","tool":"mcp__claude_ai_Slack__slack_search_public","input":{}}
+{"rule":"G7-docusign","expect":"deny","tool":"mcp__claude_ai_Docusign__createEnvelope","input":{}}
+{"rule":"G7-docusign","expect":"deny","tool":"mcp__claude_ai_Docusign__createEnvelopeWithDocuments","input":{}}
+{"rule":"G7-docusign","expect":"deny","tool":"mcp__claude_ai_Docusign__sendReminder","input":{}}
+{"rule":"G7-docusign","expect":"deny","tool":"mcp__claude_ai_Docusign__updateEnvelopeRecipients","input":{}}
+{"rule":"G7-docusign","expect":"deny","tool":"mcp__claude_ai_Docusign__triggerWorkflow","input":{}}
+{"rule":"G7-docusign","expect":"allow","tool":"mcp__claude_ai_Docusign__getEnvelope","input":{}}
+{"rule":"G7-docusign","expect":"allow","tool":"mcp__claude_ai_Docusign__listRecipients","input":{}}
+{"rule":"G7-docusign","expect":"allow","tool":"mcp__claude_ai_Docusign__getTemplates","input":{}}
 {"rule":"G7-cal","expect":"deny","tool":"mcp__claude_ai_Google_Calendar__create_event","input":{}}
 {"rule":"G7-cal","expect":"deny","tool":"mcp__claude_ai_Google_Calendar__respond_to_event","input":{}}
 {"rule":"G7-cal","expect":"deny","tool":"mcp__claude_ai_Google_Calendar__update_event","input":{}}
@@ -276,6 +284,13 @@
 {"rule":"G13-mcp","expect":"allow","tool":"mcp__claude_ai_Notion__notion-create-pages","input":{}}
 {"rule":"G13-mcp","expect":"allow","tool":"mcp__claude_ai_Gmail__untrash_message","input":{}}
 {"rule":"G13-mcp","expect":"allow","tool":"mcp__claude_ai_Google_Drive__search_files","input":{}}
+{"rule":"G13-mcp","expect":"deny","tool":"mcp__claude-artifacts__delete_artifact","input":{}}
+{"rule":"G13-mcp","expect":"deny","tool":"mcp__linear__delete_comment","input":{}}
+{"rule":"G13-mcp","expect":"deny","tool":"mcp__linear__delete_attachment","input":{}}
+{"rule":"G13-mcp","expect":"deny","tool":"mcp__claude_ai_Claude_Docs__delete","input":{}}
+{"rule":"G13-mcp","expect":"allow","tool":"mcp__linear__save_comment","input":{}}
+{"rule":"G13-mcp","expect":"allow","tool":"mcp__claude-artifacts__read_artifact","input":{}}
+{"rule":"G13-mcp","expect":"allow","tool":"mcp__claude_ai_Claude_Docs__read","input":{}}
 {"rule":"G13-bash","expect":"deny","tool":"Bash","input":{"command":"gh repo delete o/r --yes"}}
 {"rule":"G13-bash","expect":"deny","tool":"Bash","input":{"command":"gh release delete v1"}}
 {"rule":"G13-bash","expect":"allow","tool":"Bash","input":{"command":"gh release list"}}

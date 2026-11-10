@@ -311,6 +311,18 @@
       "enforce": true
     },
     {
+      "id": "G7-docusign",
+      "class": "G7",
+      "description": "DocuSign create/update envelope, send reminder, start/trigger/resume workflow (reads and lists allowed)",
+      "tools": "^mcp__.*Docusign.*__(?:createEnvelope[A-Za-z]*|updateEnvelope[A-Za-z]*|sendReminder|triggerWorkflow|startClmWorkflow|resumeWorkflow)$",
+      "flags": "i",
+      "action": "deny",
+      "message": "sending or changing a DocuSign envelope goes out as D and can bind D to a signature request",
+      "scope": ["interactive", "bgjob", "fleet"],
+      "lanes": {},
+      "enforce": true
+    },
+    {
       "id": "G7-cal",
       "class": "G7",
       "description": "Calendar create/update/delete/respond",
@@ -527,8 +539,8 @@
     {
       "id": "G13-mcp",
       "class": "G13",
-      "description": "trash/delete tools (Drive, Gmail, Calendar, Notion)",
-      "tools": "^mcp__.*__(?:trash_file|trash_message|trash_thread|delete_draft|delete_label|delete_event|notion-[a-z-]*delete[a-z-]*|notion-move-pages)$",
+      "description": "trash/delete tools (Drive, Gmail, Calendar, Notion, Linear, artifacts, Claude Docs)",
+      "tools": "^mcp__.*__(?:trash_file|trash_message|trash_thread|delete_draft|delete_label|delete_event|notion-[a-z-]*delete[a-z-]*|notion-move-pages|delete_artifact|delete_asset|delete_comment|delete_diff_comment|delete_attachment|delete_status_update|delete)$",
       "flags": "i",
       "action": "deny",
       "message": "deleting in an external tool",

@@ -28,7 +28,6 @@
       "theme",
       "teammateMode",
       "skipDangerousModePermissionPrompt",
-      "trustedDirectories",
       "hooks"
     ],
     "hooks_silence_command_contains": ["afplay", "osascript", "say ", "notification-urgency.sh"]

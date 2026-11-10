@@ -33,6 +33,25 @@ SETTINGS = Path(__file__).resolve().parents[1] / "system-configs/.claude/setting
 
 FAKE_AWS_KEY = "AKIA" + "IOSFODNN7" + "EXAMPLE"
 FAKE_GH_TOKEN = "ghp" + "_" + ("a" * 36)
+FAKE_ANTHROPIC_KEY = "sk" + "-ant-" + "api03-" + ("a" * 40)
+FAKE_OPENAI_PROJECT_KEY = "sk" + "-proj-" + ("a" * 20) + "_" + ("b" * 20)
+FAKE_GH_FINE_GRAINED = "github" + "_pat_" + "11" + ("A" * 20) + "_" + ("a" * 40)
+FAKE_GH_APP_TOKEN = "ghs" + "_" + ("a" * 36)
+FAKE_STRIPE_LIVE_KEY = "sk" + "_live_" + ("a" * 30)
+FAKE_STRIPE_WEBHOOK_SECRET = "whsec" + "_" + ("a" * 32)
+FAKE_PEM_HEADER = "-----BEGIN " + "RSA PRIVATE" + " KEY-----"
+# A private key is the header followed by key material. Two layouts are
+# flagged: the escaped-newline form used in env values, JSON and source
+# strings, and the conventional form with real line breaks (the scanner also
+# reads a copy of the content with line breaks flattened). A header with no
+# key material after it is deliberately not flagged: code that only names the
+# header (cert parsing, redaction) must stay writable.
+FAKE_PEM_KEY = FAKE_PEM_HEADER + "\\n" + ("M" * 44)
+FAKE_PEM_KEY_MULTILINE = FAKE_PEM_HEADER + "\n" + ("M" * 64) + "\n" + ("N" * 64) + "\n"
+FAKE_PEM_KEY_CRLF = FAKE_PEM_HEADER + "\r\n" + ("M" * 64) + "\r\n"
+# Key body wrapped narrower than the usual 64 columns, and indented as it
+# would be inside YAML: two or more base64 runs of 16+ characters count.
+FAKE_PEM_KEY_SHORT_LINES = FAKE_PEM_HEADER + "\n" + "".join("    " + ("M" * 32) + "\n" for _ in range(4))
 
 DESTRUCTIVE = "Destructive or policy-violating git operation"
 BARE_GIT = "bare git for an identity/remote op"
@@ -109,6 +128,42 @@ CASES = [
      {"file_path": "app.py", "content": f"KEY = '{FAKE_AWS_KEY}'"}, SECRET, None),
     ("GitHub token in source", "Write",
      {"file_path": "app.py", "content": f"T = '{FAKE_GH_TOKEN}'"}, SECRET, None),
+    ("Anthropic key in source", "Write",
+     {"file_path": "app.py", "content": f"K = '{FAKE_ANTHROPIC_KEY}'"}, SECRET, None),
+    ("OpenAI project key in source", "Write",
+     {"file_path": "app.py", "content": f"K = '{FAKE_OPENAI_PROJECT_KEY}'"}, SECRET, None),
+    ("GitHub fine-grained token in source", "Write",
+     {"file_path": "app.py", "content": f"T = '{FAKE_GH_FINE_GRAINED}'"}, SECRET, None),
+    ("GitHub app token in source", "Edit",
+     {"file_path": "app.py", "old_string": "x", "new_string": f"T = '{FAKE_GH_APP_TOKEN}'"}, SECRET, None),
+    ("Stripe live key in source", "Write",
+     {"file_path": "pay.js", "content": f"const k = '{FAKE_STRIPE_LIVE_KEY}';"}, SECRET, None),
+    ("Stripe webhook secret in source", "Write",
+     {"file_path": "pay.js", "content": f"const w = '{FAKE_STRIPE_WEBHOOK_SECRET}';"}, SECRET, None),
+    ("PEM private key in source", "Write",
+     {"file_path": "key.py", "content": f"PEM = '{FAKE_PEM_KEY}'"}, SECRET, None),
+    ("PEM private key with real line breaks", "Write",
+     {"file_path": "key.pem.py", "content": FAKE_PEM_KEY_MULTILINE}, SECRET, None),
+    ("PEM private key with CRLF line breaks", "Edit",
+     {"file_path": "key.py", "old_string": "x", "new_string": FAKE_PEM_KEY_CRLF}, SECRET, None),
+    ("PEM private key wrapped at 32 columns and indented", "Write",
+     {"file_path": "deploy.py", "content": FAKE_PEM_KEY_SHORT_LINES}, SECRET, None),
+    ("prose after a PEM header is not flagged", "Write",
+     {"file_path": "key.js",
+      "content": f"// expects {FAKE_PEM_HEADER} followed by base64 data of the key in standard form\n"},
+     None, None),
+    ("PEM header line followed by ordinary code is not flagged", "Write",
+     {"file_path": "key.js",
+      "content": f"const HEADER = '{FAKE_PEM_HEADER}';\nfunction isPrivateKeyMaterialPresentInTheGivenInputString(s) {{ return s.includes(HEADER); }}\n"},
+     None, None),
+    ("code that only names the PEM header is not flagged", "Write",
+     {"file_path": "key.js", "content": f"if (k.includes('{FAKE_PEM_HEADER}')) return k;"}, None, None),
+    ("Stripe test-mode key is not flagged", "Write",
+     {"file_path": "pay.js", "content": "const k = 'sk" + "_test_" + ("a" * 30) + "';"}, None, None),
+    ("PEM public key is not flagged", "Write",
+     {"file_path": "key.py", "content": "PEM = '-----BEGIN PUBLIC KEY-----'"}, None, None),
+    ("short sk-ant mention is not flagged", "Write",
+     {"file_path": "app.py", "content": "# keys start with sk-ant-"}, None, None),
     ("credential-shaped string in markdown", "Write",
      {"file_path": "notes.md", "content": f"example: {FAKE_AWS_KEY}"}, None, None),
     ("clean markdown", "Write", {"file_path": "notes.md", "content": "just prose"}, None, None),
