@@ -55,12 +55,13 @@ on that branch.
      | `draft`              | `gh pr ready <url>`                                                                |
      | `blocked-other`      | needs D (usually a required human approval): go to step 3                          |
 
-     To rebase, take the base from the PR, not from an assumption about `origin`, because a fork
-     PR's base branch lives in another repository:
-     `gh pr view <url> --json baseRefName,baseRepository,baseRepositoryOwner` names the branch and
-     repository. Fetch that branch from the remote that points at the base repository
-     (`git remote -v`; it is `origin` unless the PR comes from a fork), then
-     `git rebase FETCH_HEAD`.
+     To rebase, read the PR first: `gh pr view <url> --json baseRefName,isCrossRepository`.
+     - `isCrossRepository` false (a PR opened from this worktree: head and base are both in
+       `origin`): `git fetch origin <baseRefName>`, then `git rebase FETCH_HEAD`, then
+       `/push --force`.
+     - `isCrossRepository` true (the head is in a fork): do not rebase or force-push from here,
+       because `origin` is not the PR's head repository and the push could overwrite an unrelated
+       branch. Treat it as a blocker only D can clear and go to step 3.
 
      A push starts a new head: CI and the review bots run again, so the next verdict is usually
      `pending`. That is expected; wait it out.

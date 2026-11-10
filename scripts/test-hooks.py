@@ -49,6 +49,9 @@ FAKE_PEM_HEADER = "-----BEGIN " + "RSA PRIVATE" + " KEY-----"
 FAKE_PEM_KEY = FAKE_PEM_HEADER + "\\n" + ("M" * 44)
 FAKE_PEM_KEY_MULTILINE = FAKE_PEM_HEADER + "\n" + ("M" * 64) + "\n" + ("N" * 64) + "\n"
 FAKE_PEM_KEY_CRLF = FAKE_PEM_HEADER + "\r\n" + ("M" * 64) + "\r\n"
+# Key body wrapped narrower than the usual 64 columns, and indented as it
+# would be inside YAML: two or more base64 runs of 16+ characters count.
+FAKE_PEM_KEY_SHORT_LINES = FAKE_PEM_HEADER + "\n" + "".join("    " + ("M" * 32) + "\n" for _ in range(4))
 
 DESTRUCTIVE = "Destructive or policy-violating git operation"
 BARE_GIT = "bare git for an identity/remote op"
@@ -143,6 +146,12 @@ CASES = [
      {"file_path": "key.pem.py", "content": FAKE_PEM_KEY_MULTILINE}, SECRET, None),
     ("PEM private key with CRLF line breaks", "Edit",
      {"file_path": "key.py", "old_string": "x", "new_string": FAKE_PEM_KEY_CRLF}, SECRET, None),
+    ("PEM private key wrapped at 32 columns and indented", "Write",
+     {"file_path": "deploy.py", "content": FAKE_PEM_KEY_SHORT_LINES}, SECRET, None),
+    ("prose after a PEM header is not flagged", "Write",
+     {"file_path": "key.js",
+      "content": f"// expects {FAKE_PEM_HEADER} followed by base64 data of the key in standard form\n"},
+     None, None),
     ("PEM header line followed by ordinary code is not flagged", "Write",
      {"file_path": "key.js",
       "content": f"const HEADER = '{FAKE_PEM_HEADER}';\nfunction isPrivateKeyMaterialPresentInTheGivenInputString(s) {{ return s.includes(HEADER); }}\n"},
