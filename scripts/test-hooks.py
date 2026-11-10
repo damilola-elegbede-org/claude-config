@@ -40,6 +40,11 @@ FAKE_GH_APP_TOKEN = "ghs" + "_" + ("a" * 36)
 FAKE_STRIPE_LIVE_KEY = "sk" + "_live_" + ("a" * 30)
 FAKE_STRIPE_WEBHOOK_SECRET = "whsec" + "_" + ("a" * 32)
 FAKE_PEM_HEADER = "-----BEGIN " + "RSA PRIVATE" + " KEY-----"
+# Header followed by key material on the same line (the escaped-newline form
+# used in env values, JSON and source strings). The scanner reads line by
+# line, so a header on its own line is deliberately not flagged: code that
+# only names the header (cert parsing, redaction) must stay writable.
+FAKE_PEM_KEY = FAKE_PEM_HEADER + "\\n" + ("M" * 44)
 
 DESTRUCTIVE = "Destructive or policy-violating git operation"
 BARE_GIT = "bare git for an identity/remote op"
@@ -129,7 +134,9 @@ CASES = [
     ("Stripe webhook secret in source", "Write",
      {"file_path": "pay.js", "content": f"const w = '{FAKE_STRIPE_WEBHOOK_SECRET}';"}, SECRET, None),
     ("PEM private key in source", "Write",
-     {"file_path": "key.py", "content": f"PEM = '''{FAKE_PEM_HEADER}\\nabc'''"}, SECRET, None),
+     {"file_path": "key.py", "content": f"PEM = '{FAKE_PEM_KEY}'"}, SECRET, None),
+    ("code that only names the PEM header is not flagged", "Write",
+     {"file_path": "key.js", "content": f"if (k.includes('{FAKE_PEM_HEADER}')) return k;"}, None, None),
     ("Stripe test-mode key is not flagged", "Write",
      {"file_path": "pay.js", "content": "const k = 'sk" + "_test_" + ("a" * 30) + "';"}, None, None),
     ("PEM public key is not flagged", "Write",

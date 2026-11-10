@@ -144,7 +144,7 @@ echo 'not json' >"$T/graphql-page2.json"
 eq "a bad thread page: error verdict" "$(v)" error
 rm -f "$T/graphql-page2.json"
 pr mss=DIRTY mergeable=CONFLICTING
-eq "conflicts: blocked with rebase fix" "$(st | jq -r '.blockers[0] | .kind + " " + .fix')" "conflicts /rebase, then /push"
+eq "conflicts: blocked with rebase fix" "$(st | jq -r '.blockers[0] | .kind + " " + .fix')" "conflicts git rebase on the base branch, then /push --force"
 pr mss=BEHIND
 eq "behind base: blocked" "$(kinds)" behind-base
 pr draft=true mss=DRAFT
