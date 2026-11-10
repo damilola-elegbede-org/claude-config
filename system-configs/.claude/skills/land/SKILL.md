@@ -50,8 +50,8 @@ on that branch.
      | `failing-checks`     | `/fix-ci`, then `/commit` and `/push`                                              |
      | `unresolved-threads` | `/resolve-comments <pr-number>`: reply with the fix commit and resolve each thread |
      | `changes-requested`  | `/resolve-comments <pr-number>`                                                    |
-     | `conflicts`          | `/rebase`, then `/push --force` (force-with-lease)                                 |
-     | `behind-base`        | `/rebase`, then `/push --force` (force-with-lease)                                 |
+     | `conflicts`          | `git fetch origin`, `git rebase origin/<base>`, then `/push --force` (lease)       |
+     | `behind-base`        | `git fetch origin`, `git rebase origin/<base>`, then `/push --force` (lease)       |
      | `draft`              | `gh pr ready <url>`                                                                |
      | `blocked-other`      | needs D (usually a required human approval): go to step 3                          |
 
