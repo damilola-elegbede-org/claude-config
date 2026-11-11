@@ -78,10 +78,10 @@ STEP 1: Implement features
   TRACK: Progress via task system
 
 STEP 2: Run tests
-  INVOKE: /test
-  IF: tests fail
+  INVOKE: /verify --report-only
+  IF: any gate fails
     FIX: Address failures
-    RE-RUN: /test (max 3 attempts)
+    RE-RUN: /verify --report-only (max 3 attempts)
   IF: still failing after 3 attempts
     HALT: Report failures and request user input
 ```
@@ -101,8 +101,8 @@ LOOP: via /loop, up to max-iters iterations
           - one slice only; small, focused change
           - TDD, tests green before commit (see /implement Implementation Contract)
   STEP 3: Review gate
-          INVOKE: /review on the slice's changes
-          IF: real issues found → fix forward, re-run /review (max 2 passes per slice)
+          INVOKE: /code-review on the slice's changes
+          IF: real issues found → fix forward, re-run /code-review (max 2 passes per slice)
   STEP 4: Mark the slice done
           - verify the slice's ## Acceptance is met
           - if issue-backed, close its sub-issue with a link to the commit
@@ -119,8 +119,8 @@ One slice per iteration is what keeps context from rotting across a long autonom
 
 ```text
 STEP 1: Ship the implementation
-  INVOKE: /ship-it -t -c -r -p -pr
-  CAPTURE: PR URL from output
+  INVOKE: /verify, then /commit, /push and /pr
+  CAPTURE: PR URL from /pr's output
 
 STEP 2: Store PR reference
   SET: $PR_URL = captured PR URL
