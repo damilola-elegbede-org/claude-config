@@ -127,8 +127,8 @@ STEP 1: Ship the implementation
     HALT: Report the gates and request user input. Do not commit or push unverified work
   INVOKE: /commit, then /push, then /pr
   CAPTURE: PR URL from /pr's output
-  IF: /pr's /land step ended bounded out instead of ready to merge
-    HALT: Report the remaining blocker. Later phases must not merge a PR /land did not clear
+  IF: /pr's /land step reports an error or ends bounded out instead of ready to merge
+    HALT: Report the error or remaining blocker. Later phases must not merge a PR /land did not clear
 
 STEP 2: Store PR reference
   SET: $PR_URL = captured PR URL
