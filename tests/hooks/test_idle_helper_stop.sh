@@ -118,6 +118,8 @@ unset JEV_RULES_FILE
 # Clara is NOT exempt: the ticket came from her session.
 team "$LEAD" "$(helper scout false)"
 has "Clara session still blocks" "$(BARECLAUDE_AGENT_SLUG=clara run "$(payload false)")" '"decision":"block"'
+# At most once: the continuation (stop_hook_active true) passes, so an unattended Clara run cannot hang.
+eq "Clara continuation passes (block at most once)" "$(BARECLAUDE_AGENT_SLUG=clara run "$(payload true)")" ""
 
 # Exit code is always 0 (the block is the JSON decision, not a nonzero exit).
 printf '%s' "$(payload false)" | bash "$HOOK" >/dev/null 2>&1
