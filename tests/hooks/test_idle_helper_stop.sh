@@ -115,6 +115,10 @@ printf '{"rules":{"idle-helper-stop":{"mode":"shadow"}}}' >"$T/rules.json"
 eq "mode shadow: no block" "$(run "$(payload false)")" ""
 unset JEV_RULES_FILE
 
+# Clara is NOT exempt: the ticket came from her session.
+team "$LEAD" "$(helper scout false)"
+has "Clara session still blocks" "$(BARECLAUDE_AGENT_SLUG=clara run "$(payload false)")" '"decision":"block"'
+
 # Exit code is always 0 (the block is the JSON decision, not a nonzero exit).
 printf '%s' "$(payload false)" | bash "$HOOK" >/dev/null 2>&1
 eq "exits 0 when blocking" "$?" "0"

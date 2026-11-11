@@ -13,7 +13,8 @@
 # Never loops: a stop-hook continuation (stop_hook_active true) is always allowed, the lead having
 # been told once. Fails OPEN on everything else: no session id, no team file, unreadable or malformed
 # JSON, no members, jq missing. Local file read only, no network, only this session's team dir.
-# Mode/scope/exempt come from the shared rule registry (rules.d/rules-events.json "idle-helper-stop").
+# Not exempt for Clara: this is hygiene, not a decision gate, and ENG-3103 came from her session.
+# Mode/scope come from the shared rule registry (rules.d/rules-events.json "idle-helper-stop").
 
 # shellcheck source-path=SCRIPTDIR source=rules-events-lib.sh
 . "$(dirname "$0")/rules-events-lib.sh"
@@ -23,11 +24,6 @@ RULE=idle-helper-stop
 INPUT=$(cat)
 MODE=$(re_mode "$RULE" enforce)
 [ "$MODE" = off ] && exit 0
-if re_is_exempt_agent; then
-  re_log "$RULE" allow-exempt-agent ""
-  exit 0
-fi
-
 [ "$(printf '%s' "$INPUT" | jq -r '.stop_hook_active // false' 2>/dev/null)" = true ] && exit 0
 [ -z "$(printf '%s' "$INPUT" | jq -r '.agent_id // empty' 2>/dev/null)" ] || exit 0 # subagent
 
