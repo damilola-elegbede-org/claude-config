@@ -84,6 +84,9 @@ STEP 2: Run tests
     RE-RUN: /verify --report-only (max 3 attempts)
   IF: still failing after 3 attempts
     HALT: Report failures and request user input
+  IF: no gates were detected, or a gate could not run
+    HALT: Verification did not happen, which is not a pass. Report which gates were missing
+          or unavailable and request user input
 ```
 
 ### Autonomous loop — `--afk [max-iters]` (default 20)
@@ -119,8 +122,13 @@ One slice per iteration is what keeps context from rotting across a long autonom
 
 ```text
 STEP 1: Ship the implementation
-  INVOKE: /verify, then /commit, /push and /pr
+  INVOKE: /verify
+  IF: any gate still fails, no gates were detected, or a gate could not run
+    HALT: Report the gates and request user input. Do not commit or push unverified work
+  INVOKE: /commit, then /push, then /pr
   CAPTURE: PR URL from /pr's output
+  IF: /pr's /land step ended bounded out instead of ready to merge
+    HALT: Report the remaining blocker. Later phases must not merge a PR /land did not clear
 
 STEP 2: Store PR reference
   SET: $PR_URL = captured PR URL

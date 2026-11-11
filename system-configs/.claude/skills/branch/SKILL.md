@@ -85,7 +85,8 @@ git branch --show-current
 ```
 
 In a worktree, `main` is usually checked out elsewhere and `git checkout main` fails. Branch from the remote
-instead: `git fetch origin main`, then `git checkout -b <generated-branch-name> origin/main`.
+instead: `git fetch origin main`, then `git checkout -b <generated-branch-name> origin/main`. In a repository
+that has `master` and no `main`, use `master` in both commands.
 
 If the stash does not apply cleanly, stop and report the stash entry. On a network or permission failure,
 report the error and stop; do not fall back to a local-only branch.

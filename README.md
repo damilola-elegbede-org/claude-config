@@ -101,7 +101,8 @@ claude-code
 # Multi-agent repository analysis with parallel execution
 /prime
 
-# Comprehensive test execution with framework auto-discovery
+# Run the checks the project defines (npm scripts, pytest, ruff, go, cargo, tests/test.sh)
+# For other ecosystems such as Maven, Gradle, Ruby or .NET, run the project's own test command
 /verify
 
 # Multi-dimensional code review (code-reviewer + security-auditor + test-engineer)
