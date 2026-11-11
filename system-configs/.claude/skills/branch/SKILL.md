@@ -13,231 +13,93 @@ metadata:
 ## Usage
 
 ```bash
-# Create branch with intelligent naming
-/branch user-dashboard
-→ Creates feature/user-dashboard branch
-
-# From ticket patterns
-/branch JIRA-123
-→ Creates feature/jira-123 branch
-
-# Fix patterns
-/branch fix-auth-bug
-→ Creates fix/auth-bug branch
-
-# Interactive mode (no arguments)
-/branch
-→ Context-aware analysis and recommendations
+/branch user-dashboard     # → feature/user-dashboard
+/branch JIRA-123           # → feature/jira-123
+/branch fix-auth-bug       # → fix/auth-bug
+/branch                    # no arguments: suggest a name from context
 ```
 
 ## Description
 
-Create git branches with intelligent naming patterns based on context and description. Analyzes input to determine
-appropriate branch type and name, then executes git operations directly.
-
-## Expected Output
-
-Direct execution workflow for efficient branch creation:
-
-1. **Context Analysis**: Analyze description to determine branch type and naming pattern
-2. **Branch Creation**: Execute git commands with intelligent naming
-3. **Basic Setup**: Switch to new branch and confirm creation
+Creates a branch from the latest `main` with a prefix and name derived from the description, and switches
+to it.
 
 ## Behavior
 
-### Intelligent Pattern Recognition
-
-Apply context-aware naming automatically:
-
-```yaml
-Ticket Patterns:
-  - JIRA-123 → feature/jira-123
-  - GH-456 → feature/gh-456
-  - BUG-789 → fix/bug-789
-  - HOTFIX-101 → hotfix/hotfix-101
-
-Feature Patterns:
-  - user-dashboard → feature/user-dashboard
-  - api-integration → feature/api-integration
-  - performance-opt → enhancement/performance-opt
-  - auth-system → feature/auth-system
-
-Fix Patterns:
-  - fix-auth-bug → fix/auth-bug
-  - bugfix-login → fix/login-issue
-  - auth-bug → fix/auth-bug
-  - data-corruption → hotfix/data-corruption
-
-Experimental Patterns:
-  - experiment-* → experiment/*
-  - poc-* → experiment/*
-  - test-* → experiment/*
-```
-
-### Branch Type Detection
+### Name
 
 Always run `${HOME}/.claude/skills/commit/scripts/classify.sh branch "<description>"` before choosing the prefix
 (it logs the Jev call even when it withholds the answer). Only when its `mode` is `enforce`, treat `type` as the
 default prefix and, if `mixed` is true (uncommitted changes mix unrelated concerns), suggest committing them
 separately first; otherwise ignore the output.
 
-Determine branch type from input patterns:
+Otherwise pick the prefix from the description:
 
-```yaml
-Feature Branch Indicators:
-  - No prefix or "feature-" prefix
-  - Ticket numbers (JIRA-*, GH-*, etc.)
-  - Component names (dashboard, api, auth)
+| Prefix         | When                                                           |
+| -------------- | -------------------------------------------------------------- |
+| `feature/`     | default; ticket ids (`JIRA-123`, `GH-456`); component names    |
+| `fix/`         | "fix", "bug", "bugfix"; `BUG-` tickets                         |
+| `hotfix/`      | "hotfix", "critical", "urgent"; production issues              |
+| `enhancement/` | "improve", "optimize", "refactor", "cleanup"; performance work |
+| `experiment/`  | "experiment", "poc", "prototype", "spike"                      |
 
-Fix Branch Indicators:
-  - "fix", "bugfix", "bug" in description
-  - "BUG-" ticket prefix
-  - Issue-related keywords
+Sanitize the rest: lowercase, spaces to hyphens, drop other special characters, trim leading and trailing
+hyphens, at most 50 characters. A description that already carries a prefix (`chore/x`) keeps it. If the name
+is taken, append a timestamp (`feature/user-dashboard-20250109-143052`) and confirm with the user first.
 
-Hotfix Branch Indicators:
-  - "hotfix" prefix
-  - "critical", "urgent" keywords
-  - Production issue references
+### Create
 
-Enhancement Branch Indicators:
-  - "enhancement", "improve", "optimize"
-  - Performance-related terms
-  - "refactor", "cleanup" keywords
+The branch must start from the latest remote `main`, so a failed fetch aborts instead of branching from a
+stale base.
 
-Experimental Branch Indicators:
-  - "experiment", "poc", "test"
-  - "prototype", "spike" keywords
-  - Research and exploration terms
+```bash
+# Check current repository state
+git status --porcelain
+
+# Handle uncommitted changes if needed (-u includes untracked files)
+stashed=false
+if ! git diff --quiet || ! git diff --cached --quiet || [ -n "$(git ls-files --others --exclude-standard)" ]; then
+  # PID + random suffix: two runs in the same second must never share a tag (the stash is shared)
+  tag="Auto-stash before branch creation $(date +%Y%m%d-%H%M%S)-$$-$RANDOM"
+  git stash push -u -m "$tag"
+  stash_sha=$(git stash list --format='%H %gs' | grep -F "$tag" | head -1 | cut -d' ' -f1)
+  stashed=true
+fi
+
+# Switch to main branch (with fallback to master)
+git checkout main 2>/dev/null || git checkout master
+
+# Pull latest changes with rebase to keep history clean (FAIL if unable)
+git pull --rebase || { echo "ERROR: Cannot fetch latest main. Branch creation aborted."; exit 1; }
+
+# Create and switch to new branch from updated main
+git checkout -b <generated-branch-name>
+
+# Restore only the stash this run created (the stash stack is shared across worktrees)
+if [ "$stashed" = true ]; then
+  git stash apply "$stash_sha" && echo "Restored stash $stash_sha; drop it by its stash@{n} once confirmed"
+fi
+
+# Confirm creation
+git branch --show-current
 ```
 
-### Direct Execution Flow
+In a worktree, `main` is usually checked out elsewhere and `git checkout main` fails. Branch from the remote
+instead: `git fetch origin main`, then `git checkout -b <generated-branch-name> origin/main`. In a repository
+that has `master` and no `main`, use `master` in both commands.
 
-Execute branch creation with minimal overhead:
+If the stash does not apply cleanly, stop and report the stash entry. On a network or permission failure,
+report the error and stop; do not fall back to a local-only branch.
 
-1. **Input Analysis**
-   - Parse description for type and naming hints
-   - Check for existing branch conflicts
-   - Determine appropriate prefix and format
+### No arguments
 
-2. **Name Generation**
-   - Apply intelligent naming patterns
-   - Sanitize input (lowercase, replace spaces/special chars)
-   - Add appropriate prefix based on type
-   - Handle conflicts with timestamp suffix if needed
+Read recent commits and uncommitted changes, propose branch names, and present them through
+`AskUserQuestion`. Create the branch only after the user picks one.
 
-3. **Git Operations**
+## Expected Output
 
-   ```bash
-   # Check current repository state
-   git status --porcelain
+Illustrative; the name is an example.
 
-   # Handle uncommitted changes if needed (-u includes untracked files)
-   stashed=false
-   if ! git diff --quiet || ! git diff --cached --quiet || [ -n "$(git ls-files --others --exclude-standard)" ]; then
-     # PID + random suffix: two runs in the same second must never share a tag (the stash is shared)
-     tag="Auto-stash before branch creation $(date +%Y%m%d-%H%M%S)-$$-$RANDOM"
-     git stash push -u -m "$tag"
-     stash_sha=$(git stash list --format='%H %gs' | grep -F "$tag" | head -1 | cut -d' ' -f1)
-     stashed=true
-   fi
-
-   # Switch to main branch (with fallback to master)
-   git checkout main 2>/dev/null || git checkout master
-
-   # Pull latest changes with rebase to keep history clean (FAIL if unable)
-   git pull --rebase || { echo "ERROR: Cannot fetch latest main. Branch creation aborted."; exit 1; }
-
-   # Create and switch to new branch from updated main
-   git checkout -b <generated-branch-name>
-
-   # Restore only the stash this run created (the stash stack is shared across worktrees)
-   if [ "$stashed" = true ]; then
-     git stash apply "$stash_sha" && echo "Restored stash $stash_sha; drop it by its stash@{n} once confirmed"
-   fi
-
-   # Confirm creation
-   git branch --show-current
-   ```
-
-4. **Confirmation**
-   - Display created branch name
-   - Show current branch status
-   - Provide next steps guidance
-
-### Interactive Mode
-
-When no arguments provided:
-
-1. **Repository Analysis**
-   - Check recent commits for context
-   - Examine current branch and uncommitted changes
-   - Scan for open issues or common patterns
-
-2. **Suggestion Generation**
-   - Suggest branch types based on recent activity
-   - Provide naming templates for common patterns
-   - Offer guided branch creation
-
-3. **User Selection**
-   - Present the branch-type options through `AskUserQuestion` and create the branch only after the user picks one
-   - Allow custom input with pattern assistance
-   - Apply selected pattern and create branch
-
-### Error Handling
-
-Handle common scenarios gracefully:
-
-```yaml
-Uncommitted Changes:
-  - Check git status
-  - Auto-stash with a unique message (timestamp, PID, random suffix) via `git stash push -u`
-  - Proceed with branch creation
-  - Restore that stash with `git stash apply <sha>`; if it conflicts, stop and report the stash entry
-
-Naming Conflicts:
-  - Detect existing branch with same name
-  - Append timestamp: feature/user-dashboard-20250109-143052
-  - Confirm with user before proceeding
-
-Network Issues:
-  - FAIL with clear error message
-  - Explain that branch must be based on latest remote main
-  - Suggest checking network connectivity
-  - Provide manual commands to retry when network is available
-
-Permission Issues:
-  - FAIL with clear error message
-  - Report specific permission problems
-  - Suggest solutions (SSH key, authentication)
-  - Do NOT provide fallback local-only workflow
+```text
+Created and switched to feature/user-dashboard (from origin/main)
 ```
-
-### Branch Name Sanitization
-
-Clean and format branch names:
-
-```yaml
-Sanitization Rules:
-  - Convert to lowercase
-  - Replace spaces with hyphens
-  - Remove special characters except hyphens
-  - Trim leading/trailing hyphens
-  - Limit length to 50 characters
-  - Ensure valid git branch name format
-
-Examples:
-  - "User Dashboard Feature" → "feature/user-dashboard-feature"
-  - "Fix Auth Bug!!!" → "fix/auth-bug"
-  - "API Integration - Phase 1" → "feature/api-integration-phase-1"
-  - "JIRA-1234: User Management" → "feature/jira-1234-user-management"
-```
-
-## Success Criteria
-
-Simple and effective branch creation:
-
-- Branch created with appropriate intelligent naming
-- User switched to new branch successfully
-- Clear confirmation of branch creation
-- Guidance for next steps provided
-- Minimal execution time and complexity

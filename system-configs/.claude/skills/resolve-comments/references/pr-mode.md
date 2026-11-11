@@ -223,9 +223,9 @@ See `triage.md`.
 ```text
 IF: skipped_issues not empty
   WRITE: .tmp/coderabbit-ignored.json (schema_version "1.0" at top level — see schemas.md)
-    Filename is a cross-skill contract read by `/pr` and `/ship-it` — it keeps its historical name
+    Filename is a cross-skill contract read by `/pr` — it keeps its historical name
     while holding skipped issues from every source. Each record carries its own `source` field.
-  OUTPUT: "Saved {count} skipped issues for /pr and /ship-it to acknowledge"
+  OUTPUT: "Saved {count} skipped issues for /pr to acknowledge"
 
 IF: no fixes applied this run AND HEAD has commits its upstream lacks
     (an earlier run committed fixes, then stopped before pushing)
@@ -590,7 +590,7 @@ OUTPUT: "✅ Verified: {resolved_thread_ids|length} resolved by us, {awaiting_co
 **Any failure exits non-zero.** A reply or resolve that errors increments `failure_count`, and that
 alone must fail the run — including when nothing was claimed and the query was skipped entirely.
 Verification is an extra persistence check on top of that, not the only gate. Otherwise a run where
-nothing resolved would exit 0 with every thread still open, and `/ship-it` or a CI gate would read
+nothing resolved would exit 0 with every thread still open, and `/land` or a CI gate would read
 that as success.
 
 **Human threads never fail the run.** They are reported, never waited on, and never counted as

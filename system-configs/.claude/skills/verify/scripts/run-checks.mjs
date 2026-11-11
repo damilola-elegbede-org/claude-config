@@ -174,7 +174,7 @@ function runCheck(check, dir) {
   });
 
   // A gate that hangs must fail, not wedge the caller. Without this, /verify —
-  // and therefore ship-it's pre-commit gate — waits forever on a stuck suite.
+  // and therefore any caller gating on it — waits forever on a stuck suite.
   if (res.error?.code === "ETIMEDOUT" || res.signal === "SIGKILL") {
     return {
       ...check,

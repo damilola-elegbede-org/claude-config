@@ -24,10 +24,10 @@ New to the system? Start here:
 /prime --lite
 
 # Run tests
-/test
+/verify
 
 # Code review
-/review
+/code-review
 ```
 
 ## Documentation Structure

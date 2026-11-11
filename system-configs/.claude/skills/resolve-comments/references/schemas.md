@@ -2,7 +2,7 @@
 
 ## Ignored issues — `.tmp/coderabbit-ignored.json`
 
-The filename is a cross-skill contract (`/pr` and `/ship-it` read it by this exact path) and keeps
+The filename is a cross-skill contract (`/pr` reads it by this exact path) and keeps
 its historical name. Its contents are source-agnostic: each record names its own `source`.
 
 <!-- SCHEMA VERSION: "1.0" — Any breaking schema changes MUST increment schema_version. -->
@@ -27,7 +27,7 @@ its historical name. Its contents are source-agnostic: each record names its own
 }
 ```
 
-`/pr` and `/ship-it` read this file to acknowledge what was consciously not fixed.
+`/pr` reads this file to acknowledge what was consciously not fixed.
 
 ## Context compatibility
 
@@ -37,7 +37,6 @@ show the dialog to the user. A caller that runs it forked must pass `--auto` to 
 | Caller              | Flag required | Reason                          |
 | ------------------- | ------------- | ------------------------------- |
 | Direct user         | none          | Interactive triage available    |
-| `/review`           | `--auto`      | Runs in `context: fork`         |
 | `/feature-lifecycle`| `--auto`      | Autonomous orchestrator         |
 
 ## Worked examples

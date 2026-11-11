@@ -88,12 +88,10 @@ fi
 echo "Checking skill definitions..."
 
 ESSENTIAL_SKILLS=(
-    "test"
     "commit"
     "push"
     "prime"
     "plan"
-    "ship-it"
 )
 # Note: sync is project-local (.claude/skills/sync/), not in system-configs
 

@@ -13,7 +13,7 @@
 # - framework: Framework patterns (react, fastapi)
 # - infrastructure: DevOps tools (docker, kubernetes)
 # - workflow: Process expertise (git-workflows, cicd)
-# - orchestration: Complex multi-step workflows (ship-it, review)
+# - orchestration: Complex multi-step workflows (land, fix-ci)
 #
 # Fill in ALL placeholders. Delete these comments before use.
 #

@@ -16,148 +16,20 @@ metadata:
 /pr                     # Creates PR to main branch
 /pr develop             # Creates PR targeting develop branch
 /pr --draft             # Creates draft PR for work in progress
-/pr main --draft        # Combined: targets main branch as draft
 /pr --force             # Create PR even if one already exists
 ```
 
 ## Description
 
-Creates pull requests by analyzing commit changes and generating a clear title and thorough description.
-Focuses on core PR creation functionality with minimal overhead.
+Opens a pull request from the current branch with a generated title and description, then hands it to `/land`.
+Creating the PR is not the end of the task: CI and the review bots start once it opens, and the PR is done only
+when `/land` reports it ready to merge or bounded out.
 
-## Expected Output
-
-### Successful PR Creation
-
-```text
-Analyzing changes from main...
-  Files changed: 5
-  Commits: 3
-
-Generating PR content...
-  Title: feat(auth): add OAuth2 integration
-
-Pull request created:
-  https://github.com/owner/repo/pull/123
-
-Posted acknowledgment for 2 skipped review issues
-```
-
-### PR Already Exists
-
-```text
-PR already exists: https://github.com/owner/repo/pull/123
-Use --force to create another PR
-```
+- `target_branch` (optional): base branch, default `main` (or `master` if the repo has no `main`)
+- `--draft`: create as a draft
+- `--force`: create a PR even if one already exists for this branch
 
 ## Behavior
-
-### Execution Flow
-
-1. **Check for Existing PR**: Query GitHub for existing PR from current branch
-   - If PR exists and `--force` not set: Output PR URL and exit (success)
-   - If PR exists and `--force` set: Continue to create new PR
-   - If no PR exists: Continue
-2. **Pre-PR Codex Review**: Run `/codex-review` so Codex's findings are fixed before the PR opens
-3. **Analyze Changes**: Get diff between current branch and target branch
-4. **Generate Content**: Create title and description based on commits and changes
-5. **Create PR**: Submit to GitHub with generated content
-6. **Post Review Acknowledgments**: If `.tmp/coderabbit-ignored.json` exists, post skipped issues as PR comment
-
-### Agent Usage (Minimal)
-
-```yaml
-Optional_Agents:
-  code-reviewer:
-    role: Quick analysis of change type and scope
-    usage: Only if changes are complex (>10 files)
-```
-
-### Title Generation
-
-Analyze commit messages and changes to generate conventional commit style titles:
-
-```yaml
-Pattern_Detection:
-  - Multiple feat commits -> "feat: consolidated feature description"
-  - Bug fixes -> "fix: clear description of what was fixed"
-  - Refactoring -> "refactor: what was refactored"
-  - Documentation -> "docs: what documentation was updated"
-  - Mixed changes -> Use primary change type
-```
-
-### Description Generation
-
-Create a clear, concise description covering:
-
-1. **What changed** - Brief summary of modifications
-2. **Why it changed** - Context from commit messages
-3. **Testing** - Mention if tests were added/modified
-4. **Breaking changes** - Flag if applicable
-
-## PR Description Format
-
-### Standard Format
-
-```markdown
-## Summary
-[1-2 sentence overview of the changes]
-
-## Changes
-- [Key change 1]
-- [Key change 2]
-- [Key change 3]
-
-## Context
-[Why these changes were made, referencing commits]
-
-## Testing
-[What testing was done or tests added]
-
-## Related Issues
-Closes #123 (if applicable)
-```
-
-### Example Output
-
-```markdown
-## Summary
-Add OAuth2 authentication integration for third-party login support.
-
-## Changes
-- Implement OAuth2 flow in auth service
-- Add Google and GitHub provider configurations
-- Update login UI with social login buttons
-- Add integration tests for OAuth flow
-
-## Context
-Based on user feedback requesting social login options. This implementation follows RFC 6749 OAuth 2.0 specification and integrates with our existing JWT authentication system.
-
-## Testing
-Added unit tests for OAuth service and integration tests for the complete authentication flow. All existing auth tests still pass.
-
-## Related Issues
-Closes #456
-```
-
-## Usage Examples
-
-```bash
-/pr
-# Creates PR to main branch
-
-/pr develop
-# Creates PR targeting develop branch
-
-/pr --draft
-# Creates draft PR for work in progress
-```
-
-## Implementation
-
-### Direct Execution
-
-When `/pr` is invoked:
 
 ```text
 STEP 1: Check for existing PR
@@ -175,7 +47,8 @@ STEP 2: Parse $ARGUMENTS
 
 STEP 2.5: Pre-PR Codex review
   INVOKE: /codex-review {target_branch}
-    (skips itself when this exact diff already passed, e.g. when /ship-it ran it first)
+    (skips itself when this exact diff already passed; a missing or signed-out codex CLI skips it
+     with a warning)
   IF: it ends busy
     OUTPUT: "Not opening the PR: another Codex review is still running in this worktree. Re-run /pr when it finishes."
     END (failure)
@@ -199,13 +72,13 @@ STEP 2.5: Pre-PR Codex review
 STEP 3: Analyze and create PR
   RUN: git diff {target_branch}...HEAD
   RUN: git log {target_branch}..HEAD
-  GENERATE: title using conventional commit pattern
-  GENERATE: description summarizing changes
+  GENERATE: title in conventional commit style, using the primary change type when commits are mixed
+  GENERATE: description in the format below
   RUN: gh pr create --base {target_branch} --title "..." --body "..." [--draft]
   SET: pr_url = created PR URL
 
 STEP 4: Post review acknowledgments
-  READ: .tmp/coderabbit-ignored.json
+  READ: .tmp/coderabbit-ignored.json   (issues /codex-review or /resolve-comments chose not to fix)
   IF: file exists AND has ignored_issues
     VALIDATE: schema_version field exists in JSON
     SET: CURRENT_SCHEMA_VERSION = "1.0"
@@ -250,19 +123,39 @@ STEP 5: Report creation, then land it
   END
 ```
 
-## Arguments
+The `pr-landing-gate` hook blocks the session from ending while a PR it opened is not mergeable.
 
-- `target_branch` (optional): Target branch for PR (default: main/master)
-- `--draft`: Create as draft PR
-- `--force`: Create PR even if one already exists for this branch
+### Description format
 
-## Notes
+```markdown
+## Summary
+[1-2 sentence overview of the changes]
 
-- Checks for existing PR before creation (skips gracefully unless --force)
-- Runs `/codex-review` before creating the PR; a missing or signed-out codex CLI skips it with a warning
-- Posts skipped review issues from `/review` as PR comment
-- Generates clear, conventional commit style titles
-- Creates concise, informative descriptions
-- Cleans up `.tmp/coderabbit-ignored.json` after posting acknowledgments
-- Hands off to `/land`, which follows the PR until it is mergeable; the `pr-landing-gate` hook
-  blocks the session from ending while a PR it opened is not mergeable
+## Changes
+- [Key change]
+
+## Context
+[Why these changes were made]
+
+## Testing
+[What was tested, or which tests were added]
+
+## Related Issues
+Closes #123 (if applicable; flag breaking changes here too)
+```
+
+## Expected Output
+
+Illustrative; the URL and counts are examples.
+
+```text
+Pull request created: https://github.com/owner/repo/pull/123
+Posted acknowledgment for 2 skipped issues
+```
+
+When a PR already exists and `--force` is not set:
+
+```text
+PR already exists: https://github.com/owner/repo/pull/123
+Use --force to create another PR
+```

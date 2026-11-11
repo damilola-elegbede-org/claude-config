@@ -7,7 +7,7 @@ Welcome! This guide helps you contribute effectively to the Claude Code CLI conf
 1. Fork the repository
 2. Create a feature branch from `main`
 3. Make your changes following our standards
-4. Run tests with `/test`
+4. Run tests with `/verify`
 5. Submit a pull request
 
 ## Development Standards
@@ -44,7 +44,7 @@ Commands go in `system-configs/.claude/commands/`:
 Run all tests before submitting (GitHub CLI and required tools installed):
 
 ```bash
-/test
+/verify
 ./tests/test.sh
 ```
 

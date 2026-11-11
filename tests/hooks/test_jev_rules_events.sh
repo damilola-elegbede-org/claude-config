@@ -75,7 +75,7 @@ done
 # The executive-lint regex checks ship shadow in every scope: a block reprints the reply, so the style file carries
 # the rules and the lint only meters them. A bg job enforces only the workflow helpers whose tuning cleared it.
 BGENF=$(jq -r 'to_entries[] | select((.key | test("^(executive|workflow)-")) and (.value.mode | type) == "object" and .value.mode.bgjob != "shadow") | .key' "$RJ" | paste -sd, -)
-eq "executive-*/workflow-* rules ship bgjob shadow except the tuned workflow helpers" "$BGENF" "workflow-linear-presort,workflow-commit-type,workflow-commit-mixed,workflow-review-depth"
+eq "executive-*/workflow-* rules ship bgjob shadow except the tuned workflow helpers" "$BGENF" "workflow-linear-presort,workflow-commit-type,workflow-commit-mixed"
 eq "executive-lint regex checks ship shadow in every scope" "$(jq -r '[.["executive-lint"],.["executive-lint-meta"],.["executive-lint-bare-id"]] | map(.mode.interactive, .mode.bgjob) | unique | join(",")' "$RJ")" "shadow"
 NOBG=$(jq -r 'to_entries[] | select((.key | test("^(executive|workflow)-")) and ((.value.scope | index("bgjob")) == null)) | .key' "$RJ" | paste -sd, -)
 eq "executive-*/workflow-* rules have bgjob in scope" "$NOBG" ""
@@ -823,33 +823,6 @@ out=$(cd "$CR" && bash "$SKILLS/commit/scripts/classify.sh" branch "fix-auth-bug
 eq "branch classify enforce: type below threshold withheld" "$(jq -r '.type // "none"' <<<"$out")" none
 out=$(cd "$CR" && JEV_MOCK=unavailable bash "$SKILLS/commit/scripts/classify.sh" commit)
 eq "classify fails open" "$(jq -r .mode <<<"$out")" unavailable
-# --- review depth ----------------------------------------------------------------------
-reset
-RR="$T/review-repo"
-mkdir -p "$RR/docs" "$RR/hooks"
-git -C "$RR" init -q -b main && git -C "$RR" config user.email t@t && git -C "$RR" config user.name t
-printf a >"$RR/README.md" && git -C "$RR" add . && git -C "$RR" commit -qm seed
-git -C "$RR" checkout -q -b feat/x
-printf d >"$RR/docs/a.md" && git -C "$RR" add . && git -C "$RR" commit -qm doc
-out=$(cd "$RR" && bash "$SKILLS/review/scripts/depth.sh")
-eq "docs-only change: floor single" "$(jq -r '[.floor,.depth]|join(",")' <<<"$out")" single,single
-mock rd '{"answers":{"risk":{"type":"score","score":2.8,"probabilities":{"0":0.02,"1":0.08,"2":0.0,"3":0.9}}}}'
-out=$(cd "$RR" && bash "$SKILLS/review/scripts/depth.sh")
-eq "shadow: Jev risk never raises depth" "$(jq -r .depth <<<"$out")" single
-rules '{"workflow-review-depth":{"mode":"enforce"}}'
-out=$(cd "$RR" && bash "$SKILLS/review/scripts/depth.sh")
-eq "enforce: Jev level 3 raises to deep" "$(jq -r '[.depth,.risk_level]|join(",")' <<<"$out")" deep,3
-mock rd0 '{"answers":{"risk":{"type":"score","score":0.1,"probabilities":{"0":0.9,"1":0.1,"2":0.0,"3":0.0}}}}'
-out=$(cd "$RR" && bash "$SKILLS/review/scripts/depth.sh")
-eq "enforce: Jev level 0 keeps single" "$(jq -r .depth <<<"$out")" single
-printf h >"$RR/hooks/guard.sh" && git -C "$RR" add . && git -C "$RR" commit -qm hook
-rules '{}'
-out=$(cd "$RR" && bash "$SKILLS/review/scripts/depth.sh")
-eq "hooks/ change: deterministic floor deep even in shadow" "$(jq -r '[.floor,.depth]|join(",")' <<<"$out")" deep,deep
-rules '{"workflow-review-depth":{"mode":"enforce"}}'
-out=$(cd "$RR" && bash "$SKILLS/review/scripts/depth.sh")
-eq "enforce: Jev level 0 never lowers below the floor" "$(jq -r .depth <<<"$out")" deep
-hasnt "depth helper never emits approve" "$out" approve
 # --- failure classify ------------------------------------------------------------------
 reset
 fc() { printf '%s' "$2" | bash "$HOOKS/failure-classify.sh" "$1"; }
@@ -900,7 +873,7 @@ unset JEV_MOCK_CAPTURE
 eq "pick_target fails open" "$(printf '%s' "$CANDS" | JEV_MOCK=unavailable bash "$SKILLS/webapp-testing/scripts/pick_target.sh" 'open the assistance panel' | jq -r .selector)" ""
 # --- SKILL.md wiring ---------------------------------------------------------------------
 for pair in "process-linear:scripts/presort.sh" "commit:scripts/classify.sh" "branch:commit/scripts/classify.sh" \
-  "review:scripts/depth.sh" "fix-ci:failure-classify.sh" "verify:failure-classify.sh" "webapp-testing:scripts/pick_target.sh"; do
+  "fix-ci:failure-classify.sh" "verify:failure-classify.sh" "webapp-testing:scripts/pick_target.sh"; do
   s="${pair%%:*}"
   w="${pair#*:}"
   grep -qF -- "$w" "$SKILLS/$s/SKILL.md" && ok || bad "$s/SKILL.md references helper $w"

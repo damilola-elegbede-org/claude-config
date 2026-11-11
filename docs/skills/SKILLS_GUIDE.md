@@ -22,7 +22,7 @@ Level 2: Skills
 ├─ Git workflows, utilities, orchestration
 ├─ Agent-routed domain expertise
 ├─ Reference material preloaded into agents
-└─ Example: /commit, /review, /ship-it, /debug
+└─ Example: /commit, /pr, /land, /debug
 
 Level 3: Agents
 ├─ Complex specialists with deep context
@@ -43,8 +43,6 @@ Complex multi-phase workflows with task tracking, parallel execution, and agent 
 
 | Skill | Description | Key Features |
 |-------|-------------|--------------|
-| `/ship-it` | Development workflow orchestration | Flags: `-d`, `-t`, `-c`, `-r`, `-p`, `-pr`, `--dry-run` |
-| `/review` | Comprehensive code review | Assertive analysis, `--full` |
 | `/fix-ci` | CI failure diagnosis and fix | `--learn` |
 | `/deps` | Dependency management | `audit`, `update`, `clean`, `--quick` |
 | `/resolve-comments` | CodeRabbit comment resolution | `--auto`, `--dry-run` |
@@ -60,7 +58,6 @@ Skills that route to specialized agents for domain-specific work.
 | `/debug` | Root cause analysis | debugger | `--performance`, `--issue` |
 | `/plan` | PRD and task file generation | architect | `--no-execute`, `--simple` |
 | `/prime` | Repository understanding | Claude directly | `--lite`, `--full` |
-| `/docs` | Documentation generation | Claude directly | `--audit`, `--audit-and-fix`, `--clean` |
 
 ### Git Workflow Skills (6)
 
@@ -79,7 +76,6 @@ Direct-execution skills for common git operations.
 
 | Skill | Description | Flags |
 |-------|-------------|-------|
-| `/test` | Test discovery and execution | `--create`, `--framework`, `--coverage` |
 | `/audit` | Unified agent/skill validation | `--scope agents\|skills\|all`, `--fix` |
 | `/prompt` | Prompt optimization | `--file` |
 | `/verify` | Skill verification | `--last`, `--command`, `--depth` |
@@ -142,7 +138,7 @@ MUST pass a flag (e.g., `--auto`) to bypass those prompts. Otherwise the skill w
 waiting for user input that can never be delivered.
 
 ```text
-# Bad: /review (context: fork) calls /resolve-comments without --auto → hangs
+# Bad: a skill running in context: fork calls /resolve-comments without --auto → hangs
 Skill tool: skill="resolve-comments", args="--local"
 
 # Good: --auto bypasses unreachable prompts
@@ -155,12 +151,9 @@ Skills use a directory-based structure:
 
 ```text
 system-configs/.claude/skills/
-├── ship-it/
-│   └── SKILL.md
-├── review/
+├── land/
 │   └── SKILL.md
 ├── commit/
-│   └── SKILL.md
 │   └── SKILL.md
 ├── pdf/
 │   └── SKILL.md
@@ -184,8 +177,6 @@ Skills are invoked as slash commands in Claude Code CLI:
 
 ```text
 /commit              # Git commit with message generation
-/review --full       # Full comprehensive code analysis
-/ship-it -t -c -p    # Test, commit, push workflow
 /debug --performance  # Performance-focused root cause analysis
 /branch add-oauth    # Create feature branch
 ```
@@ -319,7 +310,6 @@ Don't create a skill when:
 
 ```text
 /commit - Single responsibility: stage, generate message, commit
-/review - Clear phases: lint, security, quality, summary
 feature-lifecycle - Reference: spec-to-PR lifecycle, run in the main session
 ```
 

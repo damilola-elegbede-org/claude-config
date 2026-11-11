@@ -12,10 +12,10 @@ test_all_skills_exist() {
         "Skills directory should exist"
 
     # Check each expected skill directory (migrated from commands)
-    local expected_skills=("plan" "commit" "push" "test" "prime"
+    local expected_skills=("plan" "commit" "push" "prime"
                             "fix-ci" "implement" "verify" "resolve-comments"
-                            "docs" "audit" "branch" "pr" "rebase" "prompt"
-                            "deps" "merge" "ship-it" "review" "debug")
+                            "audit" "branch" "pr" "rebase" "prompt"
+                            "deps" "merge" "debug")
 
     for skill in "${expected_skills[@]}"; do
         assert_file_exists "$skills_dir/${skill}/SKILL.md" \
@@ -67,10 +67,10 @@ test_skill_structure() {
     local skills_dir="$ORIGINAL_DIR/system-configs/.claude/skills"
 
     # Only check migrated command skills that are user-invocable
-    local command_skills=("plan" "commit" "push" "test" "prime"
+    local command_skills=("plan" "commit" "push" "prime"
                           "fix-ci" "implement" "verify" "resolve-comments"
-                          "docs" "audit" "branch" "pr" "rebase" "prompt"
-                          "deps" "merge" "ship-it" "review" "debug")
+                          "audit" "branch" "pr" "rebase" "prompt"
+                          "deps" "merge" "debug")
 
     for skill_name in "${command_skills[@]}"; do
         local skill_file="$skills_dir/${skill_name}/SKILL.md"
@@ -149,10 +149,10 @@ test_documentation_completeness() {
     local skills_dir="$ORIGINAL_DIR/system-configs/.claude/skills"
 
     # Only check migrated command skills for full documentation
-    local command_skills=("plan" "commit" "push" "test" "prime"
+    local command_skills=("plan" "commit" "push" "prime"
                           "fix-ci" "implement" "verify" "resolve-comments"
-                          "docs" "audit" "branch" "pr" "rebase" "prompt"
-                          "deps" "merge" "ship-it" "review" "debug")
+                          "audit" "branch" "pr" "rebase" "prompt"
+                          "deps" "merge" "debug")
 
     for skill_name in "${command_skills[@]}"; do
         local skill_file="$skills_dir/${skill_name}/SKILL.md"

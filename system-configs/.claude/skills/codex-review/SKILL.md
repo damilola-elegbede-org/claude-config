@@ -44,7 +44,7 @@ finding names, so that line is what lets a wiring fix reach a registry or manife
 flagged file. `codex review --base` refuses a custom prompt argument, so the focus goes through
 the `developer_instructions` config key instead.
 
-Findings go through `/resolve-comments --local`, the same triage path `/review` uses, so the
+Findings go through `/resolve-comments --local`, so the
 validation rules, the untrusted-input rules, and the skipped-issue record all apply unchanged.
 
 ## Execution
@@ -137,7 +137,7 @@ IF: there is nothing to review
 
 ### Step 2: Skip if this exact diff already passed
 
-`/ship-it` and `/pr` both call this skill, so one ship can reach it twice. The state file records
+`/pr` calls this skill, and D can run it directly first, so one ship can reach it twice. The state file records
 a hash of the reviewed content: the tracked diff plus every untracked file. Committing tracked
 changes leaves the hash unchanged, so a review that ran before the commit still counts afterwards.
 Committing a previously untracked file changes the hash and triggers one more review, which costs
@@ -195,8 +195,7 @@ FOR round in 1..3:
     SET: last_round_clean = true
     BREAK   (Step 4 still checks blockers deferred in earlier rounds before recording clean)
 
-  WRITE: .tmp/review-local.json   (schema below; overwrites any earlier review output,
-                                   which /review's own run has already consumed)
+  WRITE: .tmp/review-local.json   (schema below; overwrites any earlier review output)
   RUN: rm -f .tmp/codex-review/ignored-before.json   (a snapshot left by an earlier branch must
                                                      never merge into this one)
   COPY: .tmp/coderabbit-ignored.json → .tmp/codex-review/ignored-before.json (if it exists and
@@ -205,14 +204,14 @@ FOR round in 1..3:
   INVOKE: /resolve-comments --local [--auto if this skill got --auto]
   MERGE: ignored-before.json records back into .tmp/coderabbit-ignored.json, dropping duplicates
          (same source, location, and description). File mode rewrites that file with only the
-         current run's skips, and /pr must receive every skip from /review and every round.
+         current run's skips, and /pr must receive every skip from every round.
 
   IF: no fixes were applied this round
     BREAK   (re-running on an unchanged diff would return the same findings)
   SET: diff_hash = recomputed as in Step 2
 ```
 
-Severity mapping (Codex badge to the `/review` schema):
+Severity mapping (Codex badge to the `.tmp/review-local.json` schema):
 
 | Codex | `severity` |
 | ----- | ---------- |
@@ -277,7 +276,7 @@ ELSE
   OUTPUT: "Codex review still reports {n} P0/P1 finding(s) after {rounds} round(s):"
   OUTPUT: one line per blocker: "{file}:{line} — {description}"
   OUTPUT: "Logs: .tmp/codex-review/round-*.log"
-  END (failure)   # /ship-it halts on this
+  END (failure)   # /pr halts on this
 ```
 
 `WRITE_STATE` writes `.tmp/codex-review/state.json`:
