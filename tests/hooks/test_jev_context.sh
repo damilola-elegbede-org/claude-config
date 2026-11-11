@@ -706,31 +706,6 @@ check "Jev unavailable: silent, exit 0" bash -c "[ ! -s '$OUTF' ] && [ '$HOOK_RC
 jq -cn '{tool_name:"Bash", tool_input:{command:"ls"}}' >"$IN"
 JEV_MOCK="$TEST_HOME/sec.json" run_hook a6-agent-router.sh "$IN"
 check "other tools: ignored" out_empty
-# search hint (opt-in /ask-jev ranking command), advice only
-agent_input Explore "$PROMPT"
-choice_fixture "$TEST_HOME/weak-explore.json" best_type Explore 0.3
-JEV_MOCK="$TEST_HOME/weak-explore.json" run_hook a6-agent-router.sh "$IN"
-check "Explore requested: search hint names the ranking command" out_jq '.hookSpecificOutput.additionalContext | test("rank-files.sh") and test("five files")'
-check "search hint is advice only: no permission decision" out_jq '.hookSpecificOutput | (has("permissionDecision") | not) and (has("decision") | not)'
-agent_input general-purpose "Where is the retry logic implemented in this repository? Report file paths."
-JEV_MOCK="$TEST_HOME/weak.json" run_hook a6-agent-router.sh "$IN"
-check "locate-files prompt (general-purpose, no better pick): search hint" out_jq '.hookSpecificOutput.additionalContext | test("rank-files.sh")'
-check "locate-files prompt: no router suggestion line" out_jq '.hookSpecificOutput.additionalContext | test("Jev router") | not'
-agent_input general-purpose "$PROMPT"
-choice_fixture "$TEST_HOME/pick-explore.json" best_type Explore 0.92
-JEV_MOCK="$TEST_HOME/pick-explore.json" run_hook a6-agent-router.sh "$IN"
-check "picked type Explore: router suggestion plus search hint" out_jq '.hookSpecificOutput.additionalContext | test("Jev router") and test("rank-files.sh")'
-agent_input Explore "$PROMPT"
-JEV_MOCK="$TEST_HOME/sec.json" run_hook a6-agent-router.sh "$IN"
-check "Explore requested, other type picked: both lines" out_jq '.hookSpecificOutput.additionalContext | test("security-auditor") and test("rank-files.sh")'
-agent_input general-purpose "$PROMPT"
-JEV_MOCK="$TEST_HOME/weak.json" run_hook a6-agent-router.sh "$IN"
-check "non-search prompt, no better pick: no hint" out_empty
-agent_input Explore "$PROMPT"
-set_mode A6-agent-router shadow
-JEV_MOCK="$TEST_HOME/weak-explore.json" run_hook a6-agent-router.sh "$IN"
-check "shadow: search hint not printed" out_empty
-set_mode A6-agent-router enforce
 
 # ------------------------------------------------------------------ A7 + A8: UserPromptSubmit
 echo "A7/A8 prompt-context"

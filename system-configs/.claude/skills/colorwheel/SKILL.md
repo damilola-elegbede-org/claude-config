@@ -39,8 +39,8 @@ The skill is **read-only**. It never edits the artifact, never commits, and neve
 to fire at a repo you don't own, a draft you haven't saved, or an idea that exists only in the conversation. Its
 output is a verdict plus a ranked list of prescribed fixes, which D can hand to `/implement` or apply by hand.
 
-Boundaries against its siblings: `gauntlet-loop` _builds_ a deliverable up to a named reference's bar; this vets
-something that already exists. `/review` and `/security-review` own code review and real security work. `/verify`
+Boundaries against its siblings: this vets something that already exists; it does not build one.
+`/code-review` and `/security-review` own code review and real security work. `/verify`
 runs the project's actual gates. `/colorwheel` runs none of those — it reasons about a subject and reports.
 
 ## Expected Output
@@ -184,8 +184,8 @@ a re-attack yet, which is the whole reason that round cannot be the last one.
 than continuing — a still-contested finding reaches White flagged as unresolved, never silently dropped.
 
 **Ledger:** the loop's state — the status of every finding and every mitigation, per the vocabulary below — is
-carried by the orchestrating session at default depth, and by the `Workflow` script's own loop state at `--deep`,
-the same pattern `gauntlet-loop` uses. A finding closes only when Blue has a mitigation _and_ the following Red
+carried by the orchestrating session at default depth, and by the `Workflow` script's own loop state at `--deep`.
+A finding closes only when Blue has a mitigation _and_ the following Red
 round failed to break it. Red's silence alone never closes a finding.
 
 **Stable IDs are what make the ledger joinable.** Without them, "Blue mitigated it" and "Red broke it" cannot be

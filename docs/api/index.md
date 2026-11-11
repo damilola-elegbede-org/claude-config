@@ -18,9 +18,6 @@ High-level command APIs that provide workflow automation and developer experienc
 |---------|-------------|-------------------|
 | **[/sync](commands/sync.yaml)** | Configuration synchronization between system-configs and user directory | [OpenAPI 3.0](commands/sync.yaml) |
 | **[/commit](commands/commit.yaml)** | Enhanced git commit workflow with automated review and remediation | [OpenAPI 3.0](commands/commit.yaml) |
-| **[/test](commands/test.yaml)** | Universal test discovery, execution, and generation | [OpenAPI 3.0](commands/test.yaml) |
-| **[/ship-it](commands/ship-it.yaml)** | Workflow orchestration for automated development pipelines | [OpenAPI 3.0](commands/ship-it.yaml) |
-| **[/review](commands/review.yaml)** | Multi-agent code review with comprehensive quality analysis | [OpenAPI 3.0](commands/review.yaml) |
 
 #### Command API Features
 

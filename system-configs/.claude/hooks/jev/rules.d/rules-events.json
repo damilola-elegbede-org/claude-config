@@ -139,10 +139,6 @@
     "threshold": 0.7,
     "scope": ["interactive", "bgjob"]
   },
-  "workflow-review-depth": {
-    "mode": { "interactive": "enforce", "bgjob": "enforce" },
-    "scope": ["interactive", "bgjob"]
-  },
   "workflow-ci-class": {
     "mode": { "interactive": "shadow", "bgjob": "shadow" },
     "threshold": 0.7,

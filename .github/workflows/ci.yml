@@ -187,7 +187,6 @@ jobs:
           "system-configs/.claude/skills/plan/SKILL.md"
           "system-configs/.claude/skills/commit/SKILL.md"
           "system-configs/.claude/skills/push/SKILL.md"
-          "system-configs/.claude/skills/test/SKILL.md"
           "system-configs/.claude/skills/prime/SKILL.md"
           "system-configs/.claude/skills/verify/SKILL.md"
           # Note: sync is project-local (.claude/skills/sync/), not in system-configs

@@ -82,13 +82,6 @@ target project's cwd, where the file does not exist.
   Report the diagnostics and hand it back.
 - **Report failures before successes.** "18 passed, 1 failed" buries the only line that matters.
 
-### Relationship to `/test`
-
-`/test` runs the test suite and reports; it deliberately does not fix, because a skill that both
-grades and repairs its own grade cannot be trusted. `/verify` is the layer that _is_ allowed to
-fix — across every gate, not just tests — under the retry bound above. Use `/test` to see where
-you stand; use `/verify` to get to green.
-
 ## Expected Output
 
 ```text

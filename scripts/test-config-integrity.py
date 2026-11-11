@@ -36,12 +36,10 @@ SKILLS_DIR = PROJECT_ROOT / "system-configs" / ".claude" / "skills"
 #   (replay of the last Claude Code CLI upgrade's CHANGELOG slice), watch
 #   (video transcript/frames skill), process-linear (Linear triage skill,
 #   renamed from process-bareclaude), ask (D-facing question primitive),
-#   interview (full-understanding protocol), and gauntlet-loop (multi-round
-#   critic/builder gauntlet skill), and excalidraw (themed .excalidraw diagram
+#   interview (full-understanding protocol), and excalidraw (themed .excalidraw diagram
 #   generation with a render-and-verify loop), and colorwheel (InfoSec
 #   color-wheel vetting: red/blue/yellow/orange/green teams, purple re-attack
-#   loop, white verdict), and goal-status (progress report for the session's
-#   /goal: pinned criteria, bar, evidence table, check history), and experiment
+#   loop, white verdict), and experiment
 #   (pre-registered, sandboxed experiments run by the experiment-runner agent and
 #   graded by score.py)
 #   (advisor skill removed — migrated to the native advisor tool, see PR #221)
@@ -54,7 +52,7 @@ SKILLS_DIR = PROJECT_ROOT / "system-configs" / ".claude" / "skills"
 #   `higgsfield` CLI they drive (docs/integrations/HIGGSFIELD_INTEGRATION.md)
 # Note: sync and skills-import are project-local (.claude/skills/), not in system-configs
 EXPECTED_AGENT_COUNT = 8
-EXPECTED_SKILL_COUNT = 52
+EXPECTED_SKILL_COUNT = 44
 
 # Non-agent/command documentation files to skip
 NON_AGENT_FILES = [
@@ -295,7 +293,7 @@ def test_consolidated_skills_exist():
     assert "audit" in skills, "audit skill missing"
 
     # Core skills that must exist (migrated from commands)
-    required_skills = ["plan", "commit", "push", "test", "prime", "verify", "review", "debug", "ship-it"]
+    required_skills = ["plan", "commit", "push", "prime", "verify", "debug"]
     for skill in required_skills:
         assert skill in skills, f"Required skill {skill} missing"
 

@@ -1,6 +1,6 @@
-# File mode — triage `/review` output from `.tmp/`
+# File mode — triage `/codex-review` output from `.tmp/`
 
-Active when `--local` is passed. Reads the file `/review` and `/codex-review` write (`.tmp/review-local.json`).
+Active when `--local` is passed. Reads the file `/codex-review` writes (`.tmp/review-local.json`).
 
 ## STEP 1: Load issues
 
@@ -17,7 +17,7 @@ IF: --local flag
       COPY: file → .tmp/review-local.backup-{timestamp}.json
       DELETE: .tmp/review-local.json
       OUTPUT: "⚠️ Schema version mismatch in review-local.json (found: {v}, expected: {CURRENT}).
-               Backed up to {backup_path}. Re-run /review to regenerate."
+               Backed up to {backup_path}. Re-run /codex-review to regenerate."
       END
   APPEND: issues with source = "codex" when the file's top-level "source" is "codex"
           (written by /codex-review), else "code-reviewer" (covers /review's "code-reviewer"
@@ -25,7 +25,7 @@ IF: --local flag
   OUTPUT: "Loaded {count} AI reviewer issues"
 
 IF: issues empty
-  OUTPUT: "No issues to triage. Run /review first to generate issue files."
+  OUTPUT: "No issues to triage. Run /codex-review first to generate issue files."
   END
 ```
 
@@ -58,7 +58,7 @@ IF: fixes applied AND fix_count > 0
 
 IF: skipped_issues not empty
   WRITE: .tmp/coderabbit-ignored.json (schema_version "1.0" — see schemas.md)
-  OUTPUT: "Saved {count} skipped issues (posted to the PR by /pr or /ship-it)"
+  OUTPUT: "Saved {count} skipped issues (posted to the PR by /pr)"
 
 OUTPUT: "Fixed {fix_count} issues, skipped {skip_count}"
 ```

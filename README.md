@@ -278,11 +278,8 @@ Performance: 5x faster than sequential validation
 | Command                    | Description                                                       | Performance Gain       | Key Features                                                            |
 | -------------------------- | ----------------------------------------------------------------- | ---------------------- | ----------------------------------------------------------------------- |
 | **`/sync`**                | Deploy complete framework configurations                          | N/A                    | One-command setup, validation, backup                                   |
-| **`/test`**                | Multi-agent test execution with auto-discovery                    | 4-5x faster            | 5 test suite instances, framework detection                             |
 | **`/prime`**               | Parallel repository analysis and insights                         | 4-6x faster            | 5 analyzer instances, comprehensive profiling                           |
 | **`/audit`**               | Unified ecosystem validation (agents/commands/all)                | 5-6x faster            | Parallel validation, comprehensive coverage                             |
-| **`/review`**              | Multi-dimensional quality analysis                                | Enhanced coverage      | Parallel specialists, comprehensive assessment                          |
-| **`/docs`**                | Documentation orchestration with parallel processors              | 3-4x faster            | 6 document instances, automated generation                              |
 | **`/plan`**                | Strategic project planning with principal-architect               | Enhanced quality       | TDD methodology, architectural guidance                                 |
 | **`/debug`**               | Systematic investigation with evidence gathering                  | Improved accuracy      | Hypothesis testing, systematic debugging                                |
 | **`/resolve-comments`**    | Intelligent PR resolution based on comment analysis               | Context-aware          | Multi-agent deployment, automated fixes                                 |
@@ -303,7 +300,6 @@ Performance: 5x faster than sequential validation
 
 ### ⭐⭐⭐ Three-Star Commands (Utility & Support)
 
-- **`/ship-it`** - Release management with comprehensive workflow automation
 - **`/prompt`** - Prompt development and testing utility for optimization
 
 ## 💾 Installation

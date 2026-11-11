@@ -1,6 +1,6 @@
 ---
 name: experiment
-description: Settle a hypothesis with a small, pre-registered experiment run by subagents in a sandbox, graded by a script, and reported as SUPPORTED, REFUTED or INCONCLUSIVE with n. Use proactively whenever a claim, plan or answer rests on something nobody has checked and a quick safe test could check it, and when D says "prove it", "are you sure", "verify that", "test the hypothesis", "I'm not sure", "we're guessing", or a claim would otherwise be marked untested or inference. Not for running a project's own checks (/verify) or test suite (/test), or for vetting an argument (/colorwheel).
+description: Settle a hypothesis with a small, pre-registered experiment run by subagents in a sandbox, graded by a script, and reported as SUPPORTED, REFUTED or INCONCLUSIVE with n. Use proactively whenever a claim, plan or answer rests on something nobody has checked and a quick safe test could check it, and when D says "prove it", "are you sure", "verify that", "test the hypothesis", "I'm not sure", "we're guessing", or a claim would otherwise be marked untested or inference. Not for running a project's own checks or test suite (/verify), or for vetting an argument (/colorwheel).
 argument-hint: "<hypothesis or question to settle> [--reps N]"
 allowed-tools: [Read, Write, Edit, Bash, Grep, Glob, Agent, AskUserQuestion]
 metadata:
@@ -71,7 +71,7 @@ test could settle that claim in minutes, and the test can run in a sandbox. Typi
 - D asks for proof, or questions a claim
 
 Skip it, and say why, when reading the code or docs answers the question outright, when the project's own
-checks answer it (`/verify`, `/test`), or when the only possible test touches production, spends money or
+checks answer it (`/verify`), or when the only possible test touches production, spends money or
 reaches other people. Those are D's call through AskUserQuestion, not an experiment's.
 
 ### The loop
@@ -127,7 +127,6 @@ Order matters: each step depends on the one before it.
 | Need | Skill |
 | --- | --- |
 | Run the project's tests, linters, build; fix what fails | `/verify` |
-| Run the test suite and report | `/test` |
 | Stress-test an idea or plan by argument | `/colorwheel` |
 | Produce new evidence for or against a specific claim | `/experiment` |
 

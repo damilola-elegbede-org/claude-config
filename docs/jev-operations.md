@@ -218,8 +218,6 @@ is the same action, a safer variant or unrelated (`retry_kind`). These rows neve
   logged as `keep-full` with why `no-relevant-chunk`). `A1` and `A2` still keep their best chunk.
 - `A7-memory-inject` and `A8-skill-picker` run in job sessions in shadow, for the first user prompt only
   (marker `~/.claude/jev-cache/state/<session_id>.first`).
-- `A6-agent-router` adds a hint pointing at the `/ask-jev` ranking script when a delegation is a file
-  search (`Explore`, or a prompt about locating files).
 - The `executive-lint` regex checks (tag, `executive-lint-meta`, `executive-lint-bare-id`, length cap) and
   `executive-tag-correctness` ship shadow in every session type: a block makes the model print the reply twice, so
   the Executive style file states the rules up front and the lint only meters them. Each miss logs
@@ -232,23 +230,12 @@ is the same action, a safer variant or unrelated (`retry_kind`). These rows neve
   quick sandboxed experiment could get it (P >= 0.9), Jev holds the reply once per session and asks Claude to run
   `/experiment` first. It rides the same single Jev call as the other executive checks. Log verdicts: `p=<P>` on
   every Stop it is asked, `block` when it holds a reply; the ratio of useful to needless blocks is its precision.
-- The `workflow-*` helpers (commit and branch type, mixed commit, review depth, CI and verify failure
+- The `workflow-*` helpers (commit and branch type, mixed commit, CI and verify failure
   class, Linear presort, click target) run in job sessions in shadow; the skills always run their helper
   and act on the answer only when the mode is `enforce`.
 - At session start, `session-check.sh` prints one line when deployed hook files differ from the
   claude-config clone's `origin/main` (it never fetches, so it is only as fresh as the last fetch there).
   `JEV_DRIFT_REPO` and `JEV_DRIFT_HOOKS` override the paths.
-
-## The opt-in /ask-jev skill
-
-`skills/ask-jev/scripts/rank-files.sh "<query>" <paths or globs...>` ranks candidate files for "where is X /
-which files handle Y" questions so the model reads the top few instead of dozens. A keyword prefilter
-(no model) keeps at most 60 files, then Jev scores them in batches of at most 20 (path plus first 40
-lines, one boolean per file; the client redacts and refuses an excluded cwd). Output is one
-`<probability><TAB><path>` line per file, best first. It fails open: with Jev unavailable it prints the
-prefilter order with `-` as the probability and exits 0. Rule `ask-jev-rank` lives in
-`hooks/jev/rules.d/skills.json`; it ships `enforce` because invoking the skill is itself the opt-in and the
-output is advisory. Tests: `tests/hooks/test_ask_jev.sh`.
 
 ## Hook `if` prefilters
 

@@ -21,7 +21,7 @@ Writes a JSON list of {name, base, desc, source, scope_dir, cmd, path, invokes}:
              (raw: is for an action that only appears inside a quoted argument, such as a GraphQL
              mutation name; anchor it to the command so prose that mentions it does not match)
   invokes    base names of trigger-bearing skills this skill's body runs as /<name>
-             (an orchestrator such as /ship-it runs /commit, so loading it covers /commit)
+             (an orchestrator such as /land runs /commit, so loading it covers /commit)
 
 --match (A9, PreToolUse): which skills declare a trigger for this tool call and are not already
 running. Writes {"candidates": [...], "route": [...], "turn": "<id>"}: candidates match the call and
