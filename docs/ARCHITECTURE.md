@@ -147,18 +147,15 @@ Twenty-one essential commands providing comprehensive development workflow autom
 
 ```yaml
 Five-Star Commands (13):
-  - /test: Multi-agent test execution
   - /prime: Parallel repository analysis
   - /agent-audit: Ecosystem health validation
   - /plan: Strategic orchestration
   - /debug: Systematic investigation
-  - /review: Multi-dimensional quality analysis
   - /resolve-comments: Intelligent PR resolution
   - /pr: Collaborative PR creation
   - /command-audit: Quality assurance
   - /deps: Security-first dependency management
   - /fix-ci: Pattern recognition for CI failures
-  - /docs: Documentation orchestration
   - /implementation-plan: Detailed planning without execution
 
 Four-Star Commands (6):
@@ -170,7 +167,6 @@ Four-Star Commands (6):
   - /monitor: System monitoring
 
 Three-Star Commands (2):
-  - /ship-it: Release management
   - /prompt: Prompt development utility
 ```
 

@@ -48,13 +48,10 @@ Experience the power immediately:
 /prime
 
 # Comprehensive testing with parallel execution (30-40 seconds)
-/test
+/verify
 
 # Multi-dimensional code review
-/review
-
-# Documentation generation with 6 processors (1-2 minutes)
-/docs
+/code-review
 
 # Smart dependency audit with security scanning
 /deps
@@ -191,10 +188,10 @@ The framework includes automatic quality enforcement:
 /fix-ci
 
 # Review and resolve issues
-/review
+/code-review
 
 # Validate fixes
-/test
+/verify
 ```
 
 ## 📚 Next Steps
@@ -281,7 +278,7 @@ development with 4-6x performance improvements and superior quality.
 ```bash
 # Your first agent-coordinated task
 Task: "Review this codebase and suggest improvements"
-/review
+/code-review
 ```
 
 Welcome to the future of intelligent development workflows! 🎯

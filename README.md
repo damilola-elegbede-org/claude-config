@@ -51,11 +51,7 @@ Experience the power of parallel agent orchestration:
 
 # Traditional approach: 2-3 minutes
 # Framework approach: 30-40 seconds (4-5x faster)
-/test
-
-# Traditional approach: 5-7 minutes
-# Framework approach: 1-2 minutes (3-4x faster)
-/docs
+/verify
 ```
 
 ## 🚀 Quick Start
@@ -93,8 +89,8 @@ claude-code
 
 # 5. Experience the power - try these commands
 /prime      # Repository analysis with 5 parallel specialists
-/test       # Intelligent test execution with auto-discovery
-/review     # Multi-dimensional code review
+/verify          # Run the project's checks and fix what fails
+/code-review     # Review the current diff
 ```
 
 **🎉 You're ready!** You now have access to 12 specialized agents and 20 essential commands.
@@ -106,13 +102,10 @@ claude-code
 /prime
 
 # Comprehensive test execution with framework auto-discovery
-/test
+/verify
 
 # Multi-dimensional code review (code-reviewer + security-auditor + test-engineer)
-/review
-
-# Documentation generation with 6 parallel processors
-/docs
+/code-review
 
 # Smart dependency audit with security scanning
 /deps
@@ -468,7 +461,7 @@ The sync process deploys the complete framework configuration:
 
 ```bash
 # Run all tests with intelligent orchestration
-/test
+/verify
 
 # Run specific test categories
 ./tests/test.sh commands
@@ -627,12 +620,10 @@ chmod 644 ~/.claude/commands/*
 ```bash
 # Monitor system performance
 time /audit --scope agents    # Should be ~30-45 seconds
-time /test          # Should be ~30-40 seconds
-time /docs          # Should be ~1-2 minutes
 
 # Run performance diagnostics
 /audit --scope agents --debug
-/test --verbose --performance
+/verify
 ```
 
 ### Quality Gate Failures
@@ -643,7 +634,7 @@ time /docs          # Should be ~1-2 minutes
 ./scripts/validate-agent-yaml.py --fix
 
 # Re-run comprehensive validation
-/test
+/verify
 /audit --scope agents
 
 # NEVER bypass quality gates with --no-verify
@@ -699,7 +690,7 @@ quality standards with zero-tolerance quality gates.
 1. **Fork the repository**
 2. **Create a feature branch** (`git checkout -b feature/amazing-enhancement`)
 3. **Make your changes** following our [development standards](CONTRIBUTING.md)
-4. **Run comprehensive tests** (`/test`)
+4. **Run comprehensive tests** (`/verify`)
 5. **Commit with semantic messages** (`/commit`)
 6. **Push safely** (`/push`)
 7. **Open a Pull Request** using `/pr` for intelligent PR creation
@@ -779,7 +770,7 @@ SYSTEM BOUNDARY protection, validate with `./scripts/validate-agent-yaml.py`, th
 
 ### Q: What performance improvements should I expect after installation?
 
-**A:** Expect 4-6x performance improvements: `/audit --scope agents` (30-45 sec), `/test` (30-40 sec), `/docs` (1-2 min),
+**A:** Expect 4-6x performance improvements: `/audit --scope agents` (30-45 sec),
 `/prime` (15-20 sec) through intelligent parallel execution and multi-instance orchestration.
 
 ### Q: Can I use this with my existing Claude Code CLI setup?

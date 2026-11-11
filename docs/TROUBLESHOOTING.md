@@ -16,7 +16,7 @@ performance issues.
 /audit --scope agents
 
 # Run comprehensive system tests
-/test
+/verify
 
 # Check repository context and structure
 /prime
@@ -196,7 +196,7 @@ cat ~/.claude/agents/[agent-name].md | grep -A 5 "tools:"
 
 ### Test Execution Problems
 
-#### Issue: `/test` command fails or times out
+#### Issue: `/verify` command fails or times out
 
 ```bash
 Error: Test execution failed after 10 minutes
@@ -551,7 +551,7 @@ export CLAUDE_DEBUG=1
 
 # Run commands with verbose output
 /audit --scope agents --debug
-/test --verbose
+/verify
 /sync --debug
 ```
 
@@ -607,7 +607,7 @@ time /audit --scope agents --dry-run
 # Weekly maintenance routine
 /sync                    # Sync latest configurations
 /audit --scope agents            # Validate agent ecosystem
-/test                   # Run comprehensive tests
+/verify          # Run the project's checks and fix what fails
 git pull                # Update repository
 ```
 
@@ -616,8 +616,6 @@ git pull                # Update repository
 ```bash
 # Monitor command performance
 time /audit --scope agents       # Should be ~30-45 seconds
-time /test             # Should be ~30-40 seconds
-time /docs             # Should be ~1-2 minutes
 ```
 
 ### Configuration Backup

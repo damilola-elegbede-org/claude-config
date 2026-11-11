@@ -119,7 +119,7 @@ claude-code
 # Verify everything is working
 /audit --scope agents
 /prime --lite    # Quick repository analysis
-/test --quick   # Quick test validation
+/verify          # Run the project's checks and fix what fails
 ```
 
 ##### Advantages:
@@ -234,13 +234,10 @@ claude-code
 /audit --scope agents
 
 # 3. Test command execution
-/test --quick
+/verify
 
 # 4. Validate quality gates
-/review README.md
-
-# 5. Test orchestration
-/docs --update
+/code-review
 ```
 
 ### Advanced Validation
@@ -262,7 +259,6 @@ For comprehensive system validation:
 
 # Performance benchmarking
 time /audit --scope agents
-time /test
 time /prime
 ```
 
@@ -273,8 +269,6 @@ After successful installation, you should see these performance improvements:
 | Command | Expected Time | Performance Gain |
 |---------|---------------|------------------|
 | `/audit --scope agents` | 30-45 seconds | 5-6x faster |
-| `/test` | 30-40 seconds | 4-5x faster |
-| `/docs` | 1-2 minutes | 3-4x faster |
 | `/prime focused` | 15-20 seconds | 4-6x faster |
 
 ## Platform-Specific Setup
@@ -406,7 +400,7 @@ The system includes comprehensive quality gates that prevent bad commits:
 # Instead, fix the issues:
 ./scripts/validate-markdown-quality.sh fix
 /audit --scope agents
-/test
+/verify
 ```
 
 ### MCP Server Integration
@@ -479,7 +473,7 @@ git pull origin main
 
 # Validate updates
 /audit --scope agents
-/test
+/verify
 ```
 
 ### Backup and Restore
@@ -506,13 +500,11 @@ Regular health checks ensure optimal performance:
 # Weekly health check routine
 /sync                    # Update configurations
 /audit --scope agents            # Validate agent ecosystem
-/test                   # Run comprehensive tests
+/verify          # Run the project's checks and fix what fails
 git pull                # Update repository
 
 # Monthly performance monitoring
 time /audit --scope agents       # Should be ~30-45 seconds
-time /test             # Should be ~30-40 seconds
-time /docs             # Should be ~1-2 minutes
 ```
 
 ## Troubleshooting Common Issues
@@ -588,7 +580,6 @@ vm_stat  # macOS
 
 # Run performance diagnostics
 time /audit --scope agents --debug
-time /test --verbose
 ```
 
 #### Issue: Quality gates failing
@@ -599,7 +590,7 @@ time /test --verbose
 ./scripts/validate-agent-yaml.py --fix
 
 # Re-run tests
-/test
+/verify
 
 # Never bypass with --no-verify
 ```

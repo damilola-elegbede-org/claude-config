@@ -101,7 +101,7 @@ LOOP: via /loop, up to max-iters iterations
           - one slice only; small, focused change
           - TDD, tests green before commit (see /implement Implementation Contract)
   STEP 3: Review gate
-          INVOKE: /code-review on the slice's changes
+          INVOKE: /code-review (built into the CLI) on the slice's changes
           IF: real issues found → fix forward, re-run /code-review (max 2 passes per slice)
   STEP 4: Mark the slice done
           - verify the slice's ## Acceptance is met

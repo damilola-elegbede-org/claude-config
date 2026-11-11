@@ -40,7 +40,7 @@ to fire at a repo you don't own, a draft you haven't saved, or an idea that exis
 output is a verdict plus a ranked list of prescribed fixes, which D can hand to `/implement` or apply by hand.
 
 Boundaries against its siblings: this vets something that already exists; it does not build one.
-`/code-review` and `/security-review` own code review and real security work. `/verify`
+The CLI's built-in `/code-review` and `/security-review` own code review and real security work. `/verify`
 runs the project's actual gates. `/colorwheel` runs none of those — it reasons about a subject and reports.
 
 ## Expected Output

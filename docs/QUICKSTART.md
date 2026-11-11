@@ -34,10 +34,10 @@ claude-code
 /prime
 
 # Run project tests intelligently
-/test
+/verify
 
 # Experience multi-agent code review
-/review
+/code-review
 ```
 
 ## Core Skills You'll Use Daily
@@ -45,9 +45,7 @@ claude-code
 | Skill | Purpose | Example |
 |-------|---------|---------|
 | `/sync` | Deploy configurations from repo | `/sync` |
-| `/test` | Auto-discover and run tests | `/test` |
 | `/prime` | Analyze repository structure | `/prime --lite` |
-| `/review` | Comprehensive code review | `/review` |
 | `/commit` | Smart git commits with quality gates | `/commit` |
 | `/debug` | Systematic bug investigation | `/debug "login fails"` |
 
@@ -79,7 +77,7 @@ git pull origin main
 ## 💡 Pro Tips
 
 1. **Use `/prime` first** in new repositories for intelligent analysis
-2. **Combine commands**: `/test` → `/review` → `/commit` → `/push` workflow
+2. **Combine commands**: `/verify` → `/code-review` → `/commit` → `/push` workflow
 3. **Leverage parallel execution**: Commands use multiple agent instances for 4-6x speed
 4. **Quality gates**: Never bypass with `--no-verify` - fix issues instead
 
