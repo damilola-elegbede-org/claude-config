@@ -20,8 +20,8 @@ metadata:
 ## Description
 
 Reads a markdown specification and implements the described features. Deploys appropriate
-engineers based on the spec requirements. Fans out parallel subagents (one Agent call per domain
-in a single message) for multi-domain specs (2+ domains), or a single Agent call for single-domain
+engineers based on the spec requirements. Fans out parallel subagents (one Task call per domain
+in a single message) for multi-domain specs (2+ domains), or a single Task call for single-domain
 specs.
 
 ## Implementation Contract
@@ -81,17 +81,17 @@ file to exactly one domain to prevent conflicts.
 
 ```text
 IF: 2+ domains identified
-  → Subagent fan-out (parallel Agent calls in one message)
+  → Subagent fan-out (parallel Task calls in one message)
 ELSE:
-  → Single Agent path
+  → Single Task path
 ```
 
 #### Path A: Multi-Domain (Subagent Fan-Out)
 
-Fan out one subagent per domain **in a SINGLE message with multiple Agent tool calls**:
+Fan out one subagent per domain **in a SINGLE message with multiple Task tool calls**:
 
 ```text
-Agent tool call:
+Task tool call:
   subagent_type: "general-purpose"
   description: "Implement {domain} tasks"
   prompt: |
@@ -120,10 +120,10 @@ Agent tool call:
 
 Wait for all subagents to return.
 
-#### Path B: Single Domain (Single Agent)
+#### Path B: Single Domain (Task)
 
 ```text
-Agent tool:
+Task tool:
   subagent_type: "general-purpose"
   prompt: |
     Implement the following tasks from specification:
@@ -213,7 +213,7 @@ User: /implement spec.md --dry-run
   - backend: 3 tasks (API endpoints, validation, auth)
   - frontend: 2 tasks (UserProfile, form integration)
 
-  Deployment: Subagent fan-out (2 domains → parallel Agent calls)
+  Deployment: Subagent fan-out (2 domains → parallel Task calls)
   File ownership:
     backend-engineer: src/api/, src/middleware/
     frontend-engineer: src/components/, src/pages/
@@ -241,7 +241,7 @@ Ready to proceed? Run without --dry-run
 
 ## Notes
 
-- Parallel subagent fan-out for 2+ domains (multiple Agent calls in a single message); single Agent call for 1 domain
+- Parallel subagent fan-out for 2+ domains (multiple Task calls in a single message); single Task for 1 domain
 - Subagents carry no `model:` pin, so they use the settings.json subagent model
   (`env.CLAUDE_CODE_SUBAGENT_MODEL`) and one settings line moves them all
 - File ownership prevents conflicts between subagents working in parallel
