@@ -873,7 +873,7 @@ unset JEV_MOCK_CAPTURE
 eq "pick_target fails open" "$(printf '%s' "$CANDS" | JEV_MOCK=unavailable bash "$SKILLS/webapp-testing/scripts/pick_target.sh" 'open the assistance panel' | jq -r .selector)" ""
 # --- SKILL.md wiring ---------------------------------------------------------------------
 for pair in "process-linear:scripts/presort.sh" "commit:scripts/classify.sh" "branch:commit/scripts/classify.sh" \
-  "fix-ci:failure-classify.sh" "verify:failure-classify.sh" "webapp-testing:scripts/pick_target.sh"; do
+  "verify:failure-classify.sh" "webapp-testing:scripts/pick_target.sh"; do
   s="${pair%%:*}"
   w="${pair#*:}"
   grep -qF -- "$w" "$SKILLS/$s/SKILL.md" && ok || bad "$s/SKILL.md references helper $w"

@@ -166,10 +166,10 @@ fi
 echo "Testing agent files..."
 
 AGENT_COUNT=$(find "$SOURCE_DIR/.claude/agents" -name "*.md" -not -name "*TEMPLATE*" -not -name "README.md" | wc -l | tr -d ' ')
-if [ "$AGENT_COUNT" -ge 6 ]; then
+if [ "$AGENT_COUNT" -ge 1 ]; then
     echo -e "${GREEN}✓${NC} $AGENT_COUNT agents ready for sync"
 else
-    echo -e "${RED}✗${NC} Too few agents found: $AGENT_COUNT (expected at least 6)"
+    echo -e "${RED}✗${NC} Too few agents found: $AGENT_COUNT (expected at least 1)"
     exit 1
 fi
 

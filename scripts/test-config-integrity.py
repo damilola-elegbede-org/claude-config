@@ -24,14 +24,14 @@ COMMANDS_DIR = PROJECT_ROOT / "system-configs" / ".claude" / "commands"
 SKILLS_DIR = PROJECT_ROOT / "system-configs" / ".claude" / "skills"
 
 # Expected counts
-# 7 agents: architect, code-reviewer, debugger, devops,
-#   frontend-engineer, security-auditor, test-engineer
-#   (feature-agent removed — /feature-lifecycle runs in the main session,
-#    which can spawn the agents it needs; a subagent cannot)
+# 1 agent: experiment-runner
+#   (architect, code-reviewer, debugger, devops, frontend-engineer, security-auditor and
+#    test-engineer removed: role prompts the current models no longer need; a
+#    general-purpose subagent with the role stated inline does the same work)
 #   (fable-advisor removed — the native advisor tool, configured via
 #    advisorModel in settings.json, replaces it; the subagent had no way to
 #    return a result to its caller)
-# 37 skills: git, orchestration, quality, planning, formats, specialized, agent-context,
+# 30 skills: git, landing, quality, formats, specialized,
 #   plus office-common (shared toolkit for xlsx/pptx/docx), changelog
 #   (replay of the last Claude Code CLI upgrade's CHANGELOG slice), watch
 #   (video transcript/frames skill), process-linear (Linear triage skill,
@@ -42,6 +42,8 @@ SKILLS_DIR = PROJECT_ROOT / "system-configs" / ".claude" / "skills"
 #   loop, white verdict), and experiment
 #   (pre-registered, sandboxed experiments run by the experiment-runner agent and
 #   graded by score.py)
+#   (implement, fix-ci, prompt, prime, debug, feature-lifecycle and plan removed: the
+#    current models do this work without a skill)
 #   (advisor skill removed — migrated to the native advisor tool, see PR #221)
 #   (api-design-patterns, git-conventions, security-checklist and testing-patterns
 #    removed: 1043 lines of general knowledge preloaded into 5 agents' context on
@@ -51,8 +53,8 @@ SKILLS_DIR = PROJECT_ROOT / "system-configs" / ".claude" / "skills"
 #   youtube-thumbnail), verbatim from higgsfield-ai/skills; /sync verifies the
 #   `higgsfield` CLI they drive (docs/integrations/HIGGSFIELD_INTEGRATION.md)
 # Note: sync and skills-import are project-local (.claude/skills/), not in system-configs
-EXPECTED_AGENT_COUNT = 8
-EXPECTED_SKILL_COUNT = 44
+EXPECTED_AGENT_COUNT = 1
+EXPECTED_SKILL_COUNT = 37
 
 # Non-agent/command documentation files to skip
 NON_AGENT_FILES = [
@@ -293,7 +295,7 @@ def test_consolidated_skills_exist():
     assert "audit" in skills, "audit skill missing"
 
     # Core skills that must exist (migrated from commands)
-    required_skills = ["plan", "commit", "push", "prime", "verify", "debug"]
+    required_skills = ["commit", "push", "verify"]
     for skill in required_skills:
         assert skill in skills, f"Required skill {skill} missing"
 

@@ -14,7 +14,7 @@ bundler (`Gemfile`), composer (`composer.json`).
 | cargo     | `cargo audit`  | `cargo outdated`          | `cargo tree`       |
 | maven     | —              | `versions:display-dependency-updates` | `dependency:analyze` |
 
-Scan ecosystems in parallel — one `security-auditor` per detected ecosystem, capped at 5 concurrent.
+Scan ecosystems in parallel — one subagent per detected ecosystem, capped at 5 concurrent.
 Aggregate into one report rather than emitting per-ecosystem output separately.
 
 ## Update workflows
@@ -35,12 +35,12 @@ npm outdated && npm update
 
 For `/deps audit` and `/deps update`, fan out rather than scanning serially:
 
-- `security-auditor`, one per ecosystem — vulnerability scan against CVE data.
-- `security-auditor`, additional instances for the cross-cutting dimensions that don't map to a single
+- One subagent per ecosystem — vulnerability scan against CVE data.
+- Additional subagents for the cross-cutting dimensions that don't map to a single
   ecosystem: critical-CVE identification (CVSS 9.0+), supply-chain/package reputation, license
   compliance, maintenance status.
-- `devops` — dependency conflict and breaking-change assessment for proposed updates.
-- `devops` — CI/CD pipeline impact and rollback strategy.
+- One subagent — dependency conflict and breaking-change assessment for proposed updates.
+- One subagent — CI/CD pipeline impact and rollback strategy.
 
 Between scanning and applying, do the classification yourself: aggregate the findings, sort by
 severity, and split updates into safe-to-apply vs. needs-human-review. Apply the safe set with a

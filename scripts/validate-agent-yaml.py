@@ -47,16 +47,8 @@ NON_AGENT_FILES = [
 
 # Complex/consolidated agents that may exceed standard file length limits
 # These agents combine functionality from multiple merged agents
-# Total agents: 7
-COMPLEX_AGENTS = [
-    'architect',           # System design, API architecture, cloud infrastructure
-    'code-reviewer',       # Pre-commit review, security vulnerability detection
-    'debugger',            # Bug investigation, performance optimization
-    'devops',              # CI/CD, Kubernetes, Infrastructure as Code
-    'frontend-engineer',   # UI/React, design systems, client-side performance
-    'security-auditor',    # Vulnerability detection, threat modeling, compliance
-    'test-engineer',       # Test strategy, automation, coverage analysis
-]
+# None today: the seven specialist agents were removed.
+COMPLEX_AGENTS = []
 
 def extract_yaml_section(file_path):
     """Extract YAML front-matter from file."""
