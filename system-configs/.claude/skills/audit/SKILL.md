@@ -35,7 +35,7 @@ Validate Claude Code configuration ecosystem. Checks agents and skills for YAML 
 - Required fields: name, description, tools, category, color (`model` is optional; omitting it uses the settings.json subagent model)
 - Template compliance (AGENT_TEMPLATE.md)
 - SYSTEM BOUNDARY statement present
-- No Task tool access
+- No Agent tool access
 
 **Skills:**
 

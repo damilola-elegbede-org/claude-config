@@ -255,16 +255,15 @@ cause. If none exist, say so — don't estimate.
 ## Notes
 
 - Two-phase architecture separates diagnosis from fixing
-- Parallelism via subagent fan-out (multiple Task calls in a single message) — no team scaffolding
+- Parallelism via subagent fan-out (multiple Agent calls in a single message) — no team scaffolding
 - Subagents carry no `model:` pin, so they use the settings.json subagent model
   (`env.CLAUDE_CODE_SUBAGENT_MODEL`) and one settings line moves them all
 - Diagnoser spawn prompts carry a one-line role plus the job's log, URL, and output schema
 - Domain-specific context embedded in fixer spawn prompts
 - Subagents are ephemeral — no cleanup needed after they return
 - Subagent thinking level: spawned subagents inherit Claude Code's session
-  thinking-mode setting. `ultrathink` is a valid session-level keyword, but
-  there is no per-agent `thinking-level`/`thinking-tokens` frontmatter in this
-  repo anymore (reasoning depth is controlled by model + effort — see
-  `docs/agents/AGENT_TEMPLATE.md`); include `ultrathink` directly in the
-  subagent prompt if a specific diagnosis warrants deeper reasoning.
+  thinking-mode setting. Reasoning depth is controlled by model + effort, not
+  per-agent frontmatter (see `docs/agents/AGENT_TEMPLATE.md`); include
+  `ultrathink` directly in the subagent prompt if a specific diagnosis
+  warrants deeper reasoning.
 - Iterates up to 3 times, then reports what is still failing
