@@ -1,15 +1,15 @@
 ---
 # AGENT TEMPLATE - PRODUCTION READY
 #
-# This template matches the pattern used by 15 production agents
+# This template matches the pattern used by the production agents
 # Target length: 30-50 lines (not 180+)
 #
 # Model selection — `model:` is OPTIONAL. Precedence: model named in the spawn
 # call > agent `model:` > settings.json env.CLAUDE_CODE_SUBAGENT_MODEL > session model.
-# - omit it (DEFAULT): uses the settings.json subagent model (sonnet today), so
+# - omit it (DEFAULT): uses the settings.json subagent model, so
 #   one settings line moves every such agent
 #   * code-reviewer, debugger, devops, frontend-engineer, test-engineer
-# - inherit: follows the session's model (sonnet by default)
+# - inherit: follows the session's model
 #   * architect (system-wide design),
 #     security-auditor (adversarial review)
 # - opus/sonnet/haiku/fable: a fixed pin that ignores settings.json — only for a
@@ -122,10 +122,6 @@ skills: feature-lifecycle
 
 | Agent | Preloaded Skills |
 | ----- | ---------------- |
-
-**Available reference skills** (all have `user-invocable: false`):
-
-- `markdown-linting` - Markdownlint rules, documentation formatting
 
 **Best practices:**
 
