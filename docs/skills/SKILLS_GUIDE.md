@@ -22,12 +22,12 @@ Level 2: Skills
 ├─ Git workflows, utilities, orchestration
 ├─ Agent-routed domain expertise
 ├─ Reference material preloaded into agents
-└─ Example: /commit, /pr, /land, /debug
+└─ Example: /commit, /pr, /land, /verify
 
 Level 3: Agents
 ├─ Complex specialists with deep context
 ├─ Multi-step orchestration
-└─ Example: architect, debugger, frontend-engineer
+└─ Example: experiment-runner
 
 Level 4: Agent Teams
 ├─ Multiple Claude instances coordinated
@@ -35,29 +35,16 @@ Level 4: Agent Teams
 └─ Example: Full-stack feature, deep review
 ```
 
-## Skill Categories (34 Total)
+## Skill Categories
 
-### Orchestration Skills (7)
+### Orchestration Skills
 
 Complex multi-phase workflows with task tracking, parallel execution, and agent routing.
 
 | Skill | Description | Key Features |
 |-------|-------------|--------------|
-| `/fix-ci` | CI failure diagnosis and fix | `--learn` |
 | `/deps` | Dependency management | `audit`, `update`, `clean`, `--quick` |
 | `/resolve-comments` | CodeRabbit comment resolution | `--auto`, `--dry-run` |
-| `/implement` | Feature implementation from specs | `--spec`, `--tdd` |
-| `/feature-lifecycle` | End-to-end feature delivery | Agent team coordination |
-
-### Agent-Routed Skills (4)
-
-Skills that route to specialized agents for domain-specific work.
-
-| Skill | Description | Routed Agent | Flags |
-|-------|-------------|--------------|-------|
-| `/debug` | Root cause analysis | debugger | `--performance`, `--issue` |
-| `/plan` | PRD and task file generation | architect | `--no-execute`, `--simple` |
-| `/prime` | Repository understanding | Claude directly | `--lite`, `--full` |
 
 ### Git Workflow Skills (6)
 
@@ -77,7 +64,6 @@ Direct-execution skills for common git operations.
 | Skill | Description | Flags |
 |-------|-------------|-------|
 | `/audit` | Unified agent/skill validation | `--scope agents\|skills\|all`, `--fix` |
-| `/prompt` | Prompt optimization | `--file` |
 | `/verify` | Skill verification | `--last`, `--command`, `--depth` |
 
 ### Agent-Preloaded Reference Skills (5)
@@ -177,7 +163,7 @@ Skills are invoked as slash commands in Claude Code CLI:
 
 ```text
 /commit              # Git commit with message generation
-/debug --performance  # Performance-focused root cause analysis
+/verify              # Run the project's verification gates
 /branch add-oauth    # Create feature branch
 ```
 
@@ -310,7 +296,7 @@ Don't create a skill when:
 
 ```text
 /commit - Single responsibility: stage, generate message, commit
-feature-lifecycle - Reference: spec-to-PR lifecycle, run in the main session
+land - Follow one pull request through to mergeable
 ```
 
 **Bad:** Too broad, overlaps with agents

@@ -63,9 +63,9 @@ for agent_file in "$AGENTS_DIR"/*.md; do
     fi
 done
 
-# Test 3: Verify agent count is reasonable (8 core agents after cleanup)
-if [ $AGENT_COUNT -lt 6 ]; then
-    echo -e "${RED}✗${NC} Too few agents found: $AGENT_COUNT (expected at least 6)"
+# Test 3: Verify agent count is reasonable (1 agent after the specialists were removed)
+if [ $AGENT_COUNT -lt 1 ]; then
+    echo -e "${RED}✗${NC} Too few agents found: $AGENT_COUNT (expected at least 1)"
     exit 1
 elif [ $AGENT_COUNT -gt 30 ]; then
     echo -e "${RED}✗${NC} Too many agents found: $AGENT_COUNT (expected less than 30)"
@@ -112,7 +112,7 @@ echo "Validating agent categories..."
 CATEGORIES=$(find "$AGENTS_DIR" -name "*.md" -exec grep -h "^category:" {} + 2>/dev/null | sed 's/category: *//' | sort -u)
 CATEGORY_COUNT=$(echo "$CATEGORIES" | wc -l | tr -d ' ')
 
-if [ "$CATEGORY_COUNT" -lt 3 ]; then
+if [ "$CATEGORY_COUNT" -lt 1 ]; then
     echo -e "${RED}✗${NC} Too few agent categories: $CATEGORY_COUNT"
     exit 1
 else

@@ -43,11 +43,11 @@ on that branch.
      Bash timeout of 600000 ms, then read the new verdict. Waiting is not a remediation round, but
      it is bounded: after 4 waits in a row on the same head with no change in what is pending, a
      check that never finishes needs D, so go to step 3.
-   - `blocked`: fix every blocker with the skill its `fix` names, then return to step 1.
+   - `blocked`: fix every blocker the way its `fix` says, then return to step 1.
 
      | Blocker              | Fix                                                                                |
      | -------------------- | ---------------------------------------------------------------------------------- |
-     | `failing-checks`     | `/fix-ci`, then `/commit` and `/push`                                              |
+     | `failing-checks`     | read the failed job log, fix the cause, then `/commit` and `/push`                 |
      | `unresolved-threads` | `/resolve-comments <pr-number>`: reply with the fix commit and resolve each thread |
      | `changes-requested`  | `/resolve-comments <pr-number>`                                                    |
      | `conflicts`          | rebase on the PR's base branch (below), then `/push --force` (force-with-lease)    |
@@ -83,8 +83,8 @@ Illustrative; the URL, counts and blocker are examples.
 ```text
 User: /land https://github.com/acme/widget/pull/42
 
-pr-land-status: blocked (failing-checks: test -> /fix-ci; unresolved-threads: 2 -> /resolve-comments)
-Round 1: /fix-ci fixed the test failure; /resolve-comments fixed, replied with the commit and resolved both threads; pushed.
+pr-land-status: blocked (failing-checks: test -> read the failed job log; unresolved-threads: 2 -> /resolve-comments)
+Round 1: read the failed log and fixed the test failure; /resolve-comments fixed, replied with the commit and resolved both threads; pushed.
 pr-land-status: pending (checks-running: test; awaiting-review: chatgpt-codex-connector) -> waiting
 pr-land-status: ready (CLEAN, checks green, 0 unresolved threads)
 

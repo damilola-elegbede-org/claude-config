@@ -87,18 +87,6 @@
       "prompt": "Are you sure a retry keeps the approval valid? Set up a trial with a control and show me the numbers."
     },
     {
-      "skill": "fix-ci",
-      "prompt": "The GitHub Actions run is red, figure out why and fix it."
-    },
-    {
-      "skill": "fix-ci",
-      "prompt": "CI is failing on my PR, diagnose the failing job."
-    },
-    {
-      "skill": "fix-ci",
-      "prompt": "Look at run 12345678 and get the pipeline green again."
-    },
-    {
       "skill": "higgsfield-brandkit",
       "prompt": "Create a full brand kit for my coffee roaster: palette, logo mark, typography and a brandbook PDF."
     },

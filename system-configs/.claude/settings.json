@@ -546,18 +546,12 @@
   "skillOverrides": {
     "audit": "off",
     "changelog": "off",
-    "debug": "off",
     "deps": "off",
     "docx": "off",
-    "feature-lifecycle": "off",
     "frontend-design": "off",
-    "implement": "off",
     "mcp-builder": "off",
     "merge": "off",
-    "plan": "off",
     "pptx": "off",
-    "prime": "off",
-    "prompt": "off",
     "rebase": "off",
     "watch": "off",
     "xlsx": "off"
