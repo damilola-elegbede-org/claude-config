@@ -853,11 +853,13 @@ wait_played 2 && ok || bad "both concurrent replies play" "played $(played) of 2
 quiet
 rm -f "$T/played" "$T/overlap"
 sed 's|^LOCK=.*|LOCK="$HOME/.claude/voice.lock.$$"|' "$SRC/claude-speak.sh" >"$T/claude-speak-nolock.sh"
+echo 3 >"$T/afplay.sleep" # a wide window, so a slow machine still shows the overlap
 for m in one two; do
   jq -nc --arg m "**ACTION · $m.**" '{type:"assistant",message:{content:[{type:"text",text:$m}]}}' >"$T/speak-$m.jsonl"
   printf '%s' "$(jq -nc --arg t "$T/speak-$m.jsonl" '{transcript_path:$t,cwd:"/tmp"}')" |
-    PATH="$BIN:$PATH" ELEVENLABS_API_KEY=k bash "$T/claude-speak-nolock.sh" >/dev/null 2>&1
+    PATH="$BIN:$PATH" ELEVENLABS_API_KEY=k bash "$T/claude-speak-nolock.sh" >/dev/null 2>&1 &
 done
+wait
 wait_played 2
 [[ -f "$T/overlap" ]] && ok || bad "control: without the shared lock the two replies overlap"
 

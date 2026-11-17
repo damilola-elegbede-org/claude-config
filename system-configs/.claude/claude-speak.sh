@@ -148,7 +148,8 @@ if [ -z "$KEY" ]; then
 fi
 [ -n "$KEY" ] || exit 0
 
-OUT=$(mktemp -t claude-speak) && mv "$OUT" "$OUT.mp3" && OUT="$OUT.mp3"
+# An explicit template, because GNU mktemp rejects `-t claude-speak` (no X's).
+OUT=$(mktemp "${TMPDIR:-/tmp}/claude-speak.XXXXXX") && mv "$OUT" "$OUT.mp3" && OUT="$OUT.mp3"
 printf '%s' "$TEXT" | python3 -c "import json,sys; print(json.dumps({'text': sys.stdin.read(), 'model_id': '$MODEL'}))" > "$OUT.json"
 curl -s --max-time 30 -o "$OUT" -X POST \
   "https://api.elevenlabs.io/v1/text-to-speech/$VOICE_ID?enable_logging=false" \
