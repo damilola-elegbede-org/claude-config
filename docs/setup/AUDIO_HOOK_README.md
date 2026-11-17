@@ -28,6 +28,29 @@ manual intervention.
   `/System/Library/PrivateFrameworks/ToneLibrary.framework/Versions/A/Resources/AlertTones/Modern/Keys.m4r`
 - **Implementation**: Direct afplay commands in Claude Code hooks
 
+### Spoken Replies (`voice on` / `voice off`)
+
+`claude-speak.sh` runs on the `Stop` hook and reads a session's final reply aloud through
+ElevenLabs. `~/.claude/voice.on` is the one switch for the machine:
+
+- `voice on` (`claude-speak.sh on`) makes every Claude session on the machine speak: foreground
+  sessions and background job sessions alike.
+- `voice off` (`claude-speak.sh off`) silences all of them, including replies still waiting
+  their turn to play. A reply that is already playing finishes.
+- Fleet fires (sessions with `BARECLAUDE_AGENT_SLUG` set) never speak, whatever the flag says.
+
+Only replies whose first line is tagged `ACTION`, `DECISION`, `APPROVAL`, `INPUT` or `BLOCKED`
+are spoken, and at most 1,500 characters of each. Each reply starts with the project folder
+name, so you can tell which session is talking.
+
+Playback is serialized with a lock (`~/.claude/voice.lock`): parallel sessions play one after
+another, never over each other. A reply that waits longer than `CLAUDE_VOICE_MAX_WAIT` seconds
+(default 300) is dropped. `voice-rx.sh`, the receiver for speech sent from another machine,
+queues what it receives under the same lock.
+
+The API key comes from `ELEVENLABS_API_KEY` in the environment. The age vault under
+`~/BareClaude/infra/credentials` is a fallback that exists only on the Mac mini.
+
 ### Quality Gate Hooks
 
 In addition to audio hooks, `PreToolUse` hooks enforce quality policies:

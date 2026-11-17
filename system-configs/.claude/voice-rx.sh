@@ -18,10 +18,28 @@ if [ -z "$BIND" ]; then
   BIND=$("$TS_BIN" ip -4 2>/dev/null | head -1)
   [ -n "$BIND" ] || BIND=127.0.0.1
 fi
+SPEAK="$(cd "$(dirname "$0")" && pwd)/claude-speak.sh"
+# Play one received reply, then delete it. claude-speak.sh's play mode holds the
+# machine-wide playback lock, so replies from several sessions, and from sessions
+# on this machine itself, play one after another instead of over each other.
+play() {
+  if [ -f "$SPEAK" ]; then
+    bash "$SPEAK" play "$1"
+  else
+    afplay "$1" 2>/dev/null
+    rm -f "$1"
+  fi
+}
 echo "voice-rx: listening on $BIND:$PORT (ctrl-c to stop)"
 while :; do
   T=$(mktemp -t voice-rx) || exit 1
   nc -l "$BIND" "$PORT" > "$T" 2>/dev/null || { rm -f "$T"; sleep 1; continue; }
-  [ -s "$T" ] && afplay "$T" 2>/dev/null
-  rm -f "$T"
+  # Playback runs in the background so the next reply can arrive while this one
+  # plays; otherwise a second sender finds no listener and plays on its own
+  # speakers instead.
+  if [ -s "$T" ]; then
+    play "$T" &
+  else
+    rm -f "$T"
+  fi
 done

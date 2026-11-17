@@ -26,7 +26,8 @@ JEV_DIR="${JEV_DIR:-$RE_HERE}"
 
 re_need_jq() { command -v jq >/dev/null 2>&1; }
 
-# interactive | bgjob | fleet — same gating signals as claude-speak.sh.
+# interactive | bgjob | fleet — the same environment signals claude-speak.sh reads (it
+# silences fleet only; background jobs speak when the voice flag is on).
 re_scope() {
   if [ -n "${BARECLAUDE_AGENT_SLUG:-}" ]; then
     echo fleet

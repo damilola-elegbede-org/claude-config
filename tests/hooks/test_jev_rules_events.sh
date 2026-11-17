@@ -750,8 +750,26 @@ contains "$(cat "$LOG")" "secret summary text" && bad "summary text must not be 
 echo "== claude-speak voice gate =="
 BIN="$T/bin"
 mkdir -p "$BIN"
-printf '#!/bin/sh\ntouch "%s/curl.called"\nexit 0\n' "$T" >"$BIN/curl"
-printf '#!/bin/sh\nexit 0\n' >"$BIN/afplay"
+# Stubs only: no ElevenLabs call and no sound. curl records that it ran and keeps the request
+# body; afplay sleeps for the time in afplay.sleep, logs the file it "played", and leaves an
+# overlap marker if another afplay is running at the same moment.
+cat >"$BIN/curl" <<EOF
+#!/bin/sh
+touch "$T/curl.called"
+while [ \$# -gt 0 ]; do
+  case "\$1" in --data) cp "\${2#@}" "$T/curl.body" ;; esac
+  shift
+done
+exit 0
+EOF
+cat >"$BIN/afplay" <<EOF
+#!/bin/sh
+mkdir "$T/playing" 2>/dev/null || touch "$T/overlap"
+sleep "\$(cat "$T/afplay.sleep" 2>/dev/null || echo 0)"
+echo "\$1" >>"$T/played"
+rmdir "$T/playing" 2>/dev/null
+exit 0
+EOF
 printf '#!/bin/sh\nexit 1\n' >"$BIN/nc"
 chmod +x "$BIN"/*
 touch "$HOME/.claude/voice.on"
@@ -769,7 +787,122 @@ done
 speak $'**FYI · all good.**\n**You:** nothing\n**Unsure:** nothing\nbody' && bad "voice must stay silent for FYI" || ok
 speak 'Untagged plain reply.' && bad "voice must stay silent when untagged" || ok
 speak $'\n**ACTION · leading blank line.**' && ok || bad "voice speaks when line 1 follows blank lines"
-CLAUDE_JOB_DIR=/x speak '**ACTION · bg.**' && bad "bg job stays silent" || ok
+# --- the flag is the one switch: job sessions speak, fleet fires never do ---------------
+CLAUDE_JOB_DIR=/x speak '**ACTION · bg.**' && ok || bad "a background job session speaks when the flag is on"
+CLAUDE_JOB_DIR=/x speak $'**FYI · bg.**\n**You:** nothing' && bad "a job session keeps the needs-D tag gate" || ok
+BARECLAUDE_AGENT_SLUG=clara speak '**ACTION · fleet.**' && bad "a fleet fire stays silent" || ok
+BARECLAUDE_AGENT_SLUG=clara CLAUDE_JOB_DIR=/x speak '**ACTION · fleet job.**' && bad "a fleet fire stays silent in a job dir too" || ok
+rm -f "$HOME/.claude/voice.on"
+speak '**ACTION · off.**' && bad "flag off: a foreground session is silent" || ok
+CLAUDE_JOB_DIR=/x speak '**ACTION · off bg.**' && bad "flag off: a job session is silent" || ok
+PATH="$BIN:$PATH" bash "$SRC/claude-speak.sh" on >/dev/null
+[[ -f "$HOME/.claude/voice.on" ]] && ok || bad "voice on creates the flag"
+PATH="$BIN:$PATH" bash "$SRC/claude-speak.sh" off >/dev/null
+[[ -f "$HOME/.claude/voice.on" ]] && bad "voice off removes the flag" || ok
+touch "$HOME/.claude/voice.on"
+
+# --- what is sent: session name first, MAX_CHARS cap kept ------------------------------
+speak_from() { # cwd, message → request body text on stdout
+  rm -f "$T/curl.body"
+  jq -nc --arg m "$2" '{type:"assistant",message:{content:[{type:"text",text:$m}]}}' >"$T/speak.jsonl"
+  printf '%s' "$(jq -nc --arg t "$T/speak.jsonl" --arg c "$1" '{transcript_path:$t,cwd:$c}')" |
+    PATH="$BIN:$PATH" ELEVENLABS_API_KEY=k bash "$SRC/claude-speak.sh" >/dev/null 2>&1
+  jq -r .text "$T/curl.body" 2>/dev/null
+}
+eq "names the project before the reply" "$(speak_from /work/my-project '**ACTION · merge it.**')" "my project. ACTION · merge it."
+eq "a worktree session is named after its repository" \
+  "$(speak_from /work/claude-config/.claude/worktrees/voice '**ACTION · merge it.**')" "claude config. ACTION · merge it."
+eq "a session in the home folder gets no name" "$(speak_from "$HOME" '**ACTION · merge it.**')" "ACTION · merge it."
+LONG="**ACTION · long.** $(printf 'word %.0s' $(seq 1 600))"
+speak_from /work/my-project "$LONG" >/dev/null
+eq "MAX_CHARS still caps what is sent" "$(jq -r '.text | length' "$T/curl.body")" 1500
+
+# --- playback is serialized across sessions -----------------------------------------------
+played() { [[ -f "$T/played" ]] && wc -l <"$T/played" | tr -d ' ' || echo 0; }
+wait_played() { # count → 0 once that many replies have played (10 s limit)
+  for _ in $(seq 1 100); do
+    [[ "$(played)" -ge "$1" ]] && return 0
+    sleep 0.1
+  done
+  return 1
+}
+wait_playing() { # 0 once a reply is playing (10 s limit)
+  for _ in $(seq 1 100); do
+    [[ -d "$T/playing" ]] && return 0
+    sleep 0.1
+  done
+  return 1
+}
+quiet() { # let queued replies drain, then wait until nothing is playing
+  sleep 1.2
+  for _ in $(seq 1 100); do
+    [[ -d "$T/playing" ]] || return 0
+    sleep 0.1
+  done
+  return 1
+}
+quiet
+rm -f "$T/played" "$T/overlap"
+echo 0.6 >"$T/afplay.sleep"
+speak '**ACTION · first session.**' && ok || bad "first of two concurrent sessions speaks"
+CLAUDE_JOB_DIR=/x speak '**ACTION · second session.**' && ok || bad "second of two concurrent sessions speaks"
+wait_played 2 && ok || bad "both concurrent replies play" "played $(played) of 2"
+[[ -f "$T/overlap" ]] && bad "two concurrent sessions must not play at the same time" || ok
+
+# The lock is what keeps them apart: with a lock file per call the same two replies overlap.
+quiet
+rm -f "$T/played" "$T/overlap"
+sed 's|^LOCK=.*|LOCK="$HOME/.claude/voice.lock.$$"|' "$SRC/claude-speak.sh" >"$T/claude-speak-nolock.sh"
+for m in one two; do
+  jq -nc --arg m "**ACTION · $m.**" '{type:"assistant",message:{content:[{type:"text",text:$m}]}}' >"$T/speak-$m.jsonl"
+  printf '%s' "$(jq -nc --arg t "$T/speak-$m.jsonl" '{transcript_path:$t,cwd:"/tmp"}')" |
+    PATH="$BIN:$PATH" ELEVENLABS_API_KEY=k bash "$T/claude-speak-nolock.sh" >/dev/null 2>&1
+done
+wait_played 2
+[[ -f "$T/overlap" ]] && ok || bad "control: without the shared lock the two replies overlap"
+
+# voice off silences a reply that is still waiting its turn
+quiet
+rm -f "$T/played" "$T/overlap"
+echo 1 >"$T/afplay.sleep"
+speak '**ACTION · playing.**' && ok || bad "first reply speaks before voice off"
+wait_playing
+speak '**ACTION · queued.**' && ok || bad "second reply is synthesized before voice off"
+rm -f "$HOME/.claude/voice.on"
+wait_played 1
+quiet
+eq "voice off drops the queued reply" "$(played)" 1
+touch "$HOME/.claude/voice.on"
+
+# a reply that waits longer than CLAUDE_VOICE_MAX_WAIT is dropped, not played late
+quiet
+rm -f "$T/played" "$T/overlap"
+echo 1.5 >"$T/afplay.sleep"
+speak '**ACTION · long one.**' && ok || bad "long reply speaks"
+wait_playing
+CLAUDE_VOICE_MAX_WAIT=0.3 speak '**ACTION · gives up.**' && ok || bad "late reply is synthesized"
+wait_played 1
+quiet
+eq "a reply past the wait limit is dropped" "$(played)" 1
+
+# play mode (the receiver's path): one at a time, and each file is deleted afterwards
+rm -f "$T/played" "$T/overlap"
+echo 0.5 >"$T/afplay.sleep"
+echo a >"$T/rx1.mp3"
+echo b >"$T/rx2.mp3"
+PATH="$BIN:$PATH" bash "$SRC/claude-speak.sh" play "$T/rx1.mp3" &
+PATH="$BIN:$PATH" bash "$SRC/claude-speak.sh" play "$T/rx2.mp3" &
+wait
+eq "play mode plays both received files" "$(played)" 2
+[[ -f "$T/overlap" ]] && bad "play mode must not overlap" || ok
+[[ -e "$T/rx1.mp3" || -e "$T/rx2.mp3" ]] && bad "play mode deletes the files it played" || ok
+rm -f "$HOME/.claude/voice.on"
+echo c >"$T/rx3.mp3"
+PATH="$BIN:$PATH" bash "$SRC/claude-speak.sh" play "$T/rx3.mp3"
+eq "play mode does not need the flag (the receiver's machine has none)" "$(played)" 3
+touch "$HOME/.claude/voice.on"
+echo 0 >"$T/afplay.sleep"
+grep -qF 'claude-speak.sh' "$SRC/voice-rx.sh" && grep -qF ' play "$1"' "$SRC/voice-rx.sh" && ok || bad "voice-rx.sh plays through claude-speak.sh play"
 
 echo "== workflow helpers =="
 SKILLS="$SRC/skills"
