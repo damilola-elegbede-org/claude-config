@@ -58,6 +58,7 @@ new_home() { # fresh HOME with hooks + data + stub; echoes nothing
   cp "$SRC/jev-gate.sh" "$SRC/jev-gate-lib.sh" "$SRC/jev-ask-channel.sh" "$SRC/gate.sh" "$SRC/gate-rules.json" "$T/home/.claude/hooks/"
   cp "$SRC/jev/gate-questions.json" "$SRC/jev/registry.sh" "$T/home/.claude/hooks/jev/"
   cp "$SRC/jev/rules.d/gates.json" "$T/home/.claude/hooks/jev/rules.d/"
+  cp "$SRC/jev/mcp-class-overrides.json" "$T/home/.claude/hooks/jev/"
   cp "$STUB" "$T/home/.claude/hooks/jev/jev-ask"
   chmod +x "$T/home/.claude/hooks/jev/jev-ask"
   : >"$T/stub.log"
@@ -582,6 +583,47 @@ assert_empty "write+prod passes while G4 rule is shadow" "$OUT"
 set_mode G4-prod-infra enforce
 OUT=$(run_hook jev-gate.sh "$(mcp_in mcp__claude_ai_Vercel__edit_project_env)")
 assert_contains "write+prod denied once G4 enforces" "$OUT" "G4-prod-infra"
+
+# repo-tracked class override: consulted before the live class cache, exact tool name only
+CLOSE_TAB=mcp__plugin_chrome-devtools-mcp_chrome-devtools__close_page
+seed_class() { # tool class p: write a class cache entry
+  jq -nc --arg t "$1" --arg c "$2" --argjson p "$3" '{($t): {class:$c, p:$p, source:"jev"}}' >"$T/home/.claude/hooks/jev/mcp-classes.json"
+}
+new_home
+set_mode mcp-classifier enforce
+seed_class "$CLOSE_TAB" delete 0.81
+OUT=$(run_hook jev-gate.sh "$(mcp_in "$CLOSE_TAB")")
+assert_empty "override: close_page passes although the cache says delete" "$OUT"
+assert_eq "override: no Jev call" "0" "$(calls)"
+assert_contains "override hit is logged as its own outcome" "$(gate_log)" "override-hit:write"
+
+jq -nc --arg a "${CLOSE_TAB}_all" --arg b "mcp__other__close_page" --arg c "$CLOSE_TAB" \
+  '{($a): {class:"delete", p:0.9}, ($b): {class:"delete", p:0.9}, ($c): {class:"delete", p:0.81}}' >"$T/home/.claude/hooks/jev/mcp-classes.json"
+OUT=$(run_hook jev-gate.sh "$(mcp_in "${CLOSE_TAB}_all")")
+assert_contains "override: longer name containing close_page is not overridden" "$OUT" "deletes data"
+OUT=$(run_hook jev-gate.sh "$(mcp_in mcp__other__close_page)")
+assert_contains "override: other server's close_page is not overridden" "$OUT" "deletes data"
+
+jq -nc '{"mcp__claude_ai_Google_Drive__trash_file": {class:"delete", p:0.9}, "mcp__claude_ai_Gmail__delete_draft": {class:"delete", p:0.9}, "mcp__brevo__lists_delete_list": {class:"delete", p:0.9}}' \
+  >"$T/home/.claude/hooks/jev/mcp-classes.json"
+for t in mcp__claude_ai_Google_Drive__trash_file mcp__claude_ai_Gmail__delete_draft mcp__brevo__lists_delete_list; do
+  OUT=$(run_hook jev-gate.sh "$(mcp_in "$t")")
+  assert_contains "override: $t cached delete is still denied" "$OUT" "deletes data"
+done
+
+seed_class "$CLOSE_TAB" delete 0.81
+rm -f "$T/home/.claude/hooks/jev/mcp-class-overrides.json"
+OUT=$(run_hook jev-gate.sh "$(mcp_in "$CLOSE_TAB")")
+assert_contains "override file missing: close_page is gated as before" "$OUT" "deletes data"
+echo '{not json' >"$T/home/.claude/hooks/jev/mcp-class-overrides.json"
+OUT=$(run_hook jev-gate.sh "$(mcp_in "$CLOSE_TAB")")
+assert_contains "override file malformed: close_page is gated as before" "$OUT" "deletes data"
+echo '["x"]' >"$T/home/.claude/hooks/jev/mcp-class-overrides.json"
+OUT=$(run_hook jev-gate.sh "$(mcp_in "$CLOSE_TAB")")
+assert_contains "override file wrong shape: close_page is gated as before" "$OUT" "deletes data"
+jq -nc --arg t "$CLOSE_TAB" '{($t): "bogus"}' >"$T/home/.claude/hooks/jev/mcp-class-overrides.json"
+OUT=$(run_hook jev-gate.sh "$(mcp_in "$CLOSE_TAB")")
+assert_contains "override with an unknown class is ignored" "$OUT" "deletes data"
 
 # low-confidence classification still obeys threshold
 mock_class outward 0.3

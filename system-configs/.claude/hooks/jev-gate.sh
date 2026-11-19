@@ -530,6 +530,16 @@ mcp_cache_lookup() { # -> "class<TAB>p" or empty
   jq -r --arg t "${MCP_KEY:-$TOOL}" '.[$t] // empty | [.class, ((.p // 0) | tostring)] | @tsv' "$JEV_DIR/mcp-classes.json" 2>/dev/null
 }
 
+# Repo-tracked class overrides (jev/mcp-class-overrides.json: exact tool name -> class), consulted before the
+# live class cache so a wrong cached answer can be corrected through a PR. Missing, malformed or unknown-class
+# entries print nothing, so the tool falls through to the cache and the classifier as before.
+mcp_override_lookup() { # -> class or empty
+  [ -f "$JEV_DIR/mcp-class-overrides.json" ] || return 0
+  jq -r --arg t "$TOOL" '
+    if type == "object" then (.[$t] // empty) else empty end
+    | select(type == "string" and test("^(read|write|outward|spend|delete)$"))' "$JEV_DIR/mcp-class-overrides.json" 2>/dev/null || true
+}
+
 mcp_cache_store() { # class p
   local f="$JEV_DIR/mcp-classes.json" lock="$JEV_DIR/mcp-classes.lock" tmp i=0
   mkdir -p "$JEV_DIR" 2>/dev/null || return 0
@@ -598,7 +608,7 @@ mcp_prod_check() {
 }
 
 handle_mcp() {
-  local rule mode thr cached class prod p prod_p state q req resp args desc op server g4 g4mode cand un prior_hits
+  local rule mode thr cached override class prod p prod_p state q req resp args desc op server g4 g4mode cand un prior_hits
   rule=$(jev_resolve_rules "$RULES" mcp-classifier)
   [ -n "$rule" ] || exit 0
   mode=$(printf '%s' "$rule" | cut -f2)
@@ -621,8 +631,14 @@ handle_mcp() {
   if [ "${#args}" -le 240 ] && mcp_args_whole; then ACTION_WHOLE=1; fi
   NORM_RAW="$ACTION"
   prod=false
-  cached=$(mcp_cache_lookup)
-  if [ -n "$cached" ]; then
+  override=$(mcp_override_lookup)
+  cached=""
+  [ -n "$override" ] || cached=$(mcp_cache_lookup)
+  if [ -n "$override" ]; then
+    class="$override"
+    p=1
+    jev_log mcp-classifier "override-hit:$class" "$mode" "$p"
+  elif [ -n "$cached" ]; then
     IFS=$'\t' read -r class p <<<"$cached"
     jev_log mcp-classifier "cache-hit:$class" "$mode" "$p"
     [ "$class" = "write" ] && mcp_prod_check
