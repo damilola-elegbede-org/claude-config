@@ -321,6 +321,41 @@ lacks "its hit-enforce rows are not counted again" "$M5" "| G1 | hit-enforce"
 has "hit-enforce rows without a deny merge into one event" "$M5" "| G5,G6 | hit-enforce |"
 eq "two blocked calls in total" "2" "$(printf '%s\n' "$M5" | grep -c '| hit-enforce |\|| deny |')"
 
+echo "== daily summary: rotated logs and lints"
+RD="$T/rot"
+mkdir -p "$RD"
+cat >"$RD/decisions.202610.jsonl" <<'EOF'
+{"ts":"2026-10-04T08:00:00Z","gate":"A6-agent-router","outcome":"ok","src":"client","wall_ms":100,"cost_usd":0.001,"origin":"live"}
+{"ts":"2026-10-04T09:00:00Z","gate":"link-lint","mode":"shadow","outcome":"shadow-would-block","src":"hook:lint","origin":"live"}
+EOF
+cat >"$RD/decisions.202610.1.jsonl" <<'EOF'
+{"ts":"2026-10-04T10:00:00Z","gate":"A6-agent-router","outcome":"ok","src":"client","wall_ms":100,"cost_usd":0.001,"origin":"live"}
+{"ts":"2026-10-04T10:00:01Z","gate":"link-lint","mode":"shadow","outcome":"shadow-would-block","src":"hook:lint","origin":"live"}
+EOF
+cat >"$RD/decisions.jsonl" <<'EOF'
+{"ts":"2026-10-04T20:00:00Z","gate":"A6-agent-router","outcome":"ok","src":"client","wall_ms":100,"cost_usd":0.001,"origin":"live"}
+{"ts":"2026-10-04T20:00:01Z","gate":"executive-lint-x","mode":"shadow","outcome":"shadow-would-block","src":"hook:lint","origin":"live"}
+{"ts":"2026-10-04T20:00:02Z","gate":"G3-publish","mode":"shadow","outcome":"would-deny-shadow","src":"hook:jev-gate","origin":"live"}
+EOF
+RR=$(python3 -I "$SUMMARY" --date 2026-10-04 --log "$RD/decisions.jsonl" --stdout)
+has "rows from rotated and live files are all counted once" "$RR" "| Calls (client rows) | 3 |"
+has "source row total" "$RR" "(7 rows)"
+has "lints section exists" "$RR" "## Lints (log-only)"
+has "lint counts per gate, most first" "$RR" "| link-lint | 2 |"
+has "second lint gate" "$RR" "| executive-lint-x | 1 |"
+LINTS=${RR#*"## Lints (log-only)"}
+LINTS=${LINTS%%"## Bypasses"*}
+WD=${RR#*"## Would-deny (shadow) per rule"}
+WD=${WD%%"## Lints (log-only)"*}
+lacks "lints are not under would-deny" "$WD" "lint"
+has "would-deny keeps the gate row" "$WD" "| G3-publish | 1 |"
+lacks "would-deny rows are not under lints" "$LINTS" "G3-publish"
+RS=$(python3 -I "$SUMMARY" --date 2026-10-04 --log "$RD/decisions.202610.jsonl" --stdout)
+has "an explicitly passed rotated file is read alone" "$RS" "| Calls (client rows) | 1 |"
+RN=$(python3 -I "$SUMMARY" --date 2026-10-04 --log "$LOG5" --stdout)
+has "a day with no lint rows renders cleanly" "$RN" "## Lints (log-only)"
+has "and says None" "${RN#*"## Lints (log-only)"}" "None."
+
 echo "== installer"
 H="$T/ihome"
 mkdir -p "$H"

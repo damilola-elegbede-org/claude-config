@@ -5,7 +5,8 @@ Usage:
   scripts/jev-daily-summary.py [--date YYYY-MM-DD] [--log PATH] [--out DIR] [--stdout]
 
   --date    the America/Denver calendar day to report (default: yesterday)
-  --log     decision log (default: ~/.claude/jev/decisions.jsonl)
+  --log     decision log (default: ~/.claude/jev/decisions.jsonl); when named decisions.jsonl, its rotated
+            decisions*.jsonl siblings are read too; any other file name is read alone
   --out     output directory (default: ~/.tmp/reports); the file is jev-daily-<date>.md
   --stdout  print the report instead of writing the file
 
@@ -13,12 +14,13 @@ Reads only the decision log, which never holds prompts, commands or file text (g
 `action` string that was already redacted when it was logged). Makes no Jev calls. Standard library only.
 
 Sections: Jev calls (client rows), blocks (deny / hit-enforce) with rule and action, would-deny-shadow
-per rule, bypasses (retry-after-deny), and the same counts split by origin (rows without an origin are
+per rule, lints (shadow-would-block, log-only), bypasses (retry-after-deny), and the same counts split by origin (rows without an origin are
 "unknown").
 """
 import argparse
 import collections
 import datetime
+import glob
 import json
 import math
 import os
@@ -52,9 +54,36 @@ def parse_ts(value):
     return dt
 
 
+def log_files(path, start):
+    """The files to read. The live log name (decisions.jsonl) also pulls in its rotated siblings
+    (decisions.YYYYMM.jsonl, decisions.YYYYMM.N.jsonl); any other name is read alone. A file last written
+    before the day began cannot hold a row of that day and is skipped."""
+    if os.path.basename(path) != "decisions.jsonl":
+        return [path]
+    files = {path}
+    files.update(glob.glob(os.path.join(os.path.dirname(path) or ".", "decisions*.jsonl")))
+    keep = []
+    for f in sorted(files):
+        try:
+            if os.path.getmtime(f) < start.timestamp():
+                continue
+        except OSError:
+            continue
+        keep.append(f)
+    return keep
+
+
 def load_rows(path, day):
     """Decision rows whose timestamp falls on `day` (Denver), each with a parsed `_dt`."""
     start, end = day_bounds(day)
+    rows = []
+    for f in log_files(path, start):
+        rows.extend(_read_rows(f, start, end))
+    rows.sort(key=lambda r: r["_dt"])
+    return rows
+
+
+def _read_rows(path, start, end):
     rows = []
     try:
         fh = open(path, encoding="utf-8", errors="replace")
@@ -223,6 +252,20 @@ def render(day, rows, log_path):
         out.append("| --- | --- |")
         for rule, n in sorted(shadow.items(), key=lambda kv: (-kv[1], kv[0])):
             out.append("| %s | %d |" % (cell(rule), n))
+    else:
+        out.append("None.")
+    out.append("")
+
+    lints = collections.Counter(r.get("gate") or "?" for r in rows if r.get("outcome") == "shadow-would-block")
+    out.append("## Lints (log-only)")
+    out.append("")
+    out.append("Lint hits that only warn; they never block. Not the same as the would-deny rows above.")
+    out.append("")
+    if lints:
+        out.append("| Lint gate | Count |")
+        out.append("| --- | --- |")
+        for gate, n in sorted(lints.items(), key=lambda kv: (-kv[1], kv[0])):
+            out.append("| %s | %d |" % (cell(gate), n))
     else:
         out.append("None.")
     out.append("")

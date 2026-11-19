@@ -274,13 +274,15 @@ nothing for a prefilter to skip). Every handler now has an explicit `timeout`.
 `python3 scripts/jev-daily-summary.py [--date YYYY-MM-DD] [--log PATH] [--out DIR] [--stdout]` writes one
 compact Markdown report for a day of `decisions.jsonl`. The day is an America/Denver calendar day
 (default: yesterday); the file is `~/.tmp/reports/jev-daily-<date>.md`. It reads only the decision log and
-makes no Jev calls.
+makes no Jev calls. When `--log` names a file called `decisions.jsonl`, the rotated `decisions*.jsonl`
+siblings in the same folder are read too; any other file name is read alone.
 
 | Section             | Content                                                                                                             |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------- |
 | Jev calls           | Client rows (`src: client`): count, unavailable count and percent, p50 and p95 `wall_ms` (nearest rank), total cost |
 | Blocks              | `deny` and `hit-enforce` rows with time, rule, origin and a readable action (`action`, else `target`, else the sha) |
 | Would-deny (shadow) | `would-deny-shadow` rows per rule                                                                                   |
+| Lints (log-only)    | `shadow-would-block` rows per lint gate (not the gate would-denies above)                                           |
 | Bypasses            | `retry-after-deny` rows per rule                                                                                    |
 | By origin           | The same counts split by `origin` (`live`, `test`, `replay`); rows without an `origin` count as `unknown`           |
 
