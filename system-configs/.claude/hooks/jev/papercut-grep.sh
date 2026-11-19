@@ -34,7 +34,8 @@ cmd = str((d.get("tool_input") or {}).get("command") or "")[:300]
 if re.search(r"hook error:|^PreToolUse:|CHECKPOINT G\d|Jev gate \[|Jev skill router|worktree[- ]guard|worktree isolation|requires approval", err, re.I):
     sys.exit(0)
 # Status checks exit non-zero by design (pending, blocked): the exit code is a signal, not a fault.
-if re.search(r"(^|[\s;&|(])(\S*/)?pr-land-status\.sh(\s|$)|(^|[\s;&|(])gh\s+pr\s+checks(\s|$)", cmd):
+# A command chained with && || or ; is not skipped: the failure may belong to the other part.
+if not re.search(r"&&|\|\||;", cmd) and re.search(r"(^|[\s;&|(])(\S*/)?pr-land-status\.sh(\s|$)|(^|[\s;&|(])gh\s+pr\s+checks(\s|$)", cmd):
     sys.exit(0)
 STOP = set("""error failed failure warning exception traceback fatal stderr stdout command
  output exited status cannot unable could not found invalid unexpected permission denied

@@ -225,6 +225,7 @@ eq "gate refusal injects nothing" "$(run papercut-grep.sh "$(pfs "PreToolUse:Bas
 eq "guard refusal injects nothing" "$(run papercut-grep.sh "$(pfs "worktree-guard: ECONNRESET socket closed, isolate first" 'curl x' r2)")" ""
 eq "pr-land-status exit injects nothing" "$(run papercut-grep.sh "$(pfs "Exit code 1 $ERR" 'bash pr-land-status.sh https://example.test/pr/1' r3)")" ""
 eq "gh pr checks exit injects nothing" "$(run papercut-grep.sh "$(pfs "Exit code 8 $ERR" 'gh pr checks 12 --watch' r4)")" ""
+has "status check chained with another command still hints" "$(run papercut-grep.sh "$(pfs "$ERR" 'gh pr checks 12 && curl x' r5)")" "pin the laptop to 2.4GHz"
 has "genuine failure still hints (new session)" "$(run papercut-grep.sh "$(pfs "$ERR" 'curl x' g1)")" "pin the laptop to 2.4GHz"
 eq "same papercut not repeated in the same session" "$(run papercut-grep.sh "$(pfs "$ERR" 'curl x' g1)")" ""
 has "same papercut hints again in a different session" "$(run papercut-grep.sh "$(pfs "$ERR" 'curl x' g2)")" "pin the laptop to 2.4GHz"
