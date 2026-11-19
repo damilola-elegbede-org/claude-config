@@ -591,6 +591,7 @@ seed_class() { # tool class p: write a class cache entry
 }
 new_home
 set_mode mcp-classifier enforce
+set_mode G4-prod-infra off # the override skips the classifier; G4 has its own prod check, tested below
 seed_class "$CLOSE_TAB" delete 0.81
 OUT=$(run_hook jev-gate.sh "$(mcp_in "$CLOSE_TAB")")
 assert_empty "override: close_page passes although the cache says delete" "$OUT"
@@ -624,6 +625,20 @@ assert_contains "override file wrong shape: close_page is gated as before" "$OUT
 jq -nc --arg t "$CLOSE_TAB" '{($t): "bogus"}' >"$T/home/.claude/hooks/jev/mcp-class-overrides.json"
 OUT=$(run_hook jev-gate.sh "$(mcp_in "$CLOSE_TAB")")
 assert_contains "override with an unknown class is ignored" "$OUT" "deletes data"
+# partial or multi-value files fall back too: jq prints before it fails, which must not count as an answer
+{ jq -nc --arg t "$CLOSE_TAB" '{($t): "write"}'; echo '{'; } >"$T/home/.claude/hooks/jev/mcp-class-overrides.json"
+OUT=$(run_hook jev-gate.sh "$(mcp_in "$CLOSE_TAB")")
+assert_contains "override: valid object then truncated JSON is ignored" "$OUT" "deletes data"
+{ jq -nc --arg t "$CLOSE_TAB" '{($t): "delete"}'; jq -nc --arg t "$CLOSE_TAB" '{($t): "delete"}'; } >"$T/home/.claude/hooks/jev/mcp-class-overrides.json"
+OUT=$(run_hook jev-gate.sh "$(mcp_in "$CLOSE_TAB")")
+assert_contains "override: two objects are ignored, the cached delete still gates" "$OUT" "deletes data"
+# the production check still runs on an overridden write (G4)
+cp "$SRC/jev/mcp-class-overrides.json" "$T/home/.claude/hooks/jev/"
+seed_class "$CLOSE_TAB" delete 0.81
+mock_class write 0.9 0.95
+set_mode G4-prod-infra enforce
+OUT=$(run_hook jev-gate.sh "$(mcp_in "$CLOSE_TAB")")
+assert_contains "override: overridden write with a production target still hits G4" "$OUT" "G4-prod-infra"
 
 # low-confidence classification still obeys threshold
 mock_class outward 0.3

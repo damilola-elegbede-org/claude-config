@@ -535,8 +535,10 @@ mcp_cache_lookup() { # -> "class<TAB>p" or empty
 # entries print nothing, so the tool falls through to the cache and the classifier as before.
 mcp_override_lookup() { # -> class or empty
   [ -f "$JEV_DIR/mcp-class-overrides.json" ] || return 0
-  jq -r --arg t "$TOOL" '
-    if type == "object" then (.[$t] // empty) else empty end
+  # Slurp so the whole file must parse before anything prints, and require exactly one JSON object: a valid
+  # object followed by junk, or two objects, yields nothing rather than a partial answer.
+  jq -rs --arg t "$TOOL" '
+    if length == 1 and (.[0] | type) == "object" then (.[0][$t] // empty) else empty end
     | select(type == "string" and test("^(read|write|outward|spend|delete)$"))' "$JEV_DIR/mcp-class-overrides.json" 2>/dev/null || true
 }
 
@@ -638,6 +640,7 @@ handle_mcp() {
     class="$override"
     p=1
     jev_log mcp-classifier "override-hit:$class" "$mode" "$p"
+    [ "$class" = "write" ] && mcp_prod_check
   elif [ -n "$cached" ]; then
     IFS=$'\t' read -r class p <<<"$cached"
     jev_log mcp-classifier "cache-hit:$class" "$mode" "$p"
