@@ -626,26 +626,8 @@ $rules[0] as $R
 # eval, source, `.`, builtin/command cd) makes both resolvers leave the text alone, so the plain G1-rm match applies.
 def unmodeled:
   test("[(`]|(?<!\\$)\\{|(?:^|[^A-Za-z0-9_$-])(?:eval|source|pushd|popd|if|then|do|for|while|until|case|select|function|(?:builtin|command)[[:space:]]+cd)(?![A-Za-z0-9_-])|(?:^|[;&|\\n])[[:space:]]*\\.[[:space:]]");
-# A plain `NAME=$(mktemp -d)` statement (no flags, template or -p, so the directory is made under $TMPDIR or /tmp) is
-# rewritten to a scratch path first, so the variable resolves like any other scratch assignment. Any TMPDIR set inside
-# the command, or any other mktemp shape, is left alone and stays unmodeled.
-def mktemp_scratch:
-  . as $t
-  | if test("(?:^|[^A-Za-z0-9_])TMPDIR=") then .
-    else gsub("(?<p>(?:^|[;&|\\n])[[:space:]]*(?:export[[:space:]]+)?(?<n>[A-Za-z_][A-Za-z0-9_]*)=)(?<m>\"\\$\\(mktemp -d\\)\"|\\$\\(mktemp -d\\))(?=(?<e>[[:space:]]*(?:;|&&|\\n|$)))";
-              # Rewrite only when this is the one place NAME is assigned, in any shape (quoted, $'..', env prefix, inside a
-              # -c body); a second `NAME=` anywhere may point NAME elsewhere, so the mktemp form stays unmodeled. When a
-              # failed mktemp would not stop the next statement (`;` or newline, not `&&`), NAME may be empty, so a path
-              # under it (`$NAME/x`) is not trusted; the bare `$NAME` form only ever expands to nothing then.
-              .n as $n | .e as $e
-              | if ([$t | match("(?<![A-Za-z0-9_])" + $n + "=(?!=)"; "g")] | length) == 1
-                   and ($e | test("&&")
-                        or ($t | test("\\$\\{?" + $n + "\\}?\"?/") | not))
-                then "\(.p)/tmp/mktemp-d" else "\(.p)\(.m)" end)
-    end;
 def resolve_vars:
-  mktemp_scratch
-  | . as $t
+  . as $t
   | if ($t | unmodeled) then $t
     else
       [$t | match("(?:^|[;&|\\n])[[:space:]]*(?:export[[:space:]]+)?(?<n>[A-Za-z_][A-Za-z0-9_]*)=(?:\"(?<q>(?:[^\"\\\\`$;&|<>()#\\n]|\\$(?!\\())*)\"|(?<v>[^[:space:];&|<>\"'`()\\\\]*))(?=[[:space:]]*(?:;|&&|\\n|$))"; "g")
