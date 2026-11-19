@@ -31,11 +31,16 @@ except ValueError:
 err = str(d.get("error") or "")[:1500]
 cmd = str((d.get("tool_input") or {}).get("command") or "")[:300]
 # A guard, gate or hook refusing the call is not the command failing: no papercut can explain it.
-if re.search(r"hook error:|^PreToolUse:|CHECKPOINT G\d|Jev gate \[|Jev skill router|worktree[- ]guard|worktree isolation|requires approval", err, re.I):
+if re.search(r"hook error:|^PreToolUse:|CHECKPOINT G\d|Jev gate \[|Jev skill router|worktree[- ]guard|worktree isolation|requires approval|This session is isolated in the worktree|worktree-isolated session|gate\.sh: (refused|that checkpoint expired)", err, re.I):
     sys.exit(0)
 # Status checks exit non-zero by design (pending, blocked): the exit code is a signal, not a fault.
-# A command chained with && || or ; is not skipped: the failure may belong to the other part.
-if not re.search(r"&&|\|\||;", cmd) and re.search(r"(^|[\s;&|(])(\S*/)?pr-land-status\.sh(\s|$)|(^|[\s;&|(])gh\s+pr\s+checks(\s|$)", cmd):
+# Only the last segment of the command (split on ; or a newline) decides, because its exit code is the
+# command exit code. Skip when that segment is the status command; a segment that chains with && or ||
+# is not skipped: the failure may belong to the other part.
+STATUS_SEG = re.compile(r"^\s*(bash\s+|sh\s+)?(\S*/)?pr-land-status\.sh(\s|$)|^\s*gh\s+pr\s+checks(\s|$)")
+segs = [s for s in re.split(r";|\n", cmd) if s.strip()]
+seg = segs[-1] if segs else ""
+if STATUS_SEG.search(seg) and not re.search(r"&&|\|\|", seg):
     sys.exit(0)
 STOP = set("""error failed failure warning exception traceback fatal stderr stdout command
  output exited status cannot unable could not found invalid unexpected permission denied
