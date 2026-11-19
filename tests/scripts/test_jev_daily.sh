@@ -352,6 +352,9 @@ has "would-deny keeps the gate row" "$WD" "| G3-publish | 1 |"
 lacks "would-deny rows are not under lints" "$LINTS" "G3-publish"
 RS=$(python3 -I "$SUMMARY" --date 2026-10-04 --log "$RD/decisions.202610.jsonl" --stdout)
 has "an explicitly passed rotated file is read alone" "$RS" "| Calls (client rows) | 1 |"
+RB=$(cd "$RD" && python3 -I "$SUMMARY" --date 2026-10-04 --log decisions.jsonl --stdout)
+has "a bare relative log name counts the live file once" "$RB" "| Calls (client rows) | 3 |"
+has "and the source row total is unchanged" "$RB" "(7 rows)"
 RN=$(python3 -I "$SUMMARY" --date 2026-10-04 --log "$LOG5" --stdout)
 has "a day with no lint rows renders cleanly" "$RN" "## Lints (log-only)"
 has "and says None" "${RN#*"## Lints (log-only)"}" "None."

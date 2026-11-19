@@ -60,8 +60,8 @@ def log_files(path, start):
     before the day began cannot hold a row of that day and is skipped."""
     if os.path.basename(path) != "decisions.jsonl":
         return [path]
-    files = {path}
-    files.update(glob.glob(os.path.join(os.path.dirname(path) or ".", "decisions*.jsonl")))
+    files = {os.path.abspath(path)}
+    files.update(os.path.abspath(f) for f in glob.glob(os.path.join(os.path.dirname(path) or ".", "decisions*.jsonl")))
     keep = []
     for f in sorted(files):
         try:
