@@ -20,9 +20,6 @@ New to the system? Start here:
 # Validate ecosystem health
 /audit --scope all
 
-# Analyze any repository
-/prime --lite
-
 # Run tests
 /verify
 
@@ -38,17 +35,11 @@ New to the system? Start here:
 - **[Audio Hook README](setup/AUDIO_HOOK_README.md)** - Audio notification setup
 - **[Configuration Management](setup/CONFIGURATION_MANAGEMENT.md)** - Managing configurations
 
-### Agent System (7 Agents)
+### Agent System (1 Agent)
 
-| Agent | Model | Domain |
-|-------|-------|--------|
-| architect | opus | System design, technical roadmaps |
-| code-reviewer | sonnet | Code quality, security review |
-| debugger | sonnet | Bug investigation, root cause analysis |
-| devops | sonnet | CI/CD, infrastructure, deployment |
-| frontend-engineer | sonnet | UI, React, CSS, accessibility |
-| security-auditor | sonnet | Security audits, OWASP compliance |
-| test-engineer | sonnet | Testing strategy, coverage, automation |
+| Agent | Domain |
+|-------|--------|
+| experiment-runner | Runs a locked `/experiment` protocol and reports raw observations |
 
 - **[Agent Template](agents/AGENT_TEMPLATE.md)** - Create custom agents
 - **[Agent Development Guide](guides/agent-development-guide.md)** - Agent authoring guide

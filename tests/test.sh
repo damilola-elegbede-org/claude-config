@@ -159,12 +159,10 @@ fi
 # Run command tests
 echo "Running Command Tests..."
 echo "------------------------"
-run_test "Plan Command" "commands/test_plan.sh"
 # NOTE: implementation-plan.md merged into plan.md with --no-execute flag
 # run_test "Implementation Plan Command" "commands/test_implementation_plan.sh"
 run_test "Commit Command" "commands/test_commit.sh"
 run_test "Push Command" "commands/test_push.sh"
-run_test "Prime Command" "commands/test_prime.sh"
 run_test "Sync Command" "commands/test_sync.sh"
 run_test "Verify Command" "commands/test_verify.sh"
 run_test "Verify Gate Detection" "commands/test_verify_run_checks.sh"

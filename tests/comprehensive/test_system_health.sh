@@ -90,8 +90,6 @@ echo "Checking skill definitions..."
 ESSENTIAL_SKILLS=(
     "commit"
     "push"
-    "prime"
-    "plan"
 )
 # Note: sync is project-local (.claude/skills/sync/), not in system-configs
 
@@ -117,15 +115,9 @@ fi
 # Test 5: Agent system integrity
 echo "Checking agent system integrity..."
 
-# Check for critical agent categories (7 core agents after cleanup)
+# The one agent left after the specialist agents were removed
 CRITICAL_AGENTS=(
-    "architect"
-    "code-reviewer"
-    "debugger"
-    "devops"
-    "frontend-engineer"
-    "security-auditor"
-    "test-engineer"
+    "experiment-runner"
 )
 
 AGENTS_DIR="$ORIGINAL_DIR/system-configs/.claude/agents"

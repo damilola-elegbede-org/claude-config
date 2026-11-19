@@ -1,6 +1,6 @@
 #!/bin/bash
 # failure-classify.sh ci|verify — classify a failure log BEFORE spending retries.
-# Used by /fix-ci (ci) and /verify (verify).
+# Used by /verify (verify). The ci mode classifies a failed CI job log.
 #
 #   ci     → flaky | infra | real
 #   verify → assertion | env | flaky

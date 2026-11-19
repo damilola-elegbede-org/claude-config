@@ -37,7 +37,6 @@ show the dialog to the user. A caller that runs it forked must pass `--auto` to 
 | Caller              | Flag required | Reason                          |
 | ------------------- | ------------- | ------------------------------- |
 | Direct user         | none          | Interactive triage available    |
-| `/feature-lifecycle`| `--auto`      | Autonomous orchestrator         |
 
 ## Worked examples
 

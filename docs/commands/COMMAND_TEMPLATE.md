@@ -6,7 +6,7 @@ argument-hint: [command-name]
 # Command Template
 
 This template defines the standard format for all Claude Code slash commands.
-All commands in `system-configs/.claude/commands/` should follow this structure.
+Each command is a skill at `system-configs/.claude/skills/<name>/SKILL.md` and should follow this structure.
 
 ## New Command Template Structure
 
@@ -16,8 +16,6 @@ Use this template to create new commands:
 ---
 description: Brief description under 60 chars
 argument-hint: [options]
-thinking-level: megathink  # OPTIONAL: ultrathink/megathink/think harder/think - only if needed
-thinking-tokens: 10000  # OPTIONAL: Must match thinking-level token count
 ---
 
 # /command-name Command
@@ -33,15 +31,6 @@ thinking-tokens: 10000  # OPTIONAL: Must match thinking-level token count
 ## Description
 
 Brief explanation of what this command does and when to use it. Keep it concise.
-
-### Thinking Level: [MEGATHINK (10,000 tokens)] - OPTIONAL SECTION
-
-This command requires [substantial/enhanced/maximum] thinking depth due to:
-- **[Complexity factor 1]**: [Specific reasoning why this requires deep thinking]
-- **[Complexity factor 2]**: [Another aspect requiring enhanced reasoning]
-- **[Complexity factor 3]**: [Additional complexity justification]
-- **[Complexity factor 4]**: [Further reasoning requirement]
-- **[Complexity factor 5]**: [Final complexity indicator]
 
 ## Expected Output
 
@@ -63,9 +52,7 @@ Detailed behavior, workflows, agent strategies if needed for complex commands.
 
 - **argument-hint**: Shows users what arguments to provide (e.g., `[branch-name]`, `[file-path]`)
 - **allowed-tools**: Specify which tools can be used (e.g., `Bash(git add:*)`)
-- **model**: Override the default model (e.g., `claude-haiku-4-5-20251001`)
-- **thinking-level**: Specify enhanced thinking depth (e.g., `ultrathink`, `megathink`, `think harder`, `think`)
-- **thinking-tokens**: Token allocation for thinking level (e.g., `31999`, `10000`, `8000`, `4000`)
+- **model**: Override the default model with an alias (e.g., `haiku`)
 
 ## Best Practices
 
@@ -74,11 +61,6 @@ Detailed behavior, workflows, agent strategies if needed for complex commands.
 3. **Usage Section**: Show common invocation patterns with clear examples
 4. **Expected Output**: Include concrete examples of successful execution
 5. **Behavior Section**: Only include for complex commands requiring detailed workflow explanation
-6. **Thinking Keywords**: Only add for commands requiring deep reasoning (wave orchestration, complex analysis, etc.)
-   - Use `ultrathink` (31,999 tokens) for: Multi-wave orchestration, forensics, enterprise planning
-   - Use `megathink` (10,000 tokens) for: Strategic planning, deployment orchestration, complex analysis
-   - Use `think harder` (8,000 tokens) for: Moderate complexity, focused analysis, optimization
-   - Most commands work fine without any thinking keywords
 
 ## Template Examples
 

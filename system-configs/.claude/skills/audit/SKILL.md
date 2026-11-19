@@ -35,7 +35,7 @@ Validate Claude Code configuration ecosystem. Checks agents and skills for YAML 
 - Required fields: name, description, tools, category, color (`model` is optional; omitting it uses the settings.json subagent model)
 - Template compliance (AGENT_TEMPLATE.md)
 - SYSTEM BOUNDARY statement present
-- No Task tool access
+- No Agent tool access
 
 **Skills:**
 
@@ -73,7 +73,7 @@ Agents: 12 total | 10 compliant | 2 issues
 Issues Detected:
 
 HIGH:
-  - debugger.md: Missing SYSTEM BOUNDARY statement
+  - experiment-runner.md: Missing SYSTEM BOUNDARY statement
 
 MEDIUM:
   - <agent>.md: Description exceeds recommended length
@@ -89,7 +89,7 @@ User: /audit --fix
 [Validation runs...]
 
 Issues Fixed:
-  ✅ debugger.md: Added SYSTEM BOUNDARY statement
+  ✅ experiment-runner.md: Added SYSTEM BOUNDARY statement
   ✅ <agent>.md: Truncated description
 
 Post-fix Compliance: 100%

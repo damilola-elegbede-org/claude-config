@@ -37,7 +37,7 @@ what survived. Behavior 3-5 fixes the sequencing that makes each construct coher
 
 The skill is **read-only**. It never edits the artifact, never commits, and never needs a worktree — so it is safe
 to fire at a repo you don't own, a draft you haven't saved, or an idea that exists only in the conversation. Its
-output is a verdict plus a ranked list of prescribed fixes, which D can hand to `/implement` or apply by hand.
+output is a verdict plus a ranked list of prescribed fixes, which D can apply or hand to a session to build.
 
 Boundaries against its siblings: this vets something that already exists; it does not build one.
 The CLI's built-in `/code-review` and `/security-review` own code review and real security work. `/verify`
@@ -383,7 +383,7 @@ undifferentiated pile of objections.
 - No agent grades its own homework (Zenko). Red never evaluates its own findings' severity, Blue never judges
   whether its own mitigation held, and the verdict is issued by an agent that produced none of the findings.
 - Genuine security work is not this skill. Real penetration testing, vulnerability assessment, or auditing a live
-  system routes to `/security-review` or the `security-auditor` agent. `/colorwheel` uses the color wheel as a
+  system routes to `/security-review`. `/colorwheel` uses the color wheel as a
   reasoning structure and produces no security assurance about any real system.
 - All seven constructs fire on every run. Sequencing differs by construct (Behavior 3-5) but no construct is
   skipped because the target seems not to need it — that judgment is White's, after the fact, not a pre-filter.

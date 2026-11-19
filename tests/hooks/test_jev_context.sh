@@ -962,13 +962,7 @@ for c in "gh pr create --fill" "gh -R owner/repo pr create --fill" "gh --repo=ow
   run_hook a9-skill-router.sh "$IN"
   check "A9: /pr trigger matches: $c" denies pr
 done
-cp -R "$SRC/../../skills/fix-ci" "$SRC/../../skills/resolve-comments" "$HOME/.claude/skills/"
-for c in "gh run rerun 123" "gh -R owner/repo run view 123 --log-failed" "gh --repo owner/repo run rerun 123"; do
-  turn "tfc$RANDOM"
-  bash_in "$c"
-  run_hook a9-skill-router.sh "$IN"
-  check "A9: /fix-ci trigger matches: $c" denies fix-ci
-done
+cp -R "$SRC/../../skills/resolve-comments" "$HOME/.claude/skills/"
 for c in "gh pr review 5 --approve" "gh -R owner/repo pr review --approve" "gh --repo=owner/repo pr review --approve"; do
   turn "trc$RANDOM"
   bash_in "$c"

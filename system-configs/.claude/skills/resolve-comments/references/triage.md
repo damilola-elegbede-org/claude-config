@@ -134,8 +134,9 @@ FOR_EACH: approved issue
 
   ELSE
     DELEGATE by issue.type:
-      security → security-auditor | performance → debugger | test → test-engineer
-      quality → code-reviewer (or handle directly) | docs → handle directly
+      security, performance, test → a general-purpose subagent, with the role stated in its
+        prompt (security review, performance analysis, or test writing)
+      quality, docs → handle directly
       unknown → handle directly with analysis
     Delegated agents run with restricted scope: read-only while analyzing, writes limited to
     files in modified_files, no network, no system commands outside git, no deletions or

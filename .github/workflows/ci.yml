@@ -184,10 +184,8 @@ jobs:
           "system-configs/CLAUDE.md"
           "LICENSE"
           "tests/test.sh"
-          "system-configs/.claude/skills/plan/SKILL.md"
           "system-configs/.claude/skills/commit/SKILL.md"
           "system-configs/.claude/skills/push/SKILL.md"
-          "system-configs/.claude/skills/prime/SKILL.md"
           "system-configs/.claude/skills/verify/SKILL.md"
           # Note: sync is project-local (.claude/skills/sync/), not in system-configs
         )
@@ -374,13 +372,7 @@ jobs:
 
         # Verify required agents exist
         required_agents=(
-          "architect"
-          "code-reviewer"
-          "debugger"
-          "devops"
-          "frontend-engineer"
-          "security-auditor"
-          "test-engineer"
+          "experiment-runner"
         )
 
         for agent in "${required_agents[@]}"; do

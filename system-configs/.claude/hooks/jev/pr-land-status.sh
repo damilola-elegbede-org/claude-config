@@ -149,8 +149,8 @@ status_once() {
     | ([ if $p.isDraft then {kind:"draft", fix:"gh pr ready"} else empty end,
          if $p.mergeStateStatus == "DIRTY" or $p.mergeable == "CONFLICTING" then {kind:"conflicts", fix:"git rebase on the base branch, then /push --force"} else empty end,
          if $p.mergeStateStatus == "BEHIND" then {kind:"behind-base", fix:"git rebase on the base branch, then /push --force"} else empty end,
-         ($checks | map(select(.bad)) | if length > 0 then {kind:"failing-checks", detail:names, fix:"/fix-ci"}
-            elif $total > 100 and ($rollup | IN("FAILURE","ERROR")) then {kind:"failing-checks", detail:"rollup \($rollup) (a check past the first 100)", fix:"/fix-ci"}
+         ($checks | map(select(.bad)) | if length > 0 then {kind:"failing-checks", detail:names, fix:"read the failed job log (gh run view <run-id> --log-failed) and fix the cause"}
+            elif $total > 100 and ($rollup | IN("FAILURE","ERROR")) then {kind:"failing-checks", detail:"rollup \($rollup) (a check past the first 100)", fix:"read the failed job log (gh run view <run-id> --log-failed) and fix the cause"}
             else empty end),
          if $threads > 0 then {kind:"unresolved-threads", detail:"\($threads) unresolved", fix:"/resolve-comments"} else empty end,
          if $p.reviewDecision == "CHANGES_REQUESTED" then {kind:"changes-requested", fix:"/resolve-comments"} else empty end
