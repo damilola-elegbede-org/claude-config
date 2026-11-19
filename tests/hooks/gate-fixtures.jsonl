@@ -69,6 +69,15 @@
 {"rule":"G1-rm","expect":"deny","tool":"Bash","input":{"command":"T=$(mktemp -d); rm -rf \"$T\" ~/dev/some-repo"}}
 {"rule":"G1-rm","expect":"deny","tool":"Bash","input":{"command":"rm -rf ~/.claude/jobs/*/tmp"}}
 {"rule":"G1-rm","expect":"deny","tool":"Bash","input":{"command":"rm -rf ~/.claude/jobs/job-a1/tmp/$(cat list)"}}
+{"rule":"G1-rm","expect":"deny","tool":"Bash","input":{"command":"T=$(mktemp -d); T='@HOME@/dev/some-repo'; rm -rf $T"}}
+{"rule":"G1-rm","expect":"deny","tool":"Bash","input":{"command":"T=$(mktemp -d); T=$'@HOME@/dev/some-repo'; rm -rf $T"}}
+{"rule":"G1-rm","expect":"deny","tool":"Bash","input":{"command":"T=$(mktemp -d); export T='@HOME@/dev/some-repo'; rm -rf $T"}}
+{"rule":"G1-rm","expect":"deny","tool":"Bash","input":{"command":"T=$(mktemp -d); sh -c 'T=~/dev/some-repo; rm -rf $T'"}}
+{"rule":"G1-rm","expect":"deny","tool":"Bash","input":{"command":"T=$(mktemp -d); T=~/dev/some-repo bash -c 'rm -rf $T'"}}
+{"rule":"G1-rm","expect":"deny","tool":"Bash","input":{"command":"rm -rf ~/.claude/jobs/job-a1/tmp/$(pwd)"}}
+{"rule":"G1-rm","expect":"deny","tool":"Bash","input":{"command":"rm -rf ~/.claude/jobs/job-a1/tmp/${X}"}}
+{"rule":"G1-rm","expect":"deny","tool":"Bash","input":{"command":"T=$(mktemp -d); rm -rf \"$T/sub\""}}
+{"rule":"G1-rm","expect":"deny","tool":"Bash","input":{"command":"T=$(mktemp -d)\nrm -rf ${T}/sub"}}
 {"rule":"G1-find","expect":"deny","tool":"Bash","input":{"command":"find . -name '*.log' -delete"}}
 {"rule":"G1-find","expect":"deny","tool":"Bash","input":{"command":"find /var/data -type f -delete"}}
 {"rule":"G1-find","expect":"allow","tool":"Bash","input":{"command":"find . -name '*.js'"}}

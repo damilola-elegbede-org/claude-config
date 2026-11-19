@@ -630,9 +630,19 @@ def unmodeled:
 # rewritten to a scratch path first, so the variable resolves like any other scratch assignment. Any TMPDIR set inside
 # the command, or any other mktemp shape, is left alone and stays unmodeled.
 def mktemp_scratch:
-  if test("(?:^|[^A-Za-z0-9_])TMPDIR=") then .
-  else gsub("(?<p>(?:^|[;&|\\n])[[:space:]]*(?:export[[:space:]]+)?[A-Za-z_][A-Za-z0-9_]*=)(?:\"\\$\\(mktemp -d\\)\"|\\$\\(mktemp -d\\))(?=[[:space:]]*(?:;|&&|\\n|$))"; "\(.p)/tmp/mktemp-d")
-  end;
+  . as $t
+  | if test("(?:^|[^A-Za-z0-9_])TMPDIR=") then .
+    else gsub("(?<p>(?:^|[;&|\\n])[[:space:]]*(?:export[[:space:]]+)?(?<n>[A-Za-z_][A-Za-z0-9_]*)=)(?<m>\"\\$\\(mktemp -d\\)\"|\\$\\(mktemp -d\\))(?=(?<e>[[:space:]]*(?:;|&&|\\n|$)))";
+              # Rewrite only when this is the one place NAME is assigned, in any shape (quoted, $'..', env prefix, inside a
+              # -c body); a second `NAME=` anywhere may point NAME elsewhere, so the mktemp form stays unmodeled. When a
+              # failed mktemp would not stop the next statement (`;` or newline, not `&&`), NAME may be empty, so a path
+              # under it (`$NAME/x`) is not trusted; the bare `$NAME` form only ever expands to nothing then.
+              .n as $n | .e as $e
+              | if ([$t | match("(?<![A-Za-z0-9_])" + $n + "=(?!=)"; "g")] | length) == 1
+                   and ($e | test("&&")
+                        or ($t | test("\\$\\{?" + $n + "\\}?\"?/") | not))
+                then "\(.p)/tmp/mktemp-d" else "\(.p)\(.m)" end)
+    end;
 def resolve_vars:
   mktemp_scratch
   | . as $t
