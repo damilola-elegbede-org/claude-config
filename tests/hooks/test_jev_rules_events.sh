@@ -218,6 +218,16 @@ out=$(run papercut-grep.sh "$(pf 'vercel deploy failed: EPIPE write error' 'verc
 has "archive searched when live log has no match" "$out" "archive"
 has "archive hit content injected" "$out" "retry from wired"
 rm -rf "$HOME/.claude/papercuts"
+# Noise cuts: refusals and status exits never hint; each line hints once per session.
+pfs() { jq -nc --arg s "$3" --arg e "$1" --arg c "${2:-curl x}" '{session_id:$s,tool_name:"Bash",tool_input:{command:$c},error:$e}'; }
+ERR='API Error: Unable to connect (ECONNRESET) socket closed'
+eq "gate refusal injects nothing" "$(run papercut-grep.sh "$(pfs "PreToolUse:Bash hook error: CHECKPOINT G1-rm: ECONNRESET socket closed" 'curl x' r1)")" ""
+eq "guard refusal injects nothing" "$(run papercut-grep.sh "$(pfs "worktree-guard: ECONNRESET socket closed, isolate first" 'curl x' r2)")" ""
+eq "pr-land-status exit injects nothing" "$(run papercut-grep.sh "$(pfs "Exit code 1 $ERR" 'bash pr-land-status.sh https://example.test/pr/1' r3)")" ""
+eq "gh pr checks exit injects nothing" "$(run papercut-grep.sh "$(pfs "Exit code 8 $ERR" 'gh pr checks 12 --watch' r4)")" ""
+has "genuine failure still hints (new session)" "$(run papercut-grep.sh "$(pfs "$ERR" 'curl x' g1)")" "pin the laptop to 2.4GHz"
+eq "same papercut not repeated in the same session" "$(run papercut-grep.sh "$(pfs "$ERR" 'curl x' g1)")" ""
+has "same papercut hints again in a different session" "$(run papercut-grep.sh "$(pfs "$ERR" 'curl x' g2)")" "pin the laptop to 2.4GHz"
 eq "missing archive dir tolerated silently" "$(run papercut-grep.sh "$(pf 'EPIPE write error vercel')")" ""
 rm -f "$PAPERCUT_LOG"
 eq "missing log tolerated silently" "$(run papercut-grep.sh "$(pf 'ECONNRESET socket')")" ""
