@@ -626,8 +626,16 @@ $rules[0] as $R
 # eval, source, `.`, builtin/command cd) makes both resolvers leave the text alone, so the plain G1-rm match applies.
 def unmodeled:
   test("[(`]|(?<!\\$)\\{|(?:^|[^A-Za-z0-9_$-])(?:eval|source|pushd|popd|if|then|do|for|while|until|case|select|function|(?:builtin|command)[[:space:]]+cd)(?![A-Za-z0-9_-])|(?:^|[;&|\\n])[[:space:]]*\\.[[:space:]]");
+# A plain `NAME=$(mktemp -d)` statement (no flags, template or -p, so the directory is made under $TMPDIR or /tmp) is
+# rewritten to a scratch path first, so the variable resolves like any other scratch assignment. Any TMPDIR set inside
+# the command, or any other mktemp shape, is left alone and stays unmodeled.
+def mktemp_scratch:
+  if test("(?:^|[^A-Za-z0-9_])TMPDIR=") then .
+  else gsub("(?<p>(?:^|[;&|\\n])[[:space:]]*(?:export[[:space:]]+)?[A-Za-z_][A-Za-z0-9_]*=)(?:\"\\$\\(mktemp -d\\)\"|\\$\\(mktemp -d\\))(?=[[:space:]]*(?:;|&&|\\n|$))"; "\(.p)/tmp/mktemp-d")
+  end;
 def resolve_vars:
-  . as $t
+  mktemp_scratch
+  | . as $t
   | if ($t | unmodeled) then $t
     else
       [$t | match("(?:^|[;&|\\n])[[:space:]]*(?:export[[:space:]]+)?(?<n>[A-Za-z_][A-Za-z0-9_]*)=(?:\"(?<q>(?:[^\"\\\\`$;&|<>()#\\n]|\\$(?!\\())*)\"|(?<v>[^[:space:];&|<>\"'`()\\\\]*))(?=[[:space:]]*(?:;|&&|\\n|$))"; "g")

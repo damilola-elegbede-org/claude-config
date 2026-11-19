@@ -46,6 +46,29 @@
 {"rule":"G1-rm","expect":"allow","tool":"Bash","input":{"command":"echo \"never rm -rf here\""}}
 {"rule":"G1-rm","expect":"allow","tool":"Bash","input":{"command":"grep -r rm src"}}
 {"rule":"G1-rm","expect":"allow","tool":"Bash","env":{"CLAUDE_JOB_DIR":"@JOBDIR@"},"input":{"command":"rm -rf @JOBDIR@/out"}}
+{"rule":"G1-rm","expect":"allow","tool":"Bash","input":{"command":"rm -rf ~/.claude/jobs/job-a1/tmp/out"}}
+{"rule":"G1-rm","expect":"allow","tool":"Bash","input":{"command":"rm -rf $HOME/.claude/jobs/job-a1/tmp"}}
+{"rule":"G1-rm","expect":"allow","tool":"Bash","input":{"command":"rm -rf @HOME@/.claude/jobs/job-a1/tmp/out"}}
+{"rule":"G1-rm","expect":"allow","tool":"Bash","input":{"command":"J=~/.claude/jobs/job-a1/tmp; rm -rf \"$J/out\""}}
+{"rule":"G1-rm","expect":"allow","tool":"Bash","input":{"command":"T=$(mktemp -d); rm -rf \"$T\""}}
+{"rule":"G1-rm","expect":"allow","tool":"Bash","input":{"command":"T=$(mktemp -d) && rm -rf $T/sub"}}
+{"rule":"G1-rm","expect":"deny","tool":"Bash","input":{"command":"rm -rf ~/.claude/jobs/job-a1/tmp/../../x"}}
+{"rule":"G1-rm","expect":"deny","tool":"Bash","input":{"command":"rm -rf ~/.claude/jobs"}}
+{"rule":"G1-rm","expect":"deny","tool":"Bash","input":{"command":"rm -rf ~/.claude/jobs/job-a1"}}
+{"rule":"G1-rm","expect":"deny","tool":"Bash","input":{"command":"rm -rf ~/.claude/jobs/job-a1/out"}}
+{"rule":"G1-rm","expect":"deny","tool":"Bash","input":{"command":"rm -rf ~/.claude/jobs/job-a1/tmpfoo"}}
+{"rule":"G1-rm","expect":"deny","tool":"Bash","input":{"command":"T=$(mktemp -d -p ~/dev); rm -rf \"$T\""}}
+{"rule":"G1-rm","expect":"deny","tool":"Bash","input":{"command":"T=$(mktemp -d ~/dev/x.XXXX); rm -rf \"$T\""}}
+{"rule":"G1-rm","expect":"deny","tool":"Bash","input":{"command":"T=$(mktemp -d); T=~/dev/some-repo; rm -rf \"$T\""}}
+{"rule":"G1-rm","expect":"deny","tool":"Bash","input":{"command":"T=$(mktemp -d); T=$(pwd); rm -rf \"$T\""}}
+{"rule":"G1-rm","expect":"deny","tool":"Bash","input":{"command":"export TMPDIR=~/dev; T=$(mktemp -d); rm -rf \"$T\""}}
+{"rule":"G1-rm","expect":"deny","tool":"Bash","input":{"command":"T=$(mktemp -d); rm -rf \"$T/../x\""}}
+{"rule":"G1-rm","expect":"deny","tool":"Bash","input":{"command":"rm -rf ~/dev/some-repo"}}
+{"rule":"G1-rm","expect":"deny","tool":"Bash","input":{"command":"rm -rf ~/.claude.backup.20260101_000000"}}
+{"rule":"G1-rm","expect":"deny","tool":"Bash","input":{"command":"rm -rf ~/.claude/jobs/job-a1/tmp/out ~/dev/some-repo"}}
+{"rule":"G1-rm","expect":"deny","tool":"Bash","input":{"command":"T=$(mktemp -d); rm -rf \"$T\" ~/dev/some-repo"}}
+{"rule":"G1-rm","expect":"deny","tool":"Bash","input":{"command":"rm -rf ~/.claude/jobs/*/tmp"}}
+{"rule":"G1-rm","expect":"deny","tool":"Bash","input":{"command":"rm -rf ~/.claude/jobs/job-a1/tmp/$(cat list)"}}
 {"rule":"G1-find","expect":"deny","tool":"Bash","input":{"command":"find . -name '*.log' -delete"}}
 {"rule":"G1-find","expect":"deny","tool":"Bash","input":{"command":"find /var/data -type f -delete"}}
 {"rule":"G1-find","expect":"allow","tool":"Bash","input":{"command":"find . -name '*.js'"}}
