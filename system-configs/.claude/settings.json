@@ -55,6 +55,7 @@
     "example-skills@anthropic-agent-skills": false,
     "finance@knowledge-work-plugins": false,
     "frontend-design@claude-plugins-official": false,
+    "higgsfield@higgsfield": true,
     "human-resources@knowledge-work-plugins": false,
     "legal@knowledge-work-plugins": true,
     "marketing@knowledge-work-plugins": false,
@@ -92,6 +93,13 @@
       "source": {
         "source": "github",
         "repo": "google/elephant-goldfish-model"
+      },
+      "autoUpdate": true
+    },
+    "higgsfield": {
+      "source": {
+        "source": "github",
+        "repo": "higgsfield-ai/skills"
       },
       "autoUpdate": true
     },
@@ -548,18 +556,15 @@
     "changelog": "off",
     "debug": "off",
     "deps": "off",
-    "docx": "off",
     "feature-lifecycle": "off",
     "frontend-design": "off",
     "implement": "off",
     "mcp-builder": "off",
     "merge": "off",
     "plan": "off",
-    "pptx": "off",
     "prime": "off",
     "prompt": "off",
     "rebase": "off",
-    "watch": "off",
-    "xlsx": "off"
+    "watch": "off"
   }
 }

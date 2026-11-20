@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Hermetic test: scripts/sync.sh requires the `higgsfield` CLI because the vendored higgsfield-* skills drive it.
+# Hermetic test: scripts/sync.sh requires the `higgsfield` CLI because the Higgsfield plugin's skills drive it.
 # A real sync runs into a temp HOME with a stub `higgsfield`; nothing touches the real ~/.claude or the network.
 set -uo pipefail
 
@@ -19,8 +19,8 @@ for t in jq rsync python3; do
     exit 0
   }
 done
-ls -d "$REPO_ROOT"/system-configs/.claude/skills/higgsfield-* >/dev/null 2>&1 || {
-  echo "SKIP: no higgsfield-* skills in the source tree" >&2
+jq -e '.enabledPlugins["higgsfield@higgsfield"] == true' "$REPO_ROOT/system-configs/.claude/settings.json" >/dev/null 2>&1 || {
+  echo "SKIP: higgsfield@higgsfield is not enabled in the source settings.json" >&2
   exit 0
 }
 
@@ -70,7 +70,8 @@ if [[ ! -d "$T/home-missing/.claude/skills" ]]; then ok; else bad "missing CLI: 
 run_sync ready "$T/stub:$CLEAN_PATH" 0
 if grep -q "higgsfield 9.9.9" <<<"$SYNC_OUT" && grep -q "signed in with a workspace" <<<"$SYNC_OUT"; then ok; else bad "ready CLI: version and sign-in shown"; fi
 if [[ "$SYNC_RC" -eq 0 ]]; then ok; else bad "ready CLI: sync succeeds (rc=$SYNC_RC)"; fi
-if [[ -f "$T/home-ready/.claude/skills/higgsfield-generate/SKILL.md" ]]; then ok; else bad "ready CLI: higgsfield-generate is synced"; fi
+if [[ -f "$T/home-ready/.claude/skills/commit/SKILL.md" ]]; then ok; else bad "ready CLI: repo skills are synced"; fi
+if [[ ! -e "$T/home-ready/.claude/skills/higgsfield-generate" ]]; then ok; else bad "ready CLI: no vendored higgsfield skill is shipped (the plugin provides them)"; fi
 
 run_sync signedout "$T/stub:$CLEAN_PATH" 1
 if grep -q "higgsfield not ready" <<<"$SYNC_OUT"; then ok; else bad "signed out: warns with the login command"; fi
@@ -90,13 +91,18 @@ STATION="$(scutil --get LocalHostName 2>/dev/null || hostname -s)"
 mkdir -p "$T/repo/scripts" "$T/repo/sync-manifests"
 cp "$SYNC" "$T/repo/scripts/sync.sh"
 ln -s "$REPO_ROOT/system-configs" "$T/repo/system-configs"
-printf '%s\n' '{"mode":"scoped","sync":{"settings":false}}' >"$T/repo/sync-manifests/$STATION.json"
+printf '%s\n' '{"mode":"scoped","sync":{"settings":false,"plugins":["higgsfield@higgsfield"]}}' >"$T/repo/sync-manifests/$STATION.json"
 SYNC_SAVED="$SYNC"
 SYNC="$T/repo/scripts/sync.sh"
 run_sync manifest "$CLEAN_PATH" 0
-SYNC="$SYNC_SAVED"
 if grep -q "higgsfield not found on $STATION" <<<"$SYNC_OUT"; then ok; else bad "manifest station: warns instead of failing (got: $(grep -i higgsfield <<<"$SYNC_OUT" | head -2))"; fi
 if [[ "$SYNC_RC" -eq 0 ]]; then ok; else bad "manifest station: sync still succeeds without the CLI (rc=$SYNC_RC)"; fi
+
+# A manifest station whose sync.plugins omits the Higgsfield plugin gets no check at all.
+printf '%s\n' '{"mode":"scoped","sync":{"settings":false,"plugins":["document-skills@anthropic-agent-skills"]}}' >"$T/repo/sync-manifests/$STATION.json"
+run_sync noplugin "$CLEAN_PATH" 0
+if ! grep -qiE "higgsfield (not|[0-9]|signed)" <<<"$SYNC_OUT" && [[ "$SYNC_RC" -eq 0 ]]; then ok; else bad "manifest without the plugin: no higgsfield check (rc=$SYNC_RC)"; fi
+SYNC="$SYNC_SAVED"
 
 run_sync skipped "$CLEAN_PATH" 0 HIGGSFIELD_SYNC_SKIP_CHECK=1
 if [[ "$SYNC_RC" -eq 0 ]] && ! grep -q "higgsfield" <<<"$(grep -i 'prereq\|✅\|❌' <<<"$SYNC_OUT")"; then ok; else bad "HIGGSFIELD_SYNC_SKIP_CHECK=1: check is skipped (rc=$SYNC_RC)"; fi

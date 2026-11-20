@@ -10,7 +10,7 @@ Complete inventory of 34 skills across 6 categories.
 | Agent-Routed | 3 | `/debug`, `/plan`, `/prime` |
 | Git Workflow | 6 | `/branch`, `/commit`, `/push`, `/pr` |
 | Utility | 3 | `/audit`, `/prompt`, `/verify` |
-| Imported (Anthropic) | 8 | `pdf`, `docx`, `webapp-testing` |
+| Imported (Anthropic) | 4 | `webapp-testing`, `mcp-builder` |
 | **Total** | **34** | |
 
 All 21 former commands have been migrated to skills. There are **0 commands** remaining.
@@ -66,16 +66,12 @@ Reference material injected into agent contexts. Not user-invocable (`user-invoc
 |-------|-------------|---------|
 | `markdown-linting` | (reference only — tech-writer removed) | Markdownlint rules, documentation formatting |
 
-## Imported Anthropic Skills (8)
+## Imported Anthropic Skills (4)
 
 Skills imported from Anthropic's official skill library via `/skills-import`.
 
 | Skill | Description | Source |
 |-------|-------------|--------|
-| `pdf` | PDF file reading and analysis | Anthropic |
-| `docx` | Word document reading and analysis | Anthropic |
-| `xlsx` | Excel spreadsheet reading and analysis | Anthropic |
-| `pptx` | PowerPoint presentation reading and analysis | Anthropic |
 | `webapp-testing` | Web application testing with browser automation | Anthropic |
 | `skill-creator` | Create new skills from templates | Anthropic |
 | `mcp-builder` | Build MCP server integrations | Anthropic |

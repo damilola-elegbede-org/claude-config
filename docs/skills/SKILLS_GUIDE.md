@@ -89,16 +89,12 @@ These are not user-invocable (`user-invocable: false`).
 |-------|-------------|---------|
 | `markdown-linting` | (reference only — tech-writer removed) | Markdownlint rules, documentation formatting |
 
-### Imported Anthropic Skills (8)
+### Imported Anthropic Skills (4)
 
 Skills imported from Anthropic's official skill library via `/skills-import`.
 
 | Skill | Description |
 |-------|-------------|
-| `pdf` | PDF file reading and analysis |
-| `docx` | Word document reading and analysis |
-| `xlsx` | Excel spreadsheet reading and analysis |
-| `pptx` | PowerPoint presentation reading and analysis |
 | `webapp-testing` | Web application testing with browser automation |
 | `skill-creator` | Create new skills from templates |
 | `mcp-builder` | Build MCP server integrations |
@@ -155,7 +151,7 @@ system-configs/.claude/skills/
 │   └── SKILL.md
 ├── commit/
 │   └── SKILL.md
-├── pdf/
+├── mcp-builder/
 │   └── SKILL.md
 └── ...
 ```
