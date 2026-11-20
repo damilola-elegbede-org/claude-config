@@ -89,7 +89,7 @@ These are not user-invocable (`user-invocable: false`).
 |-------|-------------|---------|
 | `markdown-linting` | (reference only — tech-writer removed) | Markdownlint rules, documentation formatting |
 
-### Imported Anthropic Skills (4)
+### Imported Anthropic Skills (3)
 
 Skills imported from Anthropic's official skill library via `/skills-import`.
 
@@ -97,7 +97,6 @@ Skills imported from Anthropic's official skill library via `/skills-import`.
 |-------|-------------|
 | `webapp-testing` | Web application testing with browser automation |
 | `skill-creator` | Create new skills from templates |
-| `mcp-builder` | Build MCP server integrations |
 | `frontend-design` | Frontend design patterns and implementation |
 
 ## Claude Code Skill Features
@@ -151,7 +150,7 @@ system-configs/.claude/skills/
 │   └── SKILL.md
 ├── commit/
 │   └── SKILL.md
-├── mcp-builder/
+├── webapp-testing/
 │   └── SKILL.md
 └── ...
 ```

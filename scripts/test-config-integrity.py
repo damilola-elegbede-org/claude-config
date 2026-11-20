@@ -31,7 +31,7 @@ SKILLS_DIR = PROJECT_ROOT / "system-configs" / ".claude" / "skills"
 #   (fable-advisor removed — the native advisor tool, configured via
 #    advisorModel in settings.json, replaces it; the subagent had no way to
 #    return a result to its caller)
-# 31 skills: git, orchestration, quality, planning, formats, specialized, agent-context,
+# 30 skills: git, orchestration, quality, planning, formats, specialized, agent-context,
 #   plus changelog
 #   (replay of the last Claude Code CLI upgrade's CHANGELOG slice), watch
 #   (video transcript/frames skill), process-linear (Linear triage skill,
@@ -51,7 +51,7 @@ SKILLS_DIR = PROJECT_ROOT / "system-configs" / ".claude" / "skills"
 #   plugin; see docs/integrations/HIGGSFIELD_INTEGRATION.md)
 # Note: sync and skills-import are project-local (.claude/skills/), not in system-configs
 EXPECTED_AGENT_COUNT = 8
-EXPECTED_SKILL_COUNT = 31
+EXPECTED_SKILL_COUNT = 30
 
 # Non-agent/command documentation files to skip
 NON_AGENT_FILES = [
