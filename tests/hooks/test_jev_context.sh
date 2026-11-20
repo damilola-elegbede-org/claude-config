@@ -1024,6 +1024,16 @@ check "catalog: a rebuild prunes skill caches that expired over a day ago" bash 
 check "catalog: a rebuild keeps the live cache" bash -c "ls '$HOME/.claude/jev-cache/state/' | grep -q '^skills-'"
 python3 -I "$HOME/.claude/hooks/jev/skill-catalog.py" "$REPO" "$CAT"
 check "catalog: all four sources present" jq -e 'map(.source) | unique == ["directory","plugin","project","user"]' "$CAT"
+sk "$HOME/.claude/skills/synced/uuid-a" pdf "Synced PDF skill." 'path:*.pdf'
+sk "$HOME/.claude/skills/synced/uuid-a" commit "Synced commit that must lose." 'cmd:\bsyncedcommit\b'
+sk "$HOME/.claude/skills/synced/.trash" trashed "Trashed skill." 'path:*.zzz'
+python3 -I "$HOME/.claude/hooks/jev/skill-catalog.py" "$REPO" "$TEST_HOME/cat-synced.json"
+check "catalog: a synced/<uuid>/<name> skill is listed with its path trigger" jq -e 'any(.name == "pdf" and .source == "user" and .path == ["*.pdf"])' "$TEST_HOME/cat-synced.json"
+check "catalog: a top-level skill wins over a same-name synced skill" jq -e '[.[] | select(.base == "commit")] | length >= 1 and all(.cmd | index("\\bsyncedcommit\\b") | not)' "$TEST_HOME/cat-synced.json"
+check "catalog: synced/.trash is ignored" jq -e 'all(.base != "trashed")' "$TEST_HOME/cat-synced.json"
+rm -rf "$HOME/.claude/skills/synced"
+python3 -I "$HOME/.claude/hooks/jev/skill-catalog.py" "$REPO" "$TEST_HOME/cat-nosynced.json"
+check "catalog: a missing synced/ dir is harmless" jq -e 'any(.base == "commit")' "$TEST_HOME/cat-nosynced.json"
 check "catalog: a skill below the cwd is qualified as <dir>:<name>" jq -e 'any(.name == "sub:subtool" and .source == "directory")' "$CAT"
 check "catalog: an orchestrator records the routed skills it runs" jq -e 'any(.name == "ship-it" and .invokes == ["commit"])' "$CAT"
 set_mode A9-skill-router off
