@@ -23,6 +23,7 @@
     }
   },
   "autoCompactWindow": 400000,
+  "skillListingBudgetFraction": 0.02,
   "outputStyle": "Executive",
   "tui": "fullscreen",
   "agentPushNotifEnabled": true,
