@@ -19,14 +19,29 @@ MODE=$(re_mode papercut-grep enforce)
 LOG="${PAPERCUT_LOG:-$RE_CLAUDE_DIR/papercuts.md}"
 ARCHIVE_DIR="$(dirname "$LOG")/papercuts/archive"
 
-HITS=$(printf '%s' "$INPUT" | RE_LOG_FILE="$LOG" RE_ARCHIVE_DIR="$ARCHIVE_DIR" python3 -c '
-import glob, json, os, re, sys
+SID=$(jq -r '.session_id // "nosession"' <<<"$INPUT" 2>/dev/null)
+SEEN="$(re_session_dir "$SID")/papercut-seen"
+
+HITS=$(printf '%s' "$INPUT" | RE_LOG_FILE="$LOG" RE_ARCHIVE_DIR="$ARCHIVE_DIR" RE_SEEN_FILE="$SEEN" python3 -c '
+import glob, hashlib, json, os, re, sys
 try:
     d = json.load(sys.stdin)
 except ValueError:
     sys.exit(0)
 err = str(d.get("error") or "")[:1500]
 cmd = str((d.get("tool_input") or {}).get("command") or "")[:300]
+# A guard, gate or hook refusing the call is not the command failing: no papercut can explain it.
+if re.search(r"hook error:|^PreToolUse:|CHECKPOINT G\d|Jev gate \[|Jev skill router|worktree[- ]guard|worktree isolation|requires approval|This session is isolated in the worktree|worktree-isolated session|gate\.sh: (refused|that checkpoint expired)", err, re.I):
+    sys.exit(0)
+# Status checks exit non-zero by design (pending, blocked): the exit code is a signal, not a fault.
+# Only the last segment of the command (split on ; or a newline) decides, because its exit code is the
+# command exit code. Skip when that segment is the status command; a segment that chains with && or ||
+# is not skipped: the failure may belong to the other part.
+STATUS_SEG = re.compile(r"^\s*(bash\s+|sh\s+)?(\S*/)?pr-land-status\.sh(\s|$)|^\s*gh\s+pr\s+checks(\s|$)")
+segs = [s for s in re.split(r";|\n", cmd) if s.strip()]
+seg = segs[-1] if segs else ""
+if STATUS_SEG.search(seg) and not re.search(r"&&|\|\|", seg):
+    sys.exit(0)
 STOP = set("""error failed failure warning exception traceback fatal stderr stdout command
  output exited status cannot unable could not found invalid unexpected permission denied
  returned result timeout called object function module string number undefined""".split())
@@ -63,7 +78,25 @@ src = "live log"
 if not found:
     found = scan(sorted(glob.glob(os.path.join(os.environ["RE_ARCHIVE_DIR"], "*.md")), reverse=True))
     src = "archive"
+# Once per session: a line already injected is not repeated (ledger of line hashes).
+seen_path = os.environ["RE_SEEN_FILE"]
+try:
+    seen = set(open(seen_path).read().split())
+except OSError:
+    seen = set()
+fresh = []
 for ln in found:
+    h = hashlib.sha256(ln.encode("utf-8", "replace")).hexdigest()[:24]
+    if h not in seen:
+        fresh.append((h, ln))
+if fresh:
+    try:
+        os.makedirs(os.path.dirname(seen_path), exist_ok=True)
+        with open(seen_path, "a") as f:
+            f.write("".join(h + "\n" for h, _ in fresh))
+    except OSError:
+        pass
+for _, ln in fresh:
     print(src + "\t" + ln[:400])
 ' 2>/dev/null)
 
