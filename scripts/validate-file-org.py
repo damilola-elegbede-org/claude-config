@@ -42,10 +42,7 @@ TEMP_PATTERNS = [
 EXEMPT_DIRS = (".tmp/", "docs/", "tests/fixtures/", "examples/", "node_modules/", ".git/")
 
 # Files that look temporary but are load-bearing.
-EXEMPT_FILES = {
-    # Vendored higgsfield-ai/skills reference doc, linked from the skill's SKILL.md
-    "system-configs/.claude/skills/higgsfield-brandkit/references/asset-analysis.md",
-}
+EXEMPT_FILES: set[str] = set()
 
 
 def tracked_files():

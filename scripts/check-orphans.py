@@ -87,7 +87,7 @@ def extract_agent_references(content):
                 # CI/CD and testing patterns (not agent names)
                 "skip-ci", "integration-test", "unit-test", "paths-ignore",
                 # Technical compound terms (not agent names)
-                "docx-js", "low-contrast", "scroll-triggering", "read-only",
+                "low-contrast", "scroll-triggering", "read-only",
                 "high-level", "low-level", "built-in", "opt-in", "opt-out",
                 "run-time", "compile-time", "type-safe", "type-check",
                 "hot-reload", "hot-module", "tree-shaking",
@@ -110,7 +110,7 @@ def check_skills_for_orphans(valid_agents, verbose=False):
     if not SKILLS_DIR.exists():
         return orphans
 
-    # A skill may point at another skill ("use higgsfield-generate"); that is not an orphaned agent.
+    # A skill may point at another skill ("use land"); that is not an orphaned agent.
     skill_names = {d.name for d in SKILLS_DIR.iterdir() if d.is_dir()}
 
     for skill_dir in SKILLS_DIR.iterdir():

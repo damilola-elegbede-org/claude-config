@@ -31,8 +31,8 @@ SKILLS_DIR = PROJECT_ROOT / "system-configs" / ".claude" / "skills"
 #   (fable-advisor removed — the native advisor tool, configured via
 #    advisorModel in settings.json, replaces it; the subagent had no way to
 #    return a result to its caller)
-# 37 skills: git, orchestration, quality, planning, formats, specialized, agent-context,
-#   plus office-common (shared toolkit for xlsx/pptx/docx), changelog
+# 30 skills: git, orchestration, quality, planning, formats, specialized, agent-context,
+#   plus changelog
 #   (replay of the last Claude Code CLI upgrade's CHANGELOG slice), watch
 #   (video transcript/frames skill), process-linear (Linear triage skill,
 #   renamed from process-bareclaude), ask (D-facing question primitive),
@@ -46,13 +46,12 @@ SKILLS_DIR = PROJECT_ROOT / "system-configs" / ".claude" / "skills"
 #   (api-design-patterns, git-conventions, security-checklist and testing-patterns
 #    removed: 1043 lines of general knowledge preloaded into 5 agents' context on
 #    every invocation, with nothing project-specific in them)
-#   plus 8 vendored third-party higgsfield-* skills (brandkit, generate,
-#   marketplace-cards, product-photoshoot, soul-id, video-explainer, websites,
-#   youtube-thumbnail), verbatim from higgsfield-ai/skills; /sync verifies the
-#   `higgsfield` CLI they drive (docs/integrations/HIGGSFIELD_INTEGRATION.md)
+#   (docx, pdf, pptx, xlsx, office-common and the 8 higgsfield-* skills removed — the
+#   office skills come from claude.ai synced skills and Higgsfield from its official
+#   plugin; see docs/integrations/HIGGSFIELD_INTEGRATION.md)
 # Note: sync and skills-import are project-local (.claude/skills/), not in system-configs
 EXPECTED_AGENT_COUNT = 8
-EXPECTED_SKILL_COUNT = 44
+EXPECTED_SKILL_COUNT = 30
 
 # Non-agent/command documentation files to skip
 NON_AGENT_FILES = [

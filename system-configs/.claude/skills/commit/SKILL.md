@@ -38,7 +38,9 @@ and fixed, not bypassed.
 3. **Classify.** Always run `${HOME}/.claude/skills/commit/scripts/classify.sh commit` before writing the
    message (it logs the Jev call even when it withholds the answer). Only when its `mode` is `enforce`, use
    `type` as the default conventional type and, if `mixed` is true, offer to split the commit; otherwise ignore
-   the output (`deterministic_type` is a path-based guess).
+   the output (`deterministic_type` is a path-based guess). `mixed: false` never overrides your own read of the
+   diff: when the staged changes clearly cover unrelated concerns (code plus unrelated docs, say), split them
+   into separate commits or offer the split anyway.
 4. **Write the message.**
 
    ```text

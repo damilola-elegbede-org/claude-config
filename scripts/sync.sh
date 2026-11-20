@@ -466,6 +466,18 @@ merge_settings() {
     return 0
 }
 
+# higgsfield_plugin_enabled — true when this station gets the Higgsfield plugin:
+# the manifest's sync.plugins on a manifest station, else the repo settings.json's
+# enabledPlugins. False without jq (the check is then skipped, never guessed).
+higgsfield_plugin_enabled() {
+    command -v jq >/dev/null 2>&1 || return 1
+    if [ "$HAVE_MANIFEST" = "true" ]; then
+        jq -e '(.sync.plugins // []) | index("higgsfield@higgsfield") != null' "$MANIFEST" >/dev/null 2>&1
+    else
+        jq -e '.enabledPlugins["higgsfield@higgsfield"] == true' "$SOURCE_DIR/settings.json" >/dev/null 2>&1
+    fi
+}
+
 # Install the plugins settings.json enables. enabledPlugins only declares
 # on/off; Claude Code never installs from it, so a fresh machine would carry
 # "enabled" plugins that were never fetched. Best-effort and idempotent: a
@@ -473,12 +485,20 @@ merge_settings() {
 # Claude Code's background auto-update, not this function: on by default only
 # for claude-plugins-official, so settings.json's extraKnownMarketplaces sets
 # autoUpdate for the others.
+# With "manifest" as $1 (manifest stations in merge mode) the install list is
+# exactly the manifest's sync.plugins instead of settings.json's enabledPlugins;
+# marketplaces are still registered from settings.json's extraKnownMarketplaces.
 sync_plugins() {
     if ! command -v claude >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
         print_warning "claude or jq not found — plugin install skipped"
         return 0
     fi
-    if ! enabled=$(jq -r '.enabledPlugins // {} | to_entries[] | select(.value == true) | .key' "$SOURCE_DIR/settings.json"); then
+    if [ "${1:-}" = "manifest" ]; then
+        if ! enabled=$(jq -r '.sync.plugins // [] | .[] | strings' "$MANIFEST"); then
+            print_warning "could not read sync.plugins from $MANIFEST — plugin install skipped"
+            return 0
+        fi
+    elif ! enabled=$(jq -r '.enabledPlugins // {} | to_entries[] | select(.value == true) | .key' "$SOURCE_DIR/settings.json"); then
         print_warning "could not read enabledPlugins from settings.json — plugin install skipped"
         return 0
     fi
@@ -727,7 +747,7 @@ sync_files() {
         echo "  ⏭  Skills: skipped by $STATION manifest"
     else
     rsync_output=""
-    if rsync_output=$(rsync -a --delete --exclude="README.md" --exclude="*TEMPLATE*" "$SOURCE_DIR/skills/" "$TARGET_DIR/skills/" 2>&1); then
+    if rsync_output=$(rsync -a --delete --exclude="README.md" --exclude="*TEMPLATE*" --exclude="/synced/" --exclude="/.trash/" "$SOURCE_DIR/skills/" "$TARGET_DIR/skills/" 2>&1); then
         SKILL_COUNT=$(find "$SOURCE_DIR/skills" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')
         echo "  ✅ Skills: $SKILL_COUNT skills → ~/.claude/skills/"
     else
@@ -846,6 +866,10 @@ sync_files() {
                 else
                     print_error "settings.json merge failed — live file left untouched"
                     return 1
+                fi
+                # Opt-in: only a manifest that lists sync.plugins installs plugins here.
+                if jq -e '.sync.plugins | type == "array"' "$MANIFEST" >/dev/null 2>&1; then
+                    sync_plugins manifest
                 fi ;;
             *)
                 cp "$SOURCE_DIR/settings.json" "$TARGET_DIR/"
@@ -1031,11 +1055,12 @@ check_prerequisites() {
         fi
     fi
 
-    # Vendored higgsfield-* skills drive the `higgsfield` CLI. Only checked when
-    # this station syncs skills and the source tree actually ships them.
+    # The Higgsfield plugin's skills drive the `higgsfield` CLI. Only checked when
+    # this station syncs skills and the plugin is enabled for it: settings.json's
+    # enabledPlugins on a laptop, the manifest's sync.plugins on a manifest station.
     # HIGGSFIELD_SYNC_SKIP_CHECK=1 skips (tests run sync against a temp HOME).
     if [ -z "${HIGGSFIELD_SYNC_SKIP_CHECK:-}" ] && [ "$(manifest_flag skills)" = "true" ] \
-        && ls -d "$SOURCE_DIR"/skills/higgsfield-* >/dev/null 2>&1; then
+        && higgsfield_plugin_enabled; then
         if command -v higgsfield >/dev/null 2>&1; then
             echo "  ✅ higgsfield $(higgsfield --version 2>/dev/null | cut -d' ' -f2)"
             # account status needs a stored login AND a selected workspace; it also needs
@@ -1043,13 +1068,13 @@ check_prerequisites() {
             if higgsfield account status >/dev/null 2>&1; then
                 echo "  ✅ higgsfield signed in with a workspace"
             else
-                print_warning "higgsfield not ready (run: higgsfield auth login, then higgsfield workspace list / workspace set <id>) - or offline; the higgsfield-* skills cannot generate until fixed"
+                print_warning "higgsfield not ready (run: higgsfield auth login, then higgsfield workspace list / workspace set <id>) - or offline; the Higgsfield skills cannot generate until fixed"
             fi
         elif [ "$HAVE_MANIFEST" = "true" ]; then
             # manifest stations (the fleet node) are scoped on purpose: warn so a merge never blocks their sync
-            print_warning "higgsfield not found on $STATION - the higgsfield-* skills cannot run there (npm i -g @higgsfield/cli, then higgsfield auth login)"
+            print_warning "higgsfield not found on $STATION - the Higgsfield skills cannot run there (npm i -g @higgsfield/cli, then higgsfield auth login)"
         else
-            print_error "higgsfield not found - the higgsfield-* skills need the CLI (npm i -g @higgsfield/cli, then higgsfield auth login)"
+            print_error "higgsfield not found - the Higgsfield skills need the CLI (npm i -g @higgsfield/cli, then higgsfield auth login)"
             prereq_fail=1
         fi
         # python3 runs the skill scripts; the rest are only brandkit's export stages.
@@ -1057,9 +1082,9 @@ check_prerequisites() {
         if command -v python3 >/dev/null 2>&1 && python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1)' >/dev/null 2>&1; then
             echo "  ✅ python3 $(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])') (needs >= 3.9)"
         elif [ "$HAVE_MANIFEST" = "true" ]; then
-            print_warning "python3 >= 3.9 not found on $STATION - the higgsfield-brandkit and higgsfield-websites scripts cannot run there (brew install python)"
+            print_warning "python3 >= 3.9 not found on $STATION - the Higgsfield brandkit and websites scripts cannot run there (brew install python)"
         else
-            print_error "python3 >= 3.9 not found - the higgsfield-brandkit and higgsfield-websites scripts need it (brew install python)"
+            print_error "python3 >= 3.9 not found - the Higgsfield brandkit and websites scripts need it (brew install python)"
             prereq_fail=1
         fi
         hf_missing=""
@@ -1068,7 +1093,7 @@ check_prerequisites() {
         done
         command -v magick >/dev/null 2>&1 || command -v convert >/dev/null 2>&1 || hf_missing="$hf_missing magick"
         if [ -n "$hf_missing" ]; then
-            print_warning "higgsfield-brandkit export tools missing:$hf_missing (brew install imagemagick librsvg poppler fontconfig; brew install --cask libreoffice)"
+            print_warning "Higgsfield brandkit export tools missing:$hf_missing (brew install imagemagick librsvg poppler fontconfig; brew install --cask libreoffice)"
         fi
     fi
 

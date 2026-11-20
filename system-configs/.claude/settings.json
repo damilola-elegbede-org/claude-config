@@ -6,7 +6,8 @@
     "DISABLE_FEEDBACK_COMMAND": "1",
     "CLAUDE_CODE_ENABLE_EXPERIMENTAL_ADVISOR_TOOL": "1",
     "CLAUDE_CODE_SUBAGENT_MODEL": "sonnet",
-    "CLAUDE_CODE_PLUGIN_DIRS": "~/.claude/mods"
+    "CLAUDE_CODE_PLUGIN_DIRS": "~/.claude/mods",
+    "CLAUDE_CODE_EXPERIMENTAL_CODE_MODE": "1"
   },
   "model": "sonnet",
   "advisorModel": "fable",
@@ -23,6 +24,7 @@
     }
   },
   "autoCompactWindow": 400000,
+  "skillListingBudgetFraction": 0.02,
   "outputStyle": "Executive",
   "tui": "fullscreen",
   "agentPushNotifEnabled": true,
@@ -55,6 +57,7 @@
     "example-skills@anthropic-agent-skills": false,
     "finance@knowledge-work-plugins": false,
     "frontend-design@claude-plugins-official": false,
+    "higgsfield@higgsfield": true,
     "human-resources@knowledge-work-plugins": false,
     "legal@knowledge-work-plugins": true,
     "marketing@knowledge-work-plugins": false,
@@ -92,6 +95,13 @@
       "source": {
         "source": "github",
         "repo": "google/elephant-goldfish-model"
+      },
+      "autoUpdate": true
+    },
+    "higgsfield": {
+      "source": {
+        "source": "github",
+        "repo": "higgsfield-ai/skills"
       },
       "autoUpdate": true
     },
@@ -548,18 +558,14 @@
     "changelog": "off",
     "debug": "off",
     "deps": "off",
-    "docx": "off",
     "feature-lifecycle": "off",
     "frontend-design": "off",
     "implement": "off",
-    "mcp-builder": "off",
     "merge": "off",
     "plan": "off",
-    "pptx": "off",
     "prime": "off",
     "prompt": "off",
     "rebase": "off",
-    "watch": "off",
-    "xlsx": "off"
+    "watch": "off"
   }
 }
