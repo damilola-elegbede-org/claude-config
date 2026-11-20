@@ -67,7 +67,13 @@ if ! git diff --quiet || ! git diff --cached --quiet || [ -n "$(git ls-files --o
 fi
 
 # Switch to main branch (with fallback to master)
-if git checkout main 2>/dev/null; then base=main; else git checkout master; base=master; fi
+if git checkout main 2>/dev/null; then
+  base=main
+elif git checkout master; then
+  base=master
+else
+  echo "ERROR: Cannot check out main or master. Branch creation aborted."; exit 1
+fi
 
 # Pull latest changes with rebase to keep history clean (FAIL if unable). Name the remote and
 # branch: a bare `git pull --rebase` fails when the local branch has no upstream.
