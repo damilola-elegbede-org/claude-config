@@ -213,6 +213,7 @@ echo "Running Sync Tests..."
 echo "--------------------"
 run_test "Sync Functionality" "sync/test_sync_functionality.sh"
 run_test "Sync Mods Exclude" "sync/test_mods_exclude.sh"
+run_test "Sync Skills Preserve" "sync/test_skills_preserve.sh"
 run_test "Papercut Runtime Data" "papercuts/test_papercuts.sh"
 run_test "Papercuts Skill Analysis" "papercuts/test_papercuts_skill.sh"
 

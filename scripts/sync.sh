@@ -727,7 +727,7 @@ sync_files() {
         echo "  ⏭  Skills: skipped by $STATION manifest"
     else
     rsync_output=""
-    if rsync_output=$(rsync -a --delete --exclude="README.md" --exclude="*TEMPLATE*" "$SOURCE_DIR/skills/" "$TARGET_DIR/skills/" 2>&1); then
+    if rsync_output=$(rsync -a --delete --exclude="README.md" --exclude="*TEMPLATE*" --exclude="/synced/" --exclude="/.trash/" "$SOURCE_DIR/skills/" "$TARGET_DIR/skills/" 2>&1); then
         SKILL_COUNT=$(find "$SOURCE_DIR/skills" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')
         echo "  ✅ Skills: $SKILL_COUNT skills → ~/.claude/skills/"
     else
