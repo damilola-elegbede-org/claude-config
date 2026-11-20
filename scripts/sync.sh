@@ -473,12 +473,20 @@ merge_settings() {
 # Claude Code's background auto-update, not this function: on by default only
 # for claude-plugins-official, so settings.json's extraKnownMarketplaces sets
 # autoUpdate for the others.
+# With "manifest" as $1 (manifest stations in merge mode) the install list is
+# exactly the manifest's sync.plugins instead of settings.json's enabledPlugins;
+# marketplaces are still registered from settings.json's extraKnownMarketplaces.
 sync_plugins() {
     if ! command -v claude >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
         print_warning "claude or jq not found — plugin install skipped"
         return 0
     fi
-    if ! enabled=$(jq -r '.enabledPlugins // {} | to_entries[] | select(.value == true) | .key' "$SOURCE_DIR/settings.json"); then
+    if [ "${1:-}" = "manifest" ]; then
+        if ! enabled=$(jq -r '.sync.plugins // [] | .[] | strings' "$MANIFEST"); then
+            print_warning "could not read sync.plugins from $MANIFEST — plugin install skipped"
+            return 0
+        fi
+    elif ! enabled=$(jq -r '.enabledPlugins // {} | to_entries[] | select(.value == true) | .key' "$SOURCE_DIR/settings.json"); then
         print_warning "could not read enabledPlugins from settings.json — plugin install skipped"
         return 0
     fi
@@ -846,6 +854,10 @@ sync_files() {
                 else
                     print_error "settings.json merge failed — live file left untouched"
                     return 1
+                fi
+                # Opt-in: only a manifest that lists sync.plugins installs plugins here.
+                if jq -e '.sync.plugins | type == "array"' "$MANIFEST" >/dev/null 2>&1; then
+                    sync_plugins manifest
                 fi ;;
             *)
                 cp "$SOURCE_DIR/settings.json" "$TARGET_DIR/"
