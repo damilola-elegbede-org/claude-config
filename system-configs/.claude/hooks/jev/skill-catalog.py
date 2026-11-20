@@ -3,6 +3,8 @@
 
 Lists every skill a session can invoke, from the same four sources Claude Code loads:
   user       ~/.claude/skills/<name>/SKILL.md
+             and the claude.ai-synced ~/.claude/skills/synced/<uuid>/<name>/SKILL.md (a top-level
+             skill of the same name wins; .trash and other dot dirs are ignored)
   project    <repo root>/.claude/skills/<name>/SKILL.md
   directory  <repo>/<dir>/.claude/skills/<name>/SKILL.md, applying only under <dir>
   plugin     skills/<name>/SKILL.md inside each enabled plugin's install path
@@ -129,6 +131,21 @@ def skill_dirs(root):
             if os.path.isfile(os.path.join(root, n, "SKILL.md"))]
 
 
+def synced_skill_dirs(root, taken):
+    """Skills under <root>/synced/<uuid>/<name>/SKILL.md, skipping names in taken (top-level wins)."""
+    out, seen = [], set(taken)
+    try:
+        uuids = sorted(n for n in os.listdir(os.path.join(root, "synced")) if not n.startswith("."))
+    except OSError:
+        return out
+    for u in uuids:
+        for base, md in skill_dirs(os.path.join(root, "synced", u)):
+            if base not in seen:
+                seen.add(base)
+                out.append((base, md))
+    return out
+
+
 def repo_root(cwd):
     try:
         out = subprocess.run(["git", "-C", cwd, "rev-parse", "--show-toplevel"],
@@ -194,7 +211,8 @@ def build(cwd):
         o = load_json(path).get("skillOverrides")
         overrides.update(o if isinstance(o, dict) else {})
     skills = []
-    for base, md in skill_dirs(os.path.join(CLAUDE, "skills")):
+    user_dirs = skill_dirs(os.path.join(CLAUDE, "skills"))
+    for base, md in user_dirs + synced_skill_dirs(os.path.join(CLAUDE, "skills"), [b for b, _ in user_dirs]):
         skills.append(entry(md, base, "user", "", "{base}"))
     if top:
         for base, md in skill_dirs(os.path.join(top, ".claude", "skills")):
