@@ -9,7 +9,7 @@
     "CLAUDE_CODE_PLUGIN_DIRS": "~/.claude/mods",
     "CLAUDE_CODE_EXPERIMENTAL_CODE_MODE": "1"
   },
-  "model": "sonnet",
+  "model": "opus",
   "advisorModel": "fable",
   "effortLevel": "high",
   "modelSettings": {
