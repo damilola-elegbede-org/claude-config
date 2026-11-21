@@ -1,3 +1,6 @@
 {
-  "mcp__plugin_chrome-devtools-mcp_chrome-devtools__close_page": "write"
+  "mcp__plugin_chrome-devtools-mcp_chrome-devtools__close_page": "write",
+  "mcp__claude-artifacts__publish_files": "write",
+  "mcp__claude-artifacts__publish_version": "write",
+  "mcp__claude-artifacts__edit_version": "write"
 }

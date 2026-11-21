@@ -640,6 +640,24 @@ set_mode G4-prod-infra enforce
 OUT=$(run_hook jev-gate.sh "$(mcp_in "$CLOSE_TAB")")
 assert_contains "override: overridden write with a production target still hits G4" "$OUT" "G4-prod-infra"
 
+# claude-artifacts publish tools: the "publish" verb must not make them outward; delete stays gated
+new_home
+set_mode mcp-classifier enforce
+set_mode G4-prod-infra off
+mock_class outward 0.95
+for t in mcp__claude-artifacts__publish_files mcp__claude-artifacts__publish_version mcp__claude-artifacts__edit_version; do
+  OUT=$(run_hook jev-gate.sh "$(mcp_in "$t")")
+  assert_empty "artifacts override: $t is allowed with no checkpoint" "$OUT"
+  assert_contains "artifacts override: $t resolves to write" "$(gate_log)" "override-hit:write"
+done
+assert_eq "artifacts override: no Jev call for publish tools" "0" "$(calls)"
+seed_class mcp__claude-artifacts__publish_files outward 0.95
+OUT=$(run_hook jev-gate.sh "$(mcp_in mcp__claude-artifacts__publish_files)")
+assert_empty "artifacts override: a cached outward entry does not matter" "$OUT"
+mock_class delete 0.95
+OUT=$(run_hook jev-gate.sh "$(mcp_in mcp__claude-artifacts__delete_artifact)")
+assert_contains "artifacts override: delete_artifact is still gated" "$OUT" "deletes data"
+
 # low-confidence classification still obeys threshold
 mock_class outward 0.3
 OUT=$(run_hook jev-gate.sh "$(mcp_in mcp__x__ping_thing)")
